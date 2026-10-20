@@ -26,3 +26,9 @@ funkbox = "funkbox.cli:main"
 
 [tool.uv]
 package = false
+
+[tool.pytest.ini_options]
+# only our tests: vendor/ holds cloned third-party repos (gimp-mcp, FastSD) whose own test files
+# must never be collected (gimp-mcp's call argparse at import time and abort the whole run)
+testpaths = ["tests"]
+norecursedirs = ["vendor", "out", "projects", "inbox", "inputs", "models", ".venv", ".git", "node_modules"]
