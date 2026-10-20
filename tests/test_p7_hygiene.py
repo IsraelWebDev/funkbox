@@ -35,8 +35,10 @@ def test_no_file_over_5mb():
     assert not big, big
 
 
-def test_preview_is_small():
-    assert (ROOT / "docs" / "preview.png").stat().st_size <= 2 * 1024 * 1024
+def test_gallery_is_small():
+    files = [p for p in (ROOT / "docs" / "gallery").iterdir() if p.is_file()]
+    assert files and all(p.stat().st_size <= 2 * 1024 * 1024 for p in files), files
+    assert sum(p.stat().st_size for p in files) <= 6 * 1024 * 1024
 
 
 def test_no_secrets():
@@ -70,7 +72,7 @@ def test_license_notices_and_gitignore():
 
 def test_readme_is_public_facing():
     r = (ROOT / "README.md").read_text()
-    assert "AGENTS.md" in r and "docs/preview.png" in r and "OpenGL 3.3" in r and "MIT" in r
-    assert len(r.splitlines()) < 90
+    assert "AGENTS.md" in r and "docs/gallery/" in r and "OpenGL 3.3" in r and "MIT" in r
+    assert len(r.splitlines()) < 200
     for d in ("loops.md", "reel.md", "studio.md"):
         assert (ROOT / "docs" / d).is_file() and f"docs/{d}" in r

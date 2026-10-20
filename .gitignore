@@ -4,6 +4,7 @@ __pycache__/
 *.mp4
 !examples/*/preview.mp4
 *.gif
+!docs/gallery/*.gif
 .pytest_cache/
 models/
 examples/reel_demo/inputs/**/*.png

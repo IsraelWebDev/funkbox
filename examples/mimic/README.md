@@ -1,4 +1,4 @@
-# Demo: a 20-second vertical carpet-cleaner ad (fictional brand)
+# Demo: a 23-second vertical carpet-cleaner ad (fictional brand)
 
 This example follows the structure of a typical social product ad:
 - 12 quick cuts on the beat;
@@ -43,3 +43,39 @@ python -m funkbox reel render     examples/mimic/mimic.reel.json --name glowmop-
   video generator drop straight into the same shot list.
 - **Prompting tip:** generate scenes at `square`. SD-Turbo is trained at 512x512, and tall sizes often
   duplicate the subject.
+
+## The scene prompts
+
+FastSD (SD-Turbo, 1 step) with the negative prompt `text, letters, watermark, logo, label, writing, blurry,
+deformed, cartoon`, two seeds each. The first round was tall (512x896): `fibers`, `floor`, `stain` and `clean` come
+from it. Tall frames often duplicated people and machines, so `room`, `machine`, `worker`, `wand` and `dog` were
+generated again at `square` from the same subjects (the `-a`/`-b` pairs are two takes), and `room-warm` is a warmer
+take on `room`. Every chosen image was then upscaled 2x with EDSR.
+
+| shot | prompt |
+|---|---|
+| `fibers` | extreme macro photo of beige wool carpet fibers, loops of yarn, soft window light, shallow depth of field, photorealistic |
+| `room` | bright modern living room with beige wall-to-wall carpet, white sofa, orange cushions, large windows, morning sunlight, wide angle interior photo |
+| `machine` | red and black professional carpet extractor machine standing on beige carpet in a bright living room, low angle product photo, photorealistic |
+| `wand-a`, `wand-b` | close-up of a carpet cleaning wand nozzle gliding over beige carpet, water extraction, living room background blurred, photorealistic |
+| `worker-a`, `worker-b` | professional cleaner in maroon polo shirt cleaning a beige carpet with a wand in a bright living room, full body, photorealistic |
+| `stain` | close-up of a coffee stain on a beige carpet, natural light, photorealistic |
+| `clean` | freshly cleaned beige carpet with neat stripes, sunlight from window, living room floor, photorealistic |
+| `dog` | golden retriever lying on a clean beige carpet in a sunny living room, photorealistic |
+| `floor` | low angle view of beige carpet floor with blurred bright living room background, empty space in the foreground, photorealistic |
+
+To Claude, the same thing is one request: *"generate these scenes, two seeds each, and upscale the best one of
+each 2x"*, followed by the list.
+
+## The shot list at a glance
+
+| shots | caption (copy id) | voiceover | product in shot |
+|---|---|---|---|
+| 1-2 fibers, room | `hook` | yes | |
+| 3-4 machine, floor | `meet` | yes | yes |
+| 5-8 worker, wands | `care` | yes | |
+| 9-10 stain, clean | `tough` | yes | |
+| 11-12 warm room, dog | `gentle` | yes | shot 12 |
+| end card (3.5 s) | `end_head`, `end_sub`, `url` | no | yes |
+
+Cut lengths are `auto` (long enough for the voiceover line) or `beats:2`, so every cut lands on the music.
