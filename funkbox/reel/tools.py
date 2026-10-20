@@ -105,14 +105,14 @@ def reel_templates() -> str:
 
 
 @safe
-def reel_validate(reel: dict | None = None, project: str = "") -> str:
+def reel_validate(reel: dict | str | None = None, project: str = "") -> str:
     """Check a reel (or project=<name>): schema, no literal text, copy IDs, files, caption fit, caption/product
     collisions, timing, and for projects that copy.json is the approved, locked deck. Returns errors/warnings."""
     return on_gl(lambda: _validate(_src(reel, project or None)).text())
 
 
 @safe
-def reel_storyboard(reel: dict | None = None, project: str = "") -> list:
+def reel_storyboard(reel: dict | str | None = None, project: str = "") -> list:
     """Contact sheet: one frame per shot (at its midpoint) plus the end card, with shot id, duration and
     copy IDs printed below each frame. The fast way to iterate. Takes a reel or project=<name>."""
     def go():
@@ -124,7 +124,7 @@ def reel_storyboard(reel: dict | None = None, project: str = "") -> list:
 
 
 @safe
-def reel_still(reel: dict | None = None, shot_id: str = "", t: float = 0.5, project: str = "") -> list:
+def reel_still(reel: dict | str | None = None, shot_id: str = "", t: float = 0.5, project: str = "") -> list:
     """One frame of a shot, t seconds into it (use shot_id 'end_card' for the end card). Takes a reel or project=<name>."""
     if not shot_id:
         raise ValueError("shot_id is required (use 'end_card' for the end card)")
@@ -153,7 +153,7 @@ def _render_result(out, audit: bool) -> list:
 
 
 @safe
-def reel_render(reel: dict | None = None, name: str = "", draft: bool = False, audit: bool = True,
+def reel_render(reel: dict | str | None = None, name: str = "", draft: bool = False, audit: bool = True,
                 project: str = "") -> list:
     """Render the reel (or project=<name>) to <out>/<name>.mp4 (a project renders into its own out/ folder and
     name defaults to the project name). Use draft=true first (540x960, 24fps, no depth model).

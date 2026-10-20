@@ -164,3 +164,15 @@ def test_server_starts_fast_without_extras(tmp_path):
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
                        env=server_env(tmp_path / "h"))
     assert r.returncode == 0 and r.stdout.strip() == "[]", r.stderr + r.stdout
+
+
+def test_reel_tools_accept_a_path_like_poster_tools(gl, tmp_path):
+    """reel_* tools take a .reel.json path as well as an inline object (found on the laptop: a path string
+    was rejected by the schema while poster_* accepted it)."""
+    home = ROOT  # the demo reel and its assets live in the repo
+    async def go(s, init):
+        r = await s.call_tool("reel_validate", {"reel": "examples/mimic/mimic.reel.json"})
+        return r
+    res = asyncio.run(session(home, go))
+    assert not res.is_error, res.content
+    assert "OK" in text(res)
