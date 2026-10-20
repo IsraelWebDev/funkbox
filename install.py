@@ -295,6 +295,9 @@ def setup_fastsd(r: Runner) -> None:
     if not git_clone(r, FASTSD_URL, dest):
         return
     uv = find_uv()
+    if not uv and r.dry:
+        r.say("   (uv not found: a real run would stop here and ask for it; showing the plan with 'uv')")
+        uv = "uv"
     if not uv:
         r.say("   uv is required for FastSD's Python 3.11 environment: https://docs.astral.sh/uv/ "
               "(pip install uv), then run this again")
