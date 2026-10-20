@@ -18,7 +18,7 @@ import pytest  # noqa: E402
 
 @pytest.fixture(scope="session")
 def gl():
-    from funkgl.context import GLUnavailable, create_context
+    from funkbox.gl.context import GLUnavailable, create_context
     try:
         return create_context()
     except GLUnavailable as e:
@@ -29,7 +29,7 @@ def gl():
 def demo(tmp_path_factory, gl):
     """Synthetic demo assets at 270x480 inside FUNK_HOME/out/ (the only writable place)."""
     import make_assets
-    from funkgl.recipe import funk_out
+    from funkbox.config import funk_out
     d = funk_out() / "test_demo_assets"
     make_assets.make(d, 270, 480)
     return d
@@ -41,7 +41,7 @@ def work(request):
     import re
     import shutil
 
-    from funkgl.recipe import funk_out
+    from funkbox.config import funk_out
     d = funk_out() / "test_work" / re.sub(r"[^A-Za-z0-9_-]", "_", request.node.name)
     shutil.rmtree(d, ignore_errors=True)
     d.mkdir(parents=True)

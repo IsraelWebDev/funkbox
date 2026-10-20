@@ -14,7 +14,7 @@ inbox/
 projects/
 vendor/
 funkbox.toml
-studio/GIMP-MCP.cmd
+funkbox/studio/GIMP-MCP.cmd
 shortcuts/
 *.lnk
 uv.lock

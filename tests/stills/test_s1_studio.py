@@ -10,7 +10,7 @@ import pytest
 from PIL import Image
 
 import stills_fixtures  # noqa: F401  (env + sys.path for the stills tests)
-import sdcore
+from funkbox.studio import sdcore
 
 ROOT = Path(__file__).resolve().parents[2]
 mcp = pytest.importorskip("mcp")
@@ -143,7 +143,7 @@ def test_studio_tools_on_the_stub(tmp_path):
            "STUDIO_FAKE_SD": "1"}
 
     async def go():
-        params = StdioServerParameters(command=sys.executable, args=[str(ROOT / "studio" / "studio_mcp.py")], env=env)
+        params = StdioServerParameters(command=sys.executable, args=[str(ROOT / "funkbox" / "studio" / "studio_mcp.py")], env=env)
         async with stdio_client(params) as (r, w):
             async with ClientSession(r, w) as s:
                 await s.initialize()

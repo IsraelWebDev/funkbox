@@ -91,10 +91,10 @@ def test_code_commands_and_main_unregister(tmp_path, monkeypatch, capsys):
 
 
 def test_gimp_cmd_template_rendered_without_machine_paths(tmp_path):
-    tpl = (ROOT / "studio" / "GIMP-MCP.cmd.template").read_text()
+    tpl = (ROOT / "funkbox" / "studio" / "GIMP-MCP.cmd.template").read_text()
     assert "C:\\dev" not in tpl and "C:/dev" not in tpl
-    (tmp_path / "studio").mkdir()
-    shutil.copy(ROOT / "studio" / "GIMP-MCP.cmd.template", tmp_path / "studio")
+    (tmp_path / "funkbox" / "studio").mkdir(parents=True)
+    shutil.copy(ROOT / "funkbox" / "studio" / "GIMP-MCP.cmd.template", tmp_path / "funkbox" / "studio")
     out = install.render_gimp_cmd(install.Runner(False, tmp_path), Path("G:/Apps/GIMP/bin/gimp-3.2.exe"),
                                   Path("G:/v/gimp-mcp"))
     text = out.read_bytes().decode()
@@ -106,22 +106,21 @@ def test_funkbox_toml_roundtrip_and_resolution_order(tmp_path, monkeypatch):
     install.write_toml(r, fastsd_dir=r"D:\tools\fast sd", gimp_exe='C:\\Program Files\\GIMP 3\\bin\\gimp-3.exe')
     install.write_toml(r, gimp_mcp_dir="/opt/gm")
     assert install.read_toml(tmp_path / "funkbox.toml")["fastsd_dir"] == r"D:\tools\fast sd"
-    sys.path.insert(0, str(ROOT / "studio"))
-    import paths
+    from funkbox import config as paths
     for k in ("FASTSD_DIR", "GIMP_MCP_DIR", "GIMP_EXE"):
         monkeypatch.delenv(k, raising=False)
-    assert paths.fastsd_dir(tmp_path) == Path(r"D:\tools\fast sd")
-    assert paths.gimp_mcp_dir(tmp_path) == Path("/opt/gm")
+    assert paths.get(tmp_path).fastsd_dir == Path(r"D:\tools\fast sd")
+    assert paths.get(tmp_path).gimp_mcp_dir == Path("/opt/gm")
     monkeypatch.setenv("FASTSD_DIR", "/env/wins")
-    assert paths.fastsd_dir(tmp_path) == Path("/env/wins")
+    assert paths.get(tmp_path).fastsd_dir == Path("/env/wins")
     empty = tmp_path / "empty"
     empty.mkdir()
     monkeypatch.delenv("FASTSD_DIR")
-    assert paths.fastsd_dir(empty) == empty / "vendor" / "fastsdcpu"
+    assert paths.get(empty).fastsd_dir == empty / "vendor" / "fastsdcpu"
 
 
 def test_no_hardcoded_machine_paths_in_studio():
-    for p in (ROOT / "studio").iterdir():
+    for p in (ROOT / "funkbox" / "studio").iterdir():
         if p.is_file() and p.suffix in (".py", ".template", ".cmd"):
             t = p.read_text(encoding="utf-8")
             assert "C:\\dev" not in t and "C:/dev" not in t, p.name

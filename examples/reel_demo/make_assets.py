@@ -56,8 +56,8 @@ def _font(px: int):
 
 def make_shots(dest: Path, w: int, h: int) -> list[str]:
     """Gradient/shader backgrounds with a few flat shapes on top (no text)."""
-    from funkgl.engine import Engine
-    from funkgl.recipe import Recipe2
+    from funkbox.gl.engine import Engine
+    from funkbox.gl.recipe import Recipe2
     out = []
     eng = Engine(w, h)
     try:
@@ -142,8 +142,8 @@ def click_track(path: Path, bpm: float = 120.0, seconds: float = 30.0, sr: int =
 
 
 def make_clip(path: Path, w: int, h: int, seconds: float = 3.0) -> None:
-    import funk
-    ff = funk.ffmpeg_exe()
+    from funkbox.media import ffmpeg_exe
+    ff = ffmpeg_exe()
     path.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i",
                     f"mandelbrot=size={w}x{h}:rate=30", "-t", str(seconds), "-c:v", "libx264",
@@ -228,8 +228,6 @@ def main() -> None:
     ap.add_argument("--size", default="1080x1920")
     ap.add_argument("--dest", default=str(Path(__file__).resolve().parent))
     a = ap.parse_args()
-    if sys.platform == "linux" and "DISPLAY" not in os.environ:
-        os.environ.setdefault("FUNK_GL_BACKEND", "egl")
     w, h = (int(x) for x in a.size.lower().split("x"))
     for k, v in make(Path(a.dest), w, h).items():
         print(f"{k}: {v}")

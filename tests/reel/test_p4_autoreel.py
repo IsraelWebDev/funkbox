@@ -5,9 +5,9 @@ import pytest
 from PIL import Image
 
 import synth
-from reel import approval, autoreel, captions, collision, project as P
-from reel.schema import ReelError
-from reel.validate import validate
+from funkbox.reel import approval, autoreel, captions, collision, project as P
+from funkbox.reel.schema import ReelError
+from funkbox.reel.validate import validate
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ def layout_boxes(res):
     """(caption box, product box) per shot, recomputed independently from the generated reel."""
     d = P.project_dir(res.slug)
     reel, deck = res.report.reel, res.report.deck
-    from funkgl.recipe import resolve_path
+    from funkbox.config import resolve_path
     fonts = captions.Fonts(resolve_path(reel.brand.font_caption, d), resolve_path(reel.brand.font_display, d))
     out = []
     W, H = reel.settings.width, reel.settings.height
@@ -95,7 +95,7 @@ def test_filler_funk2_is_used_and_reported_when_fewer_than_4_visuals(penv, gl):
     # the filler recipe has no text block and renders in brand colours (pixels are not grey)
     rec = json.loads((d / "funk2" / "filler-1.json").read_text())
     assert "text" not in rec
-    from reel import render
+    from funkbox.reel import render
     plan = render.prepare(str(res.path))
     sid = next(s.id for s in plan.reel.shots if s.source.kind == "funk2")
     r = render.Renderer(plan.reel, plan.deck, plan.spans, width=135, height=240, depth_mode="off")
@@ -207,9 +207,9 @@ def test_resolver_flips_anchor_then_shrinks_then_errors(penv):
     synth.make_project()
     d = P.project_dir("demo")
     deck = autoreel.copydeck.load_copy(d / "copy.json")
-    from funkgl.recipe import resolve_path
+    from funkbox.config import resolve_path
     fonts = captions.Fonts(resolve_path("fonts/Oswald-SemiBold.ttf", d), resolve_path("fonts/DMSerifDisplay-Regular.ttf", d))
-    from reel.schema import Brand
+    from funkbox.reel.schema import Brand
     asp = collision.image_aspect(d / "product" / "product.png")
     # 1. bottom collides with a low product -> flips to top
     sh = {"id": "s1", "caption": {"copy_id": "tackle", "style": "red-box", "reveal": "none", "anchor": "bottom"},
@@ -231,8 +231,8 @@ def test_resolver_flips_anchor_then_shrinks_then_errors(penv):
 def test_storyboard_of_the_auto_reel(penv, gl):
     synth.make_project()
     res = autoreel.auto_reel("demo")
-    from reel import render
-    from reel.storyboard import storyboard
+    from funkbox.reel import render
+    from funkbox.reel.storyboard import storyboard
     plan = render.prepare(str(res.path))
     sb = storyboard(plan, P.project_dir("demo") / "out" / "demo-storyboard.png", tile_w=200)
     assert len(plan.spans) == len(res.report.reel.shots) + 1 and sb.width >= 4 * 200

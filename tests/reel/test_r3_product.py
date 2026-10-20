@@ -2,9 +2,9 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from reel import product as P
-from reel import render
-from reel.validate import validate
+from funkbox.reel import product as P
+from funkbox.reel import render
+from funkbox.reel.validate import validate
 
 W, H = 540, 960
 

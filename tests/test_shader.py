@@ -1,6 +1,6 @@
 import pytest
 
-from funkgl.shader import (USER_LINE_OFFSET, ShaderError, ShaderSource, parse_params,
+from funkbox.gl.shader import (USER_LINE_OFFSET, ShaderError, ShaderSource, parse_params,
                            sample_params)
 
 GOOD = """vec4 effect(vec2 p) {

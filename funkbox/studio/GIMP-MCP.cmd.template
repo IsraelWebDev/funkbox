@@ -1,0 +1,13 @@
+@echo off
+rem GIMP + MCP: opens GIMP with the gimp-mcp plug-in server already listening on localhost:9877.
+rem Generated from GIMP-MCP.cmd.template by install.py (paths filled in). Run it yourself
+rem (desktop shortcut). It keeps the plug-in in your GIMP profile up to date, then starts GIMP;
+rem the funkbox server / Claude only *connect* to it, they never start or close GIMP.
+setlocal
+set "GIMP_EXE=@GIMP_EXE@"
+set "PLUGIN_SRC=@GIMP_MCP_DIR@\gimp-mcp-plugin.py"
+set "PD=%APPDATA%\GIMP\@GIMP_PROFILE@\plug-ins\gimp-mcp-plugin"
+if not exist "%GIMP_EXE%" (echo GIMP not found at %GIMP_EXE% & pause & exit /b 1)
+if not exist "%PD%" mkdir "%PD%"
+copy /Y "%PLUGIN_SRC%" "%PD%\" >nul
+start "" "%GIMP_EXE%" --no-splash --batch-interpreter=python-fu-eval -b "__file__ = r'@FUNK_HOME_FWD@/funkbox/studio/gimp_start_mcp.py'; exec(open(__file__, encoding='utf-8').read())"

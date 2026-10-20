@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from reel import depth, motion
-from reel.schema import Motion
+from funkbox.reel import depth, motion
+from funkbox.reel.schema import Motion
 
 
 def noise_image(w=270, h=480, seed=1):
@@ -133,8 +133,8 @@ def test_real_depth_model_output_range(demo):
 def test_parallax_without_depth_degrades_to_kenburns(demo, gl, monkeypatch):
     import json
 
-    from reel import render
-    from reel.validate import validate
+    from funkbox.reel import render
+    from funkbox.reel.validate import validate
     monkeypatch.delenv("REEL_DEPTH", raising=False)
     from conftest import make_plain_reel
     rep = validate(make_plain_reel(demo), demo)

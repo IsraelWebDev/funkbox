@@ -30,9 +30,6 @@ import os
 import sys
 from pathlib import Path
 
-if sys.platform == "linux" and "DISPLAY" not in os.environ:
-    os.environ.setdefault("FUNK_GL_BACKEND", "egl")
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
@@ -50,7 +47,7 @@ def _err(msg: str) -> int:
 def _reel_arg(a) -> str:
     """The reel path, or a project's <slug>.reel.json for --project."""
     if getattr(a, "project", None):
-        from reel import project
+        from funkbox.reel import project
         p = project.project_dir(a.project) / f"{a.project}.reel.json"
         if not p.is_file():
             raise ValueError(f"project {a.project!r} has no reel yet; run: reel_cli.py auto-reel {a.project}")
@@ -61,7 +58,7 @@ def _reel_arg(a) -> str:
 
 
 def cmd_validate(a) -> int:
-    from reel.validate import validate
+    from funkbox.reel.validate import validate
     rep = validate(_reel_arg(a))
     print(rep.text())
     return 0 if rep.ok else 1
@@ -70,8 +67,8 @@ def cmd_validate(a) -> int:
 def cmd_still(a) -> int:
     from PIL import Image
 
-    from funkgl.recipe import funk_out
-    from reel import render
+    from funkbox.config import funk_out
+    from funkbox.reel import render
     plan = render.prepare(_reel_arg(a))
     st = plan.reel.settings
     w = a.width or st.width
@@ -92,9 +89,9 @@ def cmd_still(a) -> int:
 def cmd_storyboard(a) -> int:
     import time
 
-    from funkgl.recipe import funk_out
-    from reel import render
-    from reel.storyboard import storyboard
+    from funkbox.config import funk_out
+    from funkbox.reel import render
+    from funkbox.reel.storyboard import storyboard
     plan = render.prepare(_reel_arg(a))
     t0 = time.perf_counter()
     out = Path(a.output) if a.output else funk_out() / "storyboard.png"
@@ -104,7 +101,7 @@ def cmd_storyboard(a) -> int:
 
 
 def cmd_render(a) -> int:
-    from reel import render
+    from funkbox.reel import render
     src = _reel_arg(a)
     name = a.name or Path(src).name.replace(".reel.json", "").replace(".json", "")
     out_dir = a.out or (str(Path(src).parent / "out") if getattr(a, "project", None) else None)
@@ -121,7 +118,7 @@ def cmd_render(a) -> int:
 
 
 def cmd_setup_models(a) -> int:
-    from reel import models
+    from funkbox.reel import models
     models.setup_models(only=a.only, force=a.force)
     for k, v in models.status().items():
         print(f"{k}: {'ready' if v['ready'] else 'MISSING'}  licence: {v['license']}")
@@ -129,7 +126,7 @@ def cmd_setup_models(a) -> int:
 
 
 def cmd_cutout(a) -> int:
-    from reel.product import cutout
+    from funkbox.reel.product import cutout
     out = Path(a.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     cutout(a.photo, a.tolerance, a.feather).save(out)
@@ -138,7 +135,7 @@ def cmd_cutout(a) -> int:
 
 
 def cmd_beats(a) -> int:
-    from reel import audio
+    from funkbox.reel import audio
     info = audio.detect_beats(a.music)
     print(f"tempo: {info.bpm:.1f} BPM, {len(info.beats)} beats in {info.duration:.1f}s")
     print("first beats (s): " + ", ".join(f"{b:.3f}" for b in info.beats[:12]))
@@ -148,7 +145,7 @@ def cmd_beats(a) -> int:
 def cmd_approve_copy(a) -> int:
     """A PERSON at a terminal re-approves copy.json after a hand edit (or approves the pending draft with
     --from-draft). The agent must not run this: it is the user's own approval path."""
-    from reel import approval, project
+    from funkbox.reel import approval, project
     if not sys.stdin.isatty() and not a.stdin:
         return _err("approve-copy must be typed by a person at a terminal. (If YOU are piping your own answer in, "
                     "add --stdin.)")
@@ -174,7 +171,7 @@ def cmd_approve_copy(a) -> int:
 
 
 def cmd_new_project(a) -> int:
-    from reel import project
+    from funkbox.reel import project
     meta = project.new_project(a.name)
     print(f"project {meta['slug']!r} created at {project.project_dir(meta['slug'])}")
     print(f"inbox (drop files here): {project.inbox_dir()}")
@@ -183,7 +180,7 @@ def cmd_new_project(a) -> int:
 
 
 def cmd_list_projects(a) -> int:
-    from reel import project
+    from funkbox.reel import project
     ps = project.list_projects()
     for p in ps:
         print(f"{p['slug']}: {p['status']}; product {'yes' if p['has_product'] else 'no'}, copy "
@@ -195,14 +192,14 @@ def cmd_list_projects(a) -> int:
 
 
 def cmd_ingest(a) -> int:
-    from reel import ingest
+    from funkbox.reel import ingest
     res = ingest.ingest(a.project, a.source, move=not a.copy)
     print(res.text())
     return 0
 
 
 def cmd_set_product(a) -> int:
-    from reel import ingest
+    from funkbox.reel import ingest
     pr = ingest.set_product(a.project, a.file)
     q = pr["cutout"]
     print(f"product set to {pr['file']}; cut-out score {q['score']} ({'OK' if q['ok'] else 'POOR'})")
@@ -214,13 +211,13 @@ def cmd_set_product(a) -> int:
 
 
 def cmd_brand(a) -> int:
-    from reel import brand
+    from funkbox.reel import brand
     print(brand.brand_text(brand.brand_from_assets(a.project)))
     return 0
 
 
 def cmd_set_brand(a) -> int:
-    from reel import brand
+    from funkbox.reel import brand
     print(brand.brand_text(brand.set_brand(a.project, a.primary, a.secondary, a.text, a.font_caption, a.font_display)))
     return 0
 
@@ -228,7 +225,7 @@ def cmd_set_brand(a) -> int:
 def cmd_propose_copy(a) -> int:
     """Draft copy from a JSON file {id: {text, say?}} (or the full copy-deck shape). Draft only: nothing is
     approved until you run approve-copy."""
-    from reel import approval
+    from funkbox.reel import approval
     raw = json.loads(Path(a.file).read_text(encoding="utf-8-sig"))
     lines, pron, bn = raw, None, None
     if isinstance(raw, dict) and "lines" in raw and isinstance(raw["lines"], dict):
@@ -240,14 +237,14 @@ def cmd_propose_copy(a) -> int:
 
 
 def cmd_copy_diff(a) -> int:
-    from reel import approval
+    from funkbox.reel import approval
     print(approval.copy_diff(a.project))
     return 0
 
 
 def cmd_auto_reel(a) -> int:
-    from reel import autoreel, render
-    from reel.storyboard import storyboard
+    from funkbox.reel import autoreel, render
+    from funkbox.reel.storyboard import storyboard
     res = autoreel.auto_reel(a.project, a.length, a.style, a.pace, a.cta or None, a.music)
     print(res.text())
     plan = render.prepare(str(res.path))
@@ -258,7 +255,7 @@ def cmd_auto_reel(a) -> int:
 
 
 def cmd_project_render(a) -> int:
-    from reel import project, render
+    from funkbox.reel import project, render
     d = project.project_dir(a.project)
     reel = d / f"{a.project}.reel.json"
     if not reel.is_file():
@@ -274,7 +271,7 @@ def cmd_project_render(a) -> int:
 
 
 def cmd_make_shortcuts(a) -> int:
-    from reel import shortcuts
+    from funkbox.reel import shortcuts
     for line in shortcuts.make_shortcuts(dry_run=a.dry_run):
         print(line)
     return 0
@@ -382,7 +379,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return a.fn(a)
     except Exception as e:  # noqa: BLE001
-        from reel.schema import ReelError
+        from funkbox.reel.schema import ReelError
         if isinstance(e, ReelError):
             for m in e.errors:
                 print(f"error: {m}", file=sys.stderr)

@@ -29,9 +29,9 @@ except ImportError:  # mcp 1.x
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from funkgl.context import GLUnavailable  # noqa: E402
-from funkgl.recipe import funk_inputs, funk_out  # noqa: E402
-from stills import api, edit as editmod, ora, render, schema, variations  # noqa: E402
+from funkbox.gl.context import GLUnavailable  # noqa: E402
+from funkbox.config import funk_inputs, funk_out  # noqa: E402
+from funkbox.stills import api, edit as editmod, ora, render, schema, variations  # noqa: E402
 
 INSTRUCTIONS = (
     "Always preview_poster (or poster_variations) before a full render_poster, and look at the picture. "
@@ -84,7 +84,7 @@ def _safe(fn):
 
 def _out_dir(doc: dict) -> Path:
     if doc.get("project"):
-        from reel import project as projmod
+        from funkbox.reel import project as projmod
         return projmod.project_dir(doc["project"]) / "out"
     return api.posters_dir()
 
@@ -94,7 +94,7 @@ def _out_dir(doc: dict) -> Path:
 @_safe
 def presets() -> str:
     """Canvas presets, layer types, blend modes, filters, effects, export formats and the edit operations."""
-    from funkgl.recipe import BLEND_MODES
+    from funkbox.gl.recipe import BLEND_MODES
     rows = ["canvas presets: " + ", ".join(f"{k} {w}x{h}" for k, (w, h) in schema.PRESETS.items())
             + f"  (or width/height, {schema.MIN_SIDE}..{schema.MAX_SIDE}; background may be \"transparent\")",
             "layer types: " + ", ".join(schema.LAYER_TYPES),

@@ -20,9 +20,6 @@ import os
 import sys
 from pathlib import Path
 
-if sys.platform == "linux" and "DISPLAY" not in os.environ:
-    os.environ.setdefault("FUNK_GL_BACKEND", "egl")
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
@@ -44,8 +41,8 @@ def _print_paths(paths: dict) -> None:
 
 
 def cmd_presets(a) -> int:
-    from stills import schema
-    from funkgl.recipe import BLEND_MODES
+    from funkbox.stills import schema
+    from funkbox.gl.recipe import BLEND_MODES
     for k, (w, h) in schema.PRESETS.items():
         print(f"{k}: {w}x{h}")
     print("layer types: " + ", ".join(schema.LAYER_TYPES))
@@ -56,7 +53,7 @@ def cmd_presets(a) -> int:
 
 
 def cmd_preview(a) -> int:
-    from stills import api
+    from funkbox.stills import api
     r, im = api.preview(_abs(a.poster), a.project or "", a.max_side)
     out = Path(a.output or "out/preview.png")
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -67,22 +64,22 @@ def cmd_preview(a) -> int:
 
 
 def _doc(a):
-    from stills import api
+    from funkbox.stills import api
     return api.load_poster(_abs(a.poster), getattr(a, "project", "") or "")
 
 
 def _outdir(a, doc):
-    from stills import api
+    from funkbox.stills import api
     if a.out:
         return a.out
     if doc.get("project"):
-        from reel import project
+        from funkbox.reel import project
         return project.project_dir(doc["project"]) / "out"
     return api.posters_dir()
 
 
 def cmd_render(a, formats=None) -> int:
-    from stills import api, render
+    from funkbox.stills import api, render
     doc, base = _doc(a)
     r = render.render_document(doc, base)
     paths = render.write_outputs(r, _outdir(a, doc), a.name or r.doc.name, formats)
@@ -96,7 +93,7 @@ def cmd_export_ora(a) -> int:
 
 
 def cmd_vary(a) -> int:
-    from stills import variations
+    from funkbox.stills import variations
     doc, base = _doc(a)
     res = variations.poster_variations(doc, _json_arg(a.vary), _outdir(a, doc), a.name, base)
     for lab, f in zip(res.labels, res.files):
@@ -106,7 +103,7 @@ def cmd_vary(a) -> int:
 
 
 def cmd_edit(a) -> int:
-    from stills import api, edit
+    from funkbox.stills import api, edit
     res = edit.edit_image(_abs(a.image), _json_arg(a.ops), a.name or "", project=a.project or None,
                           copy=a.copy or None, casual=a.casual, out_dir=a.out)
     print(api.describe(res.rendered))
@@ -115,7 +112,7 @@ def cmd_edit(a) -> int:
 
 
 def cmd_still(a) -> int:
-    from stills import api
+    from funkbox.stills import api
     paths, r = api.funk_still(_abs(a.source), a.t, a.preset, a.name or "", a.out)
     print(api.describe(r))
     _print_paths(paths)
@@ -123,7 +120,7 @@ def cmd_still(a) -> int:
 
 
 def cmd_ora_check(a) -> int:
-    from stills import api
+    from funkbox.stills import api
     print(api.ora_report(a.file))
     return 0
 
@@ -163,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return a.fn(a)
     except Exception as e:  # noqa: BLE001
-        from stills.schema import PosterError
+        from funkbox.stills.schema import PosterError
         msg = "\n".join(e.errors) if isinstance(e, PosterError) else f"{type(e).__name__}: {e}"
         print(f"error: {msg}", file=sys.stderr)
         return 1

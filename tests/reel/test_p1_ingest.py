@@ -6,7 +6,7 @@ import pytest
 from PIL import Image
 
 import synth
-from reel import ingest, project as P
+from funkbox.reel import ingest, project as P
 
 
 @pytest.fixture
@@ -37,7 +37,7 @@ def test_new_project_layout_and_slug_rules(penv):
 
 
 def test_projects_root_is_an_allowed_path_root(penv, monkeypatch):
-    from funkgl.recipe import allowed_roots
+    from funkbox.config import allowed_roots
     assert P.projects_root() in allowed_roots()
 
 

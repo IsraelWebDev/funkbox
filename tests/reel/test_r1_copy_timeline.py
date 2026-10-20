@@ -3,8 +3,8 @@ import json
 
 import pytest
 
-from reel import copydeck, timeline, validate
-from reel.schema import ReelError, parse_reel
+from funkbox.reel import copydeck, timeline, validate
+from funkbox.reel.schema import ReelError, parse_reel
 
 DECK = {"brand_name": "X", "lines": {"a": {"text": "ONE\nTWO", "say": "one two"}, "b": {"text": "Bee GLOWMOP"}},
         "pronounce": {"GLOWMOP": "glow mop"}}

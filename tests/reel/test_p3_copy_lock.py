@@ -9,9 +9,9 @@ from pathlib import Path
 import pytest
 
 import synth
-from reel import approval, ingest, project as P
-from reel.schema import ReelError
-from reel.validate import validate
+from funkbox.reel import approval, ingest, project as P
+from funkbox.reel.schema import ReelError
+from funkbox.reel.validate import validate
 
 ROOT = Path(__file__).resolve().parents[2]
 LINES = {"hook": {"text": "LOOK CLOSER.\nTIME FOR A CLEAN?", "say": "Look closer. Time for a clean?"},
@@ -109,7 +109,7 @@ def test_editing_copy_json_after_approval_makes_validate_and_render_fail(penv):
     bad = validate(str(reel))
     assert not bad.ok
     assert "copy.json changed since approval; run propose_copy/approve_copy again." in bad.text()
-    from reel import render
+    from funkbox.reel import render
     with pytest.raises(ReelError, match="changed since approval"):
         render.prepare(str(reel))
     with pytest.raises(ReelError, match="changed since approval"):

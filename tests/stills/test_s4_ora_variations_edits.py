@@ -12,7 +12,7 @@ from PIL import Image
 
 import stills_assets as assets
 from stills_fixtures import gl, work  # noqa: F401
-from stills import edit, ora, render, schema, variations
+from funkbox.stills import edit, ora, render, schema, variations
 
 
 def doc(layers, w=128, h=96, bg="#202020", **kw):
@@ -66,7 +66,7 @@ def test_ora_container_is_valid(imgs, work):
 
 
 def test_ora_op_names_cover_all_funkgl_blend_modes():
-    from funkgl.recipe import BLEND_MODES
+    from funkbox.gl.recipe import BLEND_MODES
     assert ora.OP == {"normal": "svg:src-over", "add": "svg:plus", "screen": "svg:screen", "multiply": "svg:multiply",
                       "overlay": "svg:overlay", "difference": "svg:difference", "softlight": "svg:soft-light",
                       "hue": "svg:hue"}

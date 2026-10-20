@@ -30,8 +30,8 @@ def count_frames(mp4: Path) -> int:
                             "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", str(mp4)],
                            capture_output=True, text=True, check=True)
         return int(r.stdout.strip().splitlines()[0])
-    import funk
-    ff = funk.ffmpeg_exe()
+    from funkbox.media import ffmpeg_exe
+    ff = ffmpeg_exe()
     if not ff:
         pytest.skip("no ffprobe or ffmpeg")
     r = subprocess.run([ff, "-i", str(mp4), "-map", "0:v:0", "-f", "null", "-"],

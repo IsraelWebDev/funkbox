@@ -6,11 +6,11 @@ import wave
 import numpy as np
 import pytest
 
-import funk
-from reel import audio, render
-from reel.copydeck import parse_copy
+from funkbox.media import ffmpeg_exe
+from funkbox.reel import audio, render
+from funkbox.reel.copydeck import parse_copy
 
-FF = funk.ffmpeg_exe()
+FF = ffmpeg_exe()
 
 
 def write_click(path, bpm, seconds=12.0, sr=44100, pad=False):
@@ -92,7 +92,7 @@ def mixed(request, demo, gl):
     """The demo reel mixed with the stub voice and (when installed) with the real Piper voice."""
     import os
 
-    from funkgl.recipe import funk_out
+    from funkbox.config import funk_out
     if request.param == "piper" and not _piper_ready():
         pytest.skip("Piper voice not installed")
     old = os.environ.get("REEL_TTS")

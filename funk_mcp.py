@@ -27,8 +27,9 @@ except ImportError:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP as _Server, Image  # type: ignore
 
 import funk
+from funkbox.config import funk_out
 
-OUT = Path(os.environ.get("FUNK_OUT", Path.home() / "funk-out")).expanduser()
+OUT = funk_out()
 Scalar = Union[str, int, float, bool]
 
 server = _Server(

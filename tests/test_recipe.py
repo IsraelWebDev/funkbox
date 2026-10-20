@@ -9,9 +9,9 @@ import pytest
 from PIL import Image
 
 import funk
-from funkgl import Engine, load_recipe, validate_loop
-from funkgl.recipe import (Layer, PostPass, Recipe2, Settings2, TextSpec, recipe_from_v1,
-                           resolve_path, save_recipe)
+from funkbox.gl import Engine, load_recipe, validate_loop
+from funkbox.gl.recipe import Layer, PostPass, Recipe2, Settings2, TextSpec, recipe_from_v1, save_recipe
+from funkbox.config import resolve_path
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -144,7 +144,7 @@ def test_bom_recipe_and_shader_load(gl, tmp_path, monkeypatch):
     """Windows PowerShell 5 `Set-Content -Encoding utf8` writes a BOM; both must still load."""
     import json
     from pathlib import Path
-    from funkgl.recipe import load_recipe
+    from funkbox.gl.recipe import load_recipe
     monkeypatch.setenv("FUNK_OUT", str(tmp_path))
     frag = tmp_path / "bom.frag"
     frag.write_bytes(b"\xef\xbb\xbf" + b"vec4 effect(vec2 p){ return vec4(palette(p.x), 1.0); }\n")
@@ -153,6 +153,6 @@ def test_bom_recipe_and_shader_load(gl, tmp_path, monkeypatch):
     rp = tmp_path / "bom.json"
     rp.write_bytes(b"\xef\xbb\xbf" + json.dumps(rec).encode())
     r = load_recipe(rp)
-    from funkgl.engine import Engine
+    from funkbox.gl.engine import Engine
     img = Engine(32, 32).render(r, 0)
     assert img.shape == (32, 32, 3)

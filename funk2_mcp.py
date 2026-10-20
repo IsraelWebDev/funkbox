@@ -33,13 +33,13 @@ except ImportError:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP as _Server, Image  # type: ignore
 
 import funk
-from funkgl.context import GLUnavailable, gl_info as _gl_info
-from funkgl.encode import render_recipe
-from funkgl.engine import Engine
-from funkgl.loopcheck import validate_loop
-from funkgl.recipe import (BLEND_MODES, LAYER_TYPES, Recipe2, funk_home, funk_inputs, funk_out,
-                           resolve_recipe)
-from funkgl.shader import ShaderError, ShaderSource
+from funkbox.gl.context import GLUnavailable, gl_info as _gl_info
+from funkbox.gl.encode import render_recipe
+from funkbox.gl.engine import Engine
+from funkbox.gl.loopcheck import validate_loop
+from funkbox.gl.recipe import BLEND_MODES, LAYER_TYPES, Recipe2, resolve_recipe
+from funkbox.config import funk_home, funk_inputs, funk_out
+from funkbox.gl.shader import ShaderError, ShaderSource
 
 Scalar = Union[str, int, float, bool]
 NAME_RE = re.compile(r"^[a-z0-9_\-]{1,40}$")
@@ -228,7 +228,7 @@ def list_looks() -> str:
                 ps.append(f"{p.name}={p.type} {p.min:g}..{p.max:g} (def {p.default:g})")
         note = " [no auto loop check]" if s.no_loopcheck else ""
         lines.append(f"  {n}{note}: " + ("; ".join(ps) if ps else "no params"))
-    post_dir = Path(__file__).resolve().parent / "funkgl" / "post"
+    post_dir = Path(__file__).resolve().parent / "funkbox" / "gl" / "post"
     lines.append("== POST PASSES (recipe `post`: [{\"name\": ..., <param>: value}]) ==")
     for f in sorted(post_dir.glob("*.frag")):
         s = ShaderSource.from_file(f)
@@ -256,7 +256,7 @@ def _write_shader_gl(name: str, source: str, check: bool):
     res = src.compile(eng.ctx)
     if not res.ok:
         return {"ok": False, "errors": res.errors, "src": src}
-    from funkgl.recipe import Layer, Settings2
+    from funkbox.gl.recipe import Layer, Settings2
     rec = Recipe2(settings=Settings2(width=384, height=384, seed=1), palette="vapor",
                   layers=[Layer(source=source)])
     rep = None

@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from funkgl import Engine
-from funkgl.recipe import Layer, PostPass, Recipe2, Settings2
+from funkbox.gl import Engine
+from funkbox.gl.recipe import Layer, PostPass, Recipe2, Settings2
 
 
 def recipe(*layers, size=64, **kw):
@@ -101,7 +101,7 @@ def test_v1_layer_matches_funk(eng):
 
 
 def test_text_overlay(eng):
-    from funkgl.recipe import TextSpec
+    from funkbox.gl.recipe import TextSpec
     src = "vec4 effect(vec2 p){ return vec4(0.0, 0.0, 0.0, 1.0); }"
     arr = eng.render(recipe(Layer(source=src), text=TextSpec(text="HI", size=0.4)), 0)
     assert arr.max() > 200

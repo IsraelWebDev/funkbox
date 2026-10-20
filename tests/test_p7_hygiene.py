@@ -64,7 +64,7 @@ def test_license_notices_and_gitignore():
         assert needle in n, needle
     gi = (ROOT / ".gitignore").read_text().split()
     for entry in ("out/", "inbox/", "projects/", "vendor/", "models/", ".venv/", "*.mp4", "*.gif", "*.wav",
-                  "funkbox.toml", "studio/GIMP-MCP.cmd"):
+                  "funkbox.toml", "funkbox/studio/GIMP-MCP.cmd"):
         assert entry in gi, entry
 
 

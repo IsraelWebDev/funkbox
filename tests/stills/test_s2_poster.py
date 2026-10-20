@@ -9,8 +9,8 @@ from PIL import Image
 
 import stills_assets as assets
 from stills_fixtures import gl, work  # noqa: F401
-from reel import product as RP
-from stills import raster, render, schema
+from funkbox.reel import product as RP
+from funkbox.stills import raster, render, schema
 
 
 def doc(layers, w=128, h=96, bg="#202020", **kw):
@@ -96,8 +96,8 @@ def test_blend_modes_match_numpy_within_2_levels(imgs, mode, opacity):
 
 def test_every_blend_mode_is_funkgls_own(imgs, gl):
     """Same pixels as funkgl's Engine blending two image layers: the compositor reuses blend.glsl."""
-    from funkgl.engine import Engine
-    from funkgl.recipe import BLEND_MODES, Recipe2
+    from funkbox.gl.engine import Engine
+    from funkbox.gl.recipe import BLEND_MODES, Recipe2
     work, a, b = imgs
     opaque = assets.save_noise(work / "c.png", 128, 96, 3)
     eng = Engine(128, 96)
@@ -261,8 +261,8 @@ def test_product_colour_match_is_one_invertible_transform(work, gl):
 
 def test_product_layer_equals_reels_compositor(work, gl):
     """Shadow + sprite as a normal-blended layer reproduces reel's frame compositing."""
-    from reel.motion import Camera
-    from reel.schema import ProductSpec
+    from funkbox.reel.motion import Camera
+    from funkbox.reel.schema import ProductSpec
     dd = prod_doc(work, shadow=0.7, height=0.5)
     r = render.render_document(dd)
     spec = ProductSpec(image=str(work / "bottle.png"), x=0.5, y=0.9, height=0.5, depth=0.5, shadow=0.7, match_color=0.0)

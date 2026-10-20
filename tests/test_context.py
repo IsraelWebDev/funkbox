@@ -1,4 +1,4 @@
-from funkgl.context import gl_info
+from funkbox.gl.context import gl_info
 
 
 def test_context(gl):

@@ -158,7 +158,7 @@ def test_install_wires_the_stills_server(capsys):
 
 def test_demo_poster_renders_with_exact_copy(gl, work):
     import subprocess as sp
-    from stills import render
+    from funkbox.stills import render
     ex = ROOT / "examples" / "stills"
     sp.run([sys.executable, str(ex / "make_assets.py"), "--dest", str(work / "inputs")], check=True, capture_output=True)
     doc = json.loads((ex / "glowmop_poster.poster.json").read_text())

@@ -14,7 +14,7 @@ import pytest  # noqa: E402
 
 @pytest.fixture(scope="session")
 def gl():
-    from funkgl.context import GLUnavailable, create_context
+    from funkbox.gl.context import GLUnavailable, create_context
     try:
         return create_context()
     except GLUnavailable as e:

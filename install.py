@@ -25,8 +25,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+from funkbox import config  # noqa: E402  (stdlib only: the one place that reads env and funkbox.toml)
 SERVER_KEYS = ("funk", "funk2", "reel", "studio", "stills", "gimp")
-SCRIPTS = {"funk": "funk_mcp.py", "funk2": "funk2_mcp.py", "reel": "reel_mcp.py", "studio": "studio/studio_mcp.py",
+SCRIPTS = {"funk": "funk_mcp.py", "funk2": "funk2_mcp.py", "reel": "reel_mcp.py", "studio": "funkbox/studio/studio_mcp.py",
            "stills": "stills_mcp.py"}
 FASTSD_URL = "https://github.com/rupeshs/fastsdcpu"
 GIMP_MCP_URL = "https://github.com/maorcc/gimp-mcp"
@@ -102,14 +104,7 @@ def server_entries(root: Path = ROOT, parts: tuple[str, ...] = ()) -> dict[str, 
     env = {"FUNK_HOME": str(root)}
     out = {k: {"command": py, "args": [str(root / rel)], "env": dict(env)} for k, rel in SCRIPTS.items()}
     # gimp-mcp location: env / funkbox.toml / vendor/ (same resolution as the studio server)
-    sys.path.insert(0, str(root))
-    try:
-        from studio.paths import gimp_mcp_dir
-        gdir = Path(gimp_mcp_dir(root))
-    except Exception:
-        gdir = root / "vendor" / "gimp-mcp"
-    finally:
-        sys.path.pop(0)
+    gdir = config.get(root).gimp_mcp_dir
     if "gimp" in parts or (gdir / "gimp_mcp_server.py").exists():
         # absolute uv path: Claude Desktop does not necessarily inherit the shell's PATH
         out["gimp"] = {"command": find_uv() or "uv",
@@ -279,14 +274,7 @@ def git_clone(r: Runner, url: str, dest: Path) -> bool:
 
 def configured_dir(r: "Runner", key: str, default: Path) -> Path:
     """An existing install named by env / funkbox.toml wins over cloning a fresh copy into vendor/."""
-    sys.path.insert(0, str(r.root))
-    try:
-        from studio import paths as sp
-        d = Path(getattr(sp, key)(r.root))
-    except Exception:
-        d = default
-    finally:
-        sys.path.pop(0)
+    d = getattr(config.get(r.root), key)
     return d if d.exists() else default
 
 
@@ -312,15 +300,15 @@ def setup_fastsd(r: Runner) -> None:
     if reqs.exists() or r.dry:
         r.run([uv, "pip", "install", "--python", str(fpy), "-r", str(reqs)])
     r.run([uv, "pip", "install", "--python", str(fpy), "pydantic>=2.11,<2.12", "fastapi-mcp"])
-    r.say("   copying studio/start_local_mcp.py and studio/sdcore.py into the FastSD folder (localhost-only launcher)")
+    r.say("   copying funkbox/studio/start_local_mcp.py and funkbox/studio/sdcore.py into the FastSD folder (localhost-only launcher)")
     if not r.dry:
         for f in ("start_local_mcp.py", "sdcore.py"):
-            shutil.copy2(r.root / "studio" / f, dest / f)
+            shutil.copy2(r.root / "funkbox" / "studio" / f, dest / f)
     write_toml(r, fastsd_dir=str(dest))
 
 
 def find_gimp() -> Path | None:
-    env = os.environ.get("GIMP_EXE")
+    env = config.get().gimp_exe
     if env and Path(env).exists():
         return Path(env)
     s = system()
@@ -371,22 +359,11 @@ def setup_gimp(r: Runner, shortcuts: bool) -> None:
 
 
 def read_toml(p: Path) -> dict[str, str]:
-    """Read funkbox.toml, including hand edits ('literal' strings too), so a rewrite keeps every key."""
-    import re
-    if not p.exists():
-        return {}
-    text = p.read_text(encoding="utf-8-sig")
+    """funkbox.toml including hand edits; a malformed file stops the run so a rewrite never drops keys."""
     try:
-        import tomllib
-        return {k: str(v) for k, v in tomllib.loads(text).items()}
-    except ImportError:
-        pass
-    except Exception as e:  # malformed: refuse to silently drop keys
-        raise SystemExit(f"funkbox.toml is not valid TOML ({e}); fix or delete it and run again")
-    cur: dict[str, str] = {}
-    for m in re.finditer(r'^\s*([A-Za-z_]\w*)\s*=\s*(?:"((?:[^"\\]|\\.)*)"|\'([^\']*)\')', text, re.M):
-        cur[m.group(1)] = re.sub(r'\\(.)', r'\1', m.group(2)) if m.group(2) is not None else m.group(3)
-    return cur
+        return config.read_toml(p, strict=True)
+    except ValueError as e:
+        raise SystemExit(f"{e}; fix or delete it and run again") from None
 
 
 def write_toml(r: Runner, **kv: str) -> None:
@@ -400,8 +377,8 @@ def write_toml(r: Runner, **kv: str) -> None:
 
 
 def render_gimp_cmd(r: Runner, exe: Path | None, gimp_dir: Path) -> Path:
-    tpl = (r.root / "studio" / "GIMP-MCP.cmd.template").read_text(encoding="utf-8")
-    out = r.root / "studio" / "GIMP-MCP.cmd"
+    tpl = (r.root / "funkbox" / "studio" / "GIMP-MCP.cmd.template").read_text(encoding="utf-8")
+    out = r.root / "funkbox" / "studio" / "GIMP-MCP.cmd"
     text = (tpl.replace("@GIMP_EXE@", str(exe or r"%LOCALAPPDATA%\Programs\GIMP 3\bin\gimp-3.exe"))
             .replace("@GIMP_MCP_DIR@", str(gimp_dir))
             .replace("@GIMP_PROFILE@", gimp_profile(exe))
@@ -414,13 +391,12 @@ def render_gimp_cmd(r: Runner, exe: Path | None, gimp_dir: Path) -> Path:
 
 def make_shortcuts(r: Runner, parts: tuple[str, ...]) -> None:
     r.step('Shortcuts: "funk inbox", "funk projects"' + (', "GIMP + MCP"' if "gimp" in parts else ""))
-    sys.path.insert(0, str(r.root))
-    from reel import shortcuts  # stdlib-only module
+    from funkbox.reel import shortcuts  # stdlib-only module
 
     for line in shortcuts.make_shortcuts(dry_run=r.dry):
         r.say("   " + line)
     if "gimp" in parts:
-        cmd = r.root / "studio" / "GIMP-MCP.cmd"
+        cmd = r.root / "funkbox" / "studio" / "GIMP-MCP.cmd"
         if system() == "Windows":
             script = ("$sh=New-Object -ComObject WScript.Shell;"
                       "$l=$sh.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'GIMP + MCP.lnk'));"

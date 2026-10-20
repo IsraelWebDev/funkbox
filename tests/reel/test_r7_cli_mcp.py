@@ -22,13 +22,13 @@ def small_demo_reel(demo):
 
 
 def test_full_demo_renders_draft_in_container(demo, gl, work):
-    from reel import render
+    from funkbox.reel import render
     d = small_demo_reel(demo)
     d["settings"] = {"width": 1080, "height": 1920, "fps": 30, "safe_area": "reels"}
     out = render.render_reel(d, "draft", base_dir=demo, out_dir=work, draft=True, audit=True)
     assert (out.width, out.height, out.fps) == (540, 960, 24)
     assert out.audit_ok is True
-    probe = subprocess.run([__import__("funk").ffmpeg_exe(), "-hide_banner", "-i", out.paths["mp4"]],
+    probe = subprocess.run([__import__("funkbox.media", fromlist=["x"]).ffmpeg_exe(), "-hide_banner", "-i", out.paths["mp4"]],
                            capture_output=True, text=True).stderr
     assert "540x960" in probe and "24 fps" in probe and "Audio: aac" in probe
     assert abs(out.duration - 25.0) < 1.5, out.duration
@@ -36,8 +36,8 @@ def test_full_demo_renders_draft_in_container(demo, gl, work):
 
 
 def test_storyboard_has_one_tile_per_shot_plus_end_card(demo, gl, work):
-    from reel import render
-    from reel.storyboard import storyboard
+    from funkbox.reel import render
+    from funkbox.reel.storyboard import storyboard
     plan = render.prepare(small_demo_reel(demo), demo)
     sb = storyboard(plan, work / "sb.png", tile_w=135)
     assert len(plan.spans) == 13 and plan.spans[-1].kind == "end"
@@ -78,7 +78,7 @@ def test_cli_validate_still_storyboard_beats_cutout(demo, gl, work):
 
 
 def test_setup_models_checks_hashes(work, monkeypatch):
-    from reel import models
+    from funkbox.reel import models
     st = models.status()
     assert set(st) == {"depth", "voice"}
     man = models.models_manifest()

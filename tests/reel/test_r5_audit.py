@@ -3,7 +3,7 @@ import json
 import pytest
 
 from conftest import make_plain_reel
-from reel import render
+from funkbox.reel import render
 
 
 def small_reel(demo, dur=2.5):

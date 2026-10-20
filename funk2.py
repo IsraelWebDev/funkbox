@@ -35,8 +35,8 @@ def _expand(paths: list[str]) -> list[Path]:
 
 
 def cmd_info(args) -> int:
-    from funkgl.context import gl_info
-    from funkgl.shader import ShaderSource
+    from funkbox.gl.context import gl_info
+    from funkbox.gl.shader import ShaderSource
     info = gl_info()
     print(f"GL_RENDERER: {info['GL_RENDERER']}\nGL_VERSION:  {info['GL_VERSION']}")
     print("shaders:")
@@ -50,11 +50,11 @@ def cmd_info(args) -> int:
 
 
 def cmd_check(args) -> int:
-    from funkgl.engine import Engine  # noqa: F401  (forces GL import errors early)
-    from funkgl.loopcheck import validate_loop
-    from funkgl.recipe import Layer, Recipe2, Settings2
-    from funkgl.shader import ShaderError, ShaderSource
-    from funkgl.context import create_context
+    from funkbox.gl.engine import Engine  # noqa: F401  (forces GL import errors early)
+    from funkbox.gl.loopcheck import validate_loop
+    from funkbox.gl.recipe import Layer, Recipe2, Settings2
+    from funkbox.gl.shader import ShaderError, ShaderSource
+    from funkbox.gl.context import create_context
     files = _expand(args.files)
     if not files:
         _err("check: no files given")
@@ -91,7 +91,7 @@ def cmd_check(args) -> int:
 
 
 def cmd_port_v1(args) -> int:
-    from funkgl.ports import PORTS
+    from funkbox.gl.ports import PORTS
     d = HERE / "shaders"
     d.mkdir(exist_ok=True)
     for name, src in PORTS.items():
@@ -105,14 +105,14 @@ class UsageError(Exception):
 
 
 def _parse_post(items: list[str] | None):
-    from funkgl.recipe import PostPass
-    from funkgl.shader import ShaderSource
+    from funkbox.gl.recipe import PostPass
+    from funkbox.gl.shader import ShaderSource
     out = []
     for it in items or []:
         name, eq, val = it.partition("=")
-        f = HERE / "funkgl" / "post" / f"{name}.frag"
+        f = HERE / "funkbox" / "gl" / "post" / f"{name}.frag"
         if not f.exists():
-            names = sorted(x.stem for x in (HERE / "funkgl" / "post").glob("*.frag"))
+            names = sorted(x.stem for x in (HERE / "funkbox" / "gl" / "post").glob("*.frag"))
             raise UsageError(f"unknown post pass {name!r}; have {names}")
         params: dict = {}
         if eq:
@@ -136,7 +136,7 @@ def _scale(w: int, h: int, size: int) -> tuple[int, int]:
 
 
 def _build_recipe(args):
-    from funkgl.recipe import Layer, Recipe2, Settings2, load_recipe
+    from funkbox.gl.recipe import Layer, Recipe2, Settings2, load_recipe
     if args.recipe and args.shader:
         raise UsageError("use --recipe or --shader, not both")
     if args.recipe:
@@ -166,7 +166,7 @@ def _build_recipe(args):
     if getattr(args, "seconds", None):
         st.seconds = args.seconds
     if getattr(args, "audio", None):
-        from funkgl.audio import wav_duration
+        from funkbox.gl.audio import wav_duration
         ap_ = Path(args.audio)
         if not ap_.is_file():
             raise UsageError(f"audio file not found: {args.audio}")
@@ -180,7 +180,7 @@ def _build_recipe(args):
     if getattr(args, "post", None):
         rec.post = _parse_post(args.post)
     if getattr(args, "text", None):
-        from funkgl.recipe import TextSpec
+        from funkbox.gl.recipe import TextSpec
         rec.text = TextSpec(text=args.text, wobble=6.0)
     if rec.palette not in __import__("funk").PALETTES:
         raise UsageError(f"unknown palette {rec.palette!r}; have {sorted(__import__('funk').PALETTES)}")
@@ -188,13 +188,13 @@ def _build_recipe(args):
 
 
 def _default_out() -> Path:
-    from funkgl.recipe import funk_out
+    from funkbox.config import funk_out
     return funk_out()
 
 
 def cmd_still(args) -> int:
     from PIL import Image
-    from funkgl.engine import Engine
+    from funkbox.gl.engine import Engine
     rec = _build_recipe(args)
     out = Path(args.out) if args.out else _default_out() / "still.png"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -214,7 +214,7 @@ def cmd_sheet(args) -> int:
 
     import funk
     from PIL import Image, ImageDraw
-    from funkgl.engine import Engine
+    from funkbox.gl.engine import Engine
     rec = _build_recipe(args)
     seeds = funk.parse_seeds(args.seeds)
     st = rec.settings
@@ -248,8 +248,8 @@ def cmd_sheet(args) -> int:
 
 
 def cmd_render(args) -> int:
-    from funkgl.encode import render_recipe
-    from funkgl.loopcheck import validate_loop
+    from funkbox.gl.encode import render_recipe
+    from funkbox.gl.loopcheck import validate_loop
     rec = _build_recipe(args)
     label = Path(args.shader).stem if args.shader else Path(args.recipe).stem
     name = args.name or f"{label}-s{rec.settings.seed}"

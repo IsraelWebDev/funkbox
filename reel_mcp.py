@@ -33,13 +33,13 @@ from pydantic import BaseModel, Field  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from funkgl.context import GLUnavailable  # noqa: E402
-from funkgl.recipe import funk_home, funk_inputs, funk_out, resolve_path  # noqa: E402
-from reel import approval, autoreel, brand as brandmod, captions, copydeck, endcard, ingest as ingestmod, render  # noqa: E402
-from reel import project as projmod  # noqa: E402
-from reel.schema import ANCHORS, MOTION_TYPES, REVEALS, TRANSITIONS, ReelError  # noqa: E402
-from reel.storyboard import storyboard as _storyboard  # noqa: E402
-from reel.validate import validate as _validate  # noqa: E402
+from funkbox.gl.context import GLUnavailable  # noqa: E402
+from funkbox.config import funk_home, funk_inputs, funk_out, resolve_path  # noqa: E402
+from funkbox.reel import approval, autoreel, brand as brandmod, captions, copydeck, endcard, ingest as ingestmod, render  # noqa: E402
+from funkbox.reel import project as projmod  # noqa: E402
+from funkbox.reel.schema import ANCHORS, MOTION_TYPES, REVEALS, TRANSITIONS, ReelError  # noqa: E402
+from funkbox.reel.storyboard import storyboard as _storyboard  # noqa: E402
+from funkbox.reel.validate import validate as _validate  # noqa: E402
 
 OUT_NAME_RE = re.compile(r"^[A-Za-z0-9_\-]{1,60}$")
 MAX_SECONDS = 60.0

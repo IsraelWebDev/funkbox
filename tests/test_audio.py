@@ -7,9 +7,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from funkgl import Engine, load_recipe, render_recipe
-from funkgl.audio import SPEC_BINS, analyze, read_wav, wav_duration
-from funkgl.recipe import Layer, Recipe2, Settings2
+from funkbox.gl import Engine, load_recipe, render_recipe
+from funkbox.gl.audio import SPEC_BINS, analyze, read_wav, wav_duration
+from funkbox.gl.recipe import Layer, Recipe2, Settings2
 
 
 def write_wav(path: Path, samples: np.ndarray, sr: int = 22050, channels: int = 1) -> Path:

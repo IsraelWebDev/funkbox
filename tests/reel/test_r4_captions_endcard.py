@@ -5,9 +5,9 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from reel import captions as C
-from reel import render
-from reel.validate import validate
+from funkbox.reel import captions as C
+from funkbox.reel import render
+from funkbox.reel.validate import validate
 
 W, H, FPS = 540, 960, 30
 
@@ -85,7 +85,7 @@ def test_typewriter_reveals_one_character_at_a_time_and_box_grows(demo, gl):
 def test_wrapping_never_splits_words(text, width):
     fonts = C.Fonts(__import__("pathlib").Path("fonts/Oswald-SemiBold.ttf").resolve(),
                     __import__("pathlib").Path("fonts/DMSerifDisplay-Regular.ttf").resolve())
-    from reel.schema import Brand
+    from funkbox.reel.schema import Brand
     lay = C.layout_block("t", text, C.load_style("red-box"), fonts, Brand(), width, width * 16 // 9)
     words = [text[s:e].split() for s, e in lay.lines]
     assert [w for ws in words for w in ws] == text.split()               # every word intact, in order
@@ -97,7 +97,7 @@ def test_wrapping_never_splits_words(text, width):
 def test_no_hyphenation_added():
     from pathlib import Path
 
-    from reel.schema import Brand
+    from funkbox.reel.schema import Brand
     fonts = C.Fonts(Path("fonts/Oswald-SemiBold.ttf").resolve(), Path("fonts/DMSerifDisplay-Regular.ttf").resolve())
     text = "EXTRAORDINARILY LONG WORDS WRAP ONLY ON SPACES"
     lay = C.layout_block("t", text, C.load_style("red-box"), fonts, Brand(), 540, 960)
@@ -120,7 +120,7 @@ def test_text_that_cannot_fit_is_a_validator_error_naming_the_copy_id(demo, work
 def test_min_size_is_never_undercut():
     from pathlib import Path
 
-    from reel.schema import Brand
+    from funkbox.reel.schema import Brand
     fonts = C.Fonts(Path("fonts/Oswald-SemiBold.ttf").resolve(), Path("fonts/DMSerifDisplay-Regular.ttf").resolve())
     lay = C.layout_block("t", "GIVE YOUR CARPET THE ATTENTION IT NEEDS. " * 3, C.load_style("red-box"), fonts,
                          Brand(), 540, 960)
@@ -220,7 +220,7 @@ def test_centered_logo_template_renders(demo, gl, work):
 
 
 def test_caption_templates_hold_no_free_text():
-    from reel.schema import scan_forbidden
+    from funkbox.reel.schema import scan_forbidden
     from pathlib import Path
     for p in list((C.TEMPLATES / "captions").glob("*.json")) + list((C.TEMPLATES / "endcards").glob("*.json")):
         assert scan_forbidden(json.loads(p.read_text())) == [], p

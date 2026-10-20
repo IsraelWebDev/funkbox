@@ -11,7 +11,7 @@ import pytest
 from PIL import Image
 
 import synth
-from reel import project as P, shortcuts
+from funkbox.reel import project as P, shortcuts
 
 ROOT = Path(__file__).resolve().parents[2]
 mcp = pytest.importorskip("mcp")

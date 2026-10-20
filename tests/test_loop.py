@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from funkgl.loopcheck import validate_loop
-from funkgl.recipe import Layer, Recipe2, Settings2
-from funkgl.shader import ShaderSource
+from funkbox.gl.loopcheck import validate_loop
+from funkbox.gl.recipe import Layer, Recipe2, Settings2
+from funkbox.gl.shader import ShaderSource
 
 SHADERS = sorted((Path(__file__).resolve().parent.parent / "shaders").glob("*.frag"))
 

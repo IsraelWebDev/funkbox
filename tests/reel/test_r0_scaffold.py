@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from reel.schema import ReelError, parse_reel
+from funkbox.reel.schema import ReelError, parse_reel
 
 
 def test_demo_assets_and_schema(demo):

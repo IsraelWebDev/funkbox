@@ -11,8 +11,8 @@ LABEL_RED = (200, 16, 46)
 
 
 def _ff():
-    import funk
-    return funk.ffmpeg_exe()
+    from funkbox.media import ffmpeg_exe
+    return ffmpeg_exe()
 
 
 def bottle(w=300, h=700, bg=None, label=LABEL_RED, body=(60, 66, 78)) -> Image.Image:
@@ -101,7 +101,7 @@ COPY_LINES = {
 def make_project(slug="demo", scenes=3, clips=1, music=True, product=True, logo_file=True, approve=True,
                  lines=None, inbox: Path | None = None):
     """A complete synthetic project via the real tools (env FUNK_PROJECTS/FUNK_INBOX must already be set)."""
-    from reel import approval, brand, ingest, project as P
+    from funkbox.reel import approval, brand, ingest, project as P
     P.new_project(slug)
     inbox = inbox or P.inbox_dir()
     inbox.mkdir(parents=True, exist_ok=True)

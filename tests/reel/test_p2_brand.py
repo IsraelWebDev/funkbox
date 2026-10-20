@@ -6,7 +6,7 @@ import pytest
 from PIL import Image
 
 import synth
-from reel import brand, ingest, project as P
+from funkbox.reel import brand, ingest, project as P
 
 
 @pytest.fixture
@@ -68,7 +68,7 @@ def test_contrast_math():
 def test_user_fonts_win_and_set_brand_overrides(penv):
     make(penv)
     import shutil
-    from funkgl.recipe import FUNKBOX
+    from funkbox.config import ROOT as FUNKBOX
     fd = P.project_dir("demo") / "brand" / "fonts"
     shutil.copy(FUNKBOX / "fonts" / "Oswald-SemiBold.ttf", fd / "Brandsans.ttf")
     shutil.copy(FUNKBOX / "fonts" / "DMSerifDisplay-Regular.ttf", fd / "Brand-Display.ttf")

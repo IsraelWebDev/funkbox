@@ -10,7 +10,7 @@ os.environ.setdefault("REEL_DEPTH", "stub")
 os.environ.setdefault("REEL_TTS", "stub")
 
 ROOT = Path(__file__).resolve().parents[2]
-for p in (ROOT, ROOT / "studio"):
+for p in (ROOT,):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
@@ -19,7 +19,7 @@ import pytest  # noqa: E402
 
 @pytest.fixture(scope="session")
 def gl():
-    from funkgl.context import GLUnavailable, create_context
+    from funkbox.gl.context import GLUnavailable, create_context
     try:
         return create_context()
     except GLUnavailable as e:
@@ -32,7 +32,7 @@ def work(request):
     import re
     import shutil
 
-    from funkgl.recipe import funk_out
+    from funkbox.config import funk_out
     d = funk_out() / "test_work_stills" / re.sub(r"[^A-Za-z0-9_-]", "_", request.node.name)
     shutil.rmtree(d, ignore_errors=True)
     d.mkdir(parents=True)

@@ -3,8 +3,8 @@ import numpy as np
 import pytest
 
 import funk
-from funkgl import Engine
-from funkgl.recipe import Layer, Recipe2, Settings2
+from funkbox.gl import Engine
+from funkbox.gl.recipe import Layer, Recipe2, Settings2
 
 SZ = 96
 
