@@ -108,7 +108,7 @@ def test_editing_copy_json_after_approval_makes_validate_and_render_fail(penv):
     cj.write_text(cj.read_text(encoding="utf-8").replace("LOOK CLOSER.", "LOOK CLOSER!"), encoding="utf-8")
     bad = validate(str(reel))
     assert not bad.ok
-    assert "copy.json changed since approval; run propose_copy/approve_copy again." in bad.text()
+    assert "copy.json changed since approval; run project_propose_copy/project_approve_copy again." in bad.text()
     from funkbox.reel import render
     with pytest.raises(ReelError, match="changed since approval"):
         render.prepare(str(reel))
@@ -218,7 +218,7 @@ async def _session(penv, fn, elicit=None):
     env = {**os.environ, "FUNK_OUT": str(penv / "out"), "FUNK_PROJECTS": str(penv / "projects"),
            "FUNK_INBOX": str(penv / "inbox"), "REEL_DEPTH": "stub", "REEL_TTS": "stub"}
     env.setdefault("FUNK_GL_BACKEND", "egl")
-    params = StdioServerParameters(command=sys.executable, args=[str(ROOT / "reel_mcp.py")], env=env)
+    params = StdioServerParameters(command=sys.executable, args=["-m", "funkbox", "serve"], env=env, cwd=str(ROOT))
     async with stdio_client(params) as (r, w):
         kw = {"elicitation_callback": elicit} if elicit else {}
         async with ClientSession(r, w, **kw) as s:
@@ -243,12 +243,12 @@ def test_mcp_elicitation_accept_approves_and_the_user_sees_the_exact_listing(pen
     seen = []
 
     async def go(s):
-        p = await s.call_tool("propose_copy", {"project": "demo", "lines": LINES})
+        p = await s.call_tool("project_propose_copy", {"project": "demo", "lines": LINES})
         sha = txt(p).split("draft_sha256: ")[1].split()[0]
         # a stale/wrong hash never reaches the prompt
-        bad = await s.call_tool("approve_copy", {"project": "demo", "draft_sha256": "0" * 64})
+        bad = await s.call_tool("project_approve_copy", {"project": "demo", "draft_sha256": "0" * 64})
         assert "stale" in txt(bad) and not seen
-        a = await s.call_tool("approve_copy", {"project": "demo", "draft_sha256": sha})
+        a = await s.call_tool("project_approve_copy", {"project": "demo", "draft_sha256": sha})
         return txt(a)
     out = asyncio.run(_session(penv, go, make_cb("approve", seen)))
     assert out.startswith("APPROVED (elicitation)"), out
@@ -262,10 +262,10 @@ def test_mcp_elicitation_reject_blocks_even_if_the_agent_claims_chat_confirmatio
     seen = []
 
     async def go(s):
-        p = await s.call_tool("propose_copy", {"project": "demo", "lines": LINES})
+        p = await s.call_tool("project_propose_copy", {"project": "demo", "lines": LINES})
         sha = txt(p).split("draft_sha256: ")[1].split()[0]
-        a = await s.call_tool("approve_copy", {"project": "demo", "draft_sha256": sha})
-        b = await s.call_tool("approve_copy", {"project": "demo", "draft_sha256": sha,
+        a = await s.call_tool("project_approve_copy", {"project": "demo", "draft_sha256": sha})
+        b = await s.call_tool("project_approve_copy", {"project": "demo", "draft_sha256": sha,
                                                "user_confirmed_in_chat": True})
         return txt(a), txt(b)
     a, b = asyncio.run(_session(penv, go, make_cb(cb_kind, seen)))
@@ -276,15 +276,15 @@ def test_mcp_elicitation_reject_blocks_even_if_the_agent_claims_chat_confirmatio
 
 def test_mcp_fallback_needs_user_confirmed_in_chat(penv):
     async def go(s):
-        p = await s.call_tool("propose_copy", {"project": "demo", "lines": LINES})
+        p = await s.call_tool("project_propose_copy", {"project": "demo", "lines": LINES})
         sha = txt(p).split("draft_sha256: ")[1].split()[0]
-        a = await s.call_tool("approve_copy", {"project": "demo", "draft_sha256": sha})
+        a = await s.call_tool("project_approve_copy", {"project": "demo", "draft_sha256": sha})
         assert not (P.project_dir("demo") / "copy.json").exists()
-        a2 = await s.call_tool("approve_copy", {"project": "demo", "draft_sha256": sha,
+        a2 = await s.call_tool("project_approve_copy", {"project": "demo", "draft_sha256": sha,
                                                 "user_confirmed_in_chat": False})
-        stale = await s.call_tool("approve_copy", {"project": "demo", "draft_sha256": "f" * 64,
+        stale = await s.call_tool("project_approve_copy", {"project": "demo", "draft_sha256": "f" * 64,
                                                    "user_confirmed_in_chat": True})
-        b = await s.call_tool("approve_copy", {"project": "demo", "draft_sha256": sha,
+        b = await s.call_tool("project_approve_copy", {"project": "demo", "draft_sha256": sha,
                                                "user_confirmed_in_chat": True})
         tools = {t.name: t.description for t in (await s.list_tools()).tools}
         return txt(a), txt(a2), txt(stale), txt(b), tools
@@ -293,4 +293,4 @@ def test_mcp_fallback_needs_user_confirmed_in_chat(penv):
     assert a2.startswith("NOT approved") and "stale" in stale
     assert b.startswith("APPROVED (chat)"), b
     assert P.load_meta("demo")["copy_approval"]["method"] == "chat"
-    assert "only set this after the user explicitly approved the exact listing in this conversation" in " ".join(tools["approve_copy"].split())
+    assert "only set this after the user explicitly approved the exact listing in this conversation" in " ".join(tools["project_approve_copy"].split())

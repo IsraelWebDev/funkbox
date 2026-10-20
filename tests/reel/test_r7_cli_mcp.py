@@ -101,10 +101,10 @@ def test_setup_models_checks_hashes(work, monkeypatch):
     assert not (work / "m.onnx").exists() and not (work / "m.onnx.part").exists()
 
 
-EXPECTED_TOOLS = {"copy_lines", "validate", "storyboard", "still", "render", "list_templates"}
+EXPECTED_TOOLS = {"reel_copy_lines", "reel_validate", "reel_storyboard", "reel_still", "reel_render", "reel_templates"}
 # v3.1 "projects" adds these (the draft -> approve -> lock flow is the ONLY way copy changes; see test_p3/test_p5)
-V31_TOOLS = {"new_project", "list_projects", "ingest", "set_product", "brand_from_assets", "set_brand",
-             "propose_copy", "approve_copy", "copy_diff", "auto_reel", "project_render"}
+V31_TOOLS = {"project_new", "project_list", "project_ingest", "project_set_product", "project_brand", "project_set_brand",
+             "project_propose_copy", "project_approve_copy", "project_copy_diff", "project_auto_reel", "project_render"}
 
 
 async def _session(home, out, fn):
@@ -112,7 +112,7 @@ async def _session(home, out, fn):
            "REEL_DEPTH": "stub", "REEL_TTS": "stub"}
     if sys.platform == "linux" and "DISPLAY" not in env:
         env.setdefault("FUNK_GL_BACKEND", "egl")
-    params = StdioServerParameters(command=sys.executable, args=[str(ROOT / "reel_mcp.py")], env=env)
+    params = StdioServerParameters(command=sys.executable, args=["-m", "funkbox", "serve"], env=env, cwd=str(ROOT))
     async with stdio_client(params) as (r, w):
         async with ClientSession(r, w) as s:
             await s.initialize()
@@ -144,20 +144,20 @@ def test_mcp_every_tool_and_no_write_tool(demo, gl, work):
     async def go(s):
         tools = await s.list_tools()
         names = {t.name for t in tools.tools}
-        assert names - V31_TOOLS == EXPECTED_TOOLS, names
+        assert EXPECTED_TOOLS | V31_TOOLS <= names, names
         assert not any(w in n for n in EXPECTED_TOOLS for w in ("write", "save", "set", "edit", "update", "add_copy"))
-        assert not any(w in n for n in names for w in ("write", "save", "edit", "update", "add_copy", "set_copy"))
+        assert not any(w in n for n in EXPECTED_TOOLS | V31_TOOLS for w in ("write", "save", "edit", "update", "add_copy", "set_copy"))
         init = s.get_server_capabilities() if hasattr(s, "get_server_capabilities") else None
         res = {}
-        res["copy"] = await s.call_tool("copy_lines", {"path": "examples_demo/inputs/brand/copy.json"})
-        res["tpl"] = await s.call_tool("list_templates", {})
-        res["val"] = await s.call_tool("validate", {"reel": d})
-        res["sb"] = await s.call_tool("storyboard", {"reel": d})
-        res["still"] = await s.call_tool("still", {"reel": d, "shot_id": "s3", "t": 0.4})
-        res["render"] = await s.call_tool("render", {"reel": d, "name": "mcpdraft", "draft": True})
+        res["copy"] = await s.call_tool("reel_copy_lines", {"path": "examples_demo/inputs/brand/copy.json"})
+        res["tpl"] = await s.call_tool("reel_templates", {})
+        res["val"] = await s.call_tool("reel_validate", {"reel": d})
+        res["sb"] = await s.call_tool("reel_storyboard", {"reel": d})
+        res["still"] = await s.call_tool("reel_still", {"reel": d, "shot_id": "s3", "t": 0.4})
+        res["render"] = await s.call_tool("reel_render", {"reel": d, "name": "mcpdraft", "draft": True})
         bad = json.loads(json.dumps(d))
         bad["shots"][0]["caption"]["text"] = "invented"
-        res["bad"] = await s.call_tool("validate", {"reel": bad})
+        res["bad"] = await s.call_tool("reel_validate", {"reel": bad})
         return res
 
     res = asyncio.run(_session(home, out, go))
@@ -176,5 +176,5 @@ def test_mcp_every_tool_and_no_write_tool(demo, gl, work):
 
 
 def test_server_instructions_forbid_inventing_copy():
-    src = (ROOT / "reel_mcp.py").read_text()
-    assert "never invent copy" in src and "ask the user to add it to copy.json" in src
+    from funkbox import server
+    assert "never invent copy" in server.INSTRUCTIONS and "ask the user to add it to copy.json" in server.INSTRUCTIONS

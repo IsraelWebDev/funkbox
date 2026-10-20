@@ -54,7 +54,7 @@ class AutoResult:
 
     def text(self) -> str:
         s = self.stats
-        out = [f"auto_reel for {self.slug!r}: {self.path}",
+        out = [f"project_auto_reel for {self.slug!r}: {self.path}",
                f"{s.get('shots')} shots + end card, {s.get('total', 0):.1f}s total, product in {s.get('product_shots')} "
                f"of {s.get('shots')} shots, {s.get('clip_shots')} clip shot(s), motion {s.get('motion')}, "
                f"voice-over {'on' if s.get('voiceover') else 'off'}, music {s.get('music') or 'none'}"]
@@ -99,7 +99,7 @@ def _roles(deck: copydeck.CopyDeck, cta_ids: list[str] | None, has_logo: bool) -
             raise ReelError([
                 "cannot build an end card from the copy ids " + str(end_ids) + ": the 'brand-split' end card needs "
                 "three lines (end_head, end_sub, url); 'centered-logo' needs end_head and url plus a brand logo. "
-                "Add the missing lines with propose_copy (the user approves them), or pass cta_ids."])
+                "Add the missing lines with project_propose_copy (the user approves them), or pass cta_ids."])
     return {"hook": hook, "body": body, "end": end, "end_ids": end_ids}
 
 
@@ -152,7 +152,7 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
     notes: list[str] = []
     err = P.copy_lock_error(slug)
     if err:
-        raise ReelError([f"auto_reel needs approved copy: {err}"])
+        raise ReelError([f"project_auto_reel needs approved copy: {err}"])
     if pace not in PACE_SECONDS:
         raise ReelError([f"pace must be one of {sorted(PACE_SECONDS)}"])
     if style not in captions.list_styles():
@@ -164,7 +164,7 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
     if not br:
         if (d / "product" / "product.png").is_file() or (d / "brand" / "logo.png").is_file():
             br = brandmod.brand_from_assets(slug)
-            notes.append("no brand was set yet; brand_from_assets was run automatically (override with set_brand)")
+            notes.append("no brand was set yet; project_brand was run automatically (override with project_set_brand)")
         else:
             br = {"primary": "#c8102e", "secondary": "#1a1a1a", "text": "#ffffff",
                   "font_caption": brandmod.DEFAULT_CAPTION_FONT, "font_display": brandmod.DEFAULT_DISPLAY_FONT,
@@ -181,7 +181,7 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
     roles = _roles(deck, cta_ids, bool(logo))
     end = roles["end"]
     if not has_product:
-        notes.append("no product image: shots have no product (ingest one, or set_product)")
+        notes.append("no product image: shots have no product (project_ingest one, or project_set_product)")
 
     # ---- assets: stills and clips; funk2 filler when there are fewer than 4 visuals
     visuals: list[dict] = [{"kind": "image", "path": p.relative_to(d).as_posix()} for p in stills]
@@ -389,7 +389,7 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
     from .validate import validate
     rep = validate(str(path))
     if not rep.ok:
-        raise ReelError([f"auto_reel built a reel that does not validate (kept at {path}):"] + rep.errors)
+        raise ReelError([f"project_auto_reel built a reel that does not validate (kept at {path}):"] + rep.errors)
     P.advance_status(slug, "reel-built")
     n_prod = sum(1 for s in shots if "product" in s)
     n_clip = sum(1 for s in shots if "video" in s["source"])

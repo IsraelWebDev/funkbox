@@ -217,13 +217,13 @@ class IngestResult:
                 out.append("  " + q["advice"])
         elif st == "ambiguous":
             out.append("product: AMBIGUOUS, several equally likely candidates; do not guess. Ask the user which "
-                       "is the product, then call set_product(project, file) with one of: "
+                       "is the product, then call project_set_product(project, file) with one of: "
                        + ", ".join(pr["candidates"]))
         elif st == "kept":
             out.append(f"product: unchanged ({pr['file']}); new product-like images were kept in product/alt/")
         else:
             out.append("product: none found. Add a product photo (name it product.jpg, or use a PNG with "
-                       "transparency) or call set_product(project, file).")
+                       "transparency) or call project_set_product(project, file).")
         for i in self.items:
             out.append(f"  {i.kind:8s} {Path(i.src).name} -> {i.dest}" + (f"  ({i.note})" if i.note else ""))
         for d in self.duplicates:
@@ -446,7 +446,7 @@ def _ingest_images(d: Path, slug: str, meta: dict, imgs: list[Img], do_move: boo
                                   "downscaled/rotated; original in shots/_orig" if img.changed else ""))
     if already and cands:
         res.product = {"status": "kept", "file": "product/product.png"}
-        res.warnings.append("the project already has a product; use set_product to replace it")
+        res.warnings.append("the project already has a product; use project_set_product to replace it")
     elif chosen is not None:
         res.product = meta["product"] | {"status": "set"}
     elif tied:
@@ -459,7 +459,7 @@ def _ingest_images(d: Path, slug: str, meta: dict, imgs: list[Img], do_move: boo
         res.product = {"status": "none"}
         if imgs:
             res.warnings.append("no product image detected; name the file product.jpg, use a PNG with transparency, "
-                                "or call set_product")
+                                "or call project_set_product")
 
 
 def _set_product_from(d: Path, slug: str, meta: dict, img: Img, why: str, do_move: bool, res: IngestResult,

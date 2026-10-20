@@ -18,9 +18,9 @@ mcp = pytest.importorskip("mcp")
 from mcp import ClientSession, StdioServerParameters, types  # noqa: E402
 from mcp.client.stdio import stdio_client  # noqa: E402
 
-V3_TOOLS = {"copy_lines", "validate", "storyboard", "still", "render", "list_templates"}
-V31_TOOLS = {"new_project", "list_projects", "ingest", "set_product", "brand_from_assets", "set_brand",
-             "propose_copy", "approve_copy", "copy_diff", "auto_reel", "project_render"}
+V3_TOOLS = {"reel_copy_lines", "reel_validate", "reel_storyboard", "reel_still", "reel_render", "reel_templates"}
+V31_TOOLS = {"project_new", "project_list", "project_ingest", "project_set_product", "project_brand", "project_set_brand",
+             "project_propose_copy", "project_approve_copy", "project_copy_diff", "project_auto_reel", "project_render"}
 
 
 @pytest.fixture
@@ -42,7 +42,7 @@ async def session(penv, fn, elicit=None):
     env = {**os.environ, "FUNK_OUT": str(penv / "out"), "FUNK_PROJECTS": str(penv / "projects"),
            "FUNK_INBOX": str(penv / "inbox"), "REEL_DEPTH": "stub", "REEL_TTS": "stub"}
     env.setdefault("FUNK_GL_BACKEND", "egl")
-    params = StdioServerParameters(command=sys.executable, args=[str(ROOT / "reel_mcp.py")], env=env)
+    params = StdioServerParameters(command=sys.executable, args=["-m", "funkbox", "serve"], env=env, cwd=str(ROOT))
     async with stdio_client(params) as (r, w):
         kw = {"elicitation_callback": elicit} if elicit else {}
         async with ClientSession(r, w, **kw) as s:
@@ -51,22 +51,24 @@ async def session(penv, fn, elicit=None):
 
 
 def test_tool_surface_and_the_only_copy_writer():
-    src = (ROOT / "reel_mcp.py").read_text()
-    # the server has no file-writing code of its own at all, and copy.json is reachable only through approve_copy
+    src = (ROOT / "funkbox" / "reel" / "tools.py").read_text()
+    # the reel/project tools have no file-writing code of their own at all, and copy.json is reachable only
+    # through project_approve_copy
     assert not re.search(r"\.write_text\(|\.write_bytes\(|(?<![.\w])open\(|shutil\.|os\.replace|os\.rename", src)
     assert len(re.findall(r"approval\.approve\(", src)) == 1
-    body = src[src.index("async def approve_copy"):]
-    assert "approval.approve(" in body.split("@server.tool", 1)[0]
-    ins = src[src.index("INSTRUCTIONS = ("):src.index("server = _Server")]
-    assert ins.count(". ") >= 4 and "never invent copy" in ins and "approve_copy" in ins
+    body = src[src.index("async def project_approve_copy"):]
+    assert "approval.approve(" in body.split("\n\n\n", 1)[0]
+    from funkbox import server
+    ins = server.INSTRUCTIONS
+    assert ins.count(". ") >= 4 and "never invent copy" in ins and "project_approve_copy" in ins
 
 
 def test_stdio_tool_list_is_exact(penv):
     async def go(s):
         return {t.name for t in (await s.list_tools()).tools}
     names = asyncio.run(session(penv, go))
-    assert names == V3_TOOLS | V31_TOOLS, names ^ (V3_TOOLS | V31_TOOLS)
-    assert not any(w in n for n in names for w in ("write", "save", "edit", "update", "add_copy", "set_copy"))
+    assert V3_TOOLS | V31_TOOLS <= names, (V3_TOOLS | V31_TOOLS) - names
+    assert not any(w in n for n in V3_TOOLS | V31_TOOLS for w in ("write", "save", "edit", "update", "add_copy", "set_copy"))
 
 
 def test_whole_flow_over_stdio_to_a_draft_render_and_the_text_audit_passes(penv, gl):
@@ -86,31 +88,31 @@ def test_whole_flow_over_stdio_to_a_draft_render_and_the_text_audit_passes(penv,
 
     async def go(s):
         r = {}
-        r["new"] = txt(await s.call_tool("new_project", {"name": "Glowmop"}))
-        r["list0"] = txt(await s.call_tool("list_projects", {}))
-        ing = await s.call_tool("ingest", {"project": "glowmop"})
+        r["new"] = txt(await s.call_tool("project_new", {"name": "Glowmop"}))
+        r["list0"] = txt(await s.call_tool("project_list", {}))
+        ing = await s.call_tool("project_ingest", {"project": "glowmop"})
         r["ingest"], r["ingest_img"] = txt(ing), n_images(ing)
-        b = await s.call_tool("brand_from_assets", {"project": "glowmop"})
+        b = await s.call_tool("project_brand", {"project": "glowmop"})
         r["brand"], r["brand_img"] = txt(b), n_images(b)
-        p = await s.call_tool("propose_copy", {"project": "glowmop", "lines": lines,
+        p = await s.call_tool("project_propose_copy", {"project": "glowmop", "lines": lines,
                                                "pronounce": {"GLOWMOP": "glow mop"}})
         r["propose"] = txt(p)
         # nothing is renderable before approval
-        r["auto_early"] = txt(await s.call_tool("auto_reel", {"project": "glowmop"}))
+        r["auto_early"] = txt(await s.call_tool("project_auto_reel", {"project": "glowmop"}))
         sha = r["propose"].split("draft_sha256: ")[1].split()[0]
-        r["approve"] = txt(await s.call_tool("approve_copy", {"project": "glowmop", "draft_sha256": sha}))
-        r["copy_lines"] = txt(await s.call_tool("copy_lines", {"project": "glowmop"}))
-        a = await s.call_tool("auto_reel", {"project": "glowmop", "length_s": 10})
+        r["approve"] = txt(await s.call_tool("project_approve_copy", {"project": "glowmop", "draft_sha256": sha}))
+        r["copy_lines"] = txt(await s.call_tool("reel_copy_lines", {"project": "glowmop"}))
+        a = await s.call_tool("project_auto_reel", {"project": "glowmop", "length_s": 10})
         r["auto"], r["auto_img"] = txt(a), n_images(a)
-        r["validate"] = txt(await s.call_tool("validate", {"project": "glowmop"}))
-        sb = await s.call_tool("storyboard", {"project": "glowmop"})
+        r["validate"] = txt(await s.call_tool("reel_validate", {"project": "glowmop"}))
+        sb = await s.call_tool("reel_storyboard", {"project": "glowmop"})
         r["sb_img"] = n_images(sb)
-        st = await s.call_tool("still", {"project": "glowmop", "shot_id": "s1", "t": 0.4})
+        st = await s.call_tool("reel_still", {"project": "glowmop", "shot_id": "s1", "t": 0.4})
         r["still_img"] = n_images(st)
         t0 = time.perf_counter()
         rr = await s.call_tool("project_render", {"project": "glowmop", "draft": True})
         r["render"], r["render_s"] = txt(rr), time.perf_counter() - t0
-        r["list1"] = txt(await s.call_tool("list_projects", {}))
+        r["list1"] = txt(await s.call_tool("project_list", {}))
         return r
 
     r = asyncio.run(session(penv, go, click_approve))
@@ -142,10 +144,10 @@ def test_project_arg_conflicts_and_missing_reel(penv, gl):
     synth.make_project()
 
     async def go(s):
-        a = txt(await s.call_tool("validate", {"project": "demo"}))
-        b = txt(await s.call_tool("validate", {"project": "demo", "reel": {"version": 3}}))
-        c = txt(await s.call_tool("validate", {}))
-        d = txt(await s.call_tool("copy_lines", {"project": "demo"}))
+        a = txt(await s.call_tool("reel_validate", {"project": "demo"}))
+        b = txt(await s.call_tool("reel_validate", {"project": "demo", "reel": {"version": 3}}))
+        c = txt(await s.call_tool("reel_validate", {}))
+        d = txt(await s.call_tool("reel_copy_lines", {"project": "demo"}))
         e = txt(await s.call_tool("project_render", {"project": "nope"}))
         return a, b, c, d, e
     a, b, c, d, e = asyncio.run(session(penv, go))

@@ -39,7 +39,7 @@ async def _session(home, out, fn):
     env = {**os.environ, "FUNK_OUT": str(out), "FUNK_HOME": str(home), "FUNK_INPUTS": str(home / "inputs")}
     if sys.platform == "linux" and "DISPLAY" not in env:
         env.setdefault("FUNK_GL_BACKEND", "egl")
-    params = StdioServerParameters(command=sys.executable, args=[str(ROOT / "funk2_mcp.py")], env=env)
+    params = StdioServerParameters(command=sys.executable, args=["-m", "funkbox", "serve"], env=env, cwd=str(ROOT))
     async with stdio_client(params) as (r, w):
         async with ClientSession(r, w) as s:
             await s.initialize()
@@ -52,8 +52,8 @@ def test_every_tool(gl, tmp_path):
 
     async def scenario(s):
         tools = {t.name for t in (await s.list_tools()).tools}
-        assert tools == {"gl_info", "list_looks", "write_shader", "get_shader", "preview",
-                         "contact_sheet", "render"}
+        assert {"loop_gl_info", "loop_list", "loop_write_shader", "loop_get_shader", "loop_preview",
+                "loop_sheet", "loop_render", "loop_still"} <= tools
         res = {}
 
         async def call(name, args=None):
@@ -62,51 +62,51 @@ def test_every_tool(gl, tmp_path):
             res[name] = r
             return r
 
-        r = await call("gl_info")
+        r = await call("loop_gl_info")
         assert "GL_RENDERER" in text(r) and "plasma" in text(r)
-        r = await call("list_looks")
+        r = await call("loop_list")
         t = text(r)
         assert "voronoi_pop" in t and "u_scale" in t and "chroma" in t and "softlight" in t and "lava-lamp" in t
 
-        r = await call("write_shader", {"name": "wavy", "source": GOOD})
+        r = await call("loop_write_shader", {"name": "wavy", "source": GOOD})
         assert kinds(r) == ["text", "image"] and "compiled OK" in text(r) and "saved" in text(r)
         assert (home / "shaders" / "wavy.frag").read_text() == GOOD
-        r = await call("get_shader", {"name": "wavy"})
+        r = await call("loop_get_shader", {"name": "wavy"})
         assert text(r) == GOOD
 
-        r = await call("write_shader", {"name": "broken", "source": BAD})
+        r = await call("loop_write_shader", {"name": "broken", "source": BAD})
         assert kinds(r) == ["text"] and "line 3" in text(r) and "Not saved" in text(r)
         assert not (home / "shaders" / "broken.frag").exists()
-        r = await call("write_shader", {"name": "tick", "source": ITIME})
+        r = await call("loop_write_shader", {"name": "tick", "source": ITIME})
         assert "FAIL" in text(r) and "iTime" in text(r) and "NOT saved" in text(r)
         assert not (home / "shaders" / "tick.frag").exists()
-        r = await call("write_shader", {"name": "../evil", "source": GOOD})
+        r = await call("loop_write_shader", {"name": "../evil", "source": GOOD})
         assert text(r).startswith("ERROR") and not (tmp_path / "evil.frag").exists()
 
-        r = await call("preview", {"recipe": RECIPE, "size": 96})
+        r = await call("loop_preview", {"recipe": RECIPE, "size": 96})
         assert kinds(r) == ["text", "image"] and "layer 0: shader shaders/warp.frag" in text(r)
-        r = await call("preview", {"recipe": {"layers": [{"type": "shader", "shader": "shaders/plasma.frag"}]}})
+        r = await call("loop_preview", {"recipe": {"layers": [{"type": "shader", "shader": "shaders/plasma.frag"}]}})
         assert kinds(r) == ["text", "image"] and "540x540 30fps 4s seed=1" in text(r)   # defaults
-        r = await call("contact_sheet", {"recipe": RECIPE, "seeds": "1-4"})
+        r = await call("loop_sheet", {"recipe": RECIPE, "seeds": "1-4"})
         assert kinds(r) == ["text", "image"] and "saved" in text(r)
         assert list(out.glob("sheet-*.png"))
-        r = await call("render", {"recipe": RECIPE, "name": "mcp-test"})
+        r = await call("loop_render", {"recipe": RECIPE, "name": "mcp-test"})
         assert kinds(r) == ["text", "image"] and "5 frames 64x64" in text(r)
         assert (out / "mcp-test.mp4").exists() and (out / "mcp-test.json").exists()
 
         # limits and errors come back as readable strings, not exceptions / is_error
         big = {**RECIPE, "settings": {**RECIPE["settings"], "width": 4000}}
-        r = await call("render", {"recipe": big})
+        r = await call("loop_render", {"recipe": big})
         assert text(r).startswith("ERROR") and "1080" in text(r)
-        r = await call("render", {"recipe": {**RECIPE, "settings": {**RECIPE["settings"], "seconds": 99}}})
+        r = await call("loop_render", {"recipe": {**RECIPE, "settings": {**RECIPE["settings"], "seconds": 99}}})
         assert text(r).startswith("ERROR")
-        r = await call("render", {"recipe": {**RECIPE, "settings": {**RECIPE["settings"], "fps": 120}}})
+        r = await call("loop_render", {"recipe": {**RECIPE, "settings": {**RECIPE["settings"], "fps": 120}}})
         assert text(r).startswith("ERROR")
-        r = await call("preview", {"recipe": {"layers": [{"type": "shader", "source": BAD}]}})
+        r = await call("loop_preview", {"recipe": {"layers": [{"type": "shader", "source": BAD}]}})
         assert text(r).startswith("ERROR") and "line 3" in text(r) and "Traceback" not in text(r)
-        r = await call("preview", {"recipe": {"layers": [{"type": "image", "path": "/etc/hostname"}]}})
+        r = await call("loop_preview", {"recipe": {"layers": [{"type": "image", "path": "/etc/hostname"}]}})
         assert text(r).startswith("ERROR")
-        r = await call("render", {"recipe": {"layers": [{"type": "shader", "source": ITIME}],
+        r = await call("loop_render", {"recipe": {"layers": [{"type": "shader", "source": ITIME}],
                                               "settings": RECIPE["settings"]}})
         assert "NOT RENDERED" in text(r)
 

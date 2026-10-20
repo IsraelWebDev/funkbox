@@ -136,7 +136,7 @@ def listing(deck: dict) -> str:
 
 SHOW_VERBATIM = ("Show the numbered listing above to the user VERBATIM (do not summarise or reword it) and ask whether "
                  "they approve exactly these lines. Only these approved lines can ever appear on screen or in the "
-                 "voice-over. If they want a change, call propose_copy again; then call approve_copy with the NEW "
+                 "voice-over. If they want a change, call project_propose_copy again; then call project_approve_copy with the NEW "
                  "draft_sha256.")
 
 
@@ -144,7 +144,7 @@ def propose_copy(slug: str, lines: dict, pronounce: dict | None = None, brand_na
     d = P.project_dir(slug)
     deck, errs = validate_lines(slug, lines, pronounce, brand_name)
     if errs:
-        raise ReelError(["propose_copy rejected the draft (nothing was written):"] + [f"  {e}" for e in errs])
+        raise ReelError(["project_propose_copy rejected the draft (nothing was written):"] + [f"  {e}" for e in errs])
     data = _dump(deck)
     _atomic_write(d / DRAFT, data)
     sha = P.sha256_bytes(data)
@@ -176,7 +176,7 @@ def _atomic_write(path: Path, data: bytes) -> None:
 def read_draft(slug: str) -> tuple[bytes, dict]:
     p = P.project_dir(slug) / DRAFT
     if not p.is_file():
-        raise ApprovalError(f"project {slug!r} has no draft; call propose_copy first")
+        raise ApprovalError(f"project {slug!r} has no draft; call project_propose_copy first")
     data = p.read_bytes()
     return data, json.loads(data.decode("utf-8-sig"))
 
@@ -186,7 +186,7 @@ def prepare_approval(slug: str, draft_sha256: str) -> tuple[str, str]:
     data, deck = read_draft(slug)
     sha = P.sha256_bytes(data)
     if not isinstance(draft_sha256, str) or draft_sha256.strip().lower() != sha:
-        raise ApprovalError("stale draft_sha256: the draft changed after the listing you were given. Call propose_copy "
+        raise ApprovalError("stale draft_sha256: the draft changed after the listing you were given. Call project_propose_copy "
                             "again (or copy_diff), show the NEW listing to the user and use its draft_sha256. "
                             "Nothing was approved.")
     return listing(deck), sha
@@ -291,5 +291,5 @@ def copy_diff(slug: str) -> str:
                             f"{op} {a[k][i1:i2]!r}->{b[k][j1:j2]!r}" for op, i1, i2, j1, j2 in sm.get_opcodes() if op != "equal"))
     if (appr or {}).get("pronounce", {}) != draft.get("pronounce", {}):
         out.append(f"~ pronounce: approved {json.dumps((appr or {}).get('pronounce', {}))} -> draft {json.dumps(draft.get('pronounce', {}))}")
-    out.append(f"{same} line(s) unchanged; the draft is NOT in effect until approve_copy succeeds.")
+    out.append(f"{same} line(s) unchanged; the draft is NOT in effect until project_approve_copy succeeds.")
     return "\n".join(out)

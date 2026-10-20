@@ -59,6 +59,12 @@ def cmd_doctor(args) -> int:
     return 1 if problems else 0
 
 
+def cmd_serve(args) -> int:
+    from funkbox import server
+    server.serve()
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="funkbox", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -73,6 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     images.add_cli(sub)              # image generate/restyle/upscale (same `image` group)
     apps.add_cli(sub)
     sub.add_parser("doctor", help="GL info, ffmpeg, models, FastSD/GIMP paths, config").set_defaults(fn=cmd_doctor)
+    sub.add_parser("serve", help="run the MCP server (stdio)").set_defaults(fn=cmd_serve)
     return ap
 
 

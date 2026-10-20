@@ -147,8 +147,8 @@ def test_uv_run_project_lists_tools():
     from mcp.client.stdio import stdio_client
 
     async def go():
-        params = StdioServerParameters(command="uv", args=["run", "--project", str(ROOT), "python", str(ROOT / "funk2_mcp.py")],
-                                       env={**os.environ, "FUNK_GL_BACKEND": "egl"})
+        params = StdioServerParameters(command="uv", args=["run", "--project", str(ROOT), "python", str(ROOT / "funkbox.py"), "serve"],
+                                       env={**os.environ, "FUNK_GL_BACKEND": "egl"}, cwd=str(ROOT.parent))
         async with stdio_client(params) as (rd, wr):
             async with ClientSession(rd, wr) as s:
                 await s.initialize()
@@ -157,4 +157,4 @@ def test_uv_run_project_lists_tools():
         names = asyncio.run(asyncio.wait_for(go(), 240))
     except Exception as e:  # offline sandbox: uv cannot resolve
         pytest.skip(f"uv could not start the server here: {type(e).__name__}")
-    assert names
+    assert "loop_render" in names and "project_approve_copy" in names

@@ -143,14 +143,14 @@ def test_studio_tools_on_the_stub(tmp_path):
            "STUDIO_FAKE_SD": "1"}
 
     async def go():
-        params = StdioServerParameters(command=sys.executable, args=[str(ROOT / "funkbox" / "studio" / "studio_mcp.py")], env=env)
+        params = StdioServerParameters(command=sys.executable, args=["-m", "funkbox", "serve"], env=env, cwd=str(ROOT))
         async with stdio_client(params) as (r, w):
             async with ClientSession(r, w) as s:
                 await s.initialize()
                 tools = {t.name for t in (await s.list_tools()).tools}
-                assert {"generate_image", "restyle_image", "upscale_image", "status", "start", "stop"} <= tools
+                assert {"image_generate", "image_restyle", "image_upscale", "apps_status", "apps_start", "apps_stop"} <= tools
                 desc = {t.name: t.description for t in (await s.list_tools()).tools}
-                assert "Stability AI Community License" in desc["generate_image"]
+                assert "Stability AI Community License" in desc["image_generate"]
 
                 async def call(name, args):
                     res = await s.call_tool(name, args)
@@ -158,7 +158,7 @@ def test_studio_tools_on_the_stub(tmp_path):
                     return res
 
                 # n=3 gives 3 files and one sheet
-                r1 = await call("generate_image", {"prompt": "mop on a kitchen floor", "n": 3, "seed": 10, "name": "mop"})
+                r1 = await call("image_generate", {"prompt": "mop on a kitchen floor", "n": 3, "seed": 10, "name": "mop"})
                 files = sorted(p.name for p in (home / "inputs").glob("mop-*.png"))
                 assert files == ["mop-1.png", "mop-2.png", "mop-3.png"]
                 assert [c.type for c in r1.content] == ["text", "image"]
@@ -168,34 +168,34 @@ def test_studio_tools_on_the_stub(tmp_path):
 
                 # deterministic: the same call again writes identical bytes
                 before = (home / "inputs" / "mop-2.png").read_bytes()
-                await call("generate_image", {"prompt": "mop on a kitchen floor", "n": 3, "seed": 10, "name": "mop"})
+                await call("image_generate", {"prompt": "mop on a kitchen floor", "n": 3, "seed": 10, "name": "mop"})
                 assert (home / "inputs" / "mop-2.png").read_bytes() == before
 
                 # a new size warns BEFORE generating
-                r2 = await call("generate_image", {"prompt": "tall", "aspect": "story", "name": "tall"})
+                r2 = await call("image_generate", {"prompt": "tall", "aspect": "story", "name": "tall"})
                 assert "NOT STARTED" in _text(r2) and "first image at 512x896 will take ~2-3 min" in _text(r2)
                 assert not (home / "inputs" / "tall.png").exists()
-                r3 = await call("generate_image", {"prompt": "tall", "aspect": "story", "name": "tall",
+                r3 = await call("image_generate", {"prompt": "tall", "aspect": "story", "name": "tall",
                                                    "confirm_slow": True})
                 assert Image.open(home / "inputs" / "tall.png").size == (512, 896)
-                r4 = await call("generate_image", {"prompt": "tall again", "aspect": "story", "name": "tall2"})
+                r4 = await call("image_generate", {"prompt": "tall again", "aspect": "story", "name": "tall2"})
                 assert "NOT STARTED" not in _text(r4)                    # that size is now compiled
 
                 # img2img: strength clamp is reported, aspect follows the picture
-                r5 = await call("restyle_image", {"path": "inputs/tall.png", "prompt": "oil painting",
+                r5 = await call("image_restyle", {"path": "inputs/tall.png", "prompt": "oil painting",
                                                   "strength": 0.3, "name": "tall-oil"})
                 assert "steps raised from 1 to 4" in _text(r5)
                 assert Image.open(home / "inputs" / "tall-oil.png").size == (512, 896)
-                r6 = await call("restyle_image", {"path": "/etc/hostname", "prompt": "x"})
+                r6 = await call("image_restyle", {"path": "/etc/hostname", "prompt": "x"})
                 assert _text(r6).startswith("ERROR") and "outside the allowed" in _text(r6)
 
                 # upscale: exactly 2x, method reported
-                r7 = await call("upscale_image", {"path": "inputs/tall.png", "name": "tall-big"})
+                r7 = await call("image_upscale", {"path": "inputs/tall.png", "name": "tall-big"})
                 assert Image.open(home / "inputs" / "tall-big.png").size == (1024, 1792)
                 assert "lanczos" in _text(r7)
-                r8 = await call("upscale_image", {"path": "../../etc/passwd"})
+                r8 = await call("image_upscale", {"path": "../../etc/passwd"})
                 assert _text(r8).startswith("ERROR")
-                st = await call("status", {})
+                st = await call("apps_status", {})
                 assert "stub" in _text(st) and "512x896" in _text(st)
 
     asyncio.run(go())

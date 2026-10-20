@@ -18,7 +18,7 @@ from mcp import ClientSession, StdioServerParameters  # noqa: E402
 from mcp.client.stdio import stdio_client  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-TOOLS = {"presets", "render_poster", "preview_poster", "poster_variations", "edit_image", "funk_still", "export_ora"}
+TOOLS = {"poster_presets", "poster_render", "poster_preview", "poster_variations", "image_edit", "loop_still", "poster_export_ora"}
 
 
 def text(res):
@@ -50,26 +50,26 @@ def test_every_tool_over_stdio(gl, work):
     doc = poster(photo)
 
     async def scenario():
-        params = StdioServerParameters(command=sys.executable, args=[str(ROOT / "stills_mcp.py")], env=env())
+        params = StdioServerParameters(command=sys.executable, args=["-m", "funkbox", "serve"], env=env(), cwd=str(ROOT))
         async with stdio_client(params) as (r, w):
             async with ClientSession(r, w) as s:
                 init = await s.initialize()
-                assert "preview_poster" in (init.instructions or "") and "copy_id" in init.instructions
-                assert init.instructions.count(". ") <= 3 and "GIMP" in init.instructions
-                assert {t.name for t in (await s.list_tools()).tools} == TOOLS
+                assert "poster_preview" in (init.instructions or "") and "casual" in init.instructions
+                assert "GIMP" in init.instructions
+                assert TOOLS <= {t.name for t in (await s.list_tools()).tools}
 
                 async def call(name, args=None):
                     res = await s.call_tool(name, args or {})
                     assert not res.is_error, (name, res.content)
                     return res
 
-                t = text(await call("presets"))
+                t = text(await call("poster_presets"))
                 assert "square 1080x1080" in t and "ora" in t and "remove_background" in t
 
-                r = await call("preview_poster", {"poster": doc, "max_side": 200})
+                r = await call("poster_preview", {"poster": doc, "max_side": 200})
                 assert kinds(r) == ["text", "image"] and "not saved" in text(r) and "1 string(s)" in text(r)
 
-                r = await call("render_poster", {"poster": doc, "name": "mcp-r1"})
+                r = await call("poster_render", {"poster": doc, "name": "mcp-r1"})
                 t = text(r)
                 assert kinds(r) == ["text", "image"] and "320x400" in t and "mcp-r1.png" in t and "mcp-r1.ora" in t
                 png = Path([l.split(": ", 1)[1] for l in t.splitlines() if l.startswith("png: ")][0])
@@ -78,25 +78,25 @@ def test_every_tool_over_stdio(gl, work):
 
                 # a sidecar path renders again
                 side = png.parent / "mcp-r1.poster.json"
-                r = await call("preview_poster", {"poster": str(side), "max_side": 160})
+                r = await call("poster_preview", {"poster": str(side), "max_side": 160})
                 assert "ERROR" not in text(r)
 
                 r = await call("poster_variations", {"poster": doc, "vary": {"seed": [1, 2, 3]}, "name": "mcp-v"})
                 assert kinds(r) == ["text", "image"] and "3 variants" in text(r) and "mcp-v-sheet.png" in text(r)
 
-                r = await call("edit_image", {"path": str(photo), "ops": [{"op": "crop", "aspect": "1:1"},
+                r = await call("image_edit", {"path": str(photo), "ops": [{"op": "crop", "aspect": "1:1"},
                                                                           {"op": "adjust", "saturation": 0.2}], "name": "mcp"})
                 t = text(r)
                 assert kinds(r) == ["text", "image"] and "photo-mcp.png" in t and "compare" in t
                 assert photo.is_file()
 
-                r = await call("funk_still", {"recipe_or_shader": "shaders/warp.frag", "t": 0.3, "preset": "square", "name": "mcp-st"})
+                r = await call("loop_still", {"recipe_or_shader": "shaders/warp.frag", "t": 0.3, "preset": "square", "name": "mcp-st"})
                 assert kinds(r) == ["text", "image"] and "1080x1080" in text(r)
-                r = await call("funk_still", {"recipe_or_shader": "vec4 effect(vec2 p){ return vec4(p, 0.5, 1.0); }",
+                r = await call("loop_still", {"recipe_or_shader": "vec4 effect(vec2 p){ return vec4(p, 0.5, 1.0); }",
                                               "preset": "square", "name": "mcp-st2"})
                 assert "ERROR" not in text(r)
 
-                r = await call("export_ora", {"poster": doc, "name": "mcp-ora"})
+                r = await call("poster_export_ora", {"poster": doc, "name": "mcp-ora"})
                 t = text(r)
                 assert "valid OpenRaster 320x400" in t and "svg:overlay" in t
                 ora_path = Path([l.split(": ", 1)[1] for l in t.splitlines() if l.startswith("ora: ")][0])
@@ -106,10 +106,10 @@ def test_every_tool_over_stdio(gl, work):
                 # errors come back as text, never as a crash
                 bad = json.loads(json.dumps(doc))
                 bad["casual"] = False
-                t = text(await call("render_poster", {"poster": bad}))
+                t = text(await call("poster_render", {"poster": bad}))
                 assert t.startswith("ERROR") and "casual" in t
-                assert text(await call("edit_image", {"path": "/etc/hostname", "ops": [{"op": "flip", "axis": "h"}]})).startswith("ERROR")
-                assert text(await call("funk_still", {"recipe_or_shader": "nope.frag"})).startswith("ERROR")
+                assert text(await call("image_edit", {"path": "/etc/hostname", "ops": [{"op": "flip", "axis": "h"}]})).startswith("ERROR")
+                assert text(await call("loop_still", {"recipe_or_shader": "nope.frag"})).startswith("ERROR")
     asyncio.run(scenario())
 
 

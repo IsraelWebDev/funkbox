@@ -77,7 +77,7 @@ def preflight(doc: Doc, ctx: RCtx) -> CopyDeck | None:
         if "text" in l:
             if doc.project:
                 errs.append(f"{w}: literal text is not allowed in a project poster; use copy_id with the project's "
-                            "approved copy (propose_copy, then approve_copy)")
+                            "approved copy (project_propose_copy, then project_approve_copy)")
             elif not doc.casual:
                 errs.append(f"{w}: literal text is only allowed in casual posters; set \"casual\": true, or use copy_id "
                             "with an approved copy deck (exact text is the default)")

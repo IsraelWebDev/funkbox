@@ -46,3 +46,54 @@ Things that changed on purpose:
 - The v1 look controls (`kaleido`, `spin`, `zoom`) are shader params now: `u_kaleido`, `k_spin`, `u_zoom` on the six
   ported shaders. Presets and `--set kaleido=8` still work; recipes may also set the params directly.
 - A layer of `{"type": "v1", "effect": X}` is converted to a shader layer on `shaders/X.frag` when the recipe loads.
+
+## MCP: one server instead of five
+
+Before, `claude_desktop_config.json` had `funk`, `funk2`, `reel`, `studio` and `stills` entries. Now there is one
+`funkbox` entry (`python -m funkbox serve`) and, when gimp-mcp is installed, `gimp`. `install.py --register` writes
+the new entry and removes the old keys after backing the file up. Tool names are prefixed by area, and every old tool
+maps to exactly one new tool with the same parameters:
+
+| Old server: tool | New tool |
+| --- | --- |
+| funk2: `gl_info` | `loop_gl_info` |
+| funk2: `list_looks` | `loop_list` |
+| funk2: `write_shader` | `loop_write_shader` |
+| funk2: `get_shader` | `loop_get_shader` |
+| funk2: `preview` | `loop_preview` |
+| funk2: `contact_sheet` | `loop_sheet` |
+| funk2: `render` | `loop_render` |
+| funk: `render_v1` | removed; render a preset recipe with `loop_render` (`loop_list` shows the preset recipes) |
+| reel: `copy_lines` | `reel_copy_lines` |
+| reel: `validate` | `reel_validate` |
+| reel: `storyboard` | `reel_storyboard` |
+| reel: `still` | `reel_still` |
+| reel: `render` | `reel_render` |
+| reel: `list_templates` | `reel_templates` |
+| reel: `new_project` | `project_new` |
+| reel: `list_projects` | `project_list` |
+| reel: `ingest` | `project_ingest` |
+| reel: `set_product` | `project_set_product` |
+| reel: `brand_from_assets` | `project_brand` |
+| reel: `set_brand` | `project_set_brand` |
+| reel: `propose_copy` | `project_propose_copy` |
+| reel: `approve_copy` | `project_approve_copy` |
+| reel: `copy_diff` | `project_copy_diff` |
+| reel: `auto_reel` | `project_auto_reel` |
+| reel: `project_render` | `project_render` |
+| stills: `presets` | `poster_presets` |
+| stills: `preview_poster` | `poster_preview` |
+| stills: `render_poster` | `poster_render` |
+| stills: `poster_variations` | `poster_variations` |
+| stills: `export_ora` | `poster_export_ora` |
+| stills: `edit_image` | `image_edit` |
+| stills: `funk_still` | `loop_still` |
+| studio: `generate_image` | `image_generate` |
+| studio: `restyle_image` | `image_restyle` |
+| studio: `upscale_image` | `image_upscale` |
+| studio: `status` | `apps_status` |
+| studio: `start` | `apps_start` |
+| studio: `stop` | `apps_stop` |
+
+The copy lock is unchanged: no tool writes `copy.json` except `project_approve_copy` (MCP approval prompt, or an
+explicit chat confirmation when the client cannot show one). `project_propose_copy` writes only the draft.
