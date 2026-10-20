@@ -13,7 +13,7 @@ Rules for agents:
 ## Windows (PowerShell)
 
 ```powershell
-git clone <repo-url> funkbox; cd funkbox
+git clone https://github.com/IsraelWebDev/funkbox funkbox; cd funkbox
 py -3 install.py --with reel --register desktop --shortcuts --yes
 # optional: image generation and GIMP
 py -3 install.py --with reel,fastsd,gimp --register desktop --shortcuts --yes
@@ -23,7 +23,7 @@ Quit Claude Desktop before `--register desktop`, start it again afterwards.
 ## macOS
 
 ```bash
-git clone <repo-url> funkbox && cd funkbox
+git clone https://github.com/IsraelWebDev/funkbox funkbox && cd funkbox
 python3 install.py --with reel --register desktop --shortcuts --yes
 ```
 
@@ -31,12 +31,14 @@ python3 install.py --with reel --register desktop --shortcuts --yes
 
 ```bash
 sudo apt-get install -y libegl1 libgl1-mesa-dri ffmpeg      # software OpenGL, only if there is no GPU driver
-git clone <repo-url> funkbox && cd funkbox
+git clone https://github.com/IsraelWebDev/funkbox funkbox && cd funkbox
 FUNK_GL_BACKEND=egl python3 install.py --with reel --register code --yes
 ```
 
 `--register code` runs `claude mcp add --scope user ...` for you (or prints the lines when the CLI is absent).
-As a plugin instead: `claude --plugin-dir .` (needs `uv`).
+As a Claude Code plugin instead (needs `uv`): `/plugin marketplace add IsraelWebDev/funkbox`, then
+`/plugin install funkbox@funkbox`. Plugin data lives in `~/funkbox-data/`. The heavy extras (`reel` models,
+FastSD, GIMP) still need `install.py --with ...` from a clone.
 
 Preview any plan first: `python install.py --dry-run --with reel,fastsd,gimp --register desktop --shortcuts`.
 
