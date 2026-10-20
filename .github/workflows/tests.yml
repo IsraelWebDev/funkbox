@@ -1,0 +1,20 @@
+name: tests
+on:
+  push:
+  pull_request:
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: System libraries (software OpenGL, ffmpeg)
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1-mesa-dri ffmpeg
+      - name: Python dependencies
+        run: pip install -r requirements.txt pytest
+      - name: Tests
+        env:
+          FUNK_GL_BACKEND: egl
+        run: pytest -q

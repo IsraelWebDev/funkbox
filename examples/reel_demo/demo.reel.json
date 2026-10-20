@@ -1,0 +1,380 @@
+{
+  "version": 3,
+  "settings": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "safe_area": "reels"
+  },
+  "brand": {
+    "primary": "#c8102e",
+    "secondary": "#1a1a1a",
+    "text": "#ffffff",
+    "font_caption": "fonts/Oswald-SemiBold.ttf",
+    "font_display": "fonts/DMSerifDisplay-Regular.ttf",
+    "logo": "inputs/brand/logo.png"
+  },
+  "copy": "inputs/brand/copy.json",
+  "audio": {
+    "music": "inputs/music/click120.wav",
+    "music_gain_db": -14,
+    "voiceover": true,
+    "duck_db": -10,
+    "snap_cuts_to_beats": true,
+    "loudness_lufs": -14
+  },
+  "shots": [
+    {
+      "id": "s1",
+      "source": {
+        "image": "inputs/shots/shot1.png"
+      },
+      "motion": {
+        "type": "parallax",
+        "push": 0.08,
+        "orbit_deg": 3,
+        "dof": 0.3
+      },
+      "caption": {
+        "copy_id": "hook",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "top"
+      },
+      "vo": "hook",
+      "duration": "auto"
+    },
+    {
+      "id": "s2",
+      "source": {
+        "image": "inputs/shots/shot2.png"
+      },
+      "motion": {
+        "type": "kenburns",
+        "zoom": [
+          1.0,
+          1.12
+        ],
+        "pan": [
+          [
+            0,
+            0
+          ],
+          [
+            0.02,
+            -0.03
+          ]
+        ]
+      },
+      "product": {
+        "image": "inputs/brand/bottle.png",
+        "x": 0.5,
+        "y": 0.78,
+        "height": 0.38,
+        "depth": 0.85,
+        "shadow": 0.6,
+        "match_color": 0.5
+      },
+      "caption": {
+        "copy_id": "fresh",
+        "style": "red-box",
+        "reveal": "words",
+        "anchor": "top"
+      },
+      "duration": "beats:3",
+      "transition_in": "push"
+    },
+    {
+      "id": "s3",
+      "source": {
+        "image": "inputs/shots/shot3.png"
+      },
+      "motion": {
+        "type": "parallax",
+        "push": 0.08,
+        "orbit_deg": 3,
+        "dof": 0.3
+      },
+      "product": {
+        "image": "inputs/brand/bottle.png",
+        "x": 0.5,
+        "y": 0.78,
+        "height": 0.38,
+        "depth": 0.85,
+        "shadow": 0.6,
+        "match_color": 0.5
+      },
+      "caption": {
+        "copy_id": "tackle",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "top"
+      },
+      "vo": "tackle",
+      "duration": "auto",
+      "transition_in": "flash"
+    },
+    {
+      "id": "s4",
+      "source": {
+        "color": "#0b3d5c"
+      },
+      "product": {
+        "image": "inputs/brand/bottle.png",
+        "x": 0.5,
+        "y": 0.78,
+        "height": 0.38,
+        "depth": 0.85,
+        "shadow": 0.6,
+        "match_color": 0.5
+      },
+      "caption": {
+        "copy_id": "tough",
+        "style": "red-box",
+        "reveal": "pop",
+        "anchor": "top"
+      },
+      "duration": "beats:2",
+      "transition_in": "crossfade"
+    },
+    {
+      "id": "s5",
+      "source": {
+        "image": "inputs/shots/shot4.png"
+      },
+      "motion": {
+        "type": "kenburns",
+        "zoom": [
+          1.12,
+          1.0
+        ],
+        "pan": [
+          [
+            0.02,
+            0.0
+          ],
+          [
+            0,
+            0
+          ]
+        ]
+      },
+      "product": {
+        "image": "inputs/brand/bottle.png",
+        "x": 0.4,
+        "y": 0.78,
+        "height": 0.38,
+        "depth": 0.85,
+        "shadow": 0.6,
+        "match_color": 0.5
+      },
+      "duration": "beats:3"
+    },
+    {
+      "id": "s6",
+      "source": {
+        "video": "inputs/clips/swirl.mp4",
+        "trim": [
+          0.5,
+          2.0
+        ]
+      },
+      "caption": {
+        "copy_id": "care",
+        "style": "red-box",
+        "reveal": "none",
+        "anchor": "bottom"
+      },
+      "duration": "beats:3",
+      "transition_in": "zoom-punch"
+    },
+    {
+      "id": "s7",
+      "source": {
+        "image": "inputs/shots/shot5.png"
+      },
+      "motion": {
+        "type": "parallax",
+        "push": 0.08,
+        "orbit_deg": -3,
+        "dof": 0.3
+      },
+      "product": {
+        "image": "inputs/brand/bottle.png",
+        "x": 0.6,
+        "y": 0.78,
+        "height": 0.38,
+        "depth": 0.85,
+        "shadow": 0.6,
+        "match_color": 0.5
+      },
+      "caption": {
+        "copy_id": "gentle",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "top"
+      },
+      "duration": "beats:3"
+    },
+    {
+      "id": "s8",
+      "source": {
+        "funk2": "inputs/funk2/swirl.json"
+      },
+      "product": {
+        "image": "inputs/brand/bottle.png",
+        "x": 0.5,
+        "y": 0.78,
+        "height": 0.38,
+        "depth": 0.85,
+        "shadow": 0.6,
+        "match_color": 0.5
+      },
+      "duration": 1.5,
+      "transition_in": "flash"
+    },
+    {
+      "id": "s9",
+      "source": {
+        "image": "inputs/shots/shot6.png"
+      },
+      "motion": {
+        "type": "kenburns",
+        "zoom": [
+          1.0,
+          1.1
+        ],
+        "pan": [
+          [
+            0,
+            0
+          ],
+          [
+            0.02,
+            -0.03
+          ]
+        ]
+      },
+      "product": {
+        "image": "inputs/brand/bottle.png",
+        "x": 0.5,
+        "y": 0.78,
+        "height": 0.38,
+        "depth": 0.85,
+        "shadow": 0.6,
+        "match_color": 0.5
+      },
+      "caption": {
+        "copy_id": "fresh",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "top"
+      },
+      "duration": "beats:3"
+    },
+    {
+      "id": "s10",
+      "source": {
+        "image": "inputs/shots/shot7.png"
+      },
+      "motion": {
+        "type": "parallax",
+        "push": 0.08,
+        "orbit_deg": 3,
+        "dof": 0.3
+      },
+      "product": {
+        "image": "inputs/brand/bottle.png",
+        "x": 0.45,
+        "y": 0.78,
+        "height": 0.38,
+        "depth": 0.85,
+        "shadow": 0.6,
+        "match_color": 0.5
+      },
+      "duration": "beats:3",
+      "transition_in": "push"
+    },
+    {
+      "id": "s11",
+      "source": {
+        "image": "inputs/shots/shot8.png"
+      },
+      "motion": {
+        "type": "kenburns",
+        "zoom": [
+          1.0,
+          1.15
+        ],
+        "pan": [
+          [
+            0,
+            0
+          ],
+          [
+            0.02,
+            -0.03
+          ]
+        ]
+      },
+      "product": {
+        "image": "inputs/brand/bottle.png",
+        "x": 0.5,
+        "y": 0.78,
+        "height": 0.38,
+        "depth": 0.85,
+        "shadow": 0.6,
+        "match_color": 0.5
+      },
+      "caption": {
+        "copy_id": "tough",
+        "style": "red-box",
+        "reveal": "words",
+        "anchor": "top"
+      },
+      "duration": "beats:3",
+      "transition_in": "crossfade"
+    },
+    {
+      "id": "s12",
+      "source": {
+        "image": "inputs/shots/shot1.png"
+      },
+      "motion": {
+        "type": "parallax",
+        "push": 0.08,
+        "orbit_deg": 3,
+        "dof": 0.3
+      },
+      "product": {
+        "image": "inputs/brand/bottle.png",
+        "x": 0.5,
+        "y": 0.78,
+        "height": 0.38,
+        "depth": 0.85,
+        "shadow": 0.6,
+        "match_color": 0.5
+      },
+      "caption": {
+        "copy_id": "gentle",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "top"
+      },
+      "duration": "beats:3",
+      "transition_in": "zoom-punch"
+    }
+  ],
+  "end_card": {
+    "template": "brand-split",
+    "duration": 5.0,
+    "audio": "silence",
+    "copy": {
+      "headline": "end_head",
+      "sub": "end_sub",
+      "url": "url"
+    },
+    "product": "inputs/brand/bottle.png",
+    "headline_reveal": "typewriter"
+  }
+}

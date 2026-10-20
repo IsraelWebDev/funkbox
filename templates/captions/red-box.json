@@ -1,0 +1,13 @@
+{
+  "font": "caption",
+  "size": 0.052,
+  "color": "text",
+  "box": "primary",
+  "padding": 0.6,
+  "max_width": 0.82,
+  "line_height": 1.1,
+  "align": "left",
+  "scale_in": 0.15,
+  "cursor": false,
+  "cps": 28
+}

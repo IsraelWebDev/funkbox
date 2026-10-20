@@ -1,0 +1,16 @@
+{
+  "font": "caption",
+  "size": 0.042,
+  "color": "text",
+  "box": "secondary",
+  "box_alpha": 0.88,
+  "accent": "primary",
+  "padding": 0.5,
+  "max_width": 0.88,
+  "line_height": 1.15,
+  "align": "left",
+  "x": 0.06,
+  "scale_in": 0.15,
+  "cursor": false,
+  "cps": 28
+}

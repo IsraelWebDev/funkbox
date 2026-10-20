@@ -1,0 +1,40 @@
+{
+  "depth": {
+    "name": "Depth-Anything-V2-Small (ONNX, fp32)",
+    "repo": "onnx-community/depth-anything-v2-small",
+    "revision": "4472b7362082ad9968fee890ca0f1e5aca36b93d",
+    "files": [
+      {
+        "url": "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/4472b7362082ad9968fee890ca0f1e5aca36b93d/onnx/model.onnx",
+        "dest": "depth_anything_v2_small.onnx",
+        "sha256": "afb6a5c28f3b6bf1618c6e43f02073ef9dfdc70e937502d51603e57b0a1df10c",
+        "size": 99060839
+      }
+    ],
+    "license": "Apache-2.0",
+    "license_note": "Depth-Anything-V2-Small is Apache-2.0 (the Base/Large/Giant models are CC-BY-NC and MUST NOT be used). The ONNX export repo card also declares apache-2.0.",
+    "license_url": "https://huggingface.co/onnx-community/depth-anything-v2-small"
+  },
+  "voice": {
+    "name": "Piper en_US-ljspeech-medium (single-speaker US English, 22.05 kHz)",
+    "repo": "rhasspy/piper-voices",
+    "revision": "c10ece1aade47bb51c153c893d14e5bf8e5b7117",
+    "files": [
+      {
+        "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ljspeech/medium/en_US-ljspeech-medium.onnx",
+        "dest": "en_US-ljspeech-medium.onnx",
+        "sha256": "6f52a751e2349abe7a76735eb09dc1875298c77ea2342ffd2fef79ff81b87f22",
+        "size": 63531379
+      },
+      {
+        "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ljspeech/medium/en_US-ljspeech-medium.onnx.json",
+        "dest": "en_US-ljspeech-medium.onnx.json",
+        "sha256": "141d612cc0a95ed7efc1ca936b845c2364967f2e9217c5dbfcf69fc4d6c65860",
+        "size": 4972
+      }
+    ],
+    "license": "Dataset: public domain (LJ Speech); voice repo rhasspy/piper-voices: MIT",
+    "license_note": "MODEL_CARD (sha256 fbee1529c89d36b3fe76d7e9f3f832dce17f44900a52d76a9bda735654766b4d) says: Dataset License: public domain (https://keithito.com/LJ-Speech-Dataset/). Commercial use is allowed. NOTE: the piper-tts runtime package is GPL-3.0 (it bundles espeak-ng); it is an optional extra and is not distributed with funk.",
+    "license_url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ljspeech/medium/MODEL_CARD"
+  }
+}

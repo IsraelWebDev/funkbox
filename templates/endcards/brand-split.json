@@ -1,0 +1,16 @@
+{
+  "slots": ["headline", "sub", "url"],
+  "panel_width": 0.66,
+  "bar_height": 0.075,
+  "headline": {"font": "display", "size": 0.082, "color": "text", "box": null, "padding": 0.0,
+               "max_width": 0.56, "line_height": 1.05, "align": "left", "x": 0.07, "y": 0.22,
+               "scale_in": 0.0, "cps": 14, "cursor": true},
+  "sub": {"font": "caption", "size": 0.036, "color": "text", "box": null, "padding": 0.0,
+          "max_width": 0.56, "line_height": 1.1, "align": "left", "x": 0.07, "gap": 0.04,
+          "scale_in": 0.0, "cps": 28, "cursor": false},
+  "url": {"font": "caption", "size": 0.034, "color": "text", "box": null, "padding": 0.0,
+          "max_width": 0.9, "line_height": 1.0, "align": "center", "scale_in": 0.0, "cps": 28,
+          "cursor": false},
+  "product": {"x": 0.83, "y": 0.80, "height": 0.46, "depth": 0.5, "shadow": 0.6},
+  "start": 0.25
+}

@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "settings": {"width": 540, "height": 540, "fps": 30, "seconds": 4, "seed": 7},
+  "palette": {"name": "vapor", "cycles": 1},
+  "layers": [
+    {"type": "shader", "shader": "shaders/warp.frag"},
+    {"type": "image", "path": "cat.png", "fit": "contain", "blend": "normal", "opacity": 1.0, "uv_warp": 1.0},
+    {"type": "shader", "shader": "shaders/feedback_echo.frag", "blend": "add", "opacity": 0.45},
+    {"type": "v1", "effect": "blobs", "blend": "screen", "opacity": 0.35}
+  ],
+  "post": [{"name": "chroma", "px": 4}, {"name": "vignette", "amount": 0.4}, {"name": "grain", "amount": 0.03}],
+  "text": {"text": "DISCO CAT", "size": 0.13, "wobble": 6, "color": "#ffffff", "shadow": "#ff2bd6"}
+}

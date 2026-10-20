@@ -1,0 +1,11 @@
+{
+  "name": "funkbox",
+  "owner": { "name": "funkbox contributors" },
+  "plugins": [
+    {
+      "name": "funkbox",
+      "source": "./",
+      "description": "Local funk loops, ad reels and studio MCP servers (needs uv; run install.py --with reel for the reel models)."
+    }
+  ]
+}

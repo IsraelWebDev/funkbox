@@ -1,0 +1,37 @@
+{
+  "brand_name": "GLOWMOP",
+  "lines": {
+    "hook": {
+      "text": "LOOK CLOSER.\nTIME FOR A CLEAN?",
+      "say": "Look closer. Time for a clean?"
+    },
+    "tackle": {
+      "text": "TACKLE CARPET CLEANING WITH GLOWMOP.",
+      "say": "Tackle carpet cleaning with GLOWMOP."
+    },
+    "care": {
+      "text": "GIVE YOUR CARPET THE ATTENTION IT NEEDS."
+    },
+    "fresh": {
+      "text": "FRESH FIBRES, EVERY TIME."
+    },
+    "tough": {
+      "text": "TOUGH ON STAINS."
+    },
+    "gentle": {
+      "text": "GENTLE ON FAMILY LIFE."
+    },
+    "end_head": {
+      "text": "Deep\nCleaning\nPower"
+    },
+    "end_sub": {
+      "text": "PROFESSIONAL RESULTS"
+    },
+    "url": {
+      "text": "GLOWMOP.EXAMPLE"
+    }
+  },
+  "pronounce": {
+    "GLOWMOP": "glow mop"
+  }
+}
