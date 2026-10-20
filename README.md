@@ -15,7 +15,7 @@ to what you approved.
 You need Python 3.10 or newer and git.
 
 ```bash
-git clone <repo-url> funkbox
+git clone https://github.com/IsraelWebDev/funkbox funkbox
 cd funkbox
 python install.py --with reel --register desktop --shortcuts   # Windows: py -3 install.py ...
 ```
