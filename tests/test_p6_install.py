@@ -177,12 +177,11 @@ def test_funkbox_toml_roundtrip_and_resolution_order(tmp_path, monkeypatch):
 
 
 def test_no_hardcoded_machine_paths_in_studio():
-    # tracked files only: install.py renders GIMP-MCP.cmd (git-ignored) with this machine's real paths
-    import subprocess
-    tracked = set(subprocess.run(["git", "ls-files", "funkbox/studio"], cwd=ROOT, capture_output=True,
-                                 text=True).stdout.split())
+    # install.py renders GIMP-MCP.cmd (git-ignored) with this machine's real paths; skip generated files by
+    # name, not via git, since an install may not be a git checkout
+    generated = {"GIMP-MCP.cmd"}
     for p in (ROOT / "funkbox" / "studio").iterdir():
-        if tracked and p.relative_to(ROOT).as_posix() not in tracked:
+        if p.name in generated:
             continue
         if p.is_file() and p.suffix in (".py", ".template", ".cmd"):
             t = p.read_text(encoding="utf-8")
