@@ -1,1 +1,1 @@
-"""funk v3 "reel": shot list -> vertical video ad. Built on funkgl; no free text, ever."""
+"""reel: shot list -> vertical video ad. Built on funkbox.gl (the loop engine); no free text, ever."""

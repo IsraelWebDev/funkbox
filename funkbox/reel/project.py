@@ -110,13 +110,6 @@ def save_meta(slug: str, meta: dict) -> None:
     _write_json_atomic(project_dir(slug) / "project.json", meta)
 
 
-def update_meta(slug: str, **changes: Any) -> dict:
-    meta = load_meta(slug)
-    meta.update(changes)
-    save_meta(slug, meta)
-    return meta
-
-
 def advance_status(slug: str, status: str) -> None:
     """Move status forward only (never back), so a late tool call cannot hide progress."""
     meta = load_meta(slug)

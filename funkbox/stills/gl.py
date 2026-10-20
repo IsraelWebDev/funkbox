@@ -1,5 +1,5 @@
 """GPU side of the stills renderer: alpha-aware layer compositing, per-layer colour/filter passes and the
-poster-level post passes. Everything reuses funkgl: the blend functions of ``funkgl/blend.glsl``, the shader
+poster-level post passes. Everything reuses funkbox.gl: the blend functions of ``funkbox/gl/blend.glsl``, the shader
 prelude and ``Engine`` (programs, uniforms, the post pass chain, shader layers).
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ from funkbox.gl.shader import ShaderSource
 PASSES = Path(__file__).resolve().parent / "passes"
 POST = Path(_engine_mod.__file__).resolve().parent / "post"
 
-# funkgl's blend functions (blendRGB and friends) + a main() that also handles a base with alpha < 1.
+# funkbox.gl's blend functions (blendRGB and friends) + a main() that also handles a base with alpha < 1.
 # With an opaque base it is exactly the engine's `mix(base, blend(base, src), opacity * src.a)`.
 _BLEND_FUNCS = _engine_mod._BLEND_FRAG.split("void main()")[0]
 _BLEND_MAIN = """
@@ -64,7 +64,7 @@ class Buf:
 
 class Step:
     """One fx pass: a .frag file, values for its @param uniforms (keyed u_<name>), raw uniforms, and whether the
-    pass forces alpha to 1 (funkgl post passes do) so the layer's own alpha must be restored afterwards."""
+    pass forces alpha to 1 (funkbox.gl post passes do) so the layer's own alpha must be restored afterwards."""
 
     def __init__(self, frag: Path, values: dict | None = None, extra: dict | None = None, restore: bool = False):
         self.frag, self.values, self.extra, self.restore = frag, values or {}, extra or {}, restore
@@ -143,7 +143,7 @@ class GL:
     def composite(self, base: np.ndarray | None = None) -> "Comp":
         return Comp(self, base)
 
-    # ---- poster-level post passes (funkgl/post/*.frag through the Engine's own chain)
+    # ---- poster-level post passes (funkbox/gl/post/*.frag through the Engine's own chain)
     def post(self, rgb: np.ndarray, passes: list[dict], seed: int) -> np.ndarray:
         if not passes:
             return rgb
@@ -178,7 +178,7 @@ class GL:
 
 
 class Comp:
-    """Ping-pong accumulation of layers with funkgl's blend modes; straight alpha, any base alpha."""
+    """Ping-pong accumulation of layers with funkbox.gl's blend modes; straight alpha, any base alpha."""
 
     def __init__(self, gl: GL, base: np.ndarray | None):
         self.gl = gl
@@ -226,8 +226,3 @@ def get_gl(w: int, h: int) -> GL:
     else:
         _GLS.move_to_end(key)
     return gl
-
-
-def release_all() -> None:
-    while _GLS:
-        _GLS.popitem(last=False)[1].release()

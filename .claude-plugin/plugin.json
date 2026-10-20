@@ -1,7 +1,7 @@
 {
   "name": "funkbox",
-  "description": "Local GPU-shader funk loops, vertical video ad reels with approved-copy locking, layered posters and photo edits with exact text, and optional FastSD/GIMP studio servers. No cloud, no accounts.",
-  "version": "3.2.0",
+  "description": "Local GPU-shader funk loops, vertical video ad reels with approved-copy locking, layered posters and photo edits with exact text, and optional FastSD/GIMP control, all in one MCP server. No cloud, no accounts.",
+  "version": "4.0.0",
   "license": "MIT",
   "keywords": ["video", "shaders", "mcp", "ads", "local"]
 }

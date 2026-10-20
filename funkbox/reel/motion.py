@@ -178,7 +178,7 @@ class SourceTex:
 
 
 class MotionGL:
-    """Renders still images through a camera. One per (width, height); shares funkgl's context."""
+    """Renders still images through a camera. One per (width, height); shares funkbox.gl's context."""
 
     def __init__(self, width: int, height: int, ctx: moderngl.Context | None = None):
         self.ctx = ctx or create_context()

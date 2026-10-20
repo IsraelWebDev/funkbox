@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 from funkbox.media import font as font_
 

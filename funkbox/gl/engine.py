@@ -14,8 +14,8 @@ from funkbox.config import resolve_path
 
 from . import audio as _audio
 from .context import create_context
-from .recipe import BLEND_MODES, PALETTES, Layer, Recipe2, layer_seed, recipe_digest, resolve_recipe
-from .shader import ShaderError, ShaderSource, hex_to_rgb, parse_params, sample_params
+from .recipe import BLEND_MODES, PALETTES, Layer, Recipe2, recipe_digest, resolve_recipe
+from .shader import ShaderError, ShaderSource, hex_to_rgb
 from .text import draw_text
 
 _DIR = Path(__file__).resolve().parent

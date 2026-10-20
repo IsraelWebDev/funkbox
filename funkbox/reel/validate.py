@@ -49,10 +49,6 @@ def _res(path: str, reel: Reel) -> Path:
     return resolve_path(path, reel.base_dir)
 
 
-def load_deck(reel: Reel) -> CopyDeck:
-    return copydeck.load_copy(_res(reel.copy, reel))
-
-
 def validate(src: dict | str | Path | Reel, base_dir: str | Path | None = None, *,
              vo_durations: dict[str, float] | None = None,
              beats: list[float] | None = None, deep: bool = True) -> Report:

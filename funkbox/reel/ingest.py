@@ -192,13 +192,6 @@ class IngestResult:
     product: dict = field(default_factory=dict)
     contact_sheet: Path | None = None
 
-    def manifest(self) -> dict:
-        return {"project": self.project, "source": self.source, "moved": self.moved, "counts": self.counts,
-                "product": self.product, "warnings": self.warnings, "duplicates": self.duplicates,
-                "unsupported": [{"file": f, "why": w} for f, w in self.unsupported],
-                "items": [{"from": i.src, "to": i.dest, "kind": i.kind, "note": i.note} for i in self.items],
-                "contact_sheet": str(self.contact_sheet) if self.contact_sheet else None}
-
     def text(self) -> str:
         c = self.counts
         out = [f"ingested into {self.project!r} from {self.source} "

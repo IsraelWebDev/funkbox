@@ -25,7 +25,6 @@ from funkbox.media import filter_script_args, require_ffmpeg
 from .copydeck import CopyDeck
 from .depth import models_manifest
 from .schema import Reel
-from .timeline import ShotSpan
 
 SR_VO = 22050
 STUB_SEC_PER_CHAR = 0.06

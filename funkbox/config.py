@@ -77,14 +77,6 @@ class Config:
     def shaders_dir(self) -> Path:
         return self.home / "shaders"
 
-    @property
-    def templates_dir(self) -> Path:
-        return self.root / "templates"
-
-    @property
-    def fonts_dir(self) -> Path:
-        return self.root / "fonts"
-
     def describe(self) -> list[str]:
         src = dict(self.sources)
         rows = []

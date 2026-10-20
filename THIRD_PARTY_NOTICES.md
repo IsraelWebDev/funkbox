@@ -5,11 +5,11 @@ file is in this repository; "downloaded" means fetched on request; "optional" me
 
 | component | licence | how it is used |
 |---|---|---|
-| ashima/webgl-noise (simplex noise GLSL) | MIT | bundled, vendored in `funkgl/noise.glsl` |
+| ashima/webgl-noise (simplex noise GLSL) | MIT | bundled, vendored in `funkbox/gl/noise.glsl` |
 | Oswald (font) | SIL OFL 1.1 | bundled in `fonts/`, licence file `fonts/OFL-oswald.txt` |
 | DM Serif Display (font) | SIL OFL 1.1 | bundled in `fonts/`, licence file `fonts/OFL-dmserifdisplay.txt` |
-| Depth-Anything-V2-Small (ONNX) | Apache-2.0 | downloaded by `reel_cli.py setup-models` into `models/` |
-| Piper voice `en_US-ljspeech-medium` | public-domain training data (LJ Speech); model released under MIT | downloaded by `reel_cli.py setup-models` into `models/` |
+| Depth-Anything-V2-Small (ONNX) | Apache-2.0 | downloaded by `funkbox reel setup-models` into `models/` |
+| Piper voice `en_US-ljspeech-medium` | public-domain training data (LJ Speech); model released under MIT | downloaded by `funkbox reel setup-models` into `models/` |
 | piper-tts | GPL-3.0 | optional Python package (`requirements-reel.txt`), installed on request, not bundled |
 | FastSD CPU | MIT | optional, cloned by `install.py --with fastsd` into `vendor/` |
 | SD-Turbo (`rupeshs/sd-turbo-openvino`) | Stability AI Community License | the default FastSD model, downloaded by FastSD on first use; see the note below |

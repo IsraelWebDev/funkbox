@@ -5,7 +5,7 @@
 * ``approve`` copies the draft's exact bytes to ``copy.json`` iff the caller supplies the sha256 of the
   current draft, then records ``copy_lock = sha256(copy.json)``, the time and the method in project.json.
   Who is allowed to call it (elicitation click / explicit chat confirmation / a person at a terminal) is
-  decided by the callers (reel_mcp.approve_copy, funkbox project approve-copy), never by the agent's arguments
+  decided by the callers (project_approve_copy, funkbox project approve-copy), never by the agent's arguments
   alone.
 * ``relock`` (user-run CLI only) re-locks a copy.json the user edited by hand.
 * The v3 validator then refuses any reel whose copy.json no longer matches the lock (project.py).

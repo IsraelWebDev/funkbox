@@ -20,10 +20,6 @@ from PIL import Image as PILImage
 from funkbox import config
 from funkbox.studio import apps, sdcore
 
-LICENCE = ("Licence note: the default model is SD-Turbo, under the Stability AI Community License "
-           "(commercial use is free below US$1M annual revenue; Stability asks commercial users to register).")
-
-
 @dataclass
 class ImageResult:
     text: str
@@ -89,7 +85,7 @@ def _seeds(seed: int, n: int) -> list[int]:
 def _result(results: list[dict], prompt: str, base_name: str, extra: str = "") -> ImageResult:
     from funkbox.stills.sheet import contact_sheet
     paths = [Path(r["path"]) for r in results]
-    lines = [f"  seed {r['seed']}: {p}  (funk2 / poster image path: {_rel(p)})  {r['width']}x{r['height']} in {r['seconds']}s"
+    lines = [f"  seed {r['seed']}: {p}  (loop / poster image path: {_rel(p)})  {r['width']}x{r['height']} in {r['seconds']}s"
              for r, p in zip(results, paths)]
     notes = sorted({r["steps_note"] for r in results if r.get("steps_note")})
     head = f"saved {len(paths)} image(s) for {prompt!r}" if len(paths) > 1 else f"saved {paths[0]}"

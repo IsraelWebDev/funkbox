@@ -12,8 +12,8 @@ Everything in this folder is safe to publish. The brand **GLOWMOP** is invented.
 ![storyboard](../../docs/mimic-storyboard.png)
 
 ```bash
-python reel_cli.py storyboard examples/mimic/mimic.reel.json -o out/mimic_sb.png   # ~2 s
-python reel_cli.py render     examples/mimic/mimic.reel.json --name glowmop-mimic   # ~3.5 min on an Intel Iris Xe laptop
+python -m funkbox reel storyboard examples/mimic/mimic.reel.json -o out/mimic_sb.png   # ~2 s
+python -m funkbox reel render     examples/mimic/mimic.reel.json --name glowmop-mimic   # ~3.5 min on an Intel Iris Xe laptop
 ```
 
 `preview.mp4` is a downscaled copy of the full render.

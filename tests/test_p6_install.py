@@ -27,6 +27,7 @@ def test_pyproject_in_sync_with_requirements():
     tomllib = pytest.importorskip("tomllib")
     d = tomllib.loads((ROOT / "pyproject.toml").read_text())
     assert d["tool"]["uv"]["package"] is False
+    assert d["project"]["version"] == "4.0.0" and d["project"]["scripts"] == {"funkbox": "funkbox.cli:main"}
     assert d["project"]["requires-python"] == ">=3.10"
     norm = lambda xs: sorted(re.sub(r"\s+", "", x).lower() for x in xs)
     assert norm(d["project"]["dependencies"]) == _reqs("requirements.txt")
@@ -48,6 +49,9 @@ def test_dry_run_plan_prints_everything_and_changes_nothing(tmp_path, capsys):
     assert sorted(p.name for p in ROOT.iterdir()) == before
 
 
+V3_KEYS = ("funk", "funk2", "reel", "studio", "stills")
+
+
 def test_register_merge_backup_and_unregister(tmp_path):
     cfg = tmp_path / "claude_desktop_config.json"
     other = {"command": "node", "args": ["other.js"]}
@@ -58,7 +62,7 @@ def test_register_merge_backup_and_unregister(tmp_path):
     assert data["theme"] == "dark"
     assert data["mcpServers"]["other"] == other
     assert set(data["mcpServers"]) == {"other", *install.SERVER_KEYS}
-    assert data["mcpServers"]["funk"]["command"] != "old"
+    assert "funk" not in data["mcpServers"]                         # the v3 key was migrated away
     baks = list(tmp_path.glob("claude_desktop_config.json.bak-*"))
     assert len(baks) == 1 and "old" in baks[0].read_text()
     install.unregister_desktop(r, cfg)
@@ -67,13 +71,36 @@ def test_register_merge_backup_and_unregister(tmp_path):
     # idempotent: a second register/unregister does not break or duplicate anything
     install.register_desktop(r, cfg, ())
     install.register_desktop(r, cfg, ())
-    assert set(json.loads(cfg.read_text())["mcpServers"]) == {"other", "funk", "funk2", "reel", "studio", "stills"}
+    assert set(json.loads(cfg.read_text())["mcpServers"]) == {"other", "funkbox"}
+
+
+def test_migration_from_a_v3_config_keeps_unrelated_servers(tmp_path, capsys):
+    """A v3.2 config has five funkbox servers; registering leaves exactly one funkbox entry, a backup of the
+    old file, and every unrelated server untouched."""
+    cfg = tmp_path / "claude_desktop_config.json"
+    unrelated = {"command": "npx", "args": ["-y", "some-server"], "env": {"TOKEN": "x"}}
+    v3 = {k: {"command": "py", "args": [f"{k}_mcp.py"], "env": {"FUNK_HOME": "/x"}} for k in V3_KEYS}
+    original = {"mcpServers": {"filesystem": unrelated, **v3, "gimp": {"command": "uv", "args": ["old-gimp"]}}, "x": [1]}
+    cfg.write_text(json.dumps(original))
+    r = install.Runner(False, ROOT)
+    install.register_desktop(r, cfg, ())
+    servers = json.loads(cfg.read_text())["mcpServers"]
+    assert set(servers) == {"filesystem", "funkbox", "gimp"}        # gimp (not ours to remove) stays as it was
+    assert servers["filesystem"] == unrelated and servers["gimp"] == original["mcpServers"]["gimp"]
+    assert json.loads(cfg.read_text())["x"] == [1]
+    e = servers["funkbox"]
+    assert e["args"] == [str(ROOT / "funkbox.py"), "serve"] and e["env"]["FUNK_HOME"] == str(ROOT)
+    assert "migrated from v3: removed " + ", ".join(V3_KEYS) in capsys.readouterr().out
+    (bak,) = tmp_path.glob("claude_desktop_config.json.bak-*")
+    assert json.loads(bak.read_text()) == original                  # the backup is the old file, byte for byte in content
+    install.unregister_desktop(r, cfg)
+    assert json.loads(cfg.read_text())["mcpServers"] == {"filesystem": unrelated}
 
 
 def test_register_creates_missing_config_and_refuses_corrupt(tmp_path):
     cfg = tmp_path / "sub" / "c.json"
     install.register_desktop(install.Runner(False, ROOT), cfg, ())
-    assert "funk2" in json.loads(cfg.read_text())["mcpServers"]
+    assert "funkbox" in json.loads(cfg.read_text())["mcpServers"]
     cfg.write_text("{not json")
     with pytest.raises(ValueError):
         install.register_desktop(install.Runner(False, ROOT), cfg, ())
@@ -82,12 +109,33 @@ def test_register_creates_missing_config_and_refuses_corrupt(tmp_path):
 
 def test_code_commands_and_main_unregister(tmp_path, monkeypatch, capsys):
     cmds = install.code_add_commands(ROOT, ())
-    assert {c[5] for c in cmds} == {"funk", "funk2", "reel", "studio", "stills"}
+    assert {c[5] for c in cmds} == {"funkbox"}
     assert all(c[:5] == ["claude", "mcp", "add", "--scope", "user"] for c in cmds)
+    assert cmds[0][-2:] == [str(ROOT / "funkbox.py"), "serve"]
     cfg = tmp_path / "c.json"
-    cfg.write_text(json.dumps({"mcpServers": {"x": {}, "reel": {}}}))
+    cfg.write_text(json.dumps({"mcpServers": {"x": {}, "reel": {}, "funkbox": {}}}))
     assert install.main(["--unregister", "--config", str(cfg)]) == 0
     assert json.loads(cfg.read_text())["mcpServers"] == {"x": {}}
+
+
+def test_the_registered_entry_starts_the_server_from_any_folder(tmp_path):
+    """The entry install.py writes (command + args, no cwd) lists the tools when started from an unrelated folder."""
+    mcp = pytest.importorskip("mcp")
+    import asyncio
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    e = install.server_entries(ROOT, ())["funkbox"]
+    env = {**os.environ, **e["env"], "FUNK_OUT": str(tmp_path / "out"), "FUNK_INPUTS": str(tmp_path / "in"),
+           "FUNK_PROJECTS": str(tmp_path / "pr"), "FUNK_INBOX": str(tmp_path / "ib"), "FUNK_GL_BACKEND": "egl"}
+
+    async def go():
+        params = StdioServerParameters(command=sys.executable, args=e["args"], env=env, cwd=str(tmp_path))
+        async with stdio_client(params) as (rd, wr):
+            async with ClientSession(rd, wr) as s:
+                await s.initialize()
+                return {t.name for t in (await s.list_tools()).tools}
+    names = asyncio.run(go())
+    assert len(names) == 37 and "project_approve_copy" in names
 
 
 def test_gimp_cmd_template_rendered_without_machine_paths(tmp_path):
@@ -131,8 +179,11 @@ def test_plugin_files_parse_and_skill_present():
     mk = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text())
     mcp = json.loads((ROOT / ".mcp.json").read_text())
     assert pj["name"] == "funkbox" and mk["plugins"][0]["name"] == "funkbox"
+    assert list(mcp["mcpServers"]) == ["funkbox"]                        # one server, not five
     for k, s in mcp["mcpServers"].items():
         assert s["command"] == "uv" and "${CLAUDE_PLUGIN_ROOT}" in " ".join(s["args"]), k
+        assert s["args"][-2:] == ["${CLAUDE_PLUGIN_ROOT}/funkbox.py", "serve"] and s["env"]["FUNK_HOME"] == "${CLAUDE_PLUGIN_ROOT}"
+    assert pj["version"] == "4.0.0"
     sk = (ROOT / "skills" / "funk-studio" / "SKILL.md").read_text()
     assert sk == (ROOT / "docs" / "skill" / "SKILL.md").read_text() and sk.startswith("---")
     wf = (ROOT / ".github" / "workflows" / "tests.yml").read_text()

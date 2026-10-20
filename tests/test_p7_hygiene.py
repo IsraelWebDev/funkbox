@@ -72,5 +72,5 @@ def test_readme_is_public_facing():
     r = (ROOT / "README.md").read_text()
     assert "AGENTS.md" in r and "docs/preview.png" in r and "OpenGL 3.3" in r and "MIT" in r
     assert len(r.splitlines()) < 90
-    for d in ("v1-v2.md", "reel.md", "studio.md"):
+    for d in ("loops.md", "reel.md", "studio.md"):
         assert (ROOT / "docs" / d).is_file() and f"docs/{d}" in r

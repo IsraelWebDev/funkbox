@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from pathlib import Path
 from typing import Any
 
@@ -67,7 +66,7 @@ def preview(poster: Any, project: str = "", max_side: int = PREVIEW_SIDE) -> tup
 
 
 def make_still_doc(source: Any, t: float = 0.25, preset: str = "square", seed: int = 1) -> dict:
-    """A one-layer poster from a funk2 recipe (dict / .json path) or a shader (.frag path or GLSL source)."""
+    """A one-layer poster from a loop recipe (dict / .json path) or a shader (.frag path or GLSL source)."""
     if preset not in schema.PRESETS:
         raise ValueError(f"preset {preset!r}: use one of {', '.join(schema.PRESETS)}")
     lay: dict[str, Any] = {"id": "art", "type": "shader", "t": float(t)}
@@ -104,5 +103,3 @@ def ora_report(path: str | Path) -> str:
     rows += [f"  {l['name']}  {l['op']}  opacity {l['opacity']:g}" for l in info["layers"]]
     return "\n".join(rows)
 
-
-NAME_OK = re.compile(r"^[A-Za-z0-9_\-]{1,60}$")

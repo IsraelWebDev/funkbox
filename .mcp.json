@@ -1,40 +1,6 @@
 {
   "mcpServers": {
-    "funk": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--project",
-        "${CLAUDE_PLUGIN_ROOT}",
-        "python",
-        "${CLAUDE_PLUGIN_ROOT}/funk_mcp.py"
-      ],
-      "env": {
-        "FUNK_HOME": "${CLAUDE_PLUGIN_ROOT}",
-        "FUNK_OUT": "~/funkbox-data/out",
-        "FUNK_INPUTS": "~/funkbox-data/inputs",
-        "FUNK_PROJECTS": "~/funkbox-data/projects",
-        "FUNK_INBOX": "~/funkbox-data/inbox"
-      }
-    },
-    "funk2": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--project",
-        "${CLAUDE_PLUGIN_ROOT}",
-        "python",
-        "${CLAUDE_PLUGIN_ROOT}/funk2_mcp.py"
-      ],
-      "env": {
-        "FUNK_HOME": "${CLAUDE_PLUGIN_ROOT}",
-        "FUNK_OUT": "~/funkbox-data/out",
-        "FUNK_INPUTS": "~/funkbox-data/inputs",
-        "FUNK_PROJECTS": "~/funkbox-data/projects",
-        "FUNK_INBOX": "~/funkbox-data/inbox"
-      }
-    },
-    "reel": {
+    "funkbox": {
       "command": "uv",
       "args": [
         "run",
@@ -43,41 +9,8 @@
         "--extra",
         "reel",
         "python",
-        "${CLAUDE_PLUGIN_ROOT}/reel_mcp.py"
-      ],
-      "env": {
-        "FUNK_HOME": "${CLAUDE_PLUGIN_ROOT}",
-        "FUNK_OUT": "~/funkbox-data/out",
-        "FUNK_INPUTS": "~/funkbox-data/inputs",
-        "FUNK_PROJECTS": "~/funkbox-data/projects",
-        "FUNK_INBOX": "~/funkbox-data/inbox"
-      }
-    },
-    "studio": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--project",
-        "${CLAUDE_PLUGIN_ROOT}",
-        "python",
-        "${CLAUDE_PLUGIN_ROOT}/studio/studio_mcp.py"
-      ],
-      "env": {
-        "FUNK_HOME": "${CLAUDE_PLUGIN_ROOT}",
-        "FUNK_OUT": "~/funkbox-data/out",
-        "FUNK_INPUTS": "~/funkbox-data/inputs",
-        "FUNK_PROJECTS": "~/funkbox-data/projects",
-        "FUNK_INBOX": "~/funkbox-data/inbox"
-      }
-    },
-    "stills": {
-      "command": "uv",
-      "args": [
-        "run",
-        "--project",
-        "${CLAUDE_PLUGIN_ROOT}",
-        "python",
-        "${CLAUDE_PLUGIN_ROOT}/stills_mcp.py"
+        "${CLAUDE_PLUGIN_ROOT}/funkbox.py",
+        "serve"
       ],
       "env": {
         "FUNK_HOME": "${CLAUDE_PLUGIN_ROOT}",

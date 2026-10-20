@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 import os
 import re
@@ -13,17 +12,15 @@ from typing import Any
 import numpy as np
 from PIL import Image
 
-from funkbox.gl.recipe import Layer, Recipe2, layer_seed, resolve_recipe
-from funkbox.config import allowed_roots, funk_home, funk_out, resolve_path
-from funkbox.gl.shader import ShaderSource, sample_params
+from funkbox.gl.recipe import Recipe2, layer_seed, resolve_recipe
+from funkbox.config import allowed_roots, resolve_path
 from funkbox.reel.schema import Brand
 
 from . import fx, gl as glmod, raster, schema, text
 from .raster import RCtx
-from .schema import Doc, PosterError
+from .schema import Doc
 
 NAME_RE = re.compile(r"^[A-Za-z0-9_\-]{1,60}$")
-SEED_STEP = 7919
 
 
 class RenderError(ValueError):
@@ -94,7 +91,7 @@ def scaled_size(doc: Doc, scale: float) -> tuple[int, int]:
 # shader layers
 # --------------------------------------------------------------------------- #
 def _shader_recipe(lay: dict, ctx: RCtx, gl: glmod.GL, index: int, doc_seed: int) -> tuple[Recipe2, dict]:
-    """The funk2 recipe a shader layer renders, plus the resolved layer dict for the sidecar."""
+    """The loop recipe a shader layer renders, plus the resolved layer dict for the sidecar."""
     seed = int(lay.get("seed", layer_seed(doc_seed, index)))
     t = float(lay.get("t", 0.0))
     res = {k: copy.deepcopy(v) for k, v in lay.items() if k not in ("shader", "source", "recipe", "params")}

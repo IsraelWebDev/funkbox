@@ -23,7 +23,7 @@ from funkbox.reel import project as P
 from funkbox.reel.copydeck import CopyDeck, parse_copy
 from funkbox.reel.schema import ReelError
 
-from .raster import RCtx, _over, rgba_of, transparent
+from .raster import RCtx, _over, rgba_of
 from .schema import Doc, PosterError, all_layers
 
 TEXT_SIZE = 0.06

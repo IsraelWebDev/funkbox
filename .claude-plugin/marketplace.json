@@ -5,7 +5,7 @@
     {
       "name": "funkbox",
       "source": "./",
-      "description": "Local funk loops, ad reels and studio MCP servers (needs uv; run install.py --with reel for the reel models)."
+      "description": "Local funk loops, ad reels, posters and image tools in one MCP server (needs uv; run install.py --with reel for the reel models)."
     }
   ]
 }

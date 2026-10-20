@@ -1,5 +1,5 @@
 numpy>=1.26
 pillow>=10.1
 imageio-ffmpeg>=0.5   # bundled ffmpeg, so no separate install on Windows
-mcp>=1.2              # only needed for funk_mcp.py; works with 1.x (FastMCP) and 2.x (MCPServer)
-moderngl>=5.10        # v2 GPU engine (funkgl)
+mcp>=1.2              # the MCP server (funkbox serve); works with 1.x (FastMCP) and 2.x (MCPServer)
+moderngl>=5.10        # GPU engine (funkbox.gl)

@@ -10,7 +10,8 @@
     python install.py --yes                             # no questions
 
 It never installs GIMP (prints where to get it), never touches Claude config keys that are not its own
-(funk, funk2, reel, studio, gimp) and takes a timestamped backup before changing a config file.
+(funkbox, gimp, and the v3 keys funk, funk2, reel, studio, stills, which it migrates away) and takes a
+timestamped backup before changing a config file.
 """
 from __future__ import annotations
 
@@ -27,9 +28,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 from funkbox import config  # noqa: E402  (stdlib only: the one place that reads env and funkbox.toml)
-SERVER_KEYS = ("funk", "funk2", "reel", "studio", "stills", "gimp")
-SCRIPTS = {"funk": "funk_mcp.py", "funk2": "funk2_mcp.py", "reel": "reel_mcp.py", "studio": "funkbox/studio/studio_mcp.py",
-           "stills": "stills_mcp.py"}
+SERVER_KEYS = ("funkbox", "gimp")
+#: the five v3 servers that `funkbox` replaces; registering removes them (after the backup)
+OLD_SERVER_KEYS = ("funk", "funk2", "reel", "studio", "stills")
+LAUNCHER = "funkbox.py"
 FASTSD_URL = "https://github.com/rupeshs/fastsdcpu"
 GIMP_MCP_URL = "https://github.com/maorcc/gimp-mcp"
 GIMP_DOWNLOAD = "https://www.gimp.org/downloads/"
@@ -101,8 +103,9 @@ def find_uv() -> str | None:
 # --------------------------------------------------------------------------- #
 def server_entries(root: Path = ROOT, parts: tuple[str, ...] = ()) -> dict[str, dict]:
     py = str(venv_python(root))
-    env = {"FUNK_HOME": str(root)}
-    out = {k: {"command": py, "args": [str(root / rel)], "env": dict(env)} for k, rel in SCRIPTS.items()}
+    # The launcher script puts the checkout on sys.path itself, so the entry needs no cwd (Claude clients start
+    # servers wherever they like) and no PYTHONPATH.
+    out = {"funkbox": {"command": py, "args": [str(root / LAUNCHER), "serve"], "env": {"FUNK_HOME": str(root)}}}
     # gimp-mcp location: env / funkbox.toml / vendor/ (same resolution as the studio server)
     gdir = config.get(root).gimp_mcp_dir
     if "gimp" in parts or (gdir / "gimp_mcp_server.py").exists():
@@ -112,17 +115,21 @@ def server_entries(root: Path = ROOT, parts: tuple[str, ...] = ()) -> dict[str, 
     return out
 
 
-def merge_servers(cfg: dict, entries: dict[str, dict]) -> dict:
-    """Return cfg with only our keys set inside mcpServers; everything else is left as it was."""
+def merge_servers(cfg: dict, entries: dict[str, dict]) -> tuple[dict, list[str]]:
+    """Return (cfg with our keys set inside mcpServers and the v3 keys removed, the v3 keys removed).
+    Everything else is left as it was."""
     cfg = dict(cfg)
     servers = dict(cfg.get("mcpServers") or {})
+    migrated = [k for k in OLD_SERVER_KEYS if k in servers and k not in entries]
+    for k in migrated:
+        del servers[k]
     for k, v in entries.items():
         servers[k] = v
     cfg["mcpServers"] = servers
-    return cfg
+    return cfg, migrated
 
 
-def strip_servers(cfg: dict, keys: tuple[str, ...] = SERVER_KEYS) -> tuple[dict, list[str]]:
+def strip_servers(cfg: dict, keys: tuple[str, ...] = SERVER_KEYS + OLD_SERVER_KEYS) -> tuple[dict, list[str]]:
     cfg = dict(cfg)
     servers = dict(cfg.get("mcpServers") or {})
     removed = [k for k in keys if k in servers]
@@ -163,7 +170,8 @@ def write_config(path: Path, cfg: dict) -> None:
 def register_desktop(r: Runner, path: Path, parts: tuple[str, ...]) -> None:
     r.step(f"Register with Claude Desktop ({path})")
     entries = server_entries(r.root, parts)
-    r.say("   servers to add or update: " + ", ".join(entries) + " (no other key is touched)")
+    r.say("   servers to add or update: " + ", ".join(entries) + " (no other key is touched; the v3 entries "
+          + ", ".join(OLD_SERVER_KEYS) + " are removed if present, after a backup)")
     r.say("   WARNING: quit Claude Desktop first (right-click the tray icon, Quit) or it may overwrite this file; "
           "start it again afterwards.")
     if r.dry:
@@ -173,7 +181,10 @@ def register_desktop(r: Runner, path: Path, parts: tuple[str, ...]) -> None:
     b = backup(path)
     if b:
         r.say(f"   backup: {b}")
-    write_config(path, merge_servers(cfg, entries))
+    new, migrated = merge_servers(cfg, entries)
+    write_config(path, new)
+    if migrated:
+        r.say("   migrated from v3: removed " + ", ".join(migrated))
     r.say("   written.")
 
 
@@ -183,7 +194,7 @@ def unregister_desktop(r: Runner, path: Path) -> None:
         r.say("   no config file: nothing to do")
         return
     if r.dry:
-        r.say("   would remove only the keys: " + ", ".join(SERVER_KEYS))
+        r.say("   would remove only the keys: " + ", ".join(SERVER_KEYS + OLD_SERVER_KEYS))
         return
     cfg = read_config(path)
     new, removed = strip_servers(cfg)
@@ -210,6 +221,13 @@ def register_code(r: Runner, parts: tuple[str, ...]) -> None:
     """Claude Code: user-scope servers through its own CLI (the repo's .mcp.json belongs to the plugin)."""
     r.step("Register with Claude Code")
     have = shutil.which("claude")
+    for k in OLD_SERVER_KEYS:       # migrate from v3: drop the five old servers (no-op when absent)
+        c = ["claude", "mcp", "remove", "--scope", "user", k]
+        if have and not r.dry:
+            if subprocess.run(c, capture_output=True).returncode == 0:
+                r.say(f"   migrated from v3: removed {k}")
+        else:
+            r.say("   (if present) " + " ".join(c))
     for c in code_add_commands(r.root, parts):
         if have:
             r.run(c)
@@ -223,7 +241,7 @@ def register_code(r: Runner, parts: tuple[str, ...]) -> None:
 def unregister_code(r: Runner) -> None:
     r.step("Unregister from Claude Code")
     have = shutil.which("claude")
-    for k in SERVER_KEYS:
+    for k in SERVER_KEYS + OLD_SERVER_KEYS:
         c = ["claude", "mcp", "remove", "--scope", "user", k]
         if have:
             r.run(c)
@@ -435,7 +453,7 @@ def next_steps(r: Runner, register: str, parts: tuple[str, ...]) -> None:
         r.say("   1. Restart Claude Code in this folder; check with: claude mcp list")
     else:
         r.say("   1. Connect later with: python install.py --register desktop   (or code)")
-    r.say("   2. Ask Claude: 'make me a funky looping video'. For ads: new_project, drop files in the inbox folder.")
+    r.say("   2. Ask Claude: 'make me a funky looping video'. For ads: project_new, then drop files in the inbox folder.")
     r.say("   3. Verify: " + str(venv_python(r.root)) + " -m pytest -q   (needs: pip install pytest)")
     r.say("   4. Remove: python install.py --unregister   (then delete the folder)")
 

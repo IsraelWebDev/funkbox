@@ -6,9 +6,9 @@ no NVIDIA GPU needed (OpenGL 3.3 is enough; an Intel iGPU is fine).
 Rules for agents:
 - Do not install GIMP silently. `install.py` prints where to get it; tell the user.
 - Do not edit any Claude config by hand: use `python install.py --register ...` (it backs up first and
-  touches only the keys `funk`, `funk2`, `reel`, `studio`, `stills`, `gimp`).
-- Never write `projects/<slug>/copy.json` yourself. Copy is proposed with `propose_copy` and approved by the
-  user (`approve_copy`). See `skills/funk-studio/SKILL.md`.
+  touches only the keys `funkbox` and `gimp`, and removes the v3 keys `funk`, `funk2`, `reel`, `studio`, `stills`).
+- Never write `projects/<slug>/copy.json` yourself. Copy is proposed with `project_propose_copy` and approved by the
+  user (`project_approve_copy`). See `skills/funk-studio/SKILL.md`.
 
 ## Windows (PowerShell)
 
@@ -40,8 +40,9 @@ As a Claude Code plugin instead (needs `uv`): `/plugin marketplace add IsraelWeb
 `/plugin install funkbox@funkbox`. Plugin data lives in `~/funkbox-data/`. The heavy extras (`reel` models,
 FastSD, GIMP) still need `install.py --with ...` from a clone.
 
-The `stills` server (posters, photo edits, OpenRaster export; see `docs/stills.md`) is registered with the others and
-needs no extra install step.
+The `funkbox` server includes posters, photo edits and OpenRaster export (see `docs/stills.md`) and needs no extra
+install step. Upgrading from v3: run `python install.py --register desktop` again; it replaces the five old entries
+with one (see `docs/migration-v4.md`). Check any time with `python -m funkbox doctor`.
 
 Preview any plan first: `python install.py --dry-run --with reel,fastsd,gimp --register desktop --shortcuts`.
 
@@ -51,7 +52,7 @@ Preview any plan first: `python install.py --dry-run --with reel,fastsd,gimp --r
 .venv/bin/python -m pip install pytest        # Windows: .venv\Scripts\python.exe
 FUNK_GL_BACKEND=egl .venv/bin/python -m pytest -q    # drop FUNK_GL_BACKEND where a real GPU exists
 ```
-The installer ends with a one-second funk2 render as a self-test (`out/install-selftest/`).
+The installer ends with a one-second loop render as a self-test (`out/install-selftest/`).
 
 ## Uninstall
 
@@ -66,7 +67,7 @@ Config backups stay next to the config as `*.bak-<timestamp>`.
 
 | part | what it does |
 |---|---|
-| `reel` | installs onnxruntime and piper-tts, downloads the depth and voice models (`reel_cli.py setup-models`) |
+| `reel` | installs onnxruntime and piper-tts, downloads the depth and voice models (`funkbox reel setup-models`) |
 | `fastsd` | clones FastSD CPU into `vendor/fastsdcpu`, Python 3.11 venv via `uv`, CPU torch, copies the localhost-only launcher |
 | `gimp` | clones `gimp-mcp` into `vendor/gimp-mcp` and runs `uv sync`; looks for GIMP 3 and prints the download if missing |
 

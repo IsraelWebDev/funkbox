@@ -16,7 +16,7 @@ from PIL import Image as PILImage
 try:  # mcp >= 2
     from mcp.server.mcpserver import Context, Image, MCPServer as Server
 except ImportError:  # mcp 1.x
-    from mcp.server.fastmcp import Context, FastMCP as Server, Image  # type: ignore  # noqa: F401
+    from mcp.server.fastmcp import Context, FastMCP as Server, Image  # type: ignore  # noqa: F401  (mcp 1.x names)
 
 
 def log(*a: Any) -> None:

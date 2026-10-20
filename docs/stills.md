@@ -1,32 +1,32 @@
-# v3.2 "stills": posters and photo edits
+# Posters and photo edits
 
-`stills_mcp.py` / `stills_cli.py` render a JSON poster (`*.poster.json`) or edit a photo on the GPU you already use for
-funk2. Layers are rasterised on the CPU, filtered and composited on the GPU with the same blend modes as funk2, and
+`funkbox poster ...`, `funkbox image edit ...` and the `poster_*` / `image_edit` MCP tools render a JSON poster
+(`*.poster.json`) or edit a photo on the GPU you already use for loops. Layers are rasterised on the CPU, filtered and composited on the GPU with the same blend modes as the loop engine, and
 text is drawn by funkbox from the copy deck, never by an image model.
 
 ![The GLOWMOP demo poster](stills-demo.png)
 
 ```
 python examples/stills/make_assets.py                                   # synthetic bottle + carpet texture
-python stills_cli.py preview examples/stills/glowmop_poster.poster.json -o out/pv.png
-python stills_cli.py render  examples/stills/glowmop_poster.poster.json --name glowmop
-python stills_cli.py vary    examples/stills/glowmop_poster.poster.json --vary '{"seed":[1,2,3,4]}'
-python stills_cli.py edit    photo.jpg --ops '[{"op":"crop","aspect":"1:1"},{"op":"adjust","contrast":0.2}]'
-python stills_cli.py still   shaders/warp.frag --t 0.3 --preset story
-python stills_cli.py export-ora examples/stills/glowmop_poster.poster.json   # layers for GIMP / Krita
+python -m funkbox poster preview examples/stills/glowmop_poster.poster.json -o out/pv.png
+python -m funkbox poster render  examples/stills/glowmop_poster.poster.json --name glowmop
+python -m funkbox poster vary    examples/stills/glowmop_poster.poster.json --vary '{"seed":[1,2,3,4]}'
+python -m funkbox image edit     photo.jpg --ops '[{"op":"crop","aspect":"1:1"},{"op":"adjust","contrast":0.2}]'
+python -m funkbox loop still --shader shaders/warp.frag --canvas story --t 0.3
+python -m funkbox poster export-ora examples/stills/glowmop_poster.poster.json   # layers for GIMP / Krita
 ```
 
-## MCP tools (`stills`)
+## MCP tools
 
 | tool | does |
 |---|---|
-| `presets()` | canvas presets, layer types, blends, filters, effects, export formats, edit ops |
-| `preview_poster(poster, max_side=720)` | small render with the same layout and text, writes nothing: look before you render |
-| `render_poster(poster, name)` | full render to `out/posters/` (a project poster goes to `projects/<p>/out/`): PNG (or JPG/WebP/ORA per `export.formats`), `<name>.poster.json` sidecar, `<name>.text_audit.json` |
+| `poster_presets()` | canvas presets, layer types, blends, filters, effects, export formats, edit ops |
+| `poster_preview(poster, max_side=720)` | small render with the same layout and text, writes nothing: look before you render |
+| `poster_render(poster, name)` | full render to `out/posters/` (a project poster goes to `projects/<p>/out/`): PNG (or JPG/WebP/ORA per `export.formats`), `<name>.poster.json` sidecar, `<name>.text_audit.json` |
 | `poster_variations(poster, vary, name)` | up to 12 variants and a labelled contact sheet |
-| `edit_image(path, ops, name)` | non-destructive edit of a copy; writes `out/edits/<stem>-<n>.png`, a sidecar and a before/after sheet |
-| `funk_still(recipe_or_shader, t, preset)` | one frame of a funk2 recipe or shader as a poster background |
-| `export_ora(poster, name)` | the poster as a layered OpenRaster file plus the PNG |
+| `image_edit(path, ops, name)` | non-destructive edit of a copy; writes `out/edits/<stem>-<n>.png`, a sidecar and a before/after sheet |
+| `loop_still(recipe_or_shader, t, preset)` | one frame of a loop recipe or shader as a poster background |
+| `poster_export_ora(poster, name)` | the poster as a layered OpenRaster file plus the PNG |
 
 `poster` is a JSON object or a path to a `.poster.json` inside `FUNK_HOME`, `FUNK_OUT`, `FUNK_INPUTS` or the projects
 folder. Errors come back as `ERROR: ...` text listing every problem found.
@@ -51,7 +51,7 @@ Layers (bottom first; every layer takes `blend`, `opacity`, `mask`, `adjust`, `f
 | `image` | `path`, `fit` cover/contain/stretch, `x`, `y`, `scale`, `rotate_deg`, `pre` (crop, resize, rotate, flip, remove_background, trim_even) |
 | `solid` | `color` (`#rrggbb[aa]` or `brand.primary|secondary|text`) |
 | `gradient` | `stops`, `kind` linear/radial, `angle`, `cx`, `cy`, `radius`, `dither` |
-| `shader` | one of `shader` (.frag path), `source` (GLSL), `recipe` (funk2 recipe or path); `t` (0..1), `palette`, `cycles`, `params`, `seed`. A recipe that draws its own text is refused |
+| `shader` | one of `shader` (.frag path), `source` (GLSL), `recipe` (loop recipe or path); `t` (0..1), `palette`, `cycles`, `params`, `seed`. A recipe that draws its own text is refused |
 | `product` | `image` (PNG with alpha), `x`, `y` (bottom centre), `height`, `shadow`, `match_color`, `effects`. Same compositor as the reel: the product's pixels are composited, never regenerated |
 | `text` | `copy_id` or `text`, `style` display/caption, `size`, `x`, `y`, `max_width`, `color`, `align`, `line_height`, `effects` (shadow, stroke, glow) |
 | `group` | `layers` (flattened, then blended as one layer; nesting up to 8) |
@@ -59,7 +59,7 @@ Layers (bottom first; every layer takes `blend`, `opacity`, `mask`, `adjust`, `f
 
 `adjust`: brightness, contrast, saturation, hue, levels `[black, white, gamma]`, temperature, invert. `filters`: blur,
 sharpen, posterize, halftone, duotone `[dark, light]`, pixelate, chroma, vignette. Masks: `radial`, `linear`, `image`
-(with `feather`, `invert`). `post`: the funk2 post passes (grain, vignette, chroma, halftone, posterize, scanlines).
+(with `feather`, `invert`). `post`: the loop post passes (grain, vignette, chroma, halftone, posterize, scanlines).
 
 ## Text is exact
 
@@ -79,7 +79,7 @@ sharpen, posterize, halftone, duotone `[dark, light]`, pixelate, chroma, vignett
 
 ## Edits
 
-`edit_image` never writes the source: it builds a one-image poster, renders it, and writes `<stem>-<name|n>.png` (n
+`image_edit` never writes the source: it builds a one-image poster, renders it, and writes `<stem>-<name|n>.png` (n
 counts up, nothing is overwritten) with the sidecar that re-renders it to the same pixels. Ops run in order and
 geometry ops (`crop` with `aspect` + `anchor` or `x,y,w,h`; `resize`; `rotate`; `flip`; `remove_background`;
 `trim_even`) come first. Then `adjust`, `filter`, `vignette`, `overlay {path, x, y, scale, blend, opacity}`,
@@ -92,10 +92,10 @@ with blend and opacity), one PNG per layer, a thumbnail and `mergedimage.png`. L
 adjustments, filters, effects and masks; blend modes map to `svg:src-over`, `svg:multiply`, `svg:screen`, `svg:plus`,
 `svg:overlay`, `svg:difference`, `svg:soft-light`, `svg:hue`. A group is one flattened layer. Poster-level `post`
 passes cannot be layers, so they appear only in the PNG/JPG, not in the `.ora` (`mergedimage.png` is the stack
-without them). `stills_cli.py ora-check FILE` validates a file.
+without them). `funkbox poster ora-check FILE` validates a file.
 
 ## Generating pictures first
 
-The `studio` server (see [studio.md](studio.md)) makes pictures with FastSD (`generate_image`, `restyle_image`,
-`upscale_image`) into `inputs/`; use them as `image` layers or edit them. Generated pictures never carry the text: add
+The image tools (see [studio.md](studio.md)) make pictures with FastSD (`image_generate`, `image_restyle`,
+`image_upscale`) into `inputs/`; use them as `image` layers or edit them. Generated pictures never carry the text: add
 it as a text layer.

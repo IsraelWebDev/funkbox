@@ -23,7 +23,7 @@ from PIL import Image
 
 from funkbox.gl.recipe import BLEND_MODES
 
-#: funkgl blend mode -> OpenRaster composite-op
+#: funkbox.gl blend mode -> OpenRaster composite-op
 OP = {"normal": "svg:src-over", "add": "svg:plus", "screen": "svg:screen", "multiply": "svg:multiply",
       "overlay": "svg:overlay", "difference": "svg:difference", "softlight": "svg:soft-light", "hue": "svg:hue"}
 assert set(OP) == set(BLEND_MODES)

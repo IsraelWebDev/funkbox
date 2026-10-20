@@ -36,7 +36,7 @@ from funkbox.config import funk_out, resolve_path
 
 from . import render, schema
 from .raster import RCtx, _resize_rgba
-from .schema import ADJUST_KEYS, FILTER_KEYS, TYPE_KEYS, PosterError
+from .schema import ADJUST_KEYS, FILTER_KEYS, TYPE_KEYS
 from .sheet import contact_sheet
 
 GEOMETRY = ("crop", "resize", "rotate", "flip", "remove_background")

@@ -142,17 +142,17 @@ def test_cli_verbs(gl, work):
     assert r.returncode == 1 and r.stderr.startswith("error:") and "Traceback" not in r.stderr
 
 
-def test_install_wires_the_stills_server(capsys):
+def test_install_wires_the_one_server(capsys):
     sys.path.insert(0, str(ROOT))
     import install
-    assert "stills" in install.SERVER_KEYS and install.SCRIPTS["stills"] == "stills_mcp.py"
-    e = install.server_entries(ROOT, ())["stills"]
-    assert e["args"][0].endswith("stills_mcp.py") and "FUNK_HOME" in e["env"]
+    assert install.SERVER_KEYS == ("funkbox", "gimp")
+    e = install.server_entries(ROOT, ())["funkbox"]
+    assert e["args"][0].endswith("funkbox.py") and e["args"][1] == "serve" and "FUNK_HOME" in e["env"]
     assert install.main(["--dry-run", "--register", "desktop", "--config", str(ROOT / "out" / "dry-cfg.json"),
                          "--no-selftest"]) == 0
-    assert "stills" in capsys.readouterr().out
-    plugin = json.loads((ROOT / ".mcp.json").read_text())["mcpServers"]["stills"]
-    assert plugin["args"][-1].endswith("/stills_mcp.py") and plugin["env"]["FUNK_HOME"] == "${CLAUDE_PLUGIN_ROOT}"
+    assert "funkbox" in capsys.readouterr().out
+    plugin = json.loads((ROOT / ".mcp.json").read_text())["mcpServers"]["funkbox"]
+    assert plugin["args"][-2].endswith("/funkbox.py") and plugin["env"]["FUNK_HOME"] == "${CLAUDE_PLUGIN_ROOT}"
     assert not (ROOT / "out" / "dry-cfg.json").exists()
 
 
