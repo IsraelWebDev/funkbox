@@ -1,6 +1,6 @@
 ---
 name: funk-studio
-description: Make funky images, seamless looping videos, or short vertical product ads locally with funkbox (funk2, reel, studio, FastSD, GIMP MCP servers) - drop files in, approve copy, render.
+description: Make funky images, seamless looping videos, or short vertical product ads, posters and photo edits locally with funkbox (funk2, reel, stills, studio, FastSD, GIMP MCP servers) - drop files in, approve copy, render.
 ---
 
 # funk studio
@@ -77,7 +77,8 @@ Rules:
 Call `studio.status()` first.
 
 - **FastSD** auto-starts on `generate_image`: ~20 s cold, then ~3–5 s per 512x512 image. It
-  idles off after 20 minutes. Stay at 512x512: other sizes recompile the model (~2.5 min).
+  idles off after 20 minutes. Prefer `aspect="square"` (512x512): the first image at any other
+  size recompiles the model (~2.5 min), so `generate_image` asks you to confirm that with the user first.
 - **GIMP is opened by the user, never by you.** Claude Desktop's sandbox would kill a
   GIMP you launched, along with unsaved work. If `studio.start('gimp')` says it isn't
   running, ask the user to double-click **GIMP + MCP** on the desktop, then call
@@ -87,6 +88,22 @@ Call `studio.status()` first.
 
 End with what you made and the file paths. Don't recap the steps. If something was slow or
 failed, name the app and the fix.
+
+## E. Stills
+
+Describe → generate variations → pick → poster or edit → export.
+
+- **Pictures first:** `studio.generate_image(prompt, aspect, n=4)` gives a contact sheet; the user picks one.
+  `restyle_image` and `upscale_image` refine it. Generated pictures never carry text.
+- **Poster:** write a `*.poster.json` (`stills.presets()` lists the pieces) and `preview_poster` it. Look at the picture,
+  fix, repeat, then `render_poster`. `poster_variations` with `vary={"seed":[1,2,3,4]}` (or a palette, a hue) shows
+  options on one sheet.
+- **Text is exact:** in a project, text layers use `copy_id` from the approved copy; never literal text. Literal text
+  only in a poster marked `"casual": true`. The product photo is composited, never generated. Read the text audit.
+- **Edit a photo:** `edit_image(path, ops)` (crop, resize, adjust, filter, remove_background, overlay, text, border)
+  writes a new file and a before/after sheet; the original is never touched.
+- **Export:** `render_poster` gives PNG/JPG; offer `export_ora` so the user can keep editing the layers in GIMP.
+  `funk_still` turns a funk2 shader or recipe into a poster background.
 
 ## Troubleshooting
 

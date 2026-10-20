@@ -6,7 +6,7 @@ no NVIDIA GPU needed (OpenGL 3.3 is enough; an Intel iGPU is fine).
 Rules for agents:
 - Do not install GIMP silently. `install.py` prints where to get it; tell the user.
 - Do not edit any Claude config by hand: use `python install.py --register ...` (it backs up first and
-  touches only the keys `funk`, `funk2`, `reel`, `studio`, `gimp`).
+  touches only the keys `funk`, `funk2`, `reel`, `studio`, `stills`, `gimp`).
 - Never write `projects/<slug>/copy.json` yourself. Copy is proposed with `propose_copy` and approved by the
   user (`approve_copy`). See `skills/funk-studio/SKILL.md`.
 
@@ -39,6 +39,9 @@ FUNK_GL_BACKEND=egl python3 install.py --with reel --register code --yes
 As a Claude Code plugin instead (needs `uv`): `/plugin marketplace add IsraelWebDev/funkbox`, then
 `/plugin install funkbox@funkbox`. Plugin data lives in `~/funkbox-data/`. The heavy extras (`reel` models,
 FastSD, GIMP) still need `install.py --with ...` from a clone.
+
+The `stills` server (posters, photo edits, OpenRaster export; see `docs/stills.md`) is registered with the others and
+needs no extra install step.
 
 Preview any plan first: `python install.py --dry-run --with reel,fastsd,gimp --register desktop --shortcuts`.
 

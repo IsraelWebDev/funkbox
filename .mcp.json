@@ -69,6 +69,23 @@
         "FUNK_PROJECTS": "~/funkbox-data/projects",
         "FUNK_INBOX": "~/funkbox-data/inbox"
       }
+    },
+    "stills": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        "${CLAUDE_PLUGIN_ROOT}",
+        "python",
+        "${CLAUDE_PLUGIN_ROOT}/stills_mcp.py"
+      ],
+      "env": {
+        "FUNK_HOME": "${CLAUDE_PLUGIN_ROOT}",
+        "FUNK_OUT": "~/funkbox-data/out",
+        "FUNK_INPUTS": "~/funkbox-data/inputs",
+        "FUNK_PROJECTS": "~/funkbox-data/projects",
+        "FUNK_INBOX": "~/funkbox-data/inbox"
+      }
     }
   }
 }

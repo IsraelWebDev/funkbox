@@ -10,6 +10,10 @@ to what you approved.
 
 *Six seeds of one funk2 shader recipe (`shaders/warp.frag`, chroma and grain post passes), rendered on a CPU-only box.*
 
+![The GLOWMOP demo poster](docs/stills-demo.png)
+
+*A v3.2 poster (`examples/stills/glowmop_poster.poster.json`): every word is drawn from the copy deck.*
+
 ## Quickstart (humans)
 
 You need Python 3.10 or newer and git.
@@ -39,6 +43,7 @@ macOS and Linux) and [skills/funk-studio/SKILL.md](skills/funk-studio/SKILL.md) 
 | v2 | GPU shader engine: GLSL layers, recipes, post passes, audio reactivity, tiling, 3D-ish blobs | `funk2.py`, `funk2_mcp.py` |
 | v3 | "reel": JSON shot list plus an approved copy deck to a 9:16 ad: parallax product shots, captions, end card, beat-synced music, local voiceover, text audit | `reel_cli.py`, `reel_mcp.py` |
 | v3.1 | "projects": inbox ingest, product cut-out with a quality score, brand colours from the product, copy proposal and user approval with a hash lock, automatic reel | `projects/<name>/`, same tools |
+| v3.2 | "stills": layered posters and photo edits on the GPU: exact text from the copy deck, variations, OpenRaster export for GIMP | `stills_cli.py`, `stills_mcp.py` |
 | studio | optional on-demand FastSD CPU text-to-image and a GIMP 3 MCP bridge | `studio/studio_mcp.py`, `install.py --with fastsd,gimp` |
 
 The copy guarantee: Claude may only propose wording (`propose_copy`). Only the user's approval writes the real
@@ -55,6 +60,7 @@ through OpenVINO or on the CPU. Roughly 4 GB of free RAM is enough for the optio
 
 - [docs/v1-v2.md](docs/v1-v2.md): loops, shader contract, recipes, knobs, adding an effect, tests
 - [docs/reel.md](docs/reel.md): the ad engine, the projects flow, the copy lock
+- [docs/stills.md](docs/stills.md): posters, edits, variations, OpenRaster
 - [docs/studio.md](docs/studio.md): FastSD and GIMP on demand
 - [AGENTS.md](AGENTS.md): installation for agents and humans
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md): licences of everything funkbox uses or downloads

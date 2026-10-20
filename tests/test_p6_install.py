@@ -67,7 +67,7 @@ def test_register_merge_backup_and_unregister(tmp_path):
     # idempotent: a second register/unregister does not break or duplicate anything
     install.register_desktop(r, cfg, ())
     install.register_desktop(r, cfg, ())
-    assert set(json.loads(cfg.read_text())["mcpServers"]) == {"other", "funk", "funk2", "reel", "studio"}
+    assert set(json.loads(cfg.read_text())["mcpServers"]) == {"other", "funk", "funk2", "reel", "studio", "stills"}
 
 
 def test_register_creates_missing_config_and_refuses_corrupt(tmp_path):
@@ -82,7 +82,7 @@ def test_register_creates_missing_config_and_refuses_corrupt(tmp_path):
 
 def test_code_commands_and_main_unregister(tmp_path, monkeypatch, capsys):
     cmds = install.code_add_commands(ROOT, ())
-    assert {c[5] for c in cmds} == {"funk", "funk2", "reel", "studio"}
+    assert {c[5] for c in cmds} == {"funk", "funk2", "reel", "studio", "stills"}
     assert all(c[:5] == ["claude", "mcp", "add", "--scope", "user"] for c in cmds)
     cfg = tmp_path / "c.json"
     cfg.write_text(json.dumps({"mcpServers": {"x": {}, "reel": {}}}))

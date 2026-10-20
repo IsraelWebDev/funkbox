@@ -1,6 +1,6 @@
 [project]
 name = "funkbox"
-version = "3.1.0"
+version = "3.2.0"
 description = "Local GPU-shader funk loops, video ad reels and MCP servers for Claude. No cloud, no accounts."
 readme = "README.md"
 requires-python = ">=3.10"

@@ -1,0 +1,10 @@
+{
+  "brand_name": "GLOWMOP",
+  "lines": {
+    "hook": { "text": "LOOK\nCLOSER." },
+    "sub": { "text": "Deep cleaning power\nfor every carpet." },
+    "badge": { "text": "NEW" },
+    "claim": { "text": "TOUGH ON STAINS. GENTLE ON FAMILY LIFE." },
+    "url": { "text": "GLOWMOP.EXAMPLE" }
+  }
+}

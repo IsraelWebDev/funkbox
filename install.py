@@ -25,8 +25,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-SERVER_KEYS = ("funk", "funk2", "reel", "studio", "gimp")
-SCRIPTS = {"funk": "funk_mcp.py", "funk2": "funk2_mcp.py", "reel": "reel_mcp.py", "studio": "studio/studio_mcp.py"}
+SERVER_KEYS = ("funk", "funk2", "reel", "studio", "stills", "gimp")
+SCRIPTS = {"funk": "funk_mcp.py", "funk2": "funk2_mcp.py", "reel": "reel_mcp.py", "studio": "studio/studio_mcp.py",
+           "stills": "stills_mcp.py"}
 FASTSD_URL = "https://github.com/rupeshs/fastsdcpu"
 GIMP_MCP_URL = "https://github.com/maorcc/gimp-mcp"
 GIMP_DOWNLOAD = "https://www.gimp.org/downloads/"

@@ -6,6 +6,7 @@ __pycache__/
 .pytest_cache/
 models/
 examples/reel_demo/inputs/**/*.png
+examples/stills/inputs/
 examples/reel_demo/inputs/**/*.wav
 examples/reel_demo/inputs/**/*.mp4
 inbox/
