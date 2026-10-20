@@ -41,7 +41,6 @@ def n_images(res):
 async def session(penv, fn, elicit=None):
     env = {**os.environ, "FUNK_OUT": str(penv / "out"), "FUNK_PROJECTS": str(penv / "projects"),
            "FUNK_INBOX": str(penv / "inbox"), "REEL_DEPTH": "stub", "REEL_TTS": "stub"}
-    env.setdefault("FUNK_GL_BACKEND", "egl")
     params = StdioServerParameters(command=sys.executable, args=["-m", "funkbox", "serve"], env=env, cwd=str(ROOT))
     async with stdio_client(params) as (r, w):
         kw = {"elicitation_callback": elicit} if elicit else {}
@@ -159,7 +158,6 @@ def test_project_arg_conflicts_and_missing_reel(penv, gl):
 def cli(penv, *args, stdin=""):
     env = {**os.environ, "FUNK_PROJECTS": str(penv / "projects"), "FUNK_INBOX": str(penv / "inbox"),
            "REEL_DEPTH": "stub", "REEL_TTS": "stub"}
-    env.setdefault("FUNK_GL_BACKEND", "egl")
     env["PYTHONPATH"] = str(ROOT)
     return subprocess.run([sys.executable, "-m", "funkbox", *map(str, args)], input=stdin, capture_output=True,
                           text=True, env=env, cwd=penv)

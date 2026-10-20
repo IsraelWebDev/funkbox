@@ -23,6 +23,15 @@ def _reqs(name):
     return sorted(out)
 
 
+@pytest.fixture(autouse=True)
+def _no_machine_gimp(tmp_path, monkeypatch):
+    """Hermetic: on a machine where gimp-mcp/GIMP are installed (funkbox.toml, vendor/), registration would
+    add a real `gimp` entry and the dry run would print "GIMP found" instead of the download hint."""
+    monkeypatch.setenv("GIMP_MCP_DIR", str(tmp_path / "no-gimp-mcp"))
+    monkeypatch.setenv("GIMP_EXE", str(tmp_path / "no-gimp.exe"))
+    monkeypatch.setattr(install, "find_gimp", lambda: None)
+
+
 def test_pyproject_in_sync_with_requirements():
     tomllib = pytest.importorskip("tomllib")
     d = tomllib.loads((ROOT / "pyproject.toml").read_text())
@@ -126,7 +135,7 @@ def test_the_registered_entry_starts_the_server_from_any_folder(tmp_path):
     from mcp.client.stdio import stdio_client
     e = install.server_entries(ROOT, ())["funkbox"]
     env = {**os.environ, **e["env"], "FUNK_OUT": str(tmp_path / "out"), "FUNK_INPUTS": str(tmp_path / "in"),
-           "FUNK_PROJECTS": str(tmp_path / "pr"), "FUNK_INBOX": str(tmp_path / "ib"), "FUNK_GL_BACKEND": "egl"}
+           "FUNK_PROJECTS": str(tmp_path / "pr"), "FUNK_INBOX": str(tmp_path / "ib")}
 
     async def go():
         params = StdioServerParameters(command=sys.executable, args=e["args"], env=env, cwd=str(tmp_path))
@@ -168,7 +177,13 @@ def test_funkbox_toml_roundtrip_and_resolution_order(tmp_path, monkeypatch):
 
 
 def test_no_hardcoded_machine_paths_in_studio():
+    # tracked files only: install.py renders GIMP-MCP.cmd (git-ignored) with this machine's real paths
+    import subprocess
+    tracked = set(subprocess.run(["git", "ls-files", "funkbox/studio"], cwd=ROOT, capture_output=True,
+                                 text=True).stdout.split())
     for p in (ROOT / "funkbox" / "studio").iterdir():
+        if tracked and p.relative_to(ROOT).as_posix() not in tracked:
+            continue
         if p.is_file() and p.suffix in (".py", ".template", ".cmd"):
             t = p.read_text(encoding="utf-8")
             assert "C:\\dev" not in t and "C:/dev" not in t, p.name
@@ -199,7 +214,7 @@ def test_uv_run_project_lists_tools():
 
     async def go():
         params = StdioServerParameters(command="uv", args=["run", "--project", str(ROOT), "python", str(ROOT / "funkbox.py"), "serve"],
-                                       env={**os.environ, "FUNK_GL_BACKEND": "egl"}, cwd=str(ROOT.parent))
+                                       env={**os.environ}, cwd=str(ROOT.parent))
         async with stdio_client(params) as (rd, wr):
             async with ClientSession(rd, wr) as s:
                 await s.initialize()

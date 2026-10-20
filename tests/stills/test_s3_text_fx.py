@@ -236,10 +236,10 @@ def test_project_poster_with_a_stale_lock_or_no_approval_is_rejected(penv):
     approve()
     render.render_document(proj_doc("hook"))
     cp = P.project_dir("demo") / "copy.json"
-    cp.write_text(cp.read_text().replace("CLOSER", "CLOSE R"))       # someone edits the approved file
+    cp.write_bytes(cp.read_bytes().replace(b"CLOSER", b"CLOSE R"))       # someone edits the approved file
     with pytest.raises(schema.PosterError, match="copy.json changed since approval"):
         render.render_document(proj_doc("hook"))
-    cp.write_text(cp.read_text().replace("CLOSE R", "CLOSER"))        # back to the exact bytes: valid again
+    cp.write_bytes(cp.read_bytes().replace(b"CLOSE R", b"CLOSER"))        # back to the exact bytes: valid again
     render.render_document(proj_doc("hook"))
 
 

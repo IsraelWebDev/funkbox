@@ -316,25 +316,25 @@ def ingest(slug: str, source: str | Path | None = None, move: bool = True) -> In
         if ext in AUDIO:
             dest = _unique(d / "music", _safe_name(f.stem), ext)
             _put(f, dest, do_move)
-            res.items.append(Item(str(f), str(dest.relative_to(d)), "music"))
-            index[sha] = str(dest.relative_to(d))
+            res.items.append(Item(str(f), dest.relative_to(d).as_posix(), "music"))
+            index[sha] = dest.relative_to(d).as_posix()
         elif ext in VIDEO:
             dest = _unique(d / "clips", _safe_name(f.stem), ext)
             _put(f, dest, do_move)
-            res.items.append(Item(str(f), str(dest.relative_to(d)), "clip"))
-            index[sha] = str(dest.relative_to(d))
+            res.items.append(Item(str(f), dest.relative_to(d).as_posix(), "clip"))
+            index[sha] = dest.relative_to(d).as_posix()
         elif ext in FONT:
             dest = _unique(d / "brand" / "fonts", _safe_name(f.stem), ext)
             _put(f, dest, do_move)
-            res.items.append(Item(str(f), str(dest.relative_to(d)), "font"))
-            index[sha] = str(dest.relative_to(d))
+            res.items.append(Item(str(f), dest.relative_to(d).as_posix(), "font"))
+            index[sha] = dest.relative_to(d).as_posix()
         elif ext == ".svg":
             dest = _unique(d / "brand", _safe_name(f.stem), ext)
             _put(f, dest, do_move)
-            res.items.append(Item(str(f), str(dest.relative_to(d)), "logo", "SVG"))
+            res.items.append(Item(str(f), dest.relative_to(d).as_posix(), "logo", "SVG"))
             res.warnings.append(f"{f.name}: SVG logos are not rasterised here; convert it to PNG and drop it in "
                                 f"the inbox again (it is not used until then)")
-            index[sha] = str(dest.relative_to(d))
+            index[sha] = dest.relative_to(d).as_posix()
         elif ext in IMAGE:
             try:
                 im, changed = _load_image(f)
@@ -378,8 +378,8 @@ def _ingest_logo(d: Path, f: Path, sha: str, im: Image.Image, changed: bool, do_
     im.convert("RGBA").save(dest)
     if do_move:
         f.unlink()
-    index[sha] = str(dest.relative_to(d))
-    res.items.append(Item(str(f), str(dest.relative_to(d)), "logo", note))
+    index[sha] = dest.relative_to(d).as_posix()
+    res.items.append(Item(str(f), dest.relative_to(d).as_posix(), "logo", note))
 
 
 def _ingest_images(d: Path, slug: str, meta: dict, imgs: list[Img], do_move: bool, res: IngestResult,
@@ -413,7 +413,7 @@ def _ingest_images(d: Path, slug: str, meta: dict, imgs: list[Img], do_move: boo
             _put(img.src, orig, do_move)
         else:
             _put(img.src, dest, do_move)
-        index[img.sha] = str(dest.relative_to(d))
+        index[img.sha] = dest.relative_to(d).as_posix()
 
     for img in imgs:
         if img is chosen and not already:
@@ -423,19 +423,19 @@ def _ingest_images(d: Path, slug: str, meta: dict, imgs: list[Img], do_move: boo
             _save_image(img.im, dest)
             if do_move:
                 img.src.unlink()
-            index[img.sha] = str(dest.relative_to(d))
-            res.items.append(Item(str(img.src), str(dest.relative_to(d)), "product", "candidate"))
+            index[img.sha] = dest.relative_to(d).as_posix()
+            res.items.append(Item(str(img.src), dest.relative_to(d).as_posix(), "product", "candidate"))
         elif id(img) in cand_ids:
             dest = _unique(d / "product" / "alt", _safe_name(img.src.stem), ".png")
             _save_image(img.im, dest)
             if do_move:
                 img.src.unlink()
-            index[img.sha] = str(dest.relative_to(d))
-            res.items.append(Item(str(img.src), str(dest.relative_to(d)), "product", "alternative, not used"))
+            index[img.sha] = dest.relative_to(d).as_posix()
+            res.items.append(Item(str(img.src), dest.relative_to(d).as_posix(), "product", "alternative, not used"))
         else:
             dest = _unique(d / "shots", _safe_name(img.src.stem), img.src.suffix.lower())
             put_orig_and_processed(img, dest)
-            res.items.append(Item(str(img.src), str(dest.relative_to(d)), "shot",
+            res.items.append(Item(str(img.src), dest.relative_to(d).as_posix(), "shot",
                                   "downscaled/rotated; original in shots/_orig" if img.changed else ""))
     if already and cands:
         res.product = {"status": "kept", "file": "product/product.png"}

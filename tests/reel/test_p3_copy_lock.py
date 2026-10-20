@@ -217,7 +217,6 @@ from mcp.client.stdio import stdio_client  # noqa: E402
 async def _session(penv, fn, elicit=None):
     env = {**os.environ, "FUNK_OUT": str(penv / "out"), "FUNK_PROJECTS": str(penv / "projects"),
            "FUNK_INBOX": str(penv / "inbox"), "REEL_DEPTH": "stub", "REEL_TTS": "stub"}
-    env.setdefault("FUNK_GL_BACKEND", "egl")
     params = StdioServerParameters(command=sys.executable, args=["-m", "funkbox", "serve"], env=env, cwd=str(ROOT))
     async with stdio_client(params) as (r, w):
         kw = {"elicitation_callback": elicit} if elicit else {}
