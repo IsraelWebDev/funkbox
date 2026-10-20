@@ -1,0 +1,358 @@
+{
+  "version": 3,
+  "settings": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "safe_area": "reels"
+  },
+  "brand": {
+    "primary": "#c4162f",
+    "secondary": "#162242",
+    "text": "#ffffff",
+    "font_caption": "fonts/Oswald-SemiBold.ttf",
+    "font_display": "fonts/DMSerifDisplay-Regular.ttf"
+  },
+  "copy": "copy.json",
+  "audio": {
+    "music": "music.mp3",
+    "music_gain_db": -12,
+    "voiceover": true,
+    "duck_db": -9,
+    "snap_cuts_to_beats": true,
+    "loudness_lufs": -14
+  },
+  "shots": [
+    {
+      "id": "s1",
+      "source": {
+        "image": "shots/fibers.jpg"
+      },
+      "duration": "auto",
+      "motion": {
+        "type": "parallax",
+        "push": 0.1,
+        "orbit_deg": 0,
+        "dof": 0.25
+      },
+      "caption": {
+        "copy_id": "hook",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "top"
+      },
+      "vo": "hook"
+    },
+    {
+      "id": "s2",
+      "source": {
+        "image": "shots/room.jpg"
+      },
+      "duration": "beats:2",
+      "motion": {
+        "type": "parallax",
+        "push": 0.06,
+        "orbit_deg": 3,
+        "dof": 0.25
+      },
+      "caption": {
+        "copy_id": "hook",
+        "style": "red-box",
+        "reveal": "none",
+        "anchor": "top"
+      }
+    },
+    {
+      "id": "s3",
+      "source": {
+        "image": "shots/machine.jpg"
+      },
+      "duration": "auto",
+      "motion": {
+        "type": "kenburns",
+        "zoom": [
+          1.0,
+          1.1
+        ],
+        "pan": [
+          [
+            0,
+            0
+          ],
+          [
+            0.01,
+            -0.02
+          ]
+        ]
+      },
+      "caption": {
+        "copy_id": "meet",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "top"
+      },
+      "vo": "meet",
+      "product": {
+        "image": "glowmop_bottle.png",
+        "x": 0.66,
+        "y": 0.86,
+        "height": 0.4,
+        "depth": 0.8,
+        "shadow": 0.6,
+        "match_color": 0.4
+      },
+      "transition_in": "flash"
+    },
+    {
+      "id": "s4",
+      "source": {
+        "image": "shots/floor.jpg"
+      },
+      "duration": "beats:2",
+      "motion": {
+        "type": "parallax",
+        "push": 0.08,
+        "orbit_deg": 0,
+        "dof": 0.25
+      },
+      "caption": {
+        "copy_id": "meet",
+        "style": "red-box",
+        "reveal": "none",
+        "anchor": "top"
+      },
+      "product": {
+        "image": "glowmop_bottle.png",
+        "x": 0.5,
+        "y": 0.9,
+        "height": 0.56,
+        "depth": 0.9,
+        "shadow": 0.65,
+        "match_color": 0.4
+      }
+    },
+    {
+      "id": "s5",
+      "source": {
+        "image": "shots/worker-a.jpg"
+      },
+      "duration": "auto",
+      "motion": {
+        "type": "kenburns",
+        "zoom": [
+          1.0,
+          1.1
+        ],
+        "pan": [
+          [
+            0,
+            0
+          ],
+          [
+            0.01,
+            -0.02
+          ]
+        ]
+      },
+      "caption": {
+        "copy_id": "care",
+        "style": "red-box",
+        "reveal": "words",
+        "anchor": "bottom"
+      },
+      "vo": "care"
+    },
+    {
+      "id": "s6",
+      "source": {
+        "image": "shots/worker-b.jpg"
+      },
+      "duration": "beats:2",
+      "motion": {
+        "type": "kenburns",
+        "zoom": [
+          1.12,
+          1.02
+        ],
+        "pan": [
+          [
+            0.01,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ]
+      },
+      "caption": {
+        "copy_id": "care",
+        "style": "red-box",
+        "reveal": "none",
+        "anchor": "bottom"
+      },
+      "transition_in": "zoom-punch"
+    },
+    {
+      "id": "s7",
+      "source": {
+        "image": "shots/wand-a.jpg"
+      },
+      "duration": "beats:2",
+      "motion": {
+        "type": "parallax",
+        "push": 0.09,
+        "orbit_deg": 0,
+        "dof": 0.25
+      },
+      "caption": {
+        "copy_id": "care",
+        "style": "red-box",
+        "reveal": "none",
+        "anchor": "bottom"
+      }
+    },
+    {
+      "id": "s8",
+      "source": {
+        "image": "shots/wand-b.jpg"
+      },
+      "duration": "beats:2",
+      "motion": {
+        "type": "parallax",
+        "push": 0.07,
+        "orbit_deg": 2,
+        "dof": 0.25
+      },
+      "caption": {
+        "copy_id": "care",
+        "style": "red-box",
+        "reveal": "none",
+        "anchor": "bottom"
+      }
+    },
+    {
+      "id": "s9",
+      "source": {
+        "image": "shots/stain.jpg"
+      },
+      "duration": "auto",
+      "motion": {
+        "type": "parallax",
+        "push": 0.12,
+        "orbit_deg": 0,
+        "dof": 0.25
+      },
+      "caption": {
+        "copy_id": "tough",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "bottom"
+      },
+      "vo": "tough",
+      "transition_in": "flash"
+    },
+    {
+      "id": "s10",
+      "source": {
+        "image": "shots/clean.jpg"
+      },
+      "duration": "beats:2",
+      "motion": {
+        "type": "parallax",
+        "push": 0.06,
+        "orbit_deg": 0,
+        "dof": 0.25
+      },
+      "caption": {
+        "copy_id": "tough",
+        "style": "red-box",
+        "reveal": "none",
+        "anchor": "bottom"
+      }
+    },
+    {
+      "id": "s11",
+      "source": {
+        "image": "shots/room-warm.jpg"
+      },
+      "duration": "auto",
+      "motion": {
+        "type": "kenburns",
+        "zoom": [
+          1.0,
+          1.1
+        ],
+        "pan": [
+          [
+            0,
+            0
+          ],
+          [
+            0.01,
+            -0.02
+          ]
+        ]
+      },
+      "caption": {
+        "copy_id": "gentle",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "bottom"
+      },
+      "vo": "gentle",
+      "transition_in": "crossfade"
+    },
+    {
+      "id": "s12",
+      "source": {
+        "image": "shots/dog.jpg"
+      },
+      "duration": "beats:2",
+      "motion": {
+        "type": "kenburns",
+        "zoom": [
+          1.12,
+          1.02
+        ],
+        "pan": [
+          [
+            0.01,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ]
+      },
+      "caption": {
+        "copy_id": "gentle",
+        "style": "red-box",
+        "reveal": "none",
+        "anchor": "top"
+      },
+      "product": {
+        "image": "glowmop_bottle.png",
+        "x": 0.27,
+        "y": 0.86,
+        "height": 0.36,
+        "depth": 0.85,
+        "shadow": 0.6,
+        "match_color": 0.4
+      }
+    }
+  ],
+  "end_card": {
+    "template": "brand-split",
+    "duration": 3.5,
+    "audio": "silence",
+    "copy": {
+      "headline": "end_head",
+      "sub": "end_sub",
+      "url": "url"
+    },
+    "product": "glowmop_bottle.png",
+    "headline_reveal": "typewriter"
+  }
+}

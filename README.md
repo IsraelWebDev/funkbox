@@ -50,6 +50,8 @@ The copy guarantee: Claude may only propose wording (`propose_copy`). Only the u
 `copy.json`, and the validator refuses any reel whose copy no longer matches the approved hash. Details in
 [docs/reel.md](docs/reel.md).
 
+**Demo ad:** [`examples/mimic/`](examples/mimic/) is a 20-second vertical carpet-cleaner ad for a fictional brand. Its scenes came from FastSD, the product is drawn procedurally, the music is synthesized, and it was rendered on an Intel Iris Xe laptop in about 2 minutes. [preview.mp4](examples/mimic/preview.mp4), [storyboard](docs/mimic-storyboard.png).
+
 ## Hardware
 
 Any machine with OpenGL 3.3 works, including Intel integrated graphics; software rendering (Mesa llvmpipe) works

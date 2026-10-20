@@ -1,0 +1,37 @@
+{
+  "brand_name": "GLOWMOP",
+  "lines": {
+    "hook": {
+      "text": "LOOK CLOSER.\nSEE WHAT'S HIDING?",
+      "say": "Look closer. See what's hiding?"
+    },
+    "meet": {
+      "text": "MEET GLOWMOP DEEP CLEAN.",
+      "say": "Meet GLOWMOP Deep Clean."
+    },
+    "care": {
+      "text": "YOUR CARPET WORKS HARD.\nGIVE IT A BREAK.",
+      "say": "Your carpet works hard. Give it a break."
+    },
+    "tough": {
+      "text": "LIFTS DEEP STAINS.",
+      "say": "Lifts deep stains."
+    },
+    "gentle": {
+      "text": "SAFE FOR WOOL, KIDS AND PAWS.",
+      "say": "Safe for wool, kids and paws."
+    },
+    "end_head": {
+      "text": "Deep\nClean\nGlow"
+    },
+    "end_sub": {
+      "text": "PRO RESULTS AT HOME"
+    },
+    "url": {
+      "text": "GLOWMOP.EXAMPLE"
+    }
+  },
+  "pronounce": {
+    "GLOWMOP": "glow mop"
+  }
+}
