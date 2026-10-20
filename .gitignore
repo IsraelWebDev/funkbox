@@ -2,6 +2,7 @@ out/
 .venv/
 __pycache__/
 *.mp4
+!examples/*/preview.mp4
 *.gif
 .pytest_cache/
 models/
