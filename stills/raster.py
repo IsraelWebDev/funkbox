@@ -33,6 +33,7 @@ class RCtx:
     base_dir: Path | None = None
     brand: Brand = field(default_factory=Brand)
     seed: int = 1
+    full: tuple[int, int] = (0, 0)             # the poster's full-resolution canvas (text is always laid out at this size)
     warnings: list[str] = field(default_factory=list)
 
     def px(self, v: float) -> float:

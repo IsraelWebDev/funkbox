@@ -18,7 +18,7 @@ from funkgl.recipe import (Layer, Recipe2, allowed_roots, funk_home, funk_out, l
 from funkgl.shader import ShaderSource, sample_params
 from reel.schema import Brand
 
-from . import fx, gl as glmod, raster, schema
+from . import fx, gl as glmod, raster, schema, text
 from .raster import RCtx
 from .schema import Doc, PosterError
 
@@ -69,7 +69,7 @@ def make_context(doc: Doc, base_dir: str | Path | None, w: int, h: int, scale: f
         base = P.project_dir(doc.project)
         bd = {**(P.load_meta(doc.project).get("brand") or {})}
     brand = Brand(**{k: v for k, v in bd.items() if k in ("primary", "secondary", "text", "font_caption", "font_display")})
-    return RCtx(w=w, h=h, scale=scale, base_dir=base, brand=brand, seed=doc.seed)
+    return RCtx(w=w, h=h, scale=scale, base_dir=base, brand=brand, seed=doc.seed, full=(doc.width, doc.height))
 
 
 def scaled_size(doc: Doc, scale: float) -> tuple[int, int]:
@@ -141,6 +141,7 @@ class _Run:
         self.doc, self.ctx, self.gl = doc, ctx, gl
         self.resolved_layers: dict[str, dict] = {}
         self.audit: list[dict] = []
+        self._deck = None
 
     def layer_rgba(self, lay: dict, index: int, backdrop) -> np.ndarray:
         """Raster -> fx -> mask for one layer (``backdrop()`` reads the composite so far, for colour matching)."""
@@ -164,7 +165,6 @@ class _Run:
             if want and bd is None:
                 ctx.warnings.append(f"product {lay['id']!r}: match_color is ignored inside a group")
         elif t == "text":
-            from . import text
             rgba, entry = text.raster_text(lay, ctx, self.doc, self.deck())
             self.audit.append(entry)
         elif t == "group":
@@ -177,8 +177,7 @@ class _Run:
         return rgba
 
     def deck(self):
-        from . import text
-        return text.deck_for(self.doc, self.ctx)
+        return self._deck
 
     def group(self, lay: dict) -> np.ndarray:
         comp = self.gl.composite(None)
@@ -204,6 +203,7 @@ def render_document(doc_in: Any, base_dir: str | Path | None = None, scale: floa
     ctx = make_context(doc, base_dir, w, h, w / doc.width)
     gl = glmod.get_gl(w, h)
     run = _Run(doc, ctx, gl)
+    run._deck = text.preflight(doc, ctx)             # copy rules first: nothing is drawn if they fail
     bg = _bg(doc, ctx)
     base = np.empty((gl.h, gl.w, 4), np.uint8)
     base[:] = (*bg, 255)
