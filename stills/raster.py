@@ -35,6 +35,7 @@ class RCtx:
     seed: int = 1
     full: tuple[int, int] = (0, 0)             # the poster's full-resolution canvas (text is always laid out at this size)
     warnings: list[str] = field(default_factory=list)
+    info: dict = field(default_factory=dict)       # extra facts for the result text (cut-out quality, ...)
 
     def px(self, v: float) -> float:
         return float(v) * self.scale

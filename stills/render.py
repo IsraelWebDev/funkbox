@@ -52,10 +52,21 @@ class Rendered:
     audit: list[dict] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     resolved: dict = field(default_factory=dict)      # the sidecar document
+    alpha: np.ndarray | None = None                   # HxW uint8 when canvas.background is "transparent"
+    info: dict = field(default_factory=dict)
 
     @property
     def pil(self) -> Image.Image:
+        if self.alpha is not None:
+            return Image.fromarray(np.dstack([self.image, self.alpha]), "RGBA")
         return Image.fromarray(self.image)
+
+    @property
+    def flat_pil(self) -> Image.Image:
+        """The layer composite before the poster-level post passes (what an .ora stack adds up to)."""
+        if self.alpha is not None:
+            return Image.fromarray(np.dstack([self.flat, self.alpha]), "RGBA")
+        return Image.fromarray(self.flat)
 
 
 # --------------------------------------------------------------------------- #
@@ -192,8 +203,10 @@ class _Run:
             comp.close()
 
 
-def _bg(doc: Doc, ctx: RCtx) -> tuple[int, int, int]:
-    return raster.rgba_of(doc.background, ctx.brand)[:3]
+def _bg(doc: Doc, ctx: RCtx) -> tuple[int, int, int, int]:
+    if doc.background == "transparent":
+        return 0, 0, 0, 0
+    return raster.rgba_of(doc.background, ctx.brand)[:3] + (255,)
 
 
 def render_document(doc_in: Any, base_dir: str | Path | None = None, scale: float = 1.0) -> Rendered:
@@ -206,7 +219,7 @@ def render_document(doc_in: Any, base_dir: str | Path | None = None, scale: floa
     run._deck = text.preflight(doc, ctx)             # copy rules first: nothing is drawn if they fail
     bg = _bg(doc, ctx)
     base = np.empty((gl.h, gl.w, 4), np.uint8)
-    base[:] = (*bg, 255)
+    base[:] = bg
     comp = gl.composite(base)
     outs: list[LayerOut] = []
     try:
@@ -217,13 +230,15 @@ def render_document(doc_in: Any, base_dir: str | Path | None = None, scale: floa
             outs.append(LayerOut(lay["id"], lay["type"], rgba, lay.get("blend", "normal"),
                                  float(lay.get("opacity", 1.0))))
             comp.add(rgba, outs[-1].blend, outs[-1].opacity)
-        flat = comp.read()[..., :3]
+        flat_rgba = comp.read()
     finally:
         comp.close()
-    image = gl.post(np.ascontiguousarray(flat), doc.post, doc.seed)
+    flat = np.ascontiguousarray(flat_rgba[..., :3])
+    alpha = np.ascontiguousarray(flat_rgba[..., 3]) if bg[3] == 0 else None
+    image = gl.post(flat, doc.post, doc.seed)
     resolved = copy.deepcopy(doc.raw)
     _inline(resolved["layers"], run.resolved_layers)
-    return Rendered(doc, w, h, outs, flat, image, bg, run.audit, ctx.warnings, resolved)
+    return Rendered(doc, w, h, outs, flat, image, bg[:3], run.audit, ctx.warnings, resolved, alpha, ctx.info)
 
 
 def _inline(layers: list[dict], res: dict[str, dict]) -> None:
@@ -248,6 +263,12 @@ def fence_out(out_dir: str | Path) -> Path:
     return p
 
 
+def _over_white(im: Image.Image) -> Image.Image:
+    bg = Image.new("RGB", im.size, (255, 255, 255))
+    bg.paste(im, mask=im.getchannel("A"))
+    return bg
+
+
 def _atomic_json(path: Path, data: Any) -> None:
     tmp = path.with_name(path.name + ".part")
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -266,7 +287,8 @@ def write_outputs(r: Rendered, out_dir: str | Path, name: str, formats: list[str
         if f == "png":
             img.save(p, format="PNG")
         elif f == "jpg":
-            img.save(p, format="JPEG", quality=r.doc.jpg_quality, subsampling=0, optimize=True)
+            flat = img if img.mode == "RGB" else _over_white(img)
+            flat.save(p, format="JPEG", quality=r.doc.jpg_quality, subsampling=0, optimize=True)
         elif f == "webp":
             try:
                 img.save(p, format="WEBP", quality=r.doc.jpg_quality)

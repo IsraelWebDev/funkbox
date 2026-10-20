@@ -33,7 +33,7 @@ LAYER_TYPES = ("image", "solid", "gradient", "shader", "product", "text", "group
 FITS = ("cover", "contain", "stretch")
 EXPORTS = ("png", "jpg", "webp", "ora")
 MAX_LAYERS = 64
-MAX_DEPTH = 4
+MAX_DEPTH = 8
 
 DOC_KEYS = {"version", "name", "canvas", "project", "casual", "copy", "brand", "seed", "layers", "post", "export"}
 COMMON = {"id", "type", "blend", "opacity", "mask", "adjust", "filters", "visible"}
@@ -52,7 +52,7 @@ FILTER_KEYS = ("blur", "sharpen", "posterize", "halftone", "duotone", "pixelate"
 EFFECT_KEYS = {"shadow", "stroke", "glow"}
 MASK_KEYS = {"none": set(), "radial": {"cx", "cy", "radius", "feather", "invert"},
              "linear": {"angle", "position", "feather", "invert"}, "image": {"path", "invert"}}
-PRE_OPS = ("crop", "resize", "rotate", "flip", "remove_background")
+PRE_OPS = ("crop", "resize", "rotate", "flip", "remove_background", "trim_even")
 
 
 class PosterError(ValueError):
@@ -362,8 +362,9 @@ def check(doc: Any) -> list[str]:
         errs.append(f"unsupported poster version {doc.get('version')!r} (this is version 1)")
     canvas_size(doc.get("canvas"), errs)
     cv = doc.get("canvas")
-    if isinstance(cv, dict) and "background" in cv and not is_color(cv["background"], alpha=False):
-        errs.append("canvas.background: must be #rrggbb")
+    if isinstance(cv, dict) and "background" in cv and cv["background"] != "transparent" \
+            and not is_color(cv["background"], alpha=False):
+        errs.append("canvas.background: must be #rrggbb or \"transparent\"")
     if "project" in doc and not (isinstance(doc["project"], str) and SLUG_RE.match(doc["project"])):
         errs.append("project: must be a project slug (lowercase letters, digits, dashes)")
     if "casual" in doc and not isinstance(doc["casual"], bool):
