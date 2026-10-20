@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 from PIL import Image, ImageDraw
 
 from funkbox.media import font as _font
@@ -41,11 +42,18 @@ def storyboard(plan: R.Plan, out: str | Path | None = None, tile_w: int = 270, c
     label_h = LABEL_LINES * (fs + 4) + 8
     sheet = Image.new("RGB", (cols * (tile_w + PAD) + PAD, rows * (tile_h + label_h + PAD) + PAD), (24, 24, 28))
     d = ImageDraw.Draw(sheet)
-    r = R.Renderer(reel, plan.deck, plan.spans, width=tile_w, height=tile_h, depth_mode=depth_mode)
+    # Render at a real ad size and shrink, rather than rendering tiny: caption layout has an absolute 8 px floor,
+    # so at thumbnail size a line that fits the actual ad can fail to fit (seen on Windows at 100 px tiles).
+    rw = min(reel.settings.width, max(tile_w, 540))
+    rw -= rw % 2
+    rh = round(rw * reel.settings.height / reel.settings.width) // 2 * 2
+    r = R.Renderer(reel, plan.deck, plan.spans, width=rw, height=rh, depth_mode=depth_mode)
     try:
         for i, sp in enumerate(plan.spans):
             mid = sp.start_frame + (sp.end_frame - sp.start_frame) // 2
             fr = r.frame(mid)
+            if (rw, rh) != (tile_w, tile_h):
+                fr = np.asarray(Image.fromarray(fr).resize((tile_w, tile_h), Image.LANCZOS))
             x = PAD + (i % cols) * (tile_w + PAD)
             y = PAD + (i // cols) * (tile_h + label_h + PAD)
             sheet.paste(Image.fromarray(fr), (x, y))

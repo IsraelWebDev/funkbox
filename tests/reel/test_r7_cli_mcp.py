@@ -178,3 +178,23 @@ def test_mcp_every_tool_and_no_write_tool(demo, gl, work):
 def test_server_instructions_forbid_inventing_copy():
     from funkbox import server
     assert "never invent copy" in server.INSTRUCTIONS and "ask the user to add it to copy.json" in server.INSTRUCTIONS
+
+
+def test_storyboard_tiny_tiles_use_the_ad_layout(gl, tmp_path):
+    """A reel that validates must storyboard at any tile size: tiles are rendered at ad size and shrunk, so
+    the caption 8 px floor never applies to thumbnails (a 100 px tile failed on Windows before)."""
+    from funkbox.reel import render as R, storyboard as SB
+    import json, sys
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(root / "examples" / "reel_demo"))
+    import make_assets
+    from funkbox import config
+    demo = config.funk_out() / "test_sb_tiny" / "demo"        # inside the path fence
+    make_assets.make(demo, 270, 480)
+    d = json.loads((demo / "demo.reel.json").read_text())
+    d["settings"] = {"width": 540, "height": 960, "fps": 10, "safe_area": "reels"}
+    (demo / "s.reel.json").write_text(json.dumps(d))
+    plan = R.prepare(str(demo / "s.reel.json"))
+    sheet = SB.storyboard(plan, tmp_path / "sb.png", tile_w=60)
+    assert sheet.width > 60
