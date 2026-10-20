@@ -5,8 +5,14 @@ funk studio: one MCP server that starts, checks and stops the heavy local apps o
   status()                      what's running (FastSD on :8000, GIMP MCP on :9877)
   start(service)                "fastsd" | "gimp" | "all": idempotent, waits until ready
   stop(service, force=False)    stops FastSD; GIMP only with force=True (unsaved work!)
-  generate_image(prompt, ...)   text-to-image via FastSD (auto-starts it), saved into
-                                funkbox/inputs so funk2 recipes can use it directly; returns the image
+  generate_image(prompt, aspect, n, ...)  text-to-image via FastSD (auto-starts it), saved into
+                                funkbox/inputs so funk2 recipes and posters can use it directly; n>1 gives
+                                variations as a contact sheet plus one file each
+  restyle_image(path, prompt, strength)    img2img: re-render an existing picture in a new style
+  upscale_image(path)                      2x upscale (FastSD's upscaler, else LANCZOS + unsharp)
+
+With STUDIO_FAKE_SD=1 the three image tools use a deterministic procedural stub and never start FastSD
+(that is what the tests use).
 
 FastSD is started lazily and shut down after STUDIO_FASTSD_IDLE_MIN idle minutes (default 20) if this
 server started it, so its ~4 GB of RAM is only held while you're actually generating.
@@ -34,9 +40,14 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import paths  # noqa: E402  (studio/paths.py: env, then funkbox.toml, then vendor/ defaults)
+import sdcore  # noqa: E402  (studio/sdcore.py: request building, size tracker, test stub)
 
 FUNK_HOME = Path(os.environ.get("FUNK_HOME", HERE.parent)).resolve()
 INPUTS = Path(os.environ.get("FUNK_INPUTS") or (FUNK_HOME / "inputs")).expanduser().resolve()
+OUT = Path(os.environ.get("FUNK_OUT") or (FUNK_HOME / "out")).expanduser().resolve()
+PROJECTS = Path(os.environ.get("FUNK_PROJECTS") or (FUNK_HOME / "projects")).expanduser().resolve()
+#: where an init image / upscale source may live (the launcher enforces the same list)
+ROOTS = [INPUTS, OUT, PROJECTS, FUNK_HOME]
 LOG_PATH = FUNK_HOME / "out" / "studio.log"
 FASTSD_DIR = paths.fastsd_dir()
 FASTSD_PORT = int(os.environ.get("FASTSD_PORT", "8000"))
@@ -54,6 +65,9 @@ try:  # mcp >= 2
     from mcp.server.mcpserver import Image, MCPServer as _Server
 except ImportError:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP as _Server, Image  # type: ignore
+
+sys.path.insert(0, str(HERE.parent))
+from stills.sheet import contact_sheet  # noqa: E402  (Pillow only; no GL)
 
 
 # --------------------------------------------------------------------------- #
@@ -168,6 +182,7 @@ class FastSD:
                 return f"FastSD not installed where expected ({FASTSD_DIR})"
             env = {**os.environ, "DEVICE": os.environ.get("FASTSD_DEVICE", "GPU"),
                    "STUDIO_OUT": str(INPUTS), "FASTSD_PORT": str(FASTSD_PORT),
+                   "STUDIO_ROOTS": os.pathsep.join(str(r) for r in ROOTS),
                    "PATH": os.environ.get("PATH", "") + os.pathsep
                    + str(FASTSD_DIR / "env" / "Lib" / "site-packages" / "openvino" / "libs")}
             logf = open(FASTSD_DIR / "_studio_fastsd.log", "ab")
@@ -175,6 +190,7 @@ class FastSD:
                              stdin=subprocess.DEVNULL, stdout=logf, stderr=logf,
                              creationflags=_detached_flags(), close_fds=True)
             self.started_by_us = True
+            sizes.clear()                       # a fresh process has compiled nothing yet
             self.last_used = time.monotonic()
             t0 = time.monotonic()
             log.info("starting FastSD")
@@ -189,9 +205,10 @@ class FastSD:
             return "FastSD not running"
         kill_tree(pid)
         self.started_by_us = False
+        sizes.clear()
         return f"FastSD stopped (pid {pid})"
 
-    def generate(self, **kw) -> dict:
+    def _post(self, endpoint: str, body: dict) -> dict:
         msg = self.start()
         if not self.healthy():
             raise RuntimeError(msg)
@@ -199,13 +216,19 @@ class FastSD:
         self.busy += 1
         try:
             # first call after start loads/compiles the model: allow a long time
-            res = http_json("POST", f"http://127.0.0.1:{FASTSD_PORT}/studio/generate", kw, timeout=900)
+            res = http_json("POST", f"http://127.0.0.1:{FASTSD_PORT}/studio/{endpoint}", body, timeout=900)
         finally:
             self.busy -= 1
             self.last_used = time.monotonic()
         if not res.get("ok"):
-            raise RuntimeError(res.get("error", "generation failed"))
+            raise RuntimeError(res.get("error", f"{endpoint} failed"))
         return res
+
+    def generate(self, body: dict) -> dict:
+        return self._post("generate", body)
+
+    def upscale(self, body: dict) -> dict:
+        return self._post("upscale", body)
 
     def idle_reaper(self) -> None:
         while True:
@@ -242,6 +265,7 @@ class Gimp:
                 "Ask the user to close it.")
 
 
+sizes = sdcore.SizeTracker()
 fastsd = FastSD()
 gimp = Gimp()
 threading.Thread(target=fastsd.idle_reaper, daemon=True).start()
@@ -252,7 +276,12 @@ server = _Server(
         "Starts/stops the local creative apps on demand. Call status() first. generate_image() "
         "auto-starts FastSD (first image after a cold start takes ~30-60s, then ~5s each) and saves "
         "into the funk inputs folder, so the returned file name can go straight into a funk2 recipe "
-        "image layer (path 'inputs/<name>.png'). Before using the gimp tools call start('gimp'): if GIMP "
+        "image layer or a poster image layer (path 'inputs/<name>.png'). Pick an aspect (square, portrait, "
+        "landscape, story, wide); a size that has not been used since FastSD started costs a ~2-3 min model "
+        "recompile, so the tool tells you first and waits for confirm_slow=true. Use n=3-4 to explore variations, "
+        "restyle_image to re-render a picture in a new style, upscale_image for 2x. Never ask the image model for "
+        "a product or for text: composite the real product and exact copy with the stills server. Before using the "
+        "gimp tools call start('gimp'): if GIMP "
         "isn't up it tells you what to ask the user (double-click the 'GIMP + MCP' desktop shortcut); "
         "then call start('gimp', wait_s=60)."
     ),
@@ -267,6 +296,8 @@ def _status() -> dict:
         "gimp": {"mcp_listening": port_open(GIMP_PORT), "app_open": gimp_running(),
                  "port": GIMP_PORT, "exe": str(gimp_exe() or "")},
         "inputs_folder": str(INPUTS),
+        "image_backend": "stub (STUDIO_FAKE_SD)" if sdcore.fake_enabled() else "fastsd",
+        "compiled_sizes": sorted(f"{w}x{h}" for w, h in sizes.seen),
     }
 
 
@@ -321,28 +352,171 @@ def stop(service: str = "fastsd", force: bool = False) -> str:
     return "service must be fastsd, gimp or all"
 
 
+_LICENCE = ("Licence note: the default model is SD-Turbo, under the Stability AI Community License "
+            "(commercial use is free below US$1M annual revenue; Stability asks commercial users to register).")
+
+
+def _png(im, side: int = 640) -> Image:
+    from PIL import Image as PILImage
+    t = im.convert("RGB").copy()
+    t.thumbnail((side, side), PILImage.LANCZOS)
+    buf = io.BytesIO()
+    t.save(buf, format="PNG")
+    return Image(data=buf.getvalue(), format="png")
+
+
+def _rel(p: Path) -> str:
+    return p.relative_to(FUNK_HOME).as_posix() if p.is_relative_to(FUNK_HOME) else str(p)
+
+
+def _find_image(path: str) -> Path:
+    """A path as the user/Claude gives it: absolute, or relative to inputs/, the funkbox folder or out/."""
+    p = Path(str(path).replace("\\", "/")).expanduser()
+    cands = [p] if p.is_absolute() else [INPUTS / p, FUNK_HOME / p, OUT / p]
+    for c in cands:
+        try:
+            return sdcore.fence_path(c, ROOTS)
+        except sdcore.SDError as e:
+            last = e
+    raise last
+
+
+def _fake_generate(body: dict) -> dict:
+    from PIL import Image as PILImage
+    t0 = time.perf_counter()
+    w, h = body["width"], body["height"]
+    init = PILImage.open(body["init_image"]) if body.get("init_image") else None
+    im = sdcore.fake_image(body["prompt"], w, h, max(0, body["seed"]), init, body.get("strength", 0.5))
+    path = INPUTS / (sdcore.safe_name(body.get("name", ""), "stub-" + uuid_hex()) + ".png")
+    im.save(path)
+    res = {"ok": True, "path": str(path), "seconds": round(time.perf_counter() - t0, 2), "width": w,
+           "height": h, "steps": body["steps"]}
+    if body.get("steps_note"):
+        res["steps_note"] = body["steps_note"]
+    return res
+
+
+def uuid_hex() -> str:
+    import uuid
+    return uuid.uuid4().hex[:8]
+
+
+def _run_generate(body: dict) -> dict:
+    res = _fake_generate(body) if sdcore.fake_enabled() else fastsd.generate(body)
+    sizes.mark(res["width"], res["height"])
+    return res
+
+
+def _slow_gate(w: int, h: int, confirm_slow: bool) -> str | None:
+    """The warning to return INSTEAD of generating when this size has not been compiled yet."""
+    warn = sizes.warning(w, h)
+    if warn and not confirm_slow:
+        return (f"NOT STARTED: {warn}. Tell the user, then call again with confirm_slow=true. "
+                "(512x512 'square' stays warm.)")
+    return None
+
+
+def _seeds(seed: int, n: int) -> list[int]:
+    import random
+    base = int(seed) if int(seed) >= 0 else (0 if sdcore.fake_enabled() else random.randrange(2 ** 31))
+    return [base + i for i in range(n)]
+
+
+def _result(results: list[dict], prompt: str, base_name: str, extra: str = "") -> list:
+    from PIL import Image as PILImage
+    paths = [Path(r["path"]) for r in results]
+    lines = []
+    for r, p, sd in zip(results, paths, [r["seed"] for r in results]):
+        lines.append(f"  seed {sd}: {p}  (funk2 / poster image path: {_rel(p)})  {r['width']}x{r['height']} in {r['seconds']}s")
+    notes = sorted({r["steps_note"] for r in results if r.get("steps_note")})
+    head = f"saved {len(paths)} image(s) for {prompt!r}" if len(paths) > 1 else f"saved {paths[0]}"
+    text = "\n".join([head] + (lines if len(paths) > 1 else [lines[0]]) + notes + ([extra] if extra else []))
+    if len(paths) == 1:
+        return [text, _png(PILImage.open(paths[0]))]
+    ims = [PILImage.open(p) for p in paths]
+    sheet = contact_sheet(ims, [f"{i + 1}: seed {r['seed']}" for i, r in enumerate(results)])
+    OUT.mkdir(parents=True, exist_ok=True)
+    sp = OUT / f"sheet-{base_name}.png"
+    sheet.save(sp)
+    return [text + f"\ncontact sheet: {sp}", _png(sheet, 1000)]
+
+
 @server.tool()
 @_safe
-def generate_image(prompt: str, width: int = 512, height: int = 512, steps: int = 1,
-                   seed: int = -1, negative_prompt: str = "", name: str = "") -> list:
-    """Text-to-image with FastSD (SD-Turbo, OpenVINO on the iGPU). Auto-starts FastSD.
-    Saves <funkbox>/inputs/<name>.png and returns the image. Sizes are rounded down to x64,
-    256-1024. steps 1 is best for SD-Turbo; 2-4 adds detail slowly. seed -1 = random.
-    COST OF SIZE CHANGES: the iGPU model is compiled per image size. 512x512 is warm (~3-5 s);
-    the first image at any other size recompiles (~2.5 min on this laptop), then that size is fast
-    until the size changes again. Prefer 512x512 and let funk2 'contain'/'cover' it."""
-    res = fastsd.generate(prompt=prompt, width=width, height=height, steps=steps, seed=seed,
-                          negative_prompt=negative_prompt, name=name)
-    p = Path(res["path"])
+def generate_image(prompt: str, aspect: str = "square", seed: int = -1, n: int = 1, negative_prompt: str = "",
+                   name: str = "", steps: int = 1, confirm_slow: bool = False) -> list:
+    """Text-to-image with FastSD (SD-Turbo, OpenVINO on the iGPU); auto-starts FastSD. Aspect presets:
+    square 512x512, portrait 512x768, landscape 768x512, story 512x896, wide 896x512. n=2-8 returns variations
+    (seeds seed, seed+1, ... or random) as a contact sheet plus one file each in the inputs folder. seed -1 =
+    random (the seeds used are reported). steps 1 is best for SD-Turbo. COST OF SIZE CHANGES: the model is
+    compiled per image size (~2-3 min the first time at each size); this tool answers with a warning and does
+    nothing until you pass confirm_slow=true. Never request a product or text in the prompt. SD-Turbo output is
+    under the Stability AI Community License (free commercial use under US$1M annual revenue; Stability asks
+    commercial users to register)."""
+    if not 1 <= int(n) <= 8:
+        return "ERROR: n must be 1..8"
+    w, h = sdcore.aspect_size(aspect)
+    gate = _slow_gate(w, h, confirm_slow)
+    if gate:
+        return gate
+    seeds = _seeds(seed, int(n))
+    base = sdcore.safe_name(name, f"still-{__import__('hashlib').sha256(prompt.encode()).hexdigest()[:6]}")
+    results = []
+    for i, sd in enumerate(seeds):
+        nm = base if n == 1 else f"{base}-{i + 1}"
+        body = sdcore.build_request(prompt, aspect, seed=sd, steps=steps, negative_prompt=negative_prompt, name=nm)
+        res = _run_generate(body)
+        res["seed"] = sd
+        results.append(res)
+    return _result(results, prompt, base)
+
+
+@server.tool()
+@_safe
+def restyle_image(path: str, prompt: str, strength: float = 0.5, aspect: str | None = None, seed: int = -1,
+                  name: str = "", confirm_slow: bool = False) -> list:
+    """img2img: re-render an existing picture (a file in inputs/, out/ or the funkbox folder) following `prompt`.
+    strength 0.05 stays close to the original, 0.95 nearly ignores it. aspect None picks the preset closest to the
+    picture's shape (it is cover-cropped to that size). SD-Turbo needs steps*strength >= 1, so steps are raised
+    automatically and reported. A size not used since FastSD started needs confirm_slow=true (see generate_image).
+    SD-Turbo output is under the Stability AI Community License (free commercial use under US$1M annual revenue)."""
     from PIL import Image as PILImage
-    im = PILImage.open(p)
-    im.thumbnail((640, 640))
-    buf = io.BytesIO()
-    im.save(buf, format="PNG")
-    rel = p.relative_to(FUNK_HOME).as_posix() if p.is_relative_to(FUNK_HOME) else str(p)
-    text = (f"saved {p}\nfunk2 image layer path: {rel}\n"
-            f"{res['width']}x{res['height']} in {res['seconds']}s")
-    return [text, Image(data=buf.getvalue(), format="png")]
+    src = _find_image(path)
+    if aspect is None:
+        with PILImage.open(src) as im:
+            aspect = sdcore.nearest_aspect(*im.size)
+    w, h = sdcore.aspect_size(aspect)
+    gate = _slow_gate(w, h, confirm_slow)
+    if gate:
+        return gate
+    sd = _seeds(seed, 1)[0]
+    nm = sdcore.safe_name(name, f"{src.stem[:40]}-restyle")
+    body = sdcore.build_request(prompt, aspect, seed=sd, steps=1, name=nm, mode="img2img", init_image=src,
+                                strength=strength, roots=ROOTS)
+    res = _run_generate(body)
+    res["seed"] = sd
+    return _result([res], prompt, nm, f"restyled {_rel(src)} at strength {strength:g}")
+
+
+@server.tool()
+@_safe
+def upscale_image(path: str, name: str = "") -> list:
+    """2x upscale of an image (factor 2 only). Uses FastSD's upscaler when it works on this machine, otherwise
+    LANCZOS plus a mild unsharp mask; the result says which method ran. Saved next to the other inputs."""
+    from PIL import Image as PILImage
+    src = _find_image(path)
+    nm = sdcore.safe_name(name, src.stem[:50] + "-2x")
+    if sdcore.fake_enabled():
+        with PILImage.open(src) as im:
+            out = sdcore.upscale_lanczos(im)
+        dest = INPUTS / (nm + ".png")
+        out.save(dest)
+        res = {"path": str(dest), "width": out.width, "height": out.height, "method": "lanczos+unsharp (stub)"}
+    else:
+        res = fastsd.upscale({"path": str(src), "factor": 2, "name": nm})
+    dest = Path(res["path"])
+    return [f"saved {dest}\nimage path: {_rel(dest)}\n{res['width']}x{res['height']} (2x of {src.name}); "
+            f"method: {res['method']}", _png(PILImage.open(dest))]
 
 
 if __name__ == "__main__":

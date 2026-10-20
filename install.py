@@ -311,9 +311,10 @@ def setup_fastsd(r: Runner) -> None:
     if reqs.exists() or r.dry:
         r.run([uv, "pip", "install", "--python", str(fpy), "-r", str(reqs)])
     r.run([uv, "pip", "install", "--python", str(fpy), "pydantic>=2.11,<2.12", "fastapi-mcp"])
-    r.say("   copying studio/start_local_mcp.py into the FastSD folder (localhost-only launcher)")
+    r.say("   copying studio/start_local_mcp.py and studio/sdcore.py into the FastSD folder (localhost-only launcher)")
     if not r.dry:
-        shutil.copy2(r.root / "studio" / "start_local_mcp.py", dest / "start_local_mcp.py")
+        for f in ("start_local_mcp.py", "sdcore.py"):
+            shutil.copy2(r.root / "studio" / f, dest / f)
     write_toml(r, fastsd_dir=str(dest))
 
 
