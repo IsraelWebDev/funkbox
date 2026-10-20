@@ -120,6 +120,9 @@ Without Claude there is one command line: `python -m funkbox loop render --prese
 `python -m funkbox --help` (or `python funkbox.py ...` from a checkout). Upgrading from v3? See
 [docs/migration-v4.md](docs/migration-v4.md).
 
+**Claude Code plugin** (needs `uv`; the reel models and FastSD still come from `install.py`):
+`/plugin install funkbox --marketplace IsraelWebDev/funkbox`
+
 **For AI agents: see [AGENTS.md](AGENTS.md)** (copy-pasteable install, verify and uninstall steps for Windows,
 macOS and Linux) and [skills/funk-studio/SKILL.md](skills/funk-studio/SKILL.md) (how to drive the tools).
 

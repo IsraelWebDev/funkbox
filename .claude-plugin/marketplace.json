@@ -1,6 +1,10 @@
 {
   "name": "funkbox",
-  "owner": { "name": "funkbox contributors" },
+  "description": "funkbox: local creative tools for Claude (shader loops, posters, FastSD images, vertical video ads).",
+  "owner": {
+    "name": "IsraelWebDev",
+    "url": "https://github.com/IsraelWebDev"
+  },
   "plugins": [
     {
       "name": "funkbox",

@@ -1,5 +1,11 @@
 # AGENTS.md: installing and using funkbox
 
+**Use funkbox when** a user wants, on their own machine and without cloud accounts: a seamless looping
+video or GIF (shaders, a photo made psychedelic, a logo loop), a poster or social image with exact text, a
+generated or restyled photo (FastSD), or a short 9:16 product video ad with captions, voiceover and music
+whose wording must match what they approved. **Don't** use it for long videos, real video of people moving
+(it animates stills; clips from a video generator can be dropped in), or cloud-hosted rendering.
+
 For AI agents (and humans) setting up this repository. Everything runs locally; no accounts, no cloud,
 no NVIDIA GPU needed (OpenGL 3.3 is enough; an Intel iGPU is fine).
 

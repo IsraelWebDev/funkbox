@@ -1,7 +1,25 @@
 {
   "name": "funkbox",
-  "description": "Local GPU-shader funk loops, vertical video ad reels with approved-copy locking, layered posters and photo edits with exact text, and optional FastSD/GIMP control, all in one MCP server. No cloud, no accounts.",
+  "description": "Funky seamless shader loops, layered posters with exact text, FastSD images and 9:16 product video ads with an approved-copy lock, all rendered locally in one MCP server. No cloud, no accounts, no NVIDIA GPU.",
   "version": "4.0.0",
   "license": "MIT",
-  "keywords": ["video", "shaders", "mcp", "ads", "local"]
+  "keywords": [
+    "video",
+    "shaders",
+    "glsl",
+    "loops",
+    "ads",
+    "posters",
+    "stable-diffusion",
+    "gimp",
+    "mcp",
+    "local-first"
+  ],
+  "author": {
+    "name": "IsraelWebDev",
+    "url": "https://github.com/IsraelWebDev"
+  },
+  "homepage": "https://github.com/IsraelWebDev/funkbox",
+  "repository": "https://github.com/IsraelWebDev/funkbox",
+  "icon": ".claude-plugin/icon.png"
 }
