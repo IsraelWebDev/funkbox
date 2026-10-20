@@ -18,6 +18,5 @@ funkbox.toml
 funkbox/studio/GIMP-MCP.cmd
 shortcuts/
 *.lnk
-uv.lock
 *.wav
 *.lnk
