@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
+import stills_fixtures  # noqa: F401  (env + sys.path for the stills tests)
 import sdcore
 
 ROOT = Path(__file__).resolve().parents[2]

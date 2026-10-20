@@ -7,7 +7,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
-import assets
+import stills_assets as assets
+from stills_fixtures import gl, work  # noqa: F401
 from reel import product as RP
 from stills import raster, render, schema
 
