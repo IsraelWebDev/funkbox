@@ -17,4 +17,9 @@ jobs:
       - name: Tests
         env:
           FUNK_GL_BACKEND: egl
-        run: pytest -q
+        run: |
+          set -o pipefail
+          pytest -q -rfE 2>&1 | tee pytest.txt || {
+            grep -E "^(FAILED|ERROR) " pytest.txt | head -30 | sed 's/^/::error title=pytest::/'
+            exit 1
+          }
