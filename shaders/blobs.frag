@@ -36,8 +36,29 @@ uniform int   k_fx6;   // @param 1 3 2
 uniform int   k_fy6;   // @param 1 3 2
 uniform float u_ph6;   // @param 0.0 6.2831853 3.0
 
+uniform int   u_kaleido;  // @param 0 12 0 fixed
+uniform int   k_spin;     // @param -3 3 0 fixed
+uniform float u_zoom;     // @param 0.0 0.5 0.0 fixed
+
+// look controls: breathing zoom, whole-picture spin (k_spin turns per loop), kaleidoscope fold
+vec2 xform(vec2 q, float th) {
+  if (u_zoom != 0.0) q *= 1.0 + u_zoom * sin(th);
+  if (k_spin != 0) {
+    float c = cos(float(k_spin) * th), s = sin(float(k_spin) * th);
+    q = vec2(c * q.x - s * q.y, s * q.x + c * q.y);
+  }
+  if (u_kaleido >= 2) {
+    float seg = TAU / float(u_kaleido);
+    float a = abs(mod(atan(q.y, q.x), seg) - 0.5 * seg);
+    q = length(q) * vec2(cos(a), sin(a));
+  }
+  return q;
+}
+
 vec4 effect(vec2 p) {
-  float u = p.x, v = -p.y, th = iPhase;
+  float th = iPhase;
+  vec2 q = xform(vec2(p.x, -p.y), th);
+  float u = q.x, v = q.y;
   float ax[7] = float[7](u_ax0, u_ax1, u_ax2, u_ax3, u_ax4, u_ax5, u_ax6);
   float ay[7] = float[7](u_ay0, u_ay1, u_ay2, u_ay3, u_ay4, u_ay5, u_ay6);
   int   fx[7] = int[7](k_fx0, k_fx1, k_fx2, k_fx3, k_fx4, k_fx5, k_fx6);

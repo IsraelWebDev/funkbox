@@ -1,8 +1,8 @@
-"""The six GLSL ports must reproduce the v1 numpy effects (same params, same frame)."""
+"""The six GLSL ports must reproduce the v1 numpy effects (same params, same frame), look controls included."""
 import numpy as np
 import pytest
 
-import funk
+import v1_oracle as v1
 from funkbox.gl import Engine
 from funkbox.gl.recipe import Layer, Recipe2, Settings2
 
@@ -26,20 +26,24 @@ def map_params(effect: str, p: dict) -> dict:
     return d
 
 
+LOOKS = [dict(), dict(kaleido=6, spin=1, zoom=0.15), dict(kaleido=0, spin=-1, zoom=0.0)]
+
+
 @pytest.mark.parametrize("effect", ["plasma", "moire", "warp", "tunnel", "blobs", "rings"])
-def test_port_matches_v1(gl, effect):
-    p = funk.EFFECTS[effect].sample(np.random.default_rng(3))
+@pytest.mark.parametrize("look", LOOKS, ids=["plain", "kaleido-spin-zoom", "counter-spin"])
+def test_port_matches_v1(gl, effect, look):
+    p = v1.EFFECTS[effect].sample(np.random.default_rng(3))
+    ctl = {"u_kaleido": look.get("kaleido", 0), "k_spin": look.get("spin", 0), "u_zoom": look.get("zoom", 0.0)}
     r = Recipe2(settings=Settings2(width=SZ, height=SZ, fps=12, seconds=2, seed=3), palette="vapor",
-                cycles=1, layers=[Layer(shader=f"shaders/{effect}.frag", params=map_params(effect, p))])
-    st = funk.Settings(width=SZ, height=SZ, fps=12, seconds=2, seed=3)
-    rc = funk.Recipe(effect=effect, palette="vapor", cycles=1, vignette=0.0, params=p)
+                cycles=1, layers=[Layer(shader=f"shaders/{effect}.frag", params={**map_params(effect, p), **ctl})])
+    rc = v1.Look(effect=effect, palette="vapor", cycles=1, params=p, **look)
     eng = Engine(SZ, SZ, gl)
     try:
         for fr in (0, 5, 13):
             a = eng.render(r, fr).astype(int)
-            b = funk.render_frame(fr, st, rc).astype(int)
+            b = v1.render_field(fr, 24, SZ, SZ, rc).astype(int)
             d = np.abs(a - b)
-            assert d.mean() < 0.5, (effect, fr, d.mean())
-            assert (d.max(axis=2) > 24).mean() < 0.005, (effect, fr)
+            assert d.mean() < 0.5, (effect, look, fr, d.mean())
+            assert (d.max(axis=2) > 24).mean() < 0.005, (effect, look, fr)
     finally:
         eng.release()

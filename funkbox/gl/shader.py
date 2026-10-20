@@ -43,10 +43,11 @@ class Param:
     min: float | None = None
     max: float | None = None
     default: float | int | str = 0.0
+    fixed: bool = False         # look control: never sampled from the seed, stays at `default` unless set
 
     def to_dict(self) -> dict:
         return {"name": self.name, "type": self.type, "min": self.min, "max": self.max,
-                "default": self.default}
+                "default": self.default, "fixed": self.fixed}
 
 
 def _read(name: str) -> str:
@@ -85,8 +86,13 @@ def _num(s: str) -> float:
     return float(s)
 
 
+def _fixed(rest: list[str]) -> bool:
+    return len(rest) >= 4 and rest[3] == "fixed"
+
+
 def parse_params(source: str) -> list[Param]:
-    """Parse `// @param` annotations in declaration order."""
+    """Parse `// @param` annotations in declaration order. `// @param min max default fixed` marks a look
+    control (kaleido, spin, zoom): it keeps its default for every seed and only changes when a recipe sets it."""
     out: list[Param] = []
     for line in source.splitlines():
         m = _PARAM_RE.match(line)
@@ -100,10 +106,10 @@ def parse_params(source: str) -> list[Param]:
                 out.append(Param(name, "color", None, None, rest[1].lower()))
             elif typ == "int":
                 lo, hi, df = int(rest[0]), int(rest[1]), int(rest[2])
-                out.append(Param(name, "int", lo, hi, df))
+                out.append(Param(name, "int", lo, hi, df, _fixed(rest)))
             else:
                 lo, hi, df = _num(rest[0]), _num(rest[1]), _num(rest[2])
-                out.append(Param(name, "float", lo, hi, df))
+                out.append(Param(name, "float", lo, hi, df, _fixed(rest)))
         except (ValueError, IndexError):
             raise ShaderError(f"bad @param on uniform {name}: expected "
                               "'min max default' (or 'color #rrggbb' for vec3)") from None
@@ -115,12 +121,12 @@ def sample_params(params: list[Param], seed: int, overrides: dict | None = None)
     rng = np.random.default_rng(seed)
     vals: dict = {}
     for p in params:
-        if p.type == "float":
-            vals[p.name] = round(float(rng.uniform(p.min, p.max)), 6)
-        elif p.type == "int":
-            vals[p.name] = int(rng.integers(int(p.min), int(p.max) + 1))
-        else:
+        if p.fixed or p.type == "color":
             vals[p.name] = p.default
+        elif p.type == "float":
+            vals[p.name] = round(float(rng.uniform(p.min, p.max)), 6)
+        else:
+            vals[p.name] = int(rng.integers(int(p.min), int(p.max) + 1))
     if overrides:
         vals.update(overrides)
     return vals

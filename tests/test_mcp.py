@@ -53,7 +53,7 @@ def test_every_tool(gl, tmp_path):
     async def scenario(s):
         tools = {t.name for t in (await s.list_tools()).tools}
         assert tools == {"gl_info", "list_looks", "write_shader", "get_shader", "preview",
-                         "contact_sheet", "render", "render_v1"}
+                         "contact_sheet", "render"}
         res = {}
 
         async def call(name, args=None):
@@ -93,8 +93,6 @@ def test_every_tool(gl, tmp_path):
         r = await call("render", {"recipe": RECIPE, "name": "mcp-test"})
         assert kinds(r) == ["text", "image"] and "5 frames 64x64" in text(r)
         assert (out / "mcp-test.mp4").exists() and (out / "mcp-test.json").exists()
-        r = await call("render_v1", {"preset": "lava-lamp", "size": 64, "seconds": 0.5, "gif": False})
-        assert kinds(r) == ["text", "image"] and (out / "v1-lava-lamp-s1.mp4").exists()
 
         # limits and errors come back as readable strings, not exceptions / is_error
         big = {**RECIPE, "settings": {**RECIPE["settings"], "width": 4000}}

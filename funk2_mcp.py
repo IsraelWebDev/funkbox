@@ -19,9 +19,7 @@ import io
 import json
 import re
 import sys
-import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import replace
 from pathlib import Path
 from typing import Callable, Union
 
@@ -32,12 +30,13 @@ try:  # mcp >= 2
 except ImportError:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP as _Server, Image  # type: ignore
 
-import funk
 from funkbox.gl.context import GLUnavailable, gl_info as _gl_info
 from funkbox.gl.encode import render_recipe
 from funkbox.gl.engine import Engine
 from funkbox.gl.loopcheck import validate_loop
-from funkbox.gl.recipe import BLEND_MODES, LAYER_TYPES, Recipe2, resolve_recipe
+from funkbox.gl.recipe import BLEND_MODES, LAYER_TYPES, PALETTES, Recipe2, resample_params, resolve_recipe
+from funkbox.loops.presets import LOOKS, describe, parse_seeds
+from funkbox.media import font
 from funkbox.config import funk_home, funk_inputs, funk_out
 from funkbox.gl.shader import ShaderError, ShaderSource
 
@@ -234,18 +233,17 @@ def list_looks() -> str:
         s = ShaderSource.from_file(f)
         lines.append(f"  {f.stem}: " + ("; ".join(f"{p.name[2:]} {p.min:g}..{p.max:g} (def {p.default:g})"
                                                   for p in s.params) or "no params"))
+    lines.append("== PRESETS (loop_* preset= in v4) == " + "; ".join(describe(k) for k in LOOKS))
     lines.append("== BLEND MODES == " + ", ".join(BLEND_MODES))
     lines.append("== LAYER TYPES == " + ", ".join(LAYER_TYPES) +
                  "  (shader: shader|source; image: path, fit cover|contain|stretch, uv_warp; "
-                 "v1: effect; all: blend, opacity; shader layers may list `channels` images -> iChannel1..3; "
+                 "v1: effect (legacy, becomes a shader layer); all: blend, opacity; shader layers may list `channels` images -> iChannel1..3; "
                  "iChannel0 = everything below)")
-    lines.append("== PALETTES == " + ", ".join(funk.PALETTES))
+    lines.append("== PALETTES == " + ", ".join(PALETTES))
     lines.append("== SHADER CONTRACT == uniforms iResolution iLoop iPhase iTime iFrame iSeed iChannel0..3 "
                  "iAudio; helpers uv() pal() palette(x) loopNoise(p,r) snoise2/3/4 rot() wrap01() src0(p); "
                  "uv().y points UP; `uniform float u_x; // @param min max default` exposes a param; "
                  "ints named k_* must be integer multipliers of iPhase.")
-    lines.append("== v1 (render_v1) == PRESETS: " + ", ".join(funk.PRESETS) +
-                 " | EFFECTS: " + ", ".join(funk.EFFECTS))
     lines.append(f"inputs dir (put images here): {funk_inputs()}")
     return "\n".join(lines)
 
@@ -332,12 +330,10 @@ def _sheet_gl(rec: Recipe2, seeds: list[int], t: float, w: int, h: int):
     for s in seeds:
         r = copy.deepcopy(rec)
         r.settings.seed = s
-        for lay in r.layers:                     # resample seeded params per tile
-            if lay.type in ("shader", "v1"):
-                lay.params = None
+        resample_params(r)                       # resample seeded params per tile
         im = PILImage.fromarray(eng.render_at_t(r, t))
         from PIL import ImageDraw
-        ImageDraw.Draw(im).text((8, 6), f"seed {s}", font=funk._font(max(12, eng.h // 16)),
+        ImageDraw.Draw(im).text((8, 6), f"seed {s}", font=font(max(12, eng.h // 16)),
                                 fill="#ffffff", stroke_width=2, stroke_fill="#000000")
         tiles.append(im)
     return tiles, eng.w, eng.h
@@ -349,7 +345,7 @@ def contact_sheet(recipe: dict, seeds: str = "1-6") -> list:
     """Grid of stills of one recipe across seeds (e.g. "1-6" or "3,7,12"): the seed resamples every
     shader's @param values, so this is how you pick a variation. Returns the PNG and its saved path."""
     rec = _parse_recipe(recipe)
-    seed_list = funk.parse_seeds(seeds)
+    seed_list = parse_seeds(seeds)
     if not 1 <= len(seed_list) <= 16:
         raise ValueError("seeds: give between 1 and 16 seeds, e.g. '1-6'")
     cols = 3 if len(seed_list) > 2 else len(seed_list)
@@ -397,32 +393,6 @@ def render(recipe: dict, name: str = "", gif: bool = False) -> list:
     else:
         lines.append("loop check skipped: audio is set, and audio loops are not seamless unless the music is")
     return ["\n".join(lines), _png(PILImage.open(res.paths["png"]))]
-
-
-@server.tool()
-@_safe
-def render_v1(preset: str = "liquid-disco", seed: int = 1, seconds: float = 4.0, size: int = 540,
-              fps: int = 30, text: str = "", overrides: dict[str, Scalar] | None = None,
-              random: bool = False, gif: bool = True, name: str = "") -> list:
-    """Render with the original CPU v1 engine (same arguments as the v1 server's render_loop)."""
-    if random:
-        rc = funk.random_recipe(seed)
-    elif preset in funk.PRESETS:
-        rc = replace(funk.PRESETS[preset])
-    else:
-        raise ValueError(f"unknown preset {preset!r}; have {sorted(funk.PRESETS)}")
-    if text:
-        rc = replace(rc, text=text, text_wobble=rc.text_wobble or 6.0)
-    rc = funk.apply_overrides(rc, [f"{k}={v}" for k, v in (overrides or {}).items()])
-    if not (16 <= size <= MAX_SIDE and 0 < seconds <= MAX_SECONDS and 1 <= fps <= MAX_FPS):
-        raise ValueError(f"size 16..{MAX_SIDE}, seconds <= {MAX_SECONDS:g}, fps <= {MAX_FPS}")
-    st = funk.Settings(width=size, height=size, fps=fps, seconds=seconds, seed=seed)
-    label = "random" if random else preset
-    out_name = name or f"v1-{label}-s{seed}"
-    if not OUT_NAME_RE.match(out_name):
-        raise ValueError("bad name: use 1-60 chars of A-Z a-z 0-9 _ -")
-    paths = funk.render(rc, st, funk_out(), out_name, gif=gif)
-    return ["\n".join(f"{k}: {v}" for k, v in paths.items()), _png(PILImage.open(paths["png"]))]
 
 
 def main() -> None:

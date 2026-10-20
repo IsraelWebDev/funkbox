@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-funk2 - GPU shader engine CLI (v2). v1 (funk.py) is untouched and still works.
+funk2 - GPU shader engine CLI (v2). 
 
     python funk2.py info
     python funk2.py check  shaders/plasma.frag
@@ -50,7 +50,7 @@ def cmd_info(args) -> int:
 
 
 def cmd_check(args) -> int:
-    from funkbox.gl.engine import Engine  # noqa: F401  (forces GL import errors early)
+    import funkbox.gl.engine  # noqa: F401,F811  (forces GL import errors early)
     from funkbox.gl.loopcheck import validate_loop
     from funkbox.gl.recipe import Layer, Recipe2, Settings2
     from funkbox.gl.shader import ShaderError, ShaderSource
@@ -182,8 +182,9 @@ def _build_recipe(args):
     if getattr(args, "text", None):
         from funkbox.gl.recipe import TextSpec
         rec.text = TextSpec(text=args.text, wobble=6.0)
-    if rec.palette not in __import__("funk").PALETTES:
-        raise UsageError(f"unknown palette {rec.palette!r}; have {sorted(__import__('funk').PALETTES)}")
+    from funkbox.gl.recipe import PALETTES
+    if rec.palette not in PALETTES:
+        raise UsageError(f"unknown palette {rec.palette!r}; have {sorted(PALETTES)}")
     return rec
 
 
@@ -212,11 +213,14 @@ def cmd_sheet(args) -> int:
     import copy
     import math
 
-    import funk
     from PIL import Image, ImageDraw
+
+    from funkbox.gl.recipe import resample_params
+    from funkbox.loops.presets import parse_seeds
+    from funkbox.media import font
     from funkbox.gl.engine import Engine
     rec = _build_recipe(args)
-    seeds = funk.parse_seeds(args.seeds)
+    seeds = parse_seeds(args.seeds)
     st = rec.settings
     tw, th = _scale(st.width, st.height, min(max(st.width, st.height), args.tile))
     out = Path(args.out) if args.out else _default_out() / "sheet.png"
@@ -226,12 +230,10 @@ def cmd_sheet(args) -> int:
         for s in seeds:
             r = copy.deepcopy(rec)
             r.settings.seed = s
-            if not args.keep_params:                 # resample params per seed (like v1 sheets)
-                for lay in r.layers:
-                    if lay.type in ("shader", "v1"):
-                        lay.params = None
+            if not args.keep_params:                 # resample params per seed
+                resample_params(r)
             im = Image.fromarray(eng.render_at_t(r, args.t))
-            ImageDraw.Draw(im).text((8, 6), f"seed {s}", font=funk._font(max(12, eng.h // 18)),
+            ImageDraw.Draw(im).text((8, 6), f"seed {s}", font=font(max(12, eng.h // 18)),
                                     fill="#ffffff", stroke_width=2, stroke_fill="#000000")
             tiles.append(im)
     finally:

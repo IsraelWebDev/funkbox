@@ -1,10 +1,35 @@
-"""GLSL ports of the six v1 numpy effects (written to shaders/ by `funk2.py port-v1`).
+"""GLSL source of the six classic effects (plasma, moire, warp, tunnel, blobs, rings), written to
+shaders/ by `funkbox loop write-shader --ports`. They began as ports of the CPU engine that v4 retired.
 
-Conventions: v1's (u, v) has +v pointing DOWN the image, uv() has +y pointing UP, so
-every port starts with `float u = p.x, v = -p.y;` to match v1 maths exactly. `th` is
+Conventions: the old (u, v) has +v pointing DOWN the image, uv() has +y pointing UP, so every
+effect starts with `vec2 q = xform(vec2(p.x, -p.y), th)` to keep the original maths. `th` is
 iPhase; every use of it is multiplied by an integer so the loop is seamless.
+
+Every effect also takes three look controls (`fixed` params: never sampled from the seed, off by
+default): u_kaleido (mirror segments, 0 = off), k_spin (turns per loop) and u_zoom (breathing zoom).
 """
 from __future__ import annotations
+
+_XFORM = """
+uniform int   u_kaleido;  // @param 0 12 0 fixed
+uniform int   k_spin;     // @param -3 3 0 fixed
+uniform float u_zoom;     // @param 0.0 0.5 0.0 fixed
+
+// look controls: breathing zoom, whole-picture spin (k_spin turns per loop), kaleidoscope fold
+vec2 xform(vec2 q, float th) {
+  if (u_zoom != 0.0) q *= 1.0 + u_zoom * sin(th);
+  if (k_spin != 0) {
+    float c = cos(float(k_spin) * th), s = sin(float(k_spin) * th);
+    q = vec2(c * q.x - s * q.y, s * q.x + c * q.y);
+  }
+  if (u_kaleido >= 2) {
+    float seg = TAU / float(u_kaleido);
+    float a = abs(mod(atan(q.y, q.x), seg) - 0.5 * seg);
+    q = length(q) * vec2(cos(a), sin(a));
+  }
+  return q;
+}
+"""
 
 _HEAD = "// Port of funk v1 effect '{name}': {blurb}\n"
 
@@ -15,7 +40,9 @@ uniform float u_k2;   // @param 4.0 10.0 7.0
 uniform float u_k3;   // @param 4.0 10.0 7.0
 
 vec4 effect(vec2 p) {
-  float u = p.x, v = -p.y, th = iPhase;
+  float th = iPhase;
+  vec2 q = xform(vec2(p.x, -p.y), th);
+  float u = q.x, v = q.y;
   float cx = 0.6 * cos(th), cy = 0.6 * sin(2.0 * th);
   float f = sin(u_k0 * u + th)
           + sin(u_k1 * v - 2.0 * th)
@@ -30,7 +57,9 @@ uniform float u_k;    // @param 8.0 16.0 12.0
 uniform float u_ph;   // @param 0.0 6.2831853 3.0
 
 vec4 effect(vec2 p) {
-  float u = p.x, v = -p.y, th = iPhase;
+  float th = iPhase;
+  vec2 q = xform(vec2(p.x, -p.y), th);
+  float u = q.x, v = q.y;
   vec2 c1 = 0.45 * vec2(cos(th), sin(th));
   vec2 c2 = 0.45 * vec2(cos(-2.0 * th + u_ph), sin(-2.0 * th + u_ph));
   float r1 = length(vec2(u, v) - c1);
@@ -48,7 +77,9 @@ uniform float u_stripes;  // @param 6.0 14.0 10.0
 uniform int   u_iters;    // @param 2 3 2
 
 vec4 effect(vec2 p) {
-  float u = p.x, v = -p.y, th = iPhase;
+  float th = iPhase;
+  vec2 q = xform(vec2(p.x, -p.y), th);
+  float u = q.x, v = q.y;
   for (int i = 0; i < u_iters; i++) {
     float k = float(i + 1);
     vec2 w = vec2(u + u_amp * sin(u_freq * v + k * th),
@@ -65,7 +96,9 @@ uniform float u_n;   // @param 1.5 3.5 2.5
 uniform int   u_m;   // @param 4 12 8
 
 vec4 effect(vec2 p) {
-  float u = p.x, v = -p.y, th = iPhase;
+  float th = iPhase;
+  vec2 q = xform(vec2(p.x, -p.y), th);
+  float u = q.x, v = q.y;
   float r = length(vec2(u, v)) + 1e-3;
   float a = atan(v, u);
   float depth = u_n / r;
@@ -86,7 +119,9 @@ uniform int   u_lobes;  // @param 3 8 5
 uniform float u_wob;    // @param 0.05 0.2 0.12
 
 vec4 effect(vec2 p) {
-  float u = p.x, v = -p.y, th = iPhase;
+  float th = iPhase;
+  vec2 q = xform(vec2(p.x, -p.y), th);
+  float u = q.x, v = q.y;
   float r = length(vec2(u, v));
   float a = atan(v, u);
   float rr = r + u_wob * sin(float(u_lobes) * a + 2.0 * th) * r;
@@ -109,7 +144,9 @@ def _blobs() -> str:
         "\n".join(decl) + f"""
 
 vec4 effect(vec2 p) {{
-  float u = p.x, v = -p.y, th = iPhase;
+  float th = iPhase;
+  vec2 q = xform(vec2(p.x, -p.y), th);
+  float u = q.x, v = q.y;
   float ax[7] = float[7]({arr('u_ax')});
   float ay[7] = float[7]({arr('u_ay')});
   int   fx[7] = int[7]({arr('k_fx')});
@@ -129,7 +166,13 @@ vec4 effect(vec2 p) {{
 """
 
 
-PORTS: dict[str, str] = {
+def _with_look(src: str) -> str:
+    """Insert the look controls (after the effect's own params, so seeded sampling is unchanged)."""
+    head, tail = src.split("\nvec4 effect(vec2 p)", 1)
+    return head + "\n" + _XFORM.strip("\n") + "\n\nvec4 effect(vec2 p)" + tail
+
+
+PORTS: dict[str, str] = {name: _with_look(src) for name, src in {
     "plasma": PLASMA, "moire": MOIRE, "warp": WARP, "tunnel": TUNNEL,
     "blobs": _blobs(), "rings": RINGS,
-}
+}.items()}

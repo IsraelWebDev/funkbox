@@ -1,0 +1,32 @@
+{
+ "recipe": {
+  "effect": "tunnel",
+  "palette": "toxic",
+  "cycles": 2,
+  "spin": 1,
+  "zoom": 0.0,
+  "kaleido": 0,
+  "posterize": 0,
+  "halftone": 0,
+  "chroma": 2,
+  "scanlines": true,
+  "vignette": 0.35,
+  "grain": 0.0,
+  "text": "",
+  "text_size": 0.13,
+  "text_wobble": 0.0,
+  "text_color": "#ffffff",
+  "shadow": "#ff2bd6",
+  "params": {
+   "n": 2.023224268498633,
+   "m": 4
+  }
+ },
+ "settings": {
+  "width": 64,
+  "height": 64,
+  "fps": 30,
+  "seconds": 0.5,
+  "seed": 2
+ }
+}

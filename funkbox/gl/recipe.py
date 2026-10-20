@@ -1,4 +1,4 @@
-"""Recipe v2: dataclasses, JSON IO, path safety and the v1 sidecar adapter."""
+"""Recipe v2: dataclasses, JSON IO, path safety and the adapters for old (v1) recipes."""
 from __future__ import annotations
 
 import copy
@@ -8,14 +8,14 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
-import funk  # v1 effects, until C2 retires the CPU engine
-
 from funkbox.config import resolve_path
 
 from .shader import ShaderSource, sample_params
 
 BLEND_MODES = ["normal", "add", "screen", "multiply", "overlay", "difference", "softlight", "hue"]
-LAYER_TYPES = ["shader", "image", "v1"]
+LAYER_TYPES = ["shader", "image"]
+#: the six classic effects; `{"type": "v1", "effect": X}` layers and v1 sidecars become shader layers
+V1_EFFECTS = ("plasma", "moire", "warp", "tunnel", "blobs", "rings")
 
 
 # Inigo Quilez cosine palettes  col = a + b*cos(2pi*(c*x + d)); the recipe's palette name picks one.
@@ -60,11 +60,28 @@ class Layer:
     path: str | None = None            # image layers
     fit: str = "cover"
     uv_warp: float = 0.0
-    effect: str | None = None          # v1 layers
+    effect: str | None = None          # legacy: type "v1" with an effect name is converted to a shader layer
     channels: list[str] = field(default_factory=list)   # image paths -> iChannel1..3
-    extra: dict = field(default_factory=dict)
+    extra: dict = field(default_factory=dict)           # also: "palette" / "cycles" override the recipe's for this layer
 
-    _OPT = ("shader", "source", "source_sha256", "params", "path", "effect")
+    _OPT = ("shader", "source", "source_sha256", "params", "path")
+
+    def __post_init__(self) -> None:
+        if self.type == "v1":
+            self._from_v1()
+
+    def _from_v1(self) -> None:
+        """Turn a v1 layer ({"type": "v1", "effect": X, ...}) into the equivalent shader layer."""
+        if self.effect not in V1_EFFECTS:
+            raise ValueError(f"unknown v1 effect {self.effect!r}; have {sorted(V1_EFFECTS)}")
+        x = dict(self.extra)
+        params = map_v1_params(self.effect, self.params)
+        for key, name, cast in (("kaleido", "u_kaleido", int), ("spin", "k_spin", int), ("zoom", "u_zoom", float)):
+            v = x.pop(key, 0)
+            if v:
+                params = {**(params or {}), name: cast(v)}
+        self.type, self.shader, self.effect = "shader", f"shaders/{self.effect}.frag", None
+        self.params, self.extra = params, x
 
     def to_dict(self) -> dict:
         d: dict[str, Any] = {"type": self.type}
@@ -91,6 +108,8 @@ class Layer:
         lay = cls(**kw, extra=extra)
         if lay.type not in LAYER_TYPES:
             raise ValueError(f"unknown layer type {lay.type!r}; have {LAYER_TYPES}")
+        if lay.extra.get("palette", "acid") not in PALETTES:
+            raise ValueError(f"unknown layer palette {lay.extra['palette']!r}; have {sorted(PALETTES)}")
         if lay.blend not in BLEND_MODES:
             raise ValueError(f"unknown blend mode {lay.blend!r}; have {BLEND_MODES}")
         return lay
@@ -182,19 +201,41 @@ class Recipe2:
 
 
 # --------------------------------------------------------------------------- #
-# v1 adapter
+# v1 adapter: old recipes (the CPU engine's JSON sidecars and "v1" layers) become shader layers
 # --------------------------------------------------------------------------- #
+def map_v1_params(effect: str, p: dict | None) -> dict | None:
+    """v1 effect params ({"k": [...]}, {"balls": [...]}, ...) -> the shader's uniform names.
+    Keys that already are uniform names pass through; None stays None (sampled from the seed)."""
+    if p is None:
+        return None
+    out = {k: v for k, v in p.items() if k.startswith(("u_", "k_"))}
+    q = {k: v for k, v in p.items() if k not in out}
+    if effect == "plasma" and "k" in q:
+        out.update({f"u_k{i}": v for i, v in enumerate(q.pop("k"))})
+    elif effect == "blobs" and "balls" in q:
+        balls = q.pop("balls")
+        if not 1 <= len(balls) <= 7:
+            raise ValueError("v1 blobs: the shader supports 1 to 7 balls")
+        out["u_balls"] = len(balls)
+        for i, (ax, ay, fx, fy, ph) in enumerate(balls):
+            out.update({f"u_ax{i}": ax, f"u_ay{i}": ay, f"k_fx{i}": fx, f"k_fy{i}": fy, f"u_ph{i}": ph})
+    else:
+        for k in list(q):
+            out["u_" + k] = q.pop(k)
+    if q:
+        raise ValueError(f"v1 {effect}: unknown params {sorted(q)}")
+    return out
+
+
 def recipe_from_v1(v1: dict) -> Recipe2:
-    """Convert a v1 sidecar ({"recipe": ..., "settings": ...}) or bare v1 recipe dict."""
+    """Convert a v1 sidecar ({"recipe": ..., "settings": ...}) or a bare v1 recipe dict to a v2 recipe
+    with one shader layer (same effect, params, palette, spin/zoom/kaleido) and post passes."""
     rc = dict(v1.get("recipe", v1))
     st = dict(v1.get("settings", {}))
     effect = rc["effect"]
-    if effect not in funk.EFFECTS:
-        raise ValueError(f"unknown v1 effect {effect!r}")
     layer = Layer(type="v1", effect=effect, params=copy.deepcopy(rc.get("params")),
-                  extra={"cycles": int(rc.get("cycles", 1)), "spin": int(rc.get("spin", 0)),
-                         "zoom": float(rc.get("zoom", 0.0)), "kaleido": int(rc.get("kaleido", 0)),
-                         "palette": rc.get("palette", "acid")})
+                  extra={"spin": int(rc.get("spin", 0)), "zoom": float(rc.get("zoom", 0.0)),
+                         "kaleido": int(rc.get("kaleido", 0))})
     post: list[PostPass] = []
     if int(rc.get("posterize", 0)) >= 2:
         post.append(PostPass("posterize", {"levels": int(rc["posterize"])}))
@@ -251,12 +292,6 @@ def resolve_recipe(recipe: Recipe2) -> Recipe2:
             lay.source = src
             lay.source_sha256 = hashlib.sha256(src.encode("utf-8")).hexdigest()
             lay.params = sample_params(sh.params, layer_seed(r.settings.seed, i), lay.params)
-        elif lay.type == "v1":
-            if lay.effect not in funk.EFFECTS:
-                raise ValueError(f"unknown v1 effect {lay.effect!r}; have {sorted(funk.EFFECTS)}")
-            if lay.params is None:
-                lay.params = funk.EFFECTS[lay.effect].sample(
-                    __import__("numpy").random.default_rng(r.settings.seed))
         elif lay.type == "image":
             if not lay.path:
                 raise ValueError("image layer needs `path`")
@@ -264,6 +299,19 @@ def resolve_recipe(recipe: Recipe2) -> Recipe2:
             if lay.fit not in ("cover", "contain", "stretch"):
                 raise ValueError(f"unknown fit {lay.fit!r}; use cover|contain|stretch")
     return r
+
+
+def resample_params(rec: Recipe2) -> None:
+    """Forget every shader layer's seeded param values so the recipe's seed resamples them. Look controls
+    (``fixed`` params such as u_kaleido, k_spin, u_zoom) keep their values."""
+    for lay in rec.layers:
+        if lay.type != "shader":
+            continue
+        keep = {}
+        if lay.params:
+            fixed = {p.name for p in ShaderSource(layer_source(lay, rec.base_dir)).params if p.fixed}
+            keep = {k: v for k, v in lay.params.items() if k in fixed}
+        lay.params = keep or None
 
 
 def layer_seed(seed: int, index: int) -> int:

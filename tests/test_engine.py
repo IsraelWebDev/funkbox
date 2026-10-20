@@ -89,15 +89,23 @@ def test_post_passes_run_and_unknown_rejected(eng):
         eng.render(recipe(Layer(source=src), post=[PostPass("chroma", {"zzz": 1})]), 0)
 
 
-def test_v1_layer_matches_funk(eng):
-    import funk
-    r = recipe(Layer(type="v1", effect="plasma", params={"k": [5.0, 6.0, 7.0, 8.0]},
-                     extra={"palette": "acid", "cycles": 1}))
-    arr = eng.render(r, 3)
-    st = funk.Settings(width=64, height=64, fps=10, seconds=1.0, seed=3)
-    ref = funk.render_frame(3, st, funk.Recipe(effect="plasma", palette="acid", cycles=1,
-                                               vignette=0.0, params={"k": [5.0, 6.0, 7.0, 8.0]}))
-    assert np.abs(arr.astype(int) - ref.astype(int)).max() <= 2
+def test_v1_layer_converts_to_shader_layer(eng):
+    """A legacy {"type": "v1"} layer becomes a shader layer on the matching port, same pixels."""
+    legacy = Layer(type="v1", effect="plasma", params={"k": [5.0, 6.0, 7.0, 8.0]},
+                   extra={"palette": "acid", "cycles": 1, "kaleido": 6, "spin": 1})
+    assert legacy.type == "shader" and legacy.shader == "shaders/plasma.frag"
+    assert legacy.params["u_k2"] == 7.0 and legacy.params["u_kaleido"] == 6 and legacy.params["k_spin"] == 1
+    direct = Layer(shader="shaders/plasma.frag", params={"u_k0": 5.0, "u_k1": 6.0, "u_k2": 7.0, "u_k3": 8.0,
+                                                          "u_kaleido": 6, "k_spin": 1},
+                   extra={"palette": "acid", "cycles": 1})
+    assert np.array_equal(eng.render(recipe(legacy), 3), eng.render(recipe(direct), 3))
+
+
+def test_layer_palette_override(eng):
+    src = "vec4 effect(vec2 p){ return vec4(palette(0.3), 1.0); }"
+    a = eng.render(recipe(Layer(source=src)), 0)
+    b = eng.render(recipe(Layer(source=src, extra={"palette": "mono", "cycles": 0})), 0)
+    assert not np.array_equal(a, b) and np.abs(b[..., 0].astype(int) - b[..., 1]).max() <= 1   # mono = grey
 
 
 def test_text_overlay(eng):

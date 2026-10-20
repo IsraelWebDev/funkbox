@@ -10,8 +10,6 @@ import moderngl
 import numpy as np
 from PIL import Image
 
-import funk
-
 from funkbox.config import resolve_path
 
 from . import audio as _audio
@@ -90,7 +88,6 @@ class Engine:
         self._blend = self._mk(_BLEND_FRAG)
         self._prog_cache: dict[str, _Prog] = {}
         self._img_cache: dict[tuple, tuple[moderngl.Texture, tuple[int, int]]] = {}
-        self._v1_tex: moderngl.Texture | None = None
         self._prepared: dict[str, _Prepared] = {}
         self._audio = None
         self._audio_cache: dict[tuple, _audio.AudioFeatures] = {}
@@ -134,7 +131,7 @@ class Engine:
                 src = ShaderSource(lay.source or "", name=lay.shader or f"layer{i}")
                 prep.layer_progs.append(self._compile(src, f"layer {i} ({lay.shader or 'inline'})"))
                 prep.layer_params.append(lay.params or {})
-            elif lay.type in ("image", "v1"):
+            elif lay.type == "image":
                 prep.layer_progs.append(self._compile(ShaderSource(_IMAGE_SRC), "image program"))
                 prep.layer_params.append({})
         for pp in rr.post:
@@ -184,9 +181,10 @@ class Engine:
         return tex
 
     # ---------------------------------------------------------------- uniforms
-    def _common(self, prog, rec: Recipe2, t: float, frame: int) -> None:
+    def _common(self, prog, rec: Recipe2, t: float, frame: int, lay: Layer | None = None) -> None:
         st = rec.settings
-        a, b, c, d = (tuple(map(float, q)) for q in PALETTES[rec.palette])
+        x = lay.extra if lay is not None else {}      # a layer may carry its own palette / cycles
+        a, b, c, d = (tuple(map(float, q)) for q in PALETTES[x.get("palette", rec.palette)])
         _set(prog, "iResolution", (float(self.w), float(self.h), 1.0))
         _set(prog, "iLoop", float(t))
         _set(prog, "iPhase", float(2.0 * math.pi * t))
@@ -198,7 +196,7 @@ class Engine:
         _set(prog, "u_pal_b", b)
         _set(prog, "u_pal_c", c)
         _set(prog, "u_pal_d", d)
-        _set(prog, "u_pal_cycles", int(rec.cycles))
+        _set(prog, "u_pal_cycles", int(x.get("cycles", rec.cycles)))
         _set(prog, "iAudio", self._audio_vec(frame))
         for i in range(4):
             _set(prog, f"iChannel{i}", i)
@@ -269,20 +267,16 @@ class Engine:
         for i, lay in enumerate(rec.layers):
             p = prep.layer_progs[i]
             assert p is not None
-            self._common(p.prog, rec, t, frame)
+            self._common(p.prog, rec, t, frame, lay)
             if lay.type == "shader":
                 chans: dict[int, moderngl.Texture | None] = {0: self._tex[A]}
                 for k, cp in enumerate(lay.channels[:3]):
                     chans[k + 1] = self._load_image(cp, rec.base_dir)[0]
                 self._bind(chans, frame)
                 self._set_params(p.prog, prep.layer_params[i], p.src.params)
-            else:
-                if lay.type == "image":
-                    tex, size = self._load_image(lay.path or "", rec.base_dir)
-                    fit, warp = _FIT.get(lay.fit, 0), float(lay.uv_warp)
-                else:                                  # v1 effect on the CPU
-                    tex, size = self._v1_texture(lay, rec, frame), (self.w, self.h)
-                    fit, warp = 2, 0.0
+            else:                                      # image layer
+                tex, size = self._load_image(lay.path or "", rec.base_dir)
+                fit, warp = _FIT.get(lay.fit, 0), float(lay.uv_warp)
                 self._bind({1: tex}, frame)
                 _set(p.prog, "u_fit", fit)
                 _set(p.prog, "u_warp", warp)
@@ -316,19 +310,6 @@ class Engine:
             arr = np.ascontiguousarray(draw_text(arr, 2.0 * math.pi * t, rec.text))
         return arr
 
-    def _v1_texture(self, lay: Layer, rec: Recipe2, frame: int) -> moderngl.Texture:
-        x = lay.extra
-        v1 = funk.Recipe(effect=lay.effect or "plasma", palette=x.get("palette", rec.palette),
-                         cycles=int(x.get("cycles", rec.cycles)), spin=int(x.get("spin", 0)),
-                         zoom=float(x.get("zoom", 0.0)), kaleido=int(x.get("kaleido", 0)),
-                         posterize=0, halftone=0, chroma=0, scanlines=False, vignette=0.0,
-                         grain=0.0, text="", params=lay.params)
-        st = funk.Settings(width=self.w, height=self.h, fps=rec.settings.fps,
-                           seconds=rec.settings.seconds, seed=rec.settings.seed)
-        arr = funk.render_frame(frame, st, v1)
-        self._v1_tex = self._upload(arr, 3, self._v1_tex)
-        return self._v1_tex
-
     def release(self) -> None:
         for o in [*self._fbo, *self._tex, self._dummy, self._vbo]:
             try:
@@ -337,8 +318,6 @@ class Engine:
                 pass
         for t, _ in self._img_cache.values():
             t.release()
-        if self._v1_tex is not None:
-            self._v1_tex.release()
         if self._spec_tex is not None:
             self._spec_tex.release()
         for pr in self._prog_cache.values():
