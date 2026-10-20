@@ -51,9 +51,8 @@ def test_tts_cache_key_depends_on_spoken_text(work):
     assert audio.synthesize(d1, "a") != audio.synthesize(d2, "a")
 
 
-@pytest.mark.skipif(audio.tts_mode() == "none" and not (
-    __import__("importlib").util.find_spec("piper") and audio.voice_files()[0].exists()),
-    reason="Piper voice not installed")
+@pytest.mark.skipif(not (__import__("importlib").util.find_spec("piper") and audio.voice_files()[0].exists()),
+                    reason="Piper or its voice model not installed")
 def test_real_piper_voice_speaks(monkeypatch):
     monkeypatch.delenv("REEL_TTS", raising=False)
     assert audio.tts_mode() == "piper"
