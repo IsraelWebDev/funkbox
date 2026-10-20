@@ -86,7 +86,7 @@ def write_ora(r, path: str | Path) -> Path:
 
 
 # --------------------------------------------------------------------------- #
-# reading / validating (used by the tests and by `stills_cli.py ora-check`)
+# reading / validating (used by the tests and by `funkbox poster ora-check`)
 # --------------------------------------------------------------------------- #
 class OraError(ValueError):
     pass

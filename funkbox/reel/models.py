@@ -1,4 +1,4 @@
-"""`reel_cli.py setup-models`: the ONLY place that downloads anything (plain HTTPS, no token)."""
+"""`funkbox reel setup-models`: the ONLY place that downloads anything (plain HTTPS, no token)."""
 from __future__ import annotations
 
 import hashlib

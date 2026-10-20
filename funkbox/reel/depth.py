@@ -1,7 +1,7 @@
 """Monocular depth for 2.5D parallax. ONNX (CPU) Depth-Anything-V2-Small, cached as .npy.
 
 Returns HxW float32 in [0, 1], 1 = near. Optional: needs ``onnxruntime`` and the model file from
-``python reel_cli.py setup-models``. Never downloads anything itself.
+``funkbox reel setup-models``. Never downloads anything itself.
 """
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ def unavailable_reason() -> str:
     except ImportError:
         return "onnxruntime is not installed (pip install -r requirements-reel.txt)"
     if not model_path().exists():
-        return f"depth model not found at {model_path()} (run: python reel_cli.py setup-models)"
+        return f"depth model not found at {model_path()} (run: funkbox reel setup-models)"
     return ""
 
 

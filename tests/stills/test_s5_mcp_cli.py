@@ -114,7 +114,7 @@ def test_every_tool_over_stdio(gl, work):
 
 
 def cli(*args, cwd=ROOT):
-    return subprocess.run([sys.executable, str(ROOT / "stills_cli.py"), *map(str, args)], cwd=cwd, env=env(),
+    return subprocess.run([sys.executable, "-m", "funkbox", *map(str, args)], cwd=cwd, env=env(),
                           capture_output=True, text=True, timeout=300)
 
 
@@ -122,23 +122,23 @@ def test_cli_verbs(gl, work):
     photo = assets.make_kitchen(work / "photo.png", 400, 500)
     pj = work / "p.poster.json"
     pj.write_text(json.dumps(poster(photo)))
-    r = cli("presets")
+    r = cli("poster", "presets")
     assert r.returncode == 0 and "square" in r.stdout
-    r = cli("preview", pj, "-o", work / "pv.png", "--max-side", 200)
+    r = cli("poster", "preview", pj, "-o", work / "pv.png", "--max-side", 200)
     assert r.returncode == 0 and Image.open(work / "pv.png").width <= 200, r.stderr
-    r = cli("render", pj, "--out", work / "o", "--name", "cli1")
+    r = cli("poster", "render", pj, "--out", work / "o", "--name", "cli1")
     assert r.returncode == 0 and (work / "o" / "cli1.png").is_file() and (work / "o" / "cli1.ora").is_file(), r.stderr
-    r = cli("ora-check", work / "o" / "cli1.ora")
+    r = cli("poster", "ora-check", work / "o" / "cli1.ora")
     assert r.returncode == 0 and "valid OpenRaster 320x400" in r.stdout
-    r = cli("vary", pj, "--vary", '{"seed":[1,2]}', "--out", work / "o", "--name", "cv")
+    r = cli("poster", "vary", pj, "--vary", '{"seed":[1,2]}', "--out", work / "o", "--name", "cv")
     assert r.returncode == 0 and (work / "o" / "cv-sheet.png").is_file(), r.stderr
-    r = cli("edit", photo, "--ops", '[{"op":"flip","axis":"h"}]', "--out", work / "e", "--name", "x")
+    r = cli("image", "edit", photo, "--ops", '[{"op":"flip","axis":"h"}]', "--out", work / "e", "--name", "x")
     assert r.returncode == 0 and (work / "e" / "photo-x.png").is_file(), r.stderr
-    r = cli("still", "shaders/warp.frag", "--t", "0.2", "--out", work / "s", "--name", "w")
+    r = cli("loop", "still", "--shader", "shaders/warp.frag", "--canvas", "square", "--t", "0.2", "--out", work / "s", "--name", "w")
     assert r.returncode == 0 and (work / "s" / "w.png").is_file(), r.stderr
     bad = work / "bad.poster.json"
     bad.write_text(json.dumps({"version": 1, "layers": []}))
-    r = cli("render", bad, "--out", work / "o")
+    r = cli("poster", "render", bad, "--out", work / "o")
     assert r.returncode == 1 and r.stderr.startswith("error:") and "Traceback" not in r.stderr
 
 

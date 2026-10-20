@@ -135,7 +135,7 @@ GIMP_ADVICE = ("Use the GIMP route: open product/original.* in GIMP (the funk-st
 
 
 def build_product_png(source_im: Image.Image, dest: Path, tmp_dir: Path) -> dict:
-    """product.png from an image: keep real alpha, else the reel_cli `cutout` logic. Returns the quality dict."""
+    """product.png from an image: keep real alpha, else the `funkbox reel cutout` logic. Returns the quality dict."""
     src_size = source_im.size
     if _real_alpha(source_im):
         rgba = source_im.convert("RGBA")

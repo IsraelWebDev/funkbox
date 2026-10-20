@@ -1,25 +1,32 @@
-#!/usr/bin/env python3
-"""
-funk2 - GPU shader engine CLI (v2). 
+"""``funkbox loop``: seamless shader loops. list | render | still | sheet | check | write-shader.
 
-    python funk2.py info
-    python funk2.py check  shaders/plasma.frag
-    python funk2.py still  --recipe r.json --t 0.25 -o out/x.png
-    python funk2.py sheet  --shader shaders/voronoi_pop.frag --seeds 1-9
-    python funk2.py render --shader shaders/plasma.frag --palette vapor --post chroma=4 grain=0.03
-    python funk2.py port-v1
+    funkbox loop list
+    funkbox loop render --preset liquid-disco --text FUNK --set kaleido=8 --seconds 4
+    funkbox loop render --shader shaders/plasma.frag --palette vapor --post chroma=4 grain=0.03
+    funkbox loop still  --recipe r.json --t 0.25 -o out/x.png
+    funkbox loop sheet  --shader shaders/voronoi_pop.frag --seeds 1-9
+    funkbox loop check  shaders/plasma.frag
+    funkbox loop write-shader --ports                       (rewrite shaders/{plasma,moire,warp,tunnel,blobs,rings}.frag)
 
+A loop comes from one of: ``--recipe r.json`` (v2 recipe, or a funk v1 sidecar), ``--shader x.frag``, or a
+named look (``--preset NAME``, default liquid-disco, or ``--random`` for a whole random look from ``--seed``).
+``--set key=value`` overrides a look (kaleido=8 palette=toxic chroma=6 ...).
 Exit codes: 0 ok, 1 validation/compile failure (message on stderr), 2 bad usage.
-Set FUNK_GL_BACKEND=egl on a headless Linux box.
 """
 from __future__ import annotations
 
 import argparse
+import copy
 import glob
+import math
 import sys
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
+from funkbox import config
+
+
+class UsageError(Exception):
+    """Bad command-line usage (exit code 2)."""
 
 
 def _err(msg: str) -> None:
@@ -34,27 +41,42 @@ def _expand(paths: list[str]) -> list[Path]:
     return out
 
 
-def cmd_info(args) -> int:
-    from funkbox.gl.context import gl_info
+def _shaders_dir() -> Path:
+    return config.get().shaders_dir
+
+
+# --------------------------------------------------------------------------- #
+# list
+# --------------------------------------------------------------------------- #
+def cmd_list(args) -> int:
+    from funkbox.gl.recipe import BLEND_MODES, LAYER_TYPES, PALETTES
     from funkbox.gl.shader import ShaderSource
-    info = gl_info()
-    print(f"GL_RENDERER: {info['GL_RENDERER']}\nGL_VERSION:  {info['GL_VERSION']}")
-    print("shaders:")
-    for f in sorted((HERE / "shaders").glob("*.frag")):
+    from funkbox.loops import presets
+    print("PRESETS (loop render --preset NAME; --set key=value overrides)")
+    for k in presets.LOOKS:
+        print("  " + presets.describe(k))
+    print("\nSHADERS (shaders/<name>.frag; params go in a recipe layer's `params`)")
+    for f in sorted(_shaders_dir().glob("*.frag")):
         try:
             ps = ShaderSource.from_file(f).params
             print(f"  {f.stem:<16} {len(ps)} params")
         except Exception as e:  # noqa: BLE001
             print(f"  {f.stem:<16} (unreadable: {e})")
+    print("\nPALETTES\n  " + "  ".join(PALETTES))
+    print("\nBLEND MODES\n  " + "  ".join(BLEND_MODES))
+    print("\nLAYER TYPES\n  " + "  ".join(LAYER_TYPES))
+    print("\nLOOK KEYS (use with --set)\n  " + "  ".join(presets.LOOK_DEFAULTS))
     return 0
 
 
+# --------------------------------------------------------------------------- #
+# check
+# --------------------------------------------------------------------------- #
 def cmd_check(args) -> int:
-    import funkbox.gl.engine  # noqa: F401,F811  (forces GL import errors early)
+    from funkbox.gl.context import create_context
     from funkbox.gl.loopcheck import validate_loop
     from funkbox.gl.recipe import Layer, Recipe2, Settings2
     from funkbox.gl.shader import ShaderError, ShaderSource
-    from funkbox.gl.context import create_context
     files = _expand(args.files)
     if not files:
         _err("check: no files given")
@@ -90,30 +112,63 @@ def cmd_check(args) -> int:
     return 1 if failed else 0
 
 
-def cmd_port_v1(args) -> int:
-    from funkbox.gl.ports import PORTS
-    d = HERE / "shaders"
-    d.mkdir(exist_ok=True)
-    for name, src in PORTS.items():
-        (d / f"{name}.frag").write_text(src, encoding="utf-8", newline="\n")
-        print(f"wrote shaders/{name}.frag")
+# --------------------------------------------------------------------------- #
+# write-shader
+# --------------------------------------------------------------------------- #
+def cmd_write_shader(args) -> int:
+    if args.ports:
+        from funkbox.gl.ports import PORTS
+        d = _shaders_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        for name, src in PORTS.items():
+            (d / f"{name}.frag").write_text(src, encoding="utf-8", newline="\n")
+            print(f"wrote shaders/{name}.frag")
+        return 0
+    if not args.name or not args.file:
+        raise UsageError("give NAME and --file SOURCE.frag (or --ports)")
+    import re
+    if not re.match(r"^[a-z0-9_\-]{1,40}$", args.name):
+        raise UsageError(f"bad shader name {args.name!r}: use 1-40 chars of a-z 0-9 _ - (no paths, no dots)")
+    source = Path(args.file).read_text(encoding="utf-8-sig")
+    from funkbox.gl.context import create_context
+    from funkbox.gl.loopcheck import validate_loop
+    from funkbox.gl.recipe import Layer, Recipe2, Settings2
+    from funkbox.gl.shader import ShaderSource
+    src = ShaderSource(source, name=args.name)
+    res = src.compile(create_context())
+    if not res.ok:
+        for e in res.errors:
+            _err(f"{args.file}:{e['line'] or '?'}: {e['message']}")
+        _err("not saved")
+        return 1
+    if not args.no_check and not src.no_loopcheck:
+        rep = validate_loop(Recipe2(settings=Settings2(width=160, height=160, seed=1), palette="vapor",
+                                    layers=[Layer(source=source)]), size=160)
+        print(f"loop check: {'OK' if rep.ok else 'FAIL'} - {rep.reason}")
+        if not rep.ok:
+            _err("not saved: it does not loop (animate with iPhase * integer, or loopNoise); --no-check saves anyway")
+            return 1
+    dest = _shaders_dir() / f"{args.name}.frag"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    existed = dest.exists()
+    dest.write_text(source, encoding="utf-8", newline="\n")
+    print(f"{'overwrote' if existed else 'saved'} {dest}")
     return 0
 
 
-class UsageError(Exception):
-    """Bad command-line usage (exit code 2)."""
-
-
+# --------------------------------------------------------------------------- #
+# building a recipe from the command line
+# --------------------------------------------------------------------------- #
 def _parse_post(items: list[str] | None):
     from funkbox.gl.recipe import PostPass
     from funkbox.gl.shader import ShaderSource
+    post_dir = Path(__file__).resolve().parents[1] / "gl" / "post"
     out = []
     for it in items or []:
         name, eq, val = it.partition("=")
-        f = HERE / "funkbox" / "gl" / "post" / f"{name}.frag"
+        f = post_dir / f"{name}.frag"
         if not f.exists():
-            names = sorted(x.stem for x in (HERE / "funkbox" / "gl" / "post").glob("*.frag"))
-            raise UsageError(f"unknown post pass {name!r}; have {names}")
+            raise UsageError(f"unknown post pass {name!r}; have {sorted(x.stem for x in post_dir.glob('*.frag'))}")
         params: dict = {}
         if eq:
             declared = ShaderSource.from_file(f).params
@@ -136,11 +191,16 @@ def _scale(w: int, h: int, size: int) -> tuple[int, int]:
 
 
 def _build_recipe(args):
-    from funkbox.gl.recipe import Layer, Recipe2, Settings2, load_recipe
+    from funkbox.gl.recipe import PALETTES, Layer, Recipe2, Settings2, TextSpec, load_recipe
+    from funkbox.loops import presets
     if args.recipe and args.shader:
         raise UsageError("use --recipe or --shader, not both")
+    if args.set and (args.recipe or args.shader):
+        raise UsageError("--set overrides a named look; with --recipe/--shader edit the recipe instead")
+    seed = args.seed if args.seed is not None else 1
     if args.recipe:
         rec = load_recipe(args.recipe)
+        label = Path(args.recipe).stem
     elif args.shader:
         # The CLI user owns their files: read the .frag here (no folder fence) and inline it.
         sp = Path(args.shader)
@@ -150,53 +210,59 @@ def _build_recipe(args):
                       layers=[Layer(type="shader", shader=sp.as_posix(),
                                     source=sp.read_text(encoding="utf-8-sig"))])
         rec.base_dir = str(Path.cwd())
+        label = sp.stem
     else:
-        raise UsageError("give --recipe r.json or --shader shaders/foo.frag")
+        d = presets.look(args.preset, seed, args.text or "", args.set, random=args.random)
+        rec = presets.look_recipe(d)
+        rec.settings = Settings2(seed=seed)
+        label = "random" if args.random else args.preset
     st = rec.settings
     if args.seed is not None:
         st.seed = args.seed
     if args.size:
         st.width, st.height = _scale(st.width, st.height, args.size)
-    if getattr(args, "width", None):
-        st.width = args.width
-    if getattr(args, "height", None):
-        st.height = args.height
-    if getattr(args, "fps", None):
-        st.fps = args.fps
-    if getattr(args, "seconds", None):
-        st.seconds = args.seconds
+    for k in ("width", "height", "fps", "seconds"):
+        if getattr(args, k, None):
+            setattr(st, k, getattr(args, k))
     if getattr(args, "audio", None):
         from funkbox.gl.audio import wav_duration
         ap_ = Path(args.audio)
         if not ap_.is_file():
             raise UsageError(f"audio file not found: {args.audio}")
-        rec.settings.audio = ap_.resolve().as_posix()
+        st.audio = ap_.resolve().as_posix()
         if not getattr(args, "seconds", None):
-            rec.settings.seconds = round(wav_duration(ap_), 3)
-    if getattr(args, "palette", None):
+            st.seconds = round(wav_duration(ap_), 3)
+    if args.palette:
         rec.palette = args.palette
-    if getattr(args, "cycles", None) is not None:
+    if args.cycles is not None:
         rec.cycles = args.cycles
-    if getattr(args, "post", None):
+    if args.post:
         rec.post = _parse_post(args.post)
-    if getattr(args, "text", None):
-        from funkbox.gl.recipe import TextSpec
+    if args.text and (args.recipe or args.shader):
         rec.text = TextSpec(text=args.text, wobble=6.0)
-    from funkbox.gl.recipe import PALETTES
     if rec.palette not in PALETTES:
         raise UsageError(f"unknown palette {rec.palette!r}; have {sorted(PALETTES)}")
-    return rec
+    return rec, label
 
 
 def _default_out() -> Path:
-    from funkbox.config import funk_out
-    return funk_out()
+    return config.get().out
 
 
 def cmd_still(args) -> int:
     from PIL import Image
+
     from funkbox.gl.engine import Engine
-    rec = _build_recipe(args)
+    if args.canvas:                      # a poster-sized still of a shader (was stills_cli.py still)
+        if not args.shader:
+            raise UsageError("--canvas needs --shader SOURCE.frag")
+        from funkbox.stills import api
+        paths, r = api.funk_still(str(Path(args.shader).resolve()), args.t, args.canvas, args.name or "", args.out)
+        print(api.describe(r))
+        for k, v in paths.items():
+            print(f"{k}: {v}")
+        return 0
+    rec, _ = _build_recipe(args)
     out = Path(args.out) if args.out else _default_out() / "still.png"
     out.parent.mkdir(parents=True, exist_ok=True)
     eng = Engine(rec.settings.width, rec.settings.height)
@@ -210,25 +276,25 @@ def cmd_still(args) -> int:
 
 
 def cmd_sheet(args) -> int:
-    import copy
-    import math
-
     from PIL import Image, ImageDraw
 
+    from funkbox.gl.engine import Engine
     from funkbox.gl.recipe import resample_params
     from funkbox.loops.presets import parse_seeds
     from funkbox.media import font
-    from funkbox.gl.engine import Engine
-    rec = _build_recipe(args)
+    rec, label = _build_recipe(args)
     seeds = parse_seeds(args.seeds)
     st = rec.settings
     tw, th = _scale(st.width, st.height, min(max(st.width, st.height), args.tile))
-    out = Path(args.out) if args.out else _default_out() / "sheet.png"
+    out = Path(args.out) if args.out else _default_out() / f"{label}-sheet.png"
     eng = Engine(tw, th)
     tiles = []
     try:
         for s in seeds:
             r = copy.deepcopy(rec)
+            if args.random and not (args.recipe or args.shader):   # a whole new look per seed
+                from funkbox.loops import presets
+                r = presets.preset_recipe(seed=s, text=args.text or "", random=True, width=tw, height=th)
             r.settings.seed = s
             if not args.keep_params:                 # resample params per seed
                 resample_params(r)
@@ -252,8 +318,7 @@ def cmd_sheet(args) -> int:
 def cmd_render(args) -> int:
     from funkbox.gl.encode import render_recipe
     from funkbox.gl.loopcheck import validate_loop
-    rec = _build_recipe(args)
-    label = Path(args.shader).stem if args.shader else Path(args.recipe).stem
+    rec, label = _build_recipe(args)
     name = args.name or f"{label}-s{rec.settings.seed}"
     if rec.settings.audio:
         _err("warning: audio set; the loop check is skipped. Audio loops are not seamless "
@@ -266,17 +331,20 @@ def cmd_render(args) -> int:
         if rep.reason.startswith("static"):
             _err(f"warning: {rep.reason}")
     res = render_recipe(rec, Path(args.out_dir) if args.out_dir else _default_out(), name,
-                        mp4=not args.no_mp4, gif=args.gif and not args.no_gif, png=not args.no_png,
-                        gif_width=args.gif_width)
+                        mp4=not args.no_mp4, gif=args.gif, png=not args.no_png, gif_width=args.gif_width)
     print(res.timing_line())
     for k, p in res.paths.items():
         print(f"  {k:<4} {p}")
     return 0
 
 
-def _add_recipe_args(p: argparse.ArgumentParser, *, render: bool = False) -> None:
-    p.add_argument("--recipe", help="v2 recipe .json (or a v1 sidecar .json)")
+def _add_source_args(p: argparse.ArgumentParser, *, render: bool = False) -> None:
+    p.add_argument("--preset", default="liquid-disco", help="a named look (see: loop list)")
+    p.add_argument("--random", action="store_true", help="a whole random look from --seed")
+    p.add_argument("--recipe", help="v2 recipe .json (or a funk v1 sidecar .json)")
     p.add_argument("--shader", help="build a one-layer recipe from this .frag")
+    p.add_argument("--set", nargs="*", metavar="KEY=VAL",
+                   help="override a look: kaleido=8 palette=toxic chroma=6 (presets only)")
     p.add_argument("--seed", type=int)
     p.add_argument("--size", type=int, help="longest side in px (aspect preserved)")
     p.add_argument("--palette")
@@ -292,12 +360,14 @@ def _add_recipe_args(p: argparse.ArgumentParser, *, render: bool = False) -> Non
         p.add_argument("--height", type=int)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(prog="funk2", description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("info", help="GL renderer/version and shader list").set_defaults(fn=cmd_info)
-    c = sub.add_parser("check", help="compile + loop-check shaders")
+def add_cli(sub) -> None:
+    ap = sub.add_parser("loop", help="seamless shader loops: list, render, still, sheet, check, write-shader",
+                        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    lsub = ap.add_subparsers(dest="verb", required=True,
+                             metavar="{list,render,still,sheet,check,write-shader}")
+    lsub.add_parser("list", help="presets, shaders, palettes, blend modes").set_defaults(fn=cmd_list)
+
+    c = lsub.add_parser("check", help="compile + loop-check shaders")
     c.add_argument("files", nargs="+")
     c.add_argument("--size", type=int, default=192)
     c.add_argument("--fps", type=int, default=30)
@@ -305,14 +375,16 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--seed", type=int, default=1)
     c.set_defaults(fn=cmd_check)
 
-    s = sub.add_parser("still", help="one frame to a PNG")
-    _add_recipe_args(s, render=True)
+    s = lsub.add_parser("still", help="one frame to a PNG")
+    _add_source_args(s, render=True)
     s.add_argument("--t", type=float, default=0.25, help="loop position 0..1")
-    s.add_argument("-o", "--out")
+    s.add_argument("-o", "--out", help="output file (with --canvas: output folder)")
+    s.add_argument("--canvas", help="poster size preset (square, story, landscape ...): render --shader as a poster still")
+    s.add_argument("--name", help="with --canvas: output name")
     s.set_defaults(fn=cmd_still)
 
-    h = sub.add_parser("sheet", help="contact sheet across seeds")
-    _add_recipe_args(h)
+    h = lsub.add_parser("sheet", help="contact sheet across seeds")
+    _add_source_args(h)
     h.add_argument("--seeds", default="1-9")
     h.add_argument("--cols", type=int, default=3)
     h.add_argument("--t", type=float, default=0.25)
@@ -322,40 +394,22 @@ def build_parser() -> argparse.ArgumentParser:
     h.add_argument("-o", "--out")
     h.set_defaults(fn=cmd_sheet)
 
-    r = sub.add_parser("render", help="render a seamless loop (mp4 + png + json; --gif for a GIF)")
-    _add_recipe_args(r, render=True)
+    r = lsub.add_parser("render", help="render a seamless loop (mp4 + png + json; --gif for a GIF)")
+    _add_source_args(r, render=True)
     r.add_argument("--name")
     r.add_argument("--out-dir", help="default: $FUNK_OUT or <funkbox>/out")
     r.add_argument("--no-mp4", action="store_true")
     r.add_argument("--gif", action="store_true",
                    help="also write a GIF (off by default: on busy/grainy loops it is ~10x slower than the mp4 and ~10 MB)")
-    r.add_argument("--no-gif", action="store_true", help=argparse.SUPPRESS)  # v1 compat
+    r.add_argument("--no-gif", action="store_true", help=argparse.SUPPRESS)   # v1 name; GIF is off by default now
     r.add_argument("--no-png", action="store_true")
     r.add_argument("--no-check", action="store_true", help="skip the automatic loop check")
     r.add_argument("--gif-width", type=int, default=400)
     r.set_defaults(fn=cmd_render)
 
-    sub.add_parser("port-v1", help="write shaders/*.frag ports of the v1 effects").set_defaults(fn=cmd_port_v1)
-    return ap
-
-
-def main(argv: list[str] | None = None) -> int:
-    ap = build_parser()
-    try:
-        args = ap.parse_args(argv)
-    except SystemExit as e:
-        return int(e.code) if isinstance(e.code, int) else 2
-    try:
-        return int(args.fn(args) or 0)
-    except KeyboardInterrupt:
-        return 130
-    except UsageError as e:
-        _err(f"usage error: {e}")
-        return 2
-    except Exception as e:  # noqa: BLE001
-        _err(f"error: {e}")
-        return 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    w = lsub.add_parser("write-shader", help="compile, loop-check and save shaders/NAME.frag (or --ports)")
+    w.add_argument("name", nargs="?")
+    w.add_argument("--file", help="the GLSL source to save")
+    w.add_argument("--no-check", action="store_true")
+    w.add_argument("--ports", action="store_true", help="rewrite shaders/{plasma,moire,warp,tunnel,blobs,rings}.frag")
+    w.set_defaults(fn=cmd_write_shader)

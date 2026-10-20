@@ -175,8 +175,9 @@ def test_copy_diff(penv):
 
 # ------------------------------------------------------------------ CLI (the person's own path)
 def run_cli(penv, *args, stdin=""):
-    env = {**os.environ, "FUNK_PROJECTS": str(penv / "projects"), "FUNK_INBOX": str(penv / "inbox")}
-    return subprocess.run([sys.executable, str(ROOT / "reel_cli.py"), *args], input=stdin, capture_output=True,
+    env = {**os.environ, "FUNK_PROJECTS": str(penv / "projects"), "FUNK_INBOX": str(penv / "inbox"),
+           "PYTHONPATH": str(ROOT)}
+    return subprocess.run([sys.executable, "-m", "funkbox", "project", *args], input=stdin, capture_output=True,
                           text=True, env=env, cwd=penv)
 
 

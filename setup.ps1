@@ -11,7 +11,7 @@ $py = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
 & $py -m pip install -r requirements.txt -q
 
 Write-Host "`nSmoke test: 2s loop..." -ForegroundColor Cyan
-& $py funk.py render --preset liquid-disco --seconds 2 --size 360 --out $OutDir --name smoke-test
+& $py -m funkbox loop render --preset liquid-disco --seconds 2 --size 360 --out-dir $OutDir --name smoke-test
 
 if ($Register) {
     $cfgPath = Join-Path $env:APPDATA "Claude\claude_desktop_config.json"

@@ -10,7 +10,6 @@ import pytest
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
-FUNK2 = str(ROOT / "funk2.py")
 
 
 def run(*args, out=None, env_extra=None, **kw):
@@ -19,7 +18,7 @@ def run(*args, out=None, env_extra=None, **kw):
         env.setdefault("FUNK_GL_BACKEND", "egl")
     if out is not None:
         env["FUNK_OUT"] = str(out)
-    return subprocess.run([sys.executable, FUNK2, *map(str, args)], capture_output=True, text=True,
+    return subprocess.run([sys.executable, "-m", "funkbox", *map(str, args)], capture_output=True, text=True,
                           cwd=ROOT, env=env, **kw)
 
 
@@ -40,7 +39,7 @@ def count_frames(mp4: Path) -> int:
 
 
 def test_render_shader_makes_mp4_with_15_frames(gl, tmp_path):
-    r = run("render", "--shader", "shaders/plasma.frag", "--size", "64", "--seconds", "0.5", out=tmp_path)
+    r = run("loop", "render", "--shader", "shaders/plasma.frag", "--size", "64", "--seconds", "0.5", out=tmp_path)
     assert r.returncode == 0, r.stderr
     mp4 = tmp_path / "plasma-s1.mp4"
     assert mp4.exists() and mp4.stat().st_size > 0
@@ -49,17 +48,17 @@ def test_render_shader_makes_mp4_with_15_frames(gl, tmp_path):
     for ext in ("png", "json"):
         assert (tmp_path / f"plasma-s1.{ext}").exists()
     assert not (tmp_path / "plasma-s1.gif").exists()      # GIF is opt-in (slow on busy loops)
-    r = run("render", "--shader", "shaders/plasma.frag", "--size", "64", "--seconds", "0.5",
+    r = run("loop", "render", "--shader", "shaders/plasma.frag", "--size", "64", "--seconds", "0.5",
             "--gif", "--name", "withgif", out=tmp_path)
     assert r.returncode == 0, r.stderr
     assert (tmp_path / "withgif.gif").exists()
 
 
 def test_sidecar_reproduces_render(gl, tmp_path):
-    a = run("render", "--shader", "shaders/warp.frag", "--size", "48", "--seconds", "0.3",
+    a = run("loop", "render", "--shader", "shaders/warp.frag", "--size", "48", "--seconds", "0.3",
             "--seed", "5", "--no-gif", "--no-mp4", out=tmp_path)
     assert a.returncode == 0, a.stderr
-    b = run("still", "--recipe", tmp_path / "warp-s5.json", "--t", "0", "-o", tmp_path / "again.png",
+    b = run("loop", "still", "--recipe", tmp_path / "warp-s5.json", "--t", "0", "-o", tmp_path / "again.png",
             out=tmp_path)
     assert b.returncode == 0, b.stderr
     p1 = Image.open(tmp_path / "warp-s5.png").convert("RGB")
@@ -70,32 +69,33 @@ def test_sidecar_reproduces_render(gl, tmp_path):
 def test_check_reports_user_line_and_exit_code(gl, tmp_path):
     bad = tmp_path / "bad.frag"
     bad.write_text("// c\nvec4 effect(vec2 p) {\n  return vec4(nope);\n}\n")
-    r = run("check", bad)
+    r = run("loop", "check", bad)
     assert r.returncode == 1
     assert ":3:" in r.stderr
-    good = run("check", "shaders/plasma.frag")
+    good = run("loop", "check", "shaders/plasma.frag")
     assert good.returncode == 0, good.stderr
     itime = tmp_path / "itime.frag"
     itime.write_text("vec4 effect(vec2 p){ return vec4(vec3(0.5+0.5*sin(5.0*p.x+iTime*1.3)),1.0); }\n")
-    r = run("check", itime)
+    r = run("loop", "check", itime)
     assert r.returncode == 1 and "iTime" in r.stderr
 
 
 def test_render_refuses_a_broken_loop(gl, tmp_path):
     itime = tmp_path / "itime.frag"
     itime.write_text("vec4 effect(vec2 p){ return vec4(vec3(0.5+0.5*sin(5.0*p.x+iTime*1.3)),1.0); }\n")
-    r = run("render", "--shader", itime, "--size", "48", "--seconds", "0.5", out=tmp_path / "o")
+    r = run("loop", "render", "--shader", itime, "--size", "48", "--seconds", "0.5", out=tmp_path / "o")
     assert r.returncode == 1 and "iTime" in r.stderr
 
 
 def test_usage_errors_exit_2(tmp_path):
-    assert run("render").returncode == 2
-    assert run("render", "--shader", "shaders/plasma.frag", "--post", "nope=1").returncode == 2
+    assert run("loop").returncode == 2                                  # no verb
+    assert run("loop", "render", "--recipe", "a.json", "--shader", "shaders/plasma.frag").returncode == 2
+    assert run("loop", "render", "--shader", "shaders/plasma.frag", "--post", "nope=1").returncode == 2
     assert run("nonsense").returncode == 2
 
 
 def test_sheet_and_still(gl, tmp_path):
-    r = run("sheet", "--shader", "shaders/voronoi_pop.frag", "--seeds", "1-6", "--tile", "64",
+    r = run("loop", "sheet", "--shader", "shaders/voronoi_pop.frag", "--seeds", "1-6", "--tile", "64",
             "-o", tmp_path / "s.png")
     assert r.returncode == 0, r.stderr
     im = Image.open(tmp_path / "s.png")
@@ -103,25 +103,27 @@ def test_sheet_and_still(gl, tmp_path):
     tiles = [im.crop(((i % 3) * 64, (i // 3) * 64, (i % 3) * 64 + 64, (i // 3) * 64 + 64)).tobytes()
              for i in range(6)]
     assert len(set(tiles)) == 6
-    r = run("still", "--recipe", "examples/disco_cat.json", "--size", "96", "-o", tmp_path / "c.png")
+    r = run("loop", "still", "--recipe", "examples/disco_cat.json", "--size", "96", "-o", tmp_path / "c.png")
     assert r.returncode == 0, r.stderr
     assert Image.open(tmp_path / "c.png").size == (96, 96)
 
 
-def test_port_v1_is_idempotent():
+def test_write_shader_ports_is_idempotent():
     names = ["plasma", "moire", "warp", "tunnel", "blobs", "rings"]
     before = {n: hashlib.sha256((ROOT / "shaders" / f"{n}.frag").read_bytes()).hexdigest() for n in names}
-    r = run("port-v1")
+    r = run("loop", "write-shader", "--ports")
     assert r.returncode == 0, r.stderr
-    run("port-v1")
+    run("loop", "write-shader", "--ports")
     after = {n: hashlib.sha256((ROOT / "shaders" / f"{n}.frag").read_bytes()).hexdigest() for n in names}
     assert before == after
 
 
-def test_info():
-    r = run("info")
+def test_list_and_doctor():
+    r = run("loop", "list")
     assert r.returncode == 0, r.stderr
-    assert "GL_RENDERER" in r.stdout and "plasma" in r.stdout
+    assert "plasma" in r.stdout and "liquid-disco" in r.stdout and "PALETTES" in r.stdout
+    r = run("doctor")
+    assert "OpenGL" in r.stdout and "ffmpeg" in r.stdout and "CONFIG" in r.stdout
 
 
 def test_render_with_audio(gl, tmp_path):
@@ -135,7 +137,7 @@ def test_render_with_audio(gl, tmp_path):
         w.writeframes((0.5 * np.sin(2 * np.pi * 100 * t) * 32767).astype("<i2").tobytes())
     frag = tmp_path / "react.frag"
     frag.write_text("vec4 effect(vec2 p){ return vec4(vec3(iAudio.x), 1.0); }\n")
-    r = run("render", "--shader", frag, "--audio", inp / "a.wav", "--size", "32", "--fps", "10",
+    r = run("loop", "render", "--shader", frag, "--audio", inp / "a.wav", "--size", "32", "--fps", "10",
             "--no-gif", out=tmp_path / "o", env_extra={"FUNK_INPUTS": str(inp)})
     assert r.returncode == 0, r.stderr
     assert "warning" in r.stderr and "audio" in r.stderr

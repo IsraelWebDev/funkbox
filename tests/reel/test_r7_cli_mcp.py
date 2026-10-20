@@ -53,12 +53,12 @@ def test_storyboard_has_one_tile_per_shot_plus_end_card(demo, gl, work):
 
 
 def test_cli_validate_still_storyboard_beats_cutout(demo, gl, work):
-    env = {**os.environ, "REEL_DEPTH": "stub", "REEL_TTS": "stub"}
+    env = {**os.environ, "REEL_DEPTH": "stub", "REEL_TTS": "stub", "PYTHONPATH": str(ROOT)}
     reel = demo / "small.reel.json"
     reel.write_text(json.dumps(small_demo_reel(demo)))
 
     def run(*a):
-        return subprocess.run([sys.executable, str(ROOT / "reel_cli.py"), *map(str, a)], capture_output=True,
+        return subprocess.run([sys.executable, "-m", "funkbox", "reel", *map(str, a)], capture_output=True,
                               text=True, env=env, cwd=work)
     r = run("validate", reel)
     assert r.returncode == 0 and "OK" in r.stdout, r.stderr

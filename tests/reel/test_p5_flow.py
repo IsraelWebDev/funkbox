@@ -158,40 +158,41 @@ def cli(penv, *args, stdin=""):
     env = {**os.environ, "FUNK_PROJECTS": str(penv / "projects"), "FUNK_INBOX": str(penv / "inbox"),
            "REEL_DEPTH": "stub", "REEL_TTS": "stub"}
     env.setdefault("FUNK_GL_BACKEND", "egl")
-    return subprocess.run([sys.executable, str(ROOT / "reel_cli.py"), *map(str, args)], input=stdin, capture_output=True,
+    env["PYTHONPATH"] = str(ROOT)
+    return subprocess.run([sys.executable, "-m", "funkbox", *map(str, args)], input=stdin, capture_output=True,
                           text=True, env=env, cwd=penv)
 
 
 def test_cli_has_the_same_verbs(penv, gl):
     ext = synth.mixed_folder(penv / "dropbox", with_product_jpg=False, n_scenes=3)
-    r = cli(penv, "new-project", "Glow Mop")
+    r = cli(penv, "project", "new", "Glow Mop")
     assert r.returncode == 0 and "glow-mop" in r.stdout, r.stderr
-    r = cli(penv, "ingest", "glow-mop", "--source", ext)
+    r = cli(penv, "project", "ingest", "glow-mop", "--source", ext)
     assert r.returncode == 0 and "product: product/product.png" in r.stdout, r.stderr
     assert (ext / "track.mp3").exists()                                    # external source untouched
-    r = cli(penv, "brand", "glow-mop")
+    r = cli(penv, "project", "brand", "glow-mop")
     assert r.returncode == 0 and "primary #" in r.stdout, r.stderr
-    r = cli(penv, "set-brand", "glow-mop", "--primary", "#b00020")
+    r = cli(penv, "project", "set-brand", "glow-mop", "--primary", "#b00020")
     assert r.returncode == 0 and "#b00020" in r.stdout, r.stderr
     f = penv / "lines.json"
     f.write_text(json.dumps({"hook": {"text": "HELLO THERE."}, "b1": {"text": "ONE MORE LINE."},
                              "end_head": {"text": "Big\nSale"}, "end_sub": {"text": "TODAY ONLY"},
                              "url": {"text": "GLOWMOP.EXAMPLE"}}))
-    r = cli(penv, "propose-copy", "glow-mop", "--file", f)
-    assert r.returncode == 0 and "VERBATIM" in r.stdout and "approve-copy glow-mop --from-draft" in r.stdout, r.stderr
-    r = cli(penv, "auto-reel", "glow-mop")
+    r = cli(penv, "project", "propose-copy", "glow-mop", "--file", f)
+    assert r.returncode == 0 and "VERBATIM" in r.stdout and "project approve-copy glow-mop --from-draft" in r.stdout, r.stderr
+    r = cli(penv, "project", "auto", "glow-mop")
     assert r.returncode == 1 and "needs approved copy" in r.stderr
-    r = cli(penv, "approve-copy", "glow-mop", "--from-draft", "--stdin", stdin="y\n")
+    r = cli(penv, "project", "approve-copy", "glow-mop", "--from-draft", "--stdin", stdin="y\n")
     assert r.returncode == 0, r.stderr
-    r = cli(penv, "auto-reel", "glow-mop", "--length", "10")
+    r = cli(penv, "project", "auto", "glow-mop", "--length", "10")
     assert r.returncode == 0 and "validate: OK" in r.stdout, r.stdout + r.stderr
-    r = cli(penv, "validate", "--project", "glow-mop")
+    r = cli(penv, "reel", "validate", "--project", "glow-mop")
     assert r.returncode == 0 and r.stdout.startswith("OK")
-    r = cli(penv, "storyboard", "--project", "glow-mop", "-o", penv / "sb.png", "--tile", 120)
+    r = cli(penv, "reel", "storyboard", "--project", "glow-mop", "-o", penv / "sb.png", "--tile", 120)
     assert r.returncode == 0 and (penv / "sb.png").exists(), r.stderr
-    r = cli(penv, "copy-diff", "glow-mop")
+    r = cli(penv, "project", "copy-diff", "glow-mop")
     assert r.returncode == 0 and "= hook: unchanged" in r.stdout
-    r = cli(penv, "list-projects")
+    r = cli(penv, "project", "list")
     assert "glow-mop: reel-built" in r.stdout
 
 

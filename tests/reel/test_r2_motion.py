@@ -115,8 +115,8 @@ def test_still_cli_renders_a_png(demo, work):
     (demo / "plain.reel.json").write_text(json.dumps(reel))
     out = work / "still.png"
     root = Path(__file__).resolve().parents[2]
-    env = {**os.environ, "REEL_DEPTH": "stub"}
-    r = subprocess.run([sys.executable, str(root / "reel_cli.py"), "still", str(demo / "plain.reel.json"),
+    env = {**os.environ, "REEL_DEPTH": "stub", "PYTHONPATH": str(root)}
+    r = subprocess.run([sys.executable, "-m", "funkbox", "reel", "still", str(demo / "plain.reel.json"),
                         "--shot", "s1", "--t", "0.5", "--width", "270", "-o", str(out)], capture_output=True, text=True, env=env)
     assert r.returncode == 0, r.stderr
     from PIL import Image
@@ -124,7 +124,7 @@ def test_still_cli_renders_a_png(demo, work):
     assert im.size == (270, 480)
 
 
-@pytest.mark.skipif(not depth.available(), reason="depth model not installed (python reel_cli.py setup-models)")
+@pytest.mark.skipif(not depth.available(), reason="depth model not installed (funkbox reel setup-models)")
 def test_real_depth_model_output_range(demo):
     d = depth.estimate_depth(demo / "inputs/shots/shot1.png")
     assert d.shape == (480, 270) and d.dtype == np.float32 and 0.0 <= d.min() and d.max() <= 1.0 and d.max() - d.min() > 0.5

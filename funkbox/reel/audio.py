@@ -68,7 +68,7 @@ def tts_unavailable_reason() -> str:
         import piper  # noqa: F401
     except ImportError:
         return "piper-tts is not installed (pip install -r requirements-reel.txt)"
-    return f"no Piper voice found in {models_dir()} (run: python reel_cli.py setup-models)"
+    return f"no Piper voice found in {models_dir()} (run: funkbox reel setup-models)"
 
 
 def _voice():

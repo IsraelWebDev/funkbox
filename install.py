@@ -258,7 +258,7 @@ def setup_reel(r: Runner) -> None:
     r.step("reel models (depth + voice)")
     r.say("   Licences: Depth-Anything-V2-Small is Apache-2.0; Piper voice en_US-ljspeech-medium is "
           "public-domain data; piper-tts itself is GPL-3.0 (installed here, not bundled). See THIRD_PARTY_NOTICES.md.")
-    r.run([str(venv_python(r.root)), str(r.root / "reel_cli.py"), "setup-models"])
+    r.run([str(venv_python(r.root)), "-m", "funkbox", "reel", "setup-models"], cwd=r.root)
 
 
 def git_clone(r: Runner, url: str, dest: Path) -> bool:
@@ -409,7 +409,7 @@ def make_shortcuts(r: Runner, parts: tuple[str, ...]) -> None:
 
 
 def self_test(r: Runner) -> int:
-    r.step("Self-test: one tiny funk2 render")
+    r.step("Self-test: one tiny loop render")
     py = venv_python(r.root)
     if not py.exists():
         py = Path(sys.executable)  # dry run, or a venv elsewhere
@@ -417,8 +417,9 @@ def self_test(r: Runner) -> int:
     shader = sorted((r.root / "shaders").glob("*.frag"))
     shader_arg = ["--shader", str(shader[0])] if shader else []
     env = dict(os.environ)
-    rc = r.run([str(py), str(r.root / "funk2.py"), "render", *shader_arg, "--size", "128", "--seconds", "1",
-                "--fps", "12", "--out-dir", str(out), "--name", "selftest", "--no-png", "--no-check"], env=env)
+    rc = r.run([str(py), "-m", "funkbox", "loop", "render", *shader_arg, "--size", "128", "--seconds", "1",
+                "--fps", "12", "--out-dir", str(out), "--name", "selftest", "--no-png", "--no-check"],
+               cwd=r.root, env=env)
     if rc == 0 and not r.dry:
         r.say(f"   OK: {out}")
     elif rc != 0:

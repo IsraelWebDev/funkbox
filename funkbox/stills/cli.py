@@ -1,26 +1,19 @@
-#!/usr/bin/env python3
-"""funk v3.2 "stills": layered posters and photo edits.
+"""``funkbox poster`` and ``funkbox image edit``: layered posters and photo edits (no AI).
 
-    python stills_cli.py presets
-    python stills_cli.py preview X.poster.json -o out/pv.png [--max-side 720]
-    python stills_cli.py render X.poster.json [--out DIR] [--name N] [--project P]      (+ .ora if the poster exports it)
-    python stills_cli.py vary X.poster.json --vary '{"seed":[1,2,3]}' [--out DIR] [--name N]
-    python stills_cli.py edit photo.jpg --ops '[{"op":"crop","aspect":"1:1"}]' [--name N] [--casual] [--project P]
-    python stills_cli.py still shaders/warp.frag [--t 0.25] [--preset square] [--name N]
-    python stills_cli.py export-ora X.poster.json [--out DIR] [--name N]
-    python stills_cli.py ora-check FILE.ora
+    funkbox poster presets
+    funkbox poster preview X.poster.json -o out/pv.png [--max-side 720]
+    funkbox poster render X.poster.json [--out DIR] [--name N] [--project P]      (+ .ora if the poster exports it)
+    funkbox poster vary X.poster.json --vary '{"seed":[1,2,3]}' [--out DIR] [--name N]
+    funkbox poster export-ora X.poster.json [--out DIR] [--name N]
+    funkbox poster ora-check FILE.ora
+    funkbox image edit photo.jpg --ops '[{"op":"crop","aspect":"1:1"}]' [--name N] [--casual] [--project P]
 
-``--ops`` / ``--vary`` take JSON text or the path of a JSON file. On Linux with no display set FUNK_GL_BACKEND=egl.
+``--ops`` / ``--vary`` take JSON text or the path of a JSON file.
 """
 from __future__ import annotations
 
-import argparse
 import json
-import os
-import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
 def _abs(p: str) -> str:
@@ -40,7 +33,7 @@ def _print_paths(paths: dict) -> None:
         print(f"{k}: {v}")
 
 
-def cmd_presets(a) -> int:
+def cmd_poster_presets(a) -> int:
     from funkbox.stills import schema
     from funkbox.gl.recipe import BLEND_MODES
     for k, (w, h) in schema.PRESETS.items():
@@ -52,7 +45,7 @@ def cmd_presets(a) -> int:
     return 0
 
 
-def cmd_preview(a) -> int:
+def cmd_poster_preview(a) -> int:
     from funkbox.stills import api
     r, im = api.preview(_abs(a.poster), a.project or "", a.max_side)
     out = Path(a.output or "out/preview.png")
@@ -78,7 +71,7 @@ def _outdir(a, doc):
     return api.posters_dir()
 
 
-def cmd_render(a, formats=None) -> int:
+def cmd_poster_render(a, formats=None) -> int:
     from funkbox.stills import api, render
     doc, base = _doc(a)
     r = render.render_document(doc, base)
@@ -88,11 +81,11 @@ def cmd_render(a, formats=None) -> int:
     return 0
 
 
-def cmd_export_ora(a) -> int:
-    return cmd_render(a, ["png", "ora"])
+def cmd_poster_export_ora(a) -> int:
+    return cmd_poster_render(a, ["png", "ora"])
 
 
-def cmd_vary(a) -> int:
+def cmd_poster_vary(a) -> int:
     from funkbox.stills import variations
     doc, base = _doc(a)
     res = variations.poster_variations(doc, _json_arg(a.vary), _outdir(a, doc), a.name, base)
@@ -102,7 +95,7 @@ def cmd_vary(a) -> int:
     return 0
 
 
-def cmd_edit(a) -> int:
+def cmd_image_edit(a) -> int:
     from funkbox.stills import api, edit
     res = edit.edit_image(_abs(a.image), _json_arg(a.ops), a.name or "", project=a.project or None,
                           copy=a.copy or None, casual=a.casual, out_dir=a.out)
@@ -111,60 +104,34 @@ def cmd_edit(a) -> int:
     return 0
 
 
-def cmd_still(a) -> int:
-    from funkbox.stills import api
-    paths, r = api.funk_still(_abs(a.source), a.t, a.preset, a.name or "", a.out)
-    print(api.describe(r))
-    _print_paths(paths)
-    return 0
-
-
-def cmd_ora_check(a) -> int:
+def cmd_poster_ora_check(a) -> int:
     from funkbox.stills import api
     print(api.ora_report(a.file))
     return 0
 
 
-def build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(prog="stills_cli.py", description=__doc__.split("\n")[0])
-    sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("presets").set_defaults(fn=cmd_presets)
-    p = sub.add_parser("preview")
+def add_cli(sub) -> None:
+    from funkbox.studio.images import image_group
+    ap = sub.add_parser("poster", help="layered posters: presets, preview, render, vary, export-ora")
+    psub = ap.add_subparsers(dest="verb", required=True, metavar="{presets,preview,render,vary,export-ora,ora-check}")
+    psub.add_parser("presets", help="canvas sizes, layer types, blend modes, filters").set_defaults(fn=cmd_poster_presets)
+    p = psub.add_parser("preview", help="a small PNG of the poster")
     p.add_argument("poster"); p.add_argument("-o", "--output"); p.add_argument("--max-side", type=int, default=720)
     p.add_argument("--project")
-    p.set_defaults(fn=cmd_preview)
-    for name, fn in (("render", cmd_render), ("export-ora", cmd_export_ora)):
-        p = sub.add_parser(name)
+    p.set_defaults(fn=cmd_poster_preview)
+    for name, fn in (("render", cmd_poster_render), ("export-ora", cmd_poster_export_ora)):
+        p = psub.add_parser(name, help="full-size PNG" + (" and layered .ora" if name == "export-ora" else ""))
         p.add_argument("poster"); p.add_argument("--out"); p.add_argument("--name"); p.add_argument("--project")
         p.set_defaults(fn=fn)
-    p = sub.add_parser("vary")
+    p = psub.add_parser("vary", help="variations of a poster (a sheet plus one file each)")
     p.add_argument("poster"); p.add_argument("--vary", required=True); p.add_argument("--out")
     p.add_argument("--name", default="var"); p.add_argument("--project")
-    p.set_defaults(fn=cmd_vary)
-    p = sub.add_parser("edit")
+    p.set_defaults(fn=cmd_poster_vary)
+    p = psub.add_parser("ora-check", help="validate an OpenRaster file")
+    p.add_argument("file")
+    p.set_defaults(fn=cmd_poster_ora_check)
+
+    p = image_group(sub).add_parser("edit", help="non-AI photo edits: crop, flip, adjust, text, filters ...")
     p.add_argument("image"); p.add_argument("--ops", required=True); p.add_argument("--name"); p.add_argument("--out")
     p.add_argument("--project"); p.add_argument("--copy"); p.add_argument("--casual", action="store_true")
-    p.set_defaults(fn=cmd_edit)
-    p = sub.add_parser("still")
-    p.add_argument("source"); p.add_argument("--t", type=float, default=0.25)
-    p.add_argument("--preset", default="square"); p.add_argument("--name"); p.add_argument("--out")
-    p.set_defaults(fn=cmd_still)
-    p = sub.add_parser("ora-check")
-    p.add_argument("file")
-    p.set_defaults(fn=cmd_ora_check)
-    return ap
-
-
-def main(argv: list[str] | None = None) -> int:
-    a = build_parser().parse_args(argv)
-    try:
-        return a.fn(a)
-    except Exception as e:  # noqa: BLE001
-        from funkbox.stills.schema import PosterError
-        msg = "\n".join(e.errors) if isinstance(e, PosterError) else f"{type(e).__name__}: {e}"
-        print(f"error: {msg}", file=sys.stderr)
-        return 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    p.set_defaults(fn=cmd_image_edit)
