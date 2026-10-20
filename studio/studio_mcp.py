@@ -154,6 +154,22 @@ def gimp_running() -> bool:
 # --------------------------------------------------------------------------- #
 # services
 # --------------------------------------------------------------------------- #
+def sync_launcher(fastsd_dir: Path) -> list[str]:
+    """Copy studio/start_local_mcp.py and studio/sdcore.py into the FastSD folder when missing or out of
+    date, so a funkbox update (git pull) never runs against a stale launcher. Returns the names copied."""
+    import hashlib
+    import shutil
+    copied = []
+    for name in ("start_local_mcp.py", "sdcore.py"):
+        src, dst = HERE / name, fastsd_dir / name
+        if not src.exists():
+            continue
+        if not dst.exists() or hashlib.sha256(src.read_bytes()).digest() != hashlib.sha256(dst.read_bytes()).digest():
+            shutil.copy2(src, dst)
+            copied.append(name)
+    return copied
+
+
 class FastSD:
     def __init__(self) -> None:
         self.started_by_us = False
@@ -177,9 +193,12 @@ class FastSD:
                 return (f"port {FASTSD_PORT} is taken by something that isn't the studio FastSD "
                         "launcher (upstream start-mcpserver.bat?). Stop it and retry.")
             py = paths.fastsd_python(FASTSD_DIR)
-            launcher = FASTSD_DIR / "start_local_mcp.py"
-            if not py.exists() or not launcher.exists():
+            if not py.exists():
                 return f"FastSD not installed where expected ({FASTSD_DIR})"
+            launcher = FASTSD_DIR / "start_local_mcp.py"
+            synced = sync_launcher(FASTSD_DIR)
+            if synced:
+                log.info("refreshed FastSD launcher files: %s", ", ".join(synced))
             env = {**os.environ, "DEVICE": os.environ.get("FASTSD_DEVICE", "GPU"),
                    "STUDIO_OUT": str(INPUTS), "FASTSD_PORT": str(FASTSD_PORT),
                    "STUDIO_ROOTS": os.pathsep.join(str(r) for r in ROOTS),
@@ -450,7 +469,7 @@ def generate_image(prompt: str, aspect: str = "square", seed: int = -1, n: int =
     (seeds seed, seed+1, ... or random) as a contact sheet plus one file each in the inputs folder. seed -1 =
     random (the seeds used are reported). steps 1 is best for SD-Turbo. COST OF SIZE CHANGES: the model is
     compiled per image size (~2-3 min the first time at each size); this tool answers with a warning and does
-    nothing until you pass confirm_slow=true. Never request a product or text in the prompt. SD-Turbo output is
+    nothing until you pass confirm_slow=true. PREFER 'square': SD-Turbo is trained at 512x512 and tall/wide sizes often duplicate the subject (two dogs stacked, a room on two floors); for 9:16 use square and let reel/stills cover-crop it (upscale_image first for sharper crops). Never request a product or text in the prompt. SD-Turbo output is
     under the Stability AI Community License (free commercial use under US$1M annual revenue; Stability asks
     commercial users to register)."""
     if not 1 <= int(n) <= 8:

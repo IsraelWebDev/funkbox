@@ -29,7 +29,7 @@ If these tools are missing, funkbox isn't installed. Follow `AGENTS.md` in the f
    - If it reports several product candidates, ask which one and call `set_product`.
    - If the cut-out score is low, say so and offer GIMP cleanup.
    - If there are fewer than 4 visuals, offer to generate scenes with
-     `studio.generate_image`: 512x512, scene and mood only. **Never ask the image model for
+     `studio.generate_image` at **square** (tall sizes duplicate subjects with SD-Turbo), scene and mood only. **Never ask the image model for
      the product or any text.** The real product photo is composited in later.
 3. **Brand:** call `reel.brand_from_assets(project)` and show the swatch. Accept the user's
    overrides with `set_brand`.

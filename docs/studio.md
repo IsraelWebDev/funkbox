@@ -34,3 +34,8 @@ pictures (seeded from the prompt hash and the seed) at the requested size, and i
 `strength`. The tests use it. The request-building rules (aspect presets, the img2img step clamp, the path fence for
 `init_image`) live in `studio/sdcore.py`, which the launcher imports too (`install.py --with fastsd` copies both files).
 `init_image` and upscale sources must resolve (symlinks followed) inside `STUDIO_OUT` or the funkbox folders.
+
+
+## Aspect ratios and SD-Turbo
+
+SD-Turbo is trained at 512x512. Measured on an Iris Xe laptop: `square` gives clean single subjects in ~1.3 s; `story` (512x896) often duplicates the subject (two dogs stacked, a living room on two floors). For vertical ads generate `square` (optionally `upscale_image` to 1024) and let reel/stills cover-crop it with a slow camera move. img2img (`restyle_image`) loads a second pipeline the first time (~40-55 s), then runs in seconds.
