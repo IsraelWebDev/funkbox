@@ -223,3 +223,69 @@ def test_uv_run_project_lists_tools():
     except Exception as e:  # offline sandbox: uv cannot resolve
         pytest.skip(f"uv could not start the server here: {type(e).__name__}")
     assert "loop_render" in names and "project_approve_copy" in names
+
+
+# --------------------------------------------------------------------------- #
+# installer robustness: packaged Desktop config, dead-venv detection, failures are fatal
+# --------------------------------------------------------------------------- #
+def _fake_windows(monkeypatch, tmp_path):
+    monkeypatch.setattr(install, "system", lambda: "Windows")
+    monkeypatch.delenv("CLAUDE_DESKTOP_CONFIG", raising=False)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "Local"))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "Roaming"))
+
+
+def test_packaged_desktop_config_wins_over_appdata(tmp_path, monkeypatch):
+    _fake_windows(monkeypatch, tmp_path)
+    assert install.desktop_config_path() == tmp_path / "Roaming" / "Claude" / "claude_desktop_config.json"
+    private = tmp_path / "Local" / "Packages" / "Claude_pzs8sxrjxfjjc" / "LocalCache" / "Roaming" / "Claude"
+    private.mkdir(parents=True)
+    (private / "claude_desktop_config.json").write_text("{}")
+    assert install.desktop_config_path() == private / "claude_desktop_config.json"
+    monkeypatch.setenv("CLAUDE_DESKTOP_CONFIG", str(tmp_path / "explicit.json"))   # explicit still wins
+    assert install.desktop_config_path() == tmp_path / "explicit.json"
+
+
+def test_packaged_package_without_private_config_is_ignored(tmp_path, monkeypatch):
+    _fake_windows(monkeypatch, tmp_path)
+    (tmp_path / "Local" / "Packages" / "Claude_x" / "LocalCache").mkdir(parents=True)
+    assert install.desktop_config_path().parent == tmp_path / "Roaming" / "Claude"
+
+
+def test_failed_command_is_recorded_and_main_exits_nonzero(tmp_path, monkeypatch):
+    r = install.Runner(False, tmp_path)
+    assert r.run([sys.executable, "-c", "import sys; sys.exit(3)"]) == 3
+    assert r.run([str(tmp_path / "no-such.exe")]) == 127
+    assert len(r.failures) == 2 and install.summary(r) == 1
+    assert install.summary(install.Runner(False, tmp_path)) == 0
+
+
+def test_register_reads_back_and_fails_when_the_write_did_not_stick(tmp_path, monkeypatch):
+    cfg = tmp_path / "claude_desktop_config.json"
+    cfg.write_text(json.dumps({"mcpServers": {"other": {"command": "x"}}}))
+    monkeypatch.setattr(install, "write_config", lambda p, c: None)   # e.g. Desktop rewrote it underneath us
+    r = install.Runner(False, ROOT)
+    install.register_desktop(r, cfg, ())
+    assert r.failures and "funkbox" in r.failures[0]
+    assert not any("read back" in line for line in r.log)
+
+
+def test_dead_venv_is_detected_and_stops_the_install(tmp_path, monkeypatch):
+    py = install.venv_python(tmp_path)
+    py.parent.mkdir(parents=True)
+    py.write_bytes(b"not an interpreter")
+    (tmp_path / ".venv" / "pyvenv.cfg").write_text("home = C:\\gone\nversion_info = 3.12.13\n")
+    assert install.venv_base_version(tmp_path) == "3.12.13"
+    assert not install.venv_ok(py)
+    monkeypatch.setattr(install, "find_uv", lambda: None)
+    r = install.Runner(False, tmp_path)
+    assert install.make_venv(r, ()) is False
+    assert any("unusable" in f for f in r.failures)
+    cfg = tmp_path / "cfg.json"
+    assert install.main(["--register", "desktop", "--config", str(cfg), "--yes"], root=tmp_path) == 1
+    assert not cfg.exists()                                           # never registers a server that cannot start
+
+
+def test_healthy_venv_probe(tmp_path):
+    assert install.venv_ok(Path(sys.executable))
+    assert not install.venv_ok(tmp_path / "missing" / "python.exe")
