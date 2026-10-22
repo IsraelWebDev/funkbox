@@ -1,4 +1,4 @@
-"""End-card templates (JSON in templates/endcards): brand-split and centered-logo.
+"""End-card templates (JSON in templates/endcards): brand-split, centered-logo and logo-clean.
 
 Every template declares its copy slots; the reel maps each slot to a copy ID. All text goes
 through captions.draw_block, so the exactness audit sees every string.
@@ -88,7 +88,7 @@ class EndCardRenderer:
         self.bar_h = int(round(self.tpl["bar_height"] * H))
         self.static = self._background()
         self.product = None
-        if ec.template == "brand-split":
+        if ec.template != "centered-logo":   # brand-split, logo-clean: headline + sub
             head = C.layout_block(ec.copy["headline"], txt("headline"), sty("headline"), self.fonts, self.brand, W, H,
                                   safe_area="none")
             hs = C.reveal_seconds(head, ec.headline_reveal)
@@ -97,8 +97,8 @@ class EndCardRenderer:
             sub = C.layout_block(ec.copy["sub"], txt("sub"), ss, self.fonts, self.brand, W, H, safe_area="none")
             sub = replace(sub, y0=head.y0 + head.box_h + int(round(float(self.tpl["sub"].get("gap", 0.04)) * H)))
             self.items.append(Item("sub", "main", ec.copy["sub"], sub, "pop", t0 + hs + 0.2))
-            pj = self.tpl["product"]
-            if ec.product:
+            pj = self.tpl.get("product")
+            if ec.product and pj:
                 spec = ProductSpec(image=ec.product, x=pj["x"], y=pj["y"], height=pj["height"],
                                    depth=pj["depth"], shadow=pj["shadow"], match_color=0.0)
                 self.product = P.ProductCompositor(self.resolve(ec.product), spec, W, H)
@@ -106,17 +106,25 @@ class EndCardRenderer:
             head = C.layout_block(ec.copy["headline"], txt("headline"), sty("headline"), self.fonts, self.brand, W, H,
                                   safe_area="none")
             self.items.append(Item("headline", "main", ec.copy["headline"], head, ec.headline_reveal, t0))
-            if self.reel.brand.logo:
-                logo = Image.open(self.resolve(self.reel.brand.logo)).convert("RGBA")
-                lh = int(round(self.tpl["logo"]["height"] * H))
-                lw = max(1, int(round(logo.width * lh / logo.height)))
-                self.logo = (np.asarray(logo.resize((lw, lh), Image.LANCZOS)),
-                             (W - lw) // 2, int(round(self.tpl["logo"]["y"] * H)))
+        # any template that declares a "logo" block places brand.logo (x: left edge fraction; centred if absent)
+        lg = self.tpl.get("logo")
+        if lg and self.reel.brand.logo:
+            logo = Image.open(self.resolve(self.reel.brand.logo)).convert("RGBA")
+            lh = int(round(lg["height"] * H))
+            lw = max(1, int(round(logo.width * lh / logo.height)))
+            lx = int(round(lg["x"] * W)) if "x" in lg else (W - lw) // 2
+            self.logo = (np.asarray(logo.resize((lw, lh), Image.LANCZOS)), lx, int(round(lg["y"] * H)))
         us = sty("url")
         url = C.layout_block(ec.copy["url"], txt("url"), us, self.fonts, self.brand, W, H, safe_area="none")
-        for inst, cy in (("top", self.bar_h / 2), ("bottom", H - self.bar_h / 2)):
-            self.items.append(Item("url", inst, ec.copy["url"], replace(url, y0=int(round(cy - url.box_h / 2))),
-                                   "none", 0.0))
+        if self.bar_h > 0:   # url in both brand bars
+            for inst, cy in (("top", self.bar_h / 2), ("bottom", H - self.bar_h / 2)):
+                self.items.append(Item("url", inst, ec.copy["url"], replace(url, y0=int(round(cy - url.box_h / 2))),
+                                       "none", 0.0))
+        else:                # no bars: url once, under the last text block, after it has appeared
+            last = self.items[-1]
+            gap = int(round(float(self.tpl["url"].get("gap", 0.03)) * H))
+            self.items.append(Item("url", "main", ec.copy["url"], replace(url, y0=last.lay.y0 + last.lay.box_h + gap),
+                                   "pop", last.start + 0.3))
 
     # ---- static art
     def _background(self) -> np.ndarray:
@@ -125,13 +133,16 @@ class EndCardRenderer:
         ec = self.reel.end_card
         assert ec is not None
         fr = np.zeros((H, W, 3), np.uint8)
-        if ec.template == "brand-split":
+        if "background" in self.tpl:     # explicit colour (e.g. logo-clean: white)
+            fr[:] = C.hex_rgb(self.tpl["background"])
+        elif ec.template == "brand-split":
             fr[:] = sec
             fr[:, : int(round(self.tpl["panel_width"] * W))] = pri
         else:
             fr[:] = pri
-        fr[: self.bar_h] = sec
-        fr[H - self.bar_h:] = sec
+        if self.bar_h > 0:
+            fr[: self.bar_h] = sec
+            fr[H - self.bar_h:] = sec
         return fr
 
     # ---- frames

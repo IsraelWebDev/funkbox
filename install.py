@@ -51,12 +51,31 @@ def venv_python(root: Path = ROOT) -> Path:
     return root / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 
 
+def msix_config_dirs() -> list[Path]:
+    """Config folders of a packaged (Microsoft Store / MSIX) Claude Desktop, newest config first.
+
+    A packaged app's AppData writes are redirected to Packages/Claude_<id>/LocalCache/Roaming, and once that
+    private copy exists the app reads only it. A terminal outside the package sees the real AppData instead, so
+    writing %APPDATA%/Claude from there lands in a file Desktop never reads (and the reverse: things uv installed
+    from inside Claude are invisible to an outside terminal). Only folders that already exist count: until
+    Desktop has written its private copy, it still reads the real one."""
+    base = os.environ.get("LOCALAPPDATA")
+    if system() != "Windows" or not base:
+        return []
+    dirs = [d for d in (p / "LocalCache" / "Roaming" / "Claude" for p in Path(base, "Packages").glob("Claude_*"))
+            if d.is_dir()]
+    cfg = lambda d: d / "claude_desktop_config.json"
+    return sorted(dirs, key=lambda d: cfg(d).stat().st_mtime if cfg(d).exists() else 0.0, reverse=True)
+
+
 def desktop_config_path() -> Path:
     env = os.environ.get("CLAUDE_DESKTOP_CONFIG")
     if env:
         return Path(env)
     s = system()
     if s == "Windows":
+        for d in msix_config_dirs():
+            return d / "claude_desktop_config.json"
         return Path(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))) / "Claude" / "claude_desktop_config.json"
     if s == "Darwin":
         return Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
@@ -74,6 +93,7 @@ class Runner:
         self.dry = dry
         self.root = root
         self.log: list[str] = []
+        self.failures: list[str] = []
 
     def say(self, msg: str) -> None:
         self.log.append(msg)
@@ -82,16 +102,25 @@ class Runner:
     def step(self, title: str) -> None:
         self.say(f"\n== {title}")
 
+    def fail(self, msg: str) -> None:
+        """A step that did not do its job: reported again in the summary and turned into a non-zero exit, so an
+        agent installing funkbox can trust the exit code instead of parsing prose."""
+        self.failures.append(msg)
+        self.say(f"   FAILED: {msg}")
+
     def run(self, cmd: list[str], cwd: Path | None = None, env: dict | None = None) -> int:
         shown = " ".join(f'"{c}"' if " " in c else c for c in cmd)
         self.say(f"   $ {shown}" + (f"   (in {cwd})" if cwd else ""))
         if self.dry:
             return 0
         try:
-            return subprocess.call(cmd, cwd=str(cwd) if cwd else None, env=env)
+            rc = subprocess.call(cmd, cwd=str(cwd) if cwd else None, env=env)
         except OSError as e:
-            self.say(f"   failed to start: {e}")
+            self.fail(f"could not start {cmd[0]}: {e}")
             return 127
+        if rc != 0:
+            self.fail(f"exit {rc}: {shown}")
+        return rc
 
 
 def find_uv() -> str | None:
@@ -185,7 +214,16 @@ def register_desktop(r: Runner, path: Path, parts: tuple[str, ...]) -> None:
     write_config(path, new)
     if migrated:
         r.say("   migrated from v3: removed " + ", ".join(migrated))
-    r.say("   written.")
+    got = read_config(path).get("mcpServers") or {}
+    wrong = [k for k, v in entries.items() if got.get(k) != v]
+    if wrong:
+        r.fail(f"{path} does not hold {', '.join(wrong)} after writing it (is Claude Desktop still running?)")
+        return
+    r.say(f"   written and read back: {path}")
+    shadow = [d / "claude_desktop_config.json" for d in msix_config_dirs()]
+    if shadow and path.resolve() not in {s.resolve() for s in shadow}:
+        r.say(f"   WARNING: Claude Desktop here is the packaged (Store/MSIX) build and reads {shadow[0]}, not this "
+              "file; drop --config / CLAUDE_DESKTOP_CONFIG to target it.")
 
 
 def unregister_desktop(r: Runner, path: Path) -> None:
@@ -252,12 +290,46 @@ def unregister_code(r: Runner) -> None:
 # --------------------------------------------------------------------------- #
 # steps
 # --------------------------------------------------------------------------- #
-def make_venv(r: Runner, parts: tuple[str, ...]) -> None:
+def venv_ok(py: Path) -> bool:
+    """Can this process actually start the venv's Python? Its python.exe is only a launcher for the interpreter
+    named in pyvenv.cfg, so the file can exist while that interpreter is gone or not visible from here (moved,
+    `uv python uninstall`-ed, or installed from inside packaged Claude Desktop: see msix_config_dirs)."""
+    if not py.exists():
+        return False
+    try:
+        return subprocess.run([str(py), "-c", "pass"], capture_output=True, timeout=120).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def venv_base_version(root: Path = ROOT) -> str | None:
+    cfg = root / ".venv" / "pyvenv.cfg"
+    if not cfg.exists():
+        return None
+    for line in cfg.read_text(encoding="utf-8", errors="replace").splitlines():
+        k, _, v = line.partition("=")
+        if k.strip() in ("version_info", "version") and v.strip():
+            return v.strip()
+    return None
+
+
+def make_venv(r: Runner, parts: tuple[str, ...]) -> bool:
+    """True when .venv is usable afterwards (always True in a dry run); every later step depends on it."""
     r.step("Python environment (.venv) and dependencies")
     uv = find_uv()
     py = venv_python(r.root)
-    if py.exists():
+    if py.exists() and (r.dry or venv_ok(py)):
         r.say("   .venv already exists: reusing it")
+    elif py.exists():
+        ver = venv_base_version(r.root)
+        r.say(f"   .venv exists but its base Python{' ' + ver if ver else ''} cannot be started from here")
+        if uv and ver:  # non-destructive: put the interpreter back where pyvenv.cfg says, for this process
+            r.run([uv, "python", "install", ver])
+        if not venv_ok(py):
+            r.fail(f"{r.root / '.venv'} is unusable; delete it (quit Claude Desktop first if funkbox is "
+                   "registered: it runs from there) and run this again")
+            return False
+        r.say("   .venv repaired")
     elif uv:
         r.run([uv, "venv", str(r.root / ".venv")])
     else:
@@ -270,6 +342,10 @@ def make_venv(r: Runner, parts: tuple[str, ...]) -> None:
     else:
         r.run([str(py), "-m", "pip", "install", "--upgrade", "pip", "-q"])
         r.run([str(py), "-m", "pip", "install", *req])
+    if r.dry or venv_ok(py):
+        return True
+    r.fail(f"{py} does not start after setup")
+    return False
 
 
 def setup_reel(r: Runner) -> None:
@@ -493,7 +569,9 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
         if input("Proceed? [y/N] ").strip().lower() not in ("y", "yes"):
             print("aborted")
             return 1
-    make_venv(r, a.parts)
+    if not make_venv(r, a.parts):
+        r.say("   stopping: nothing else can work, and registering a server that cannot start is worse than none.")
+        return summary(r)
     if "reel" in a.parts:
         setup_reel(r)
     if "fastsd" in a.parts:
@@ -506,9 +584,19 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
         register_code(r, a.parts)
     if a.shortcuts:
         make_shortcuts(r, a.parts)
-    rc = 0 if a.no_selftest else self_test(r)
+    if not a.no_selftest:
+        self_test(r)
     next_steps(r, a.register, a.parts)
-    return rc
+    return summary(r)
+
+
+def summary(r: Runner) -> int:
+    if not r.failures:
+        return 0
+    r.step(f"{len(r.failures)} step(s) FAILED: funkbox is not fully installed")
+    for f in r.failures:
+        r.say("   - " + f)
+    return 1
 
 
 if __name__ == "__main__":

@@ -224,3 +224,24 @@ def test_caption_templates_hold_no_free_text():
     from pathlib import Path
     for p in list((C.TEMPLATES / "captions").glob("*.json")) + list((C.TEMPLATES / "endcards").glob("*.json")):
         assert scan_forbidden(json.loads(p.read_text())) == [], p
+
+
+def test_logo_clean_template_white_logo_and_url_once(demo, gl, work):
+    reel = cap_reel()          # keeps end_card.product: a template without a "product" block must ignore it
+    reel["brand"] = {"logo": "inputs/brand/logo.png"}
+    reel["end_card"] = {"template": "logo-clean", "duration": 4.0, "product": "inputs/brand/bottle.png",
+                        "copy": {"headline": "end_head", "sub": "end_sub", "url": "url"}}
+    r = make_renderer(demo, reel)
+    try:
+        span = r.spans[-1]
+        r.audit = {}
+        for k in range(0, span.end_frame - span.start_frame, 3):
+            fr = r.shot_frame(span, k)
+        assert {(e["slot"], e["instance"]) for e in r.audit_report()} == {("headline", "main"), ("sub", "main"), ("url", "main")}
+        ec = r.endcard()
+        assert tuple(ec.static[2, 2]) == (255, 255, 255) and tuple(ec.static[H - 3, W - 3]) == (255, 255, 255)
+        arr, x, y = ec.logo
+        assert x == (W - arr.shape[1]) // 2 and y == round(0.30 * H)
+        Image.fromarray(fr).save(work / "logo-clean.png")
+    finally:
+        r.release()

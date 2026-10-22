@@ -1,0 +1,16 @@
+{
+  "slots": ["headline", "sub", "url"],
+  "background": "#FFFFFF",
+  "bar_height": 0.0,
+  "logo": {"y": 0.30, "height": 0.055},
+  "headline": {"font": "display", "size": 0.058, "color": "secondary", "box": null, "padding": 0.0,
+               "max_width": 0.84, "line_height": 1.1, "align": "center", "y": 0.42,
+               "scale_in": 0.0, "cps": 22, "cursor": false},
+  "sub": {"font": "caption", "size": 0.036, "color": "#FFFFFF", "box": "primary", "padding": 0.35,
+          "max_width": 0.6, "line_height": 1.1, "align": "center", "gap": 0.05,
+          "scale_in": 0.0, "cps": 28, "cursor": false},
+  "url": {"font": "caption", "size": 0.03, "color": "primary", "box": null, "padding": 0.0,
+          "max_width": 0.9, "line_height": 1.0, "align": "center", "gap": 0.035, "scale_in": 0.0, "cps": 28,
+          "cursor": false},
+  "start": 0.2
+}
