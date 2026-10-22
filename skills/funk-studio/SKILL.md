@@ -1,6 +1,6 @@
 ---
 name: funk-studio
-description: Make funky images, seamless looping videos, or short vertical product ads, posters and photo edits locally with funkbox (one MCP server: loop_*, reel_*, project_*, poster_*, image_*, apps_* tools; FastSD and GIMP on demand) - drop files in, approve copy, render.
+description: Make funky images, seamless looping videos, or short product and app ads (9:16, 16:9 or both, from stills, clips or screen recordings), posters and photo edits locally with funkbox (one MCP server: loop_*, reel_*, project_*, poster_*, image_*, apps_* tools; FastSD and GIMP on demand) - drop files in, approve copy, render.
 ---
 
 # funk studio
@@ -10,7 +10,7 @@ is fine. It is one MCP server, `funkbox`, with tools prefixed by area (plus `gim
 
 | tools | role |
 |---|---|
-| `project_*`, `reel_*` | **vertical ads**: projects, ingest, brand, copy approval, auto shot list, storyboard, render |
+| `project_*`, `reel_*` | **video ads** (9:16, 16:9, both): projects, ingest, brand, copy approval, shot lists, storyboard, render |
 | `loop_*` | GPU shader engine: write GLSL, preview, contact sheets, seamless MP4 loops, preset looks |
 | `poster_*`, `image_edit` | layered posters with exact text, photo edits, OpenRaster export |
 | `image_generate`, `image_restyle`, `image_upscale` | text-to-image and img2img via FastSD |
@@ -46,11 +46,20 @@ If these tools are missing, funkbox isn't installed. Follow `AGENTS.md` in the f
      listing. "Looks fine" about a different draft doesn't count.
    - Copy is hash-locked. Any change means propose and approve again. Never edit
      `copy.json`; no tool but `project_approve_copy` writes it.
-5. **Shot list:** call `project_auto_reel(project, length_s=20, style="red-box", pace="fast")`,
+5. **Shot list:** call `project_auto_reel(project, length_s=20, style="red-box", pace="fast")`
+   (add `formats=["9x16","16x9"]`, `bpm=110`, `clip_share`, `product_every=0` as the brief needs),
    then show the storyboard. Iterate by editing the shot list: swap shots, motion, reveals,
    anchors. Copy only by **id**.
+   - **Specific briefs** (exact timings, push-ins, mostly screen recordings): treat auto_reel as a
+     draft and write the shot list yourself. Use `"motion": {"type": "frame", "to": [x,y,w,h]}` to push
+     in on a UI element (rect in fractions of the source; works on video), `source.speed` for speed
+     ramps, `source.focus` / `fit: "contain"` + `pad`, `"audio": {"bpm": 110}` with `"duration": "beats:N"`,
+     and `"formats"` for 9:16 + 16:9 from one edit. See `docs/reel.md`, "Shot lists for specific briefs",
+     and `reel_templates`. Run `reel_validate` (it checks every format) and `reel_storyboard(format=...)`.
+   - Framing only crops and scales; never promise or attempt to alter what a recording shows.
 6. **Render:** `project_render(project, draft=True)` takes ~40 s on the laptop. When the
-   user likes it, render the full version: 1080x1920, ~4 min for 25 s. Mention the text audit
+   user likes it, render the full version: 1080x1920, ~4 min for 25 s (each extra format adds
+   about as much again). Mention the text audit
    result and where the file is.
 
 Rules:

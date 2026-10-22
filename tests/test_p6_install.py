@@ -36,7 +36,8 @@ def test_pyproject_in_sync_with_requirements():
     tomllib = pytest.importorskip("tomllib")
     d = tomllib.loads((ROOT / "pyproject.toml").read_text())
     assert d["tool"]["uv"]["package"] is False
-    assert d["project"]["version"] == "4.0.0" and d["project"]["scripts"] == {"funkbox": "funkbox.cli:main"}
+    import funkbox
+    assert d["project"]["version"] == funkbox.__version__ and d["project"]["scripts"] == {"funkbox": "funkbox.cli:main"}
     assert d["project"]["requires-python"] == ">=3.10"
     norm = lambda xs: sorted(re.sub(r"\s+", "", x).lower() for x in xs)
     assert norm(d["project"]["dependencies"]) == _reqs("requirements.txt")
@@ -197,7 +198,8 @@ def test_plugin_files_parse_and_skill_present():
     for k, s in mcp["mcpServers"].items():
         assert s["command"] == "uv" and "${CLAUDE_PLUGIN_ROOT}" in " ".join(s["args"]), k
         assert s["args"][-2:] == ["${CLAUDE_PLUGIN_ROOT}/funkbox.py", "serve"] and s["env"]["FUNK_HOME"] == "${CLAUDE_PLUGIN_ROOT}"
-    assert pj["version"] == "4.0.0"
+    import funkbox
+    assert pj["version"] == funkbox.__version__                           # one version everywhere
     sk = (ROOT / "skills" / "funk-studio" / "SKILL.md").read_text()
     assert sk == (ROOT / "docs" / "skill" / "SKILL.md").read_text() and sk.startswith("---")
     wf = (ROOT / ".github" / "workflows" / "tests.yml").read_text()

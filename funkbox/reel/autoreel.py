@@ -26,7 +26,7 @@ from .timeline import VO_LEAD, VO_TAIL
 
 W, H, FPS = 1080, 1920, 30
 END_SECONDS = 4.0
-MAX_CLIP_SHARE = 0.40
+MIN_CLIP_SHARE = 0.40                    # clip share when clips are a minority of the assets (clip_share=None)
 PACE_SECONDS = {"fast": 1.3, "calm": 2.2}
 MIN_SHOT = 0.8
 PRODUCT_H = 0.38
@@ -147,7 +147,12 @@ def make_fillers(d: Path, brand: dict, count: int, rng: random.Random) -> list[s
 
 # --------------------------------------------------------------------------- #
 def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: str = "fast",
-              cta_ids: list[str] | None = None, music: str | None = None) -> AutoResult:
+              cta_ids: list[str] | None = None, music: str | None = None, *, clip_share: float | None = None,
+              product_every: int = 2, formats: list[str] | None = None, bpm: float | None = None) -> AutoResult:
+    """``clip_share``: fraction of shots that use video clips (None = follow the assets: the share of clips among
+    the supplied visuals, at least 40%). ``product_every``: the product goes in every Nth shot and the last
+    (0 = never). ``formats``: extra output formats, e.g. ["9x16", "16x9"]. ``bpm``: a fixed beat grid for the cuts
+    (no music analysis needed)."""
     d = P.project_dir(slug)
     notes: list[str] = []
     err = P.copy_lock_error(slug)
@@ -159,6 +164,17 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
         raise ReelError([f"unknown caption style {style!r}; have {captions.list_styles()}"])
     if isinstance(length_s, bool) or not isinstance(length_s, (int, float)) or not 8 <= length_s <= 60:
         raise ReelError(["length_s must be between 8 and 60 seconds"])
+    if clip_share is not None and (isinstance(clip_share, bool) or not 0.0 <= float(clip_share) <= 1.0):
+        raise ReelError(["clip_share must be between 0 and 1 (or omitted to follow the assets)"])
+    if isinstance(product_every, bool) or not isinstance(product_every, int) or product_every < 0:
+        raise ReelError(["product_every must be 0 (never) or a whole number of shots (1 = every shot)"])
+    if bpm is not None and not 30 <= float(bpm) <= 300:
+        raise ReelError(["bpm must be between 30 and 300"])
+    if formats:
+        from .schema import FORMAT_PRESETS
+        bad = [f for f in formats if f not in FORMAT_PRESETS]
+        if bad:
+            raise ReelError([f"unknown formats {bad}; presets are {list(FORMAT_PRESETS)}"])
     meta = P.load_meta(slug)
     br = meta.get("brand")
     if not br:
@@ -247,20 +263,35 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
         raise ReelError([f"the {len(cap_ids)} copy lines need {sum(cap_dur.values()):.1f}s (caption reveals and "
                          f"voice-over) but length_s={length_s:g} leaves {T:.1f}s; raise length_s or shorten/cut lines"])
 
-    # ---- visual per shot: clips at most 40% of the shots, stills (and filler) cycle through the rest
-    max_clips = int(math.floor(MAX_CLIP_SHARE * n))
+    # ---- visual per shot: clips take their share of the shots, stills (and filler) cycle through the rest
+    if clip_share is not None:
+        share = float(clip_share)
+    elif clips:
+        share = max(MIN_CLIP_SHARE, len(clips) / (len(clips) + len(stills)))
+    else:
+        share = 0.0
     clip_pool = list(clips)
     rng.shuffle(clip_pool)
-    if visuals:
-        c = min(max_clips, len(clip_pool))
-        if len(clip_pool) > c:
-            notes.append(f"{len(clip_pool)} clips supplied but at most 40% of the {n} shots (= {c}) use clips")
-    else:                                   # only clips: the cap cannot apply
+    if not clip_pool:
+        c = 0
+    elif not visuals or share >= 1.0:
         c = n
-        notes.append("only video clips were supplied: the 40% clip cap cannot apply")
-    clip_items = [{"kind": "video", "path": p.relative_to(d).as_posix(), "file": p} for p in clip_pool[:c]]
-    clip_slots = {min(n - 1, max(1, round((j + 0.5) * n / c))) for j in range(c)} if (c and visuals) else \
-        (set(range(n)) if c else set())
+    else:
+        c = int(math.floor(share * n + 1e-9))
+        if clip_share is None:
+            c = min(c, len(clip_pool))      # following the assets: never repeat a clip to fill the share
+    if clip_pool and c > len(clip_pool):
+        notes.append(f"{c} clip shots from {len(clip_pool)} clip file(s): clips repeat")
+    if clip_pool and clip_share is None and visuals:
+        notes.append(f"clips in {c} of {n} shots (share follows the assets: {share:.0%}; set clip_share to change it)")
+    clip_items = [{"kind": "video", "path": p.relative_to(d).as_posix(), "file": p} for p in clip_pool]
+    if c and visuals and c < n:
+        if share >= 0.5:                    # mostly clips: spread evenly from the first shot
+            clip_slots = {min(n - 1, (j * n) // c) for j in range(c)}
+        else:                               # mostly stills: the hook stays a still, clips in between
+            clip_slots = {min(n - 1, max(1, round((j + 0.5) * n / c))) for j in range(c)}
+    else:
+        clip_slots = set(range(n)) if c else set()
     cycle = list(visuals)
     rng.shuffle(cycle)
     seq: list[dict] = []
@@ -281,7 +312,10 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
         cap_at[1 + (j * (n - 1)) // m] = cid
 
     # ---- product placement
-    prod_slots = [i for i in range(n) if i % 2 == 0 or i == n - 1] if has_product else []
+    prod_slots = ([i for i in range(n) if i % product_every == 0 or i == n - 1]
+                  if has_product and product_every > 0 else [])
+    if has_product and product_every == 0:
+        notes.append("product_every=0: the product appears only on the end card")
     asp = collision.image_aspect(prod_path) if has_product else 1.0
     shots: list[dict] = []
     place_k = 0
@@ -354,8 +388,8 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
             if cl is not None and cl < sh["duration"] + 0.1:
                 sh["source"]["loop"] = True
 
-    snap = bool(music_file and pace == "fast")
-    if music_file:
+    snap = bool((music_file and pace == "fast") or bpm)
+    if music_file and not bpm:
         try:
             audio.detect_beats(music_file)
         except Exception as e:  # noqa: BLE001 - too short / silent for a tempo: keep the music, drop beat snapping
@@ -377,6 +411,10 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
         reel["brand"]["logo"] = logo
     if music_file:
         reel["audio"]["music"] = music_file.relative_to(d).as_posix()
+    if bpm:
+        reel["audio"]["bpm"] = float(bpm)
+    if formats:
+        reel["formats"] = list(dict.fromkeys(formats))
     if end:
         ec = {"template": end["template"], "duration": END_SECONDS, "audio": "silence", "copy": end["copy"],
               "headline_reveal": "typewriter"}

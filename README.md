@@ -133,7 +133,7 @@ One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP ser
 | area | what | command / tools |
 |---|---|---|
 | loops | GPU shader engine: GLSL layers, recipes, post passes, audio reactivity, tiling, a machine check that every loop is seamless, and eight preset looks | `funkbox loop ...`, `loop_*` |
-| reel + projects | a JSON shot list plus an approved copy deck become a 9:16 ad (parallax shots, captions, end card, beat-synced music, local voiceover, text audit). Projects add: inbox ingest, product cut-out, brand colours, copy approval with a hash lock, and an automatic shot list | `funkbox reel ...`, `funkbox project ...`, `reel_*`, `project_*` |
+| reel + projects | a JSON shot list plus an approved copy deck become a 9:16 and/or 16:9 ad (parallax shots, screen recordings with push-ins and speed ramps, captions, end card, cuts on a beat grid, local voiceover, text audit). Projects add: inbox ingest, product cut-out, brand colours, copy approval with a hash lock, and an automatic shot list | `funkbox reel ...`, `funkbox project ...`, `reel_*`, `project_*` |
 | posters + images | layered posters and photo edits with exact text, variations, OpenRaster export for GIMP; FastSD text-to-image, img2img and upscale | `funkbox poster ...`, `funkbox image ...`, `poster_*`, `image_*` |
 | apps | on-demand FastSD CPU image model and a GIMP 3 MCP bridge | `funkbox apps ...`, `apps_*`, `install.py --with fastsd,gimp` |
 

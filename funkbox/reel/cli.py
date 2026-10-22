@@ -63,7 +63,7 @@ def cmd_still(a) -> int:
 
     from funkbox.config import funk_out
     from funkbox.reel import render
-    plan = render.prepare(_reel_arg(a))
+    plan = render.prepare(_reel_arg(a), fmt=a.format)
     st = plan.reel.settings
     w = a.width or st.width
     h = round(w * st.height / st.width)
@@ -86,7 +86,7 @@ def cmd_storyboard(a) -> int:
     from funkbox.config import funk_out
     from funkbox.reel import render
     from funkbox.reel.storyboard import storyboard
-    plan = render.prepare(_reel_arg(a))
+    plan = render.prepare(_reel_arg(a), fmt=a.format)
     t0 = time.perf_counter()
     out = Path(a.output) if a.output else funk_out() / "storyboard.png"
     storyboard(plan, out, tile_w=a.tile)
@@ -99,15 +99,16 @@ def cmd_render(a) -> int:
     src = _reel_arg(a)
     name = a.name or Path(src).name.replace(".reel.json", "").replace(".json", "")
     out_dir = a.out or (str(Path(src).parent / "out") if getattr(a, "project", None) else None)
-    out = render.render_reel(src, name, out_dir=out_dir, draft=a.draft, audit=a.audit,
-                             depth_mode=None, with_audio=not a.no_audio, gif=a.gif, progress=True)
-    for k, v in out.paths.items():
-        print(f"{k}: {v}")
-    print(out.report_line())
-    for w in out.warnings:
-        print(f"warning: {w}")
-    if a.audit:
-        print(f"text audit: {'OK' if out.audit_ok else 'PROBLEMS (see the JSON)'}")
+    outs = render.render_formats(src, name, fmt=a.format, out_dir=out_dir, draft=a.draft, audit=a.audit,
+                                 depth_mode=None, with_audio=not a.no_audio, gif=a.gif, progress=True)
+    for out in outs:
+        for k, v in out.paths.items():
+            print(f"{k}: {v}")
+        print(out.report_line())
+        for w in out.warnings:
+            print(f"warning: {w}")
+        if a.audit:
+            print(f"text audit: {'OK' if out.audit_ok else 'PROBLEMS (see the JSON)'}")
     return 0 if out.audit_ok is not False else 2
 
 
@@ -239,7 +240,8 @@ def cmd_project_copy_diff(a) -> int:
 def cmd_project_auto(a) -> int:
     from funkbox.reel import autoreel, render
     from funkbox.reel.storyboard import storyboard
-    res = autoreel.auto_reel(a.project, a.length, a.style, a.pace, a.cta or None, a.music)
+    res = autoreel.auto_reel(a.project, a.length, a.style, a.pace, a.cta or None, a.music, clip_share=a.clip_share,
+                             product_every=a.product_every, formats=a.formats or None, bpm=a.bpm)
     print(res.text())
     plan = render.prepare(str(res.path))
     sb = res.path.parent / "out" / f"{a.project}-storyboard.png"
@@ -255,7 +257,13 @@ def cmd_project_render(a) -> int:
     if not reel.is_file():
         return _err(f"project {a.project!r} has no reel yet; run: funkbox project auto {a.project}")
     name = a.project if a.full else f"{a.project}-draft"
-    out = render.render_reel(str(reel), name, out_dir=d / "out", draft=not a.full, audit=True, progress=True)
+    outs = render.render_formats(str(reel), name, fmt=a.format, out_dir=d / "out", draft=not a.full, audit=True,
+                                 progress=True)
+    out = outs[-1]
+    for o in outs[:-1]:
+        for k, v in o.paths.items():
+            print(f"{k}: {v}")
+        print(o.report_line())
     for k, v in out.paths.items():
         print(f"{k}: {v}")
     print(out.report_line())
@@ -287,17 +295,20 @@ def add_cli(sub) -> None:
     p.add_argument("-o", "--output")
     p.add_argument("--width", type=int, default=None)
     p.add_argument("--no-depth", action="store_true")
+    p.add_argument("--format", help="one of the reel's formats (e.g. 16x9)")
     p.set_defaults(fn=cmd_still)
     p = rsub.add_parser("storyboard", help="contact sheet: one frame per shot + the end card")
     p.add_argument("reel", nargs="?")
     p.add_argument("--project")
     p.add_argument("-o", "--output")
     p.add_argument("--tile", type=int, default=270, help="tile width in px")
+    p.add_argument("--format", help="one of the reel's formats (e.g. 16x9)")
     p.set_defaults(fn=cmd_storyboard)
     p = rsub.add_parser("render", help="render the reel to mp4")
     p.add_argument("reel", nargs="?")
     p.add_argument("--project")
-    p.add_argument("--draft", action="store_true", help="540x960, 24 fps, no depth model")
+    p.add_argument("--draft", action="store_true", help="540 px wide, 24 fps, no depth model")
+    p.add_argument("--format", help="render only this format (default: every format the reel declares)")
     p.add_argument("--audit", action="store_true", help="also write <name>.text_audit.json")
     p.add_argument("--name")
     p.add_argument("--out", help="output folder (default FUNK_OUT / ./out)")
@@ -364,10 +375,15 @@ def add_cli(sub) -> None:
     p.add_argument("--pace", choices=["fast", "calm"], default="fast")
     p.add_argument("--cta", nargs="*", help="copy ids for the end card (headline, sub, url)")
     p.add_argument("--music")
+    p.add_argument("--clip-share", type=float, default=None, help="fraction of shots that are clips (default: follows the assets)")
+    p.add_argument("--product-every", type=int, default=2, help="product in every Nth shot (0 = end card only)")
+    p.add_argument("--formats", nargs="*", help="output formats, e.g. 9x16 16x9")
+    p.add_argument("--bpm", type=float, default=None, help="fixed beat grid for the cuts")
     p.set_defaults(fn=cmd_project_auto)
     p = psub.add_parser("render", help="render a project's reel (draft unless --full)")
     p.add_argument("project")
     p.add_argument("--full", action="store_true")
+    p.add_argument("--format", help="render only this format (default: every format the reel declares)")
     p.set_defaults(fn=cmd_project_render)
     p = psub.add_parser("shortcuts", help='desktop links "funk inbox" and "funk projects"')
     p.add_argument("--dry-run", action="store_true")

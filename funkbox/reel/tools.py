@@ -46,8 +46,8 @@ def _src(reel: Any, project: str | None = None):
     return reel
 
 
-def _plan(reel: Any, project: str | None = None) -> render.Plan:
-    plan = render.prepare(_src(reel, project))
+def _plan(reel: Any, project: str | None = None, fmt: str = "") -> render.Plan:
+    plan = render.prepare(_src(reel, project), fmt=fmt or None)
     if plan.spans[-1].end > MAX_SECONDS:
         raise ValueError(f"reel is {plan.spans[-1].end:.0f}s; the server limit is {MAX_SECONDS:.0f}s")
     return plan
@@ -95,10 +95,19 @@ def reel_templates() -> str:
     """Caption styles, end-card templates (with their copy slots), reveals, motions, transitions, anchors."""
     lines = ["caption styles: " + ", ".join(captions.list_styles()),
              "reveals: " + ", ".join(REVEALS), "anchors: " + ", ".join(ANCHORS),
-             "motions: " + ", ".join(MOTION_TYPES) + "  (parallax needs the depth model, else Ken Burns)",
+             "motions: " + ", ".join(MOTION_TYPES) + "  (parallax needs the depth model, else Ken Burns; stills only)",
+             "  frame: {\"type\":\"frame\", \"to\":[x,y,w,h], \"from\":[...], \"at\":[t0,t1], \"ease\":smooth|linear|in|out|hold}"
+             "  or \"keys\":[{\"rect\":[x,y,w,h], \"t\":0..1 | \"s\":seconds, \"ease\":...}]; rects are fractions of the "
+             "SOURCE; works on images and video, crop + scale only (pixels are never altered)",
              "transitions: " + ", ".join(TRANSITIONS),
-             "sources: image | video(trim, loop) | color(#hex) | funk2(recipe, must not draw text)",
-             "durations: seconds | \"auto\" (voice-over length) | \"beats:N\""]
+             "sources: image | video(trim, loop, speed: n or [start, end] ramp) | color(#hex) | funk2(recipe, no text);"
+             " any image/video: fit cover|contain, focus [x,y] (crop centre), pad #hex|blur (contain / past the edge)",
+             "durations: seconds | \"auto\" (voice-over length) | \"beats:N\" (halves ok; grid from audio.bpm, "
+             "or detected in audio.music)",
+             "formats: [\"9x16\", \"16x9\", \"1x1\", \"4x5\"] or {id, width, height, safe_area}; per shot "
+             "\"formats\": {id: {motion | caption.anchor | product x/y/height | source focus/fit/pad}}; "
+             "reel_render renders each as <name>-<id>.mp4",
+             "safe areas: reels (9:16 UI), landscape, none"]
     for t in endcard.list_templates():
         lines.append(f"end card {t!r}: slots {endcard.load_template(t)['slots']}")
     return "\n".join(lines)
@@ -112,24 +121,29 @@ def reel_validate(reel: dict | str | None = None, project: str = "") -> str:
 
 
 @safe
-def reel_storyboard(reel: dict | str | None = None, project: str = "") -> list:
+def reel_storyboard(reel: dict | str | None = None, project: str = "", format: str = "") -> list:
     """Contact sheet: one frame per shot (at its midpoint) plus the end card, with shot id, duration and
-    copy IDs printed below each frame. The fast way to iterate. Takes a reel or project=<name>."""
+    copy IDs printed below each frame. The fast way to iterate. Takes a reel or project=<name>; format=<id> shows
+    one of the reel's formats (e.g. 16x9)."""
     def go():
-        plan = _plan(reel, project or None)
-        where = (projmod.project_dir(project) / "out" / f"{project}-storyboard.png") if project else funk_out() / "storyboard.png"
+        plan = _plan(reel, project or None, format)
+        tag = f"-{format}" if format else ""
+        where = ((projmod.project_dir(project) / "out" / f"{project}{tag}-storyboard.png") if project
+                 else funk_out() / f"storyboard{tag}.png")
         return _storyboard(plan, where, tile_w=270), plan, where
     img, plan, where = on_gl(go)
     return [f"{len(plan.spans)} tiles, total {plan.spans[-1].end:.2f}s; saved {where}", _png(img, 1400)]
 
 
 @safe
-def reel_still(reel: dict | str | None = None, shot_id: str = "", t: float = 0.5, project: str = "") -> list:
-    """One frame of a shot, t seconds into it (use shot_id 'end_card' for the end card). Takes a reel or project=<name>."""
+def reel_still(reel: dict | str | None = None, shot_id: str = "", t: float = 0.5, project: str = "",
+               format: str = "") -> list:
+    """One frame of a shot, t seconds into it (use shot_id 'end_card' for the end card). Takes a reel or
+    project=<name>; format=<id> for one of the reel's formats."""
     if not shot_id:
         raise ValueError("shot_id is required (use 'end_card' for the end card)")
     def go():
-        plan = _plan(reel, project or None)
+        plan = _plan(reel, project or None, format)
         st = plan.reel.settings
         w = 540
         r = render.Renderer(plan.reel, plan.deck, plan.spans, width=w, height=round(w * st.height / st.width),
@@ -141,30 +155,36 @@ def reel_still(reel: dict | str | None = None, shot_id: str = "", t: float = 0.5
     return [_png(PILImage.fromarray(on_gl(go)))]
 
 
-def _render_result(out, audit: bool) -> list:
-    lines = [f"{k}: {v}" for k, v in out.paths.items()] + [out.report_line()]
-    lines += [f"warning: {w}" for w in out.warnings]
-    if audit:
-        lines.append(f"text audit: {'OK, every drawn string matches the copy deck' if out.audit_ok else 'PROBLEMS, see text_audit.json'}")
+def _render_result(outs, audit: bool) -> list:
+    outs = outs if isinstance(outs, list) else [outs]
+    lines: list[str] = []
+    for out in outs:
+        lines += [f"{k}: {v}" for k, v in out.paths.items()] + [out.report_line()]
+        lines += [f"warning: {w}" for w in out.warnings]
+        if audit:
+            lines.append(f"text audit: {'OK, every drawn string matches the copy deck' if out.audit_ok else 'PROBLEMS, see text_audit.json'}")
     res: list = ["\n".join(lines)]
-    if "png" in out.paths:
-        res.append(_png(PILImage.open(out.paths["png"])))
+    for out in outs:
+        if "png" in out.paths:
+            res.append(_png(PILImage.open(out.paths["png"]), 720 if len(outs) > 1 else 900))
     return res
 
 
 @safe
 def reel_render(reel: dict | str | None = None, name: str = "", draft: bool = False, audit: bool = True,
-                project: str = "") -> list:
+                project: str = "", format: str = "") -> list:
     """Render the reel (or project=<name>) to <out>/<name>.mp4 (a project renders into its own out/ folder and
-    name defaults to the project name). Use draft=true first (540x960, 24fps, no depth model).
+    name defaults to the project name). Use draft=true first (540 px wide, 24fps, no depth model).
+    A reel with `formats` renders every format as <name>-<format>.mp4 (format=<id> renders just one).
     Also writes <name>.text_audit.json proving every drawn string equals its copy entry."""
     name = name or (project or "")
     if not OUT_NAME_RE.match(name or ""):
         raise ValueError("bad name: use 1-60 chars of A-Z a-z 0-9 _ -")
     out_dir = projmod.project_dir(project) / "out" if project else None
     def go():
-        plan = _plan(reel, project or None)
-        return render.render_reel(None, name, out_dir=out_dir, draft=draft, audit=audit, plan=plan)
+        src = _src(reel, project or None)
+        _plan(reel, project or None, format)                       # validates + checks the length limit
+        return render.render_formats(src, name, fmt=format or None, out_dir=out_dir, draft=draft, audit=audit)
     return _render_result(on_gl(go), audit)
 
 
@@ -307,13 +327,19 @@ def project_set_brand(project: str, primary: str | None = None, secondary: str |
 
 @safe
 def project_auto_reel(project: str, length_s: float = 20.0, style: str = "red-box", pace: str = "fast",
-              cta_ids: list[str] | None = None, music: str | None = None) -> list:
-    """Build <project>.reel.json from the ingested assets and the APPROVED copy (it refuses an unapproved or
-    modified copy.json): hook first, body lines, a branded end card (lines named end_* plus url), product in
-    every other shot, clips at most 40% of shots, caption anchors that avoid the product, funk2 brand-colour
-    filler when there are fewer than 4 visuals. Returns the reel JSON, the validate report and a storyboard."""
+                      cta_ids: list[str] | None = None, music: str | None = None, clip_share: float | None = None,
+                      product_every: int = 2, formats: list[str] | None = None, bpm: float | None = None) -> list:
+    """Build a FIRST DRAFT <project>.reel.json from the ingested assets and the APPROVED copy (it refuses an
+    unapproved or modified copy.json): hook first, body lines, a branded end card (lines named end_* plus url),
+    caption anchors that avoid the product, funk2 brand-colour filler when there are fewer than 4 visuals.
+    clip_share: fraction of shots that are video clips (default: follows the assets, e.g. mostly screen
+    recordings -> mostly clips). product_every: product in every Nth shot (0 = only on the end card).
+    formats: e.g. ["9x16", "16x9"] to render both from one edit. bpm: fixed beat grid for the cuts.
+    For a brief with exact timings, framing or push-ins, edit the returned JSON (or write the shot list) and
+    check it with reel_validate. Returns the reel JSON, the validate report and a storyboard."""
     def go():
-        res = autoreel.auto_reel(project, length_s, style, pace, cta_ids, music)
+        res = autoreel.auto_reel(project, length_s, style, pace, cta_ids, music, clip_share=clip_share,
+                                 product_every=product_every, formats=formats, bpm=bpm)
         plan = render.prepare(str(res.path))
         res.storyboard = projmod.project_dir(project) / "out" / f"{project}-storyboard.png"
         img = _storyboard(plan, res.storyboard, tile_w=270)
@@ -323,15 +349,16 @@ def project_auto_reel(project: str, length_s: float = 20.0, style: str = "red-bo
 
 
 @safe
-def project_render(project: str, draft: bool = True) -> list:
-    """Render the project's reel into projects/<project>/out/ (draft=true: 540x960, 24 fps, quick). The text audit
-    proves every drawn string equals the approved copy. Look at the poster, then render again with draft=false."""
+def project_render(project: str, draft: bool = True, format: str = "") -> list:
+    """Render the project's reel into projects/<project>/out/ (draft=true: 540 px wide, 24 fps, quick). The text
+    audit proves every drawn string equals the approved copy. Look at the poster, then render again with
+    draft=false. A reel with `formats` renders each one (<project>-<format>.mp4); format=<id> renders one."""
     name = f"{project}-draft" if draft else project
-    _src(None, project)                                 # fails early when the project has no reel yet
+    src = _src(None, project)                           # fails early when the project has no reel yet
     def go():
-        plan = _plan(None, project)
-        return render.render_reel(None, name, out_dir=projmod.project_dir(project) / "out", draft=draft, audit=True,
-                                  plan=plan)
+        _plan(None, project, format)
+        return render.render_formats(src, name, fmt=format or None, out_dir=projmod.project_dir(project) / "out",
+                                     draft=draft, audit=True)
     out = on_gl(go)
     projmod.advance_status(project, "rendered")
     return _render_result(out, True)

@@ -1,8 +1,9 @@
 # funkbox
 
 > Local creative tools for Claude and other MCP clients: seamless GPU-shader loops, layered posters with exact
-> text, FastSD text-to-image and img2img, and 9:16 product video ads (captions, voiceover, music, end card) whose
-> copy is locked to what the user approved. One MCP server (`funkbox`, 37 tools) and one CLI
+> text, FastSD text-to-image and img2img, and product / app video ads in 9:16, 16:9 or both from one edit (stills,
+> clips, screen recordings with push-ins; captions, voiceover, music on a beat grid, end card) whose copy is locked
+> to what the user approved. One MCP server (`funkbox`, 37 tools) and one CLI
 > (`python -m funkbox`). Runs on OpenGL 3.3 (Intel iGPU is fine); no cloud, accounts or NVIDIA GPU. MIT.
 
 Install from a clone with `python install.py --with reel --register desktop` (or `--register code`), or as a Claude

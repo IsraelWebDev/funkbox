@@ -236,8 +236,17 @@ def detect_beats(path: str | Path) -> BeatInfo:
 _BEAT_CACHE: dict[tuple, BeatInfo] = {}
 
 
+def fixed_grid(bpm: float, offset: float = 0.0, seconds: float = 600.0) -> list[float]:
+    """A steady beat grid: ``offset + k * 60 / bpm`` (no detection; e.g. 110 BPM -> one beat = 0.545 s)."""
+    period = 60.0 / bpm
+    return [round(offset + k * period, 4) for k in range(int((seconds - offset) / period) + 1)]
+
+
 def beat_grid_for(reel: Reel) -> list[float] | None:
-    """Beat times (seconds) of the reel's music, extended over the whole reel (the music loops)."""
+    """Beat times (seconds): ``audio.bpm`` when set (a fixed grid, music or not); otherwise the beats detected in
+    the reel's music, extended over the whole reel (the music loops)."""
+    if reel.audio.bpm:
+        return fixed_grid(reel.audio.bpm, reel.audio.beat_offset)
     if not reel.audio.music:
         return None
     p = resolve_path(reel.audio.music, reel.base_dir)

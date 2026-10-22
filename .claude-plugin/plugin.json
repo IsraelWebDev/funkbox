@@ -1,7 +1,7 @@
 {
   "name": "funkbox",
   "description": "Funky seamless shader loops, layered posters with exact text, FastSD images and 9:16 product video ads with an approved-copy lock, all rendered locally in one MCP server. No cloud, no accounts, no NVIDIA GPU.",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "license": "MIT",
   "keywords": [
     "video",

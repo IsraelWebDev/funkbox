@@ -23,6 +23,7 @@ from .schema import HEX_RE, Brand
 
 MIN_SIZE = 0.032                     # of frame height; below this the validator errors
 SAFE_TOP, SAFE_BOTTOM = 0.14, 0.22   # reels safe area
+LAND_TOP, LAND_BOTTOM = 0.07, 0.12   # landscape safe area (player controls)
 CAPTION_DELAY = 0.1                  # seconds after the shot starts
 NAME_RE = re.compile(r"^[A-Za-z0-9_\-]{1,40}$")
 TEMPLATES = FUNKBOX / "templates"
@@ -199,6 +200,8 @@ def layout_block(copy_id: str, text: str, style: Style, fonts: Fonts, brand: Bra
     px = max(min_px, int(round(style.size * H)))
     if safe_area == "reels":
         top, bot = SAFE_TOP * H, H - SAFE_BOTTOM * H
+    elif safe_area == "landscape":                 # 16:9 / square players: title-safe margins, controls at the bottom
+        top, bot = LAND_TOP * H, H - LAND_BOTTOM * H
     else:
         top, bot = 0.04 * H, H - 0.04 * H
     while True:

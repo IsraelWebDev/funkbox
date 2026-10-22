@@ -10,7 +10,7 @@ from funkbox.config import resolve_path
 
 from . import collision, copydeck, project, timeline
 from .copydeck import CopyDeck
-from .schema import Reel, ReelError, parse_reel
+from .schema import Reel, ReelError, format_ids, materialize, parse_reel
 
 
 @dataclass
@@ -36,13 +36,35 @@ class Report:
         return "\n".join(out)
 
 
-def load_reel(src: dict | str | Path, base_dir: str | Path | None = None) -> Reel:
-    """Parse a reel from a dict or a *.reel.json path (paths then resolve against its folder)."""
+def load_raw(src: dict | str | Path, base_dir: str | Path | None = None) -> tuple[dict, str | None]:
+    """The reel's JSON object and the folder its paths resolve against."""
     if isinstance(src, (str, Path)):
         p = resolve_path(src, base_dir)
-        data = json.loads(p.read_text(encoding="utf-8-sig"))
-        return parse_reel(data, str(p.parent))
-    return parse_reel(src, str(base_dir) if base_dir else None)
+        return json.loads(p.read_text(encoding="utf-8-sig")), str(p.parent)
+    return src, (str(base_dir) if base_dir else None)
+
+
+def load_reel(src: dict | str | Path, base_dir: str | Path | None = None, fmt: str | None = None) -> Reel:
+    """Parse a reel from a dict or a *.reel.json path (paths then resolve against its folder). ``fmt`` picks one
+    of the reel's ``formats`` (its size, safe area and per-shot overrides)."""
+    raw, bd = load_raw(src, base_dir)
+    if fmt:
+        if not isinstance(raw, dict):
+            raise ReelError(["reel: must be a JSON object"])
+        reel = parse_reel(materialize(raw, fmt), bd)
+        reel.format_id = fmt
+        return reel
+    return parse_reel(raw, bd)
+
+
+def formats_of(src: dict | str | Path | Reel, base_dir: str | Path | None = None) -> list[str]:
+    """Format ids a reel declares ([] = it renders only at settings.width x settings.height)."""
+    if isinstance(src, Reel):
+        return [f.id for f in src.formats]
+    try:
+        return format_ids(load_raw(src, base_dir)[0])
+    except (ValueError, OSError):
+        return []
 
 
 def _res(path: str, reel: Reel) -> Path:
@@ -51,10 +73,25 @@ def _res(path: str, reel: Reel) -> Path:
 
 def validate(src: dict | str | Path | Reel, base_dir: str | Path | None = None, *,
              vo_durations: dict[str, float] | None = None,
-             beats: list[float] | None = None, deep: bool = True) -> Report:
+             beats: list[float] | None = None, deep: bool = True, fmt: str | None = None) -> Report:
+    """Validate a reel. Without ``fmt``, a reel with ``formats`` is also checked in every format (caption fit,
+    framing and the end card depend on the frame size); those problems are prefixed with ``[format]``."""
+    rep = _validate_one(src, base_dir, vo_durations=vo_durations, beats=beats, deep=deep, fmt=fmt)
+    if fmt is None and rep.reel is not None and rep.reel.formats and not isinstance(src, Reel):
+        for f in rep.reel.formats:
+            sub = _validate_one(src, base_dir, vo_durations=vo_durations, beats=beats, deep=deep, fmt=f.id)
+            rep.errors += [f"[{f.id}] {e}" for e in sub.errors if e not in rep.errors]
+            rep.warnings += [f"[{f.id}] {w}" for w in sub.warnings if w not in rep.warnings]
+        rep.info["formats"] = [f"{f.id} {f.width}x{f.height}" for f in rep.reel.formats]
+        if rep.info.get("summary"):
+            rep.info["summary"] += "; formats " + ", ".join(rep.info["formats"])
+    return rep
+
+
+def _validate_one(src, base_dir, *, vo_durations, beats, deep: bool, fmt: str | None) -> Report:
     rep = Report()
     try:
-        reel = src if isinstance(src, Reel) else load_reel(src, base_dir)
+        reel = src if isinstance(src, Reel) else load_reel(src, base_dir, fmt)
     except ReelError as e:
         rep.errors += e.errors
         return rep
@@ -80,6 +117,7 @@ def validate(src: dict | str | Path | Reel, base_dir: str | Path | None = None, 
         _check_templates_and_fit(reel, rep)
     _check_timeline(reel, rep, vo_durations, beats)
     if deep and rep.ok:
+        _check_framing(reel, rep)
         _check_reveal_timing(reel, rep)
     return rep
 
@@ -174,7 +212,7 @@ def _check_timeline(reel: Reel, rep: Report, vo: dict[str, float] | None,
         if audio is not None:
             if vo is None and reel.audio.voiceover:
                 vo = audio.vo_durations(reel, rep.deck)
-            if beats is None and reel.audio.music:
+            if beats is None and (reel.audio.music or reel.audio.bpm):
                 beats = audio.beat_grid_for(reel)
         rep.spans = timeline.build_timeline(reel, vo or {}, beats)
     except timeline.TimelineError as e:
@@ -187,6 +225,44 @@ def _check_timeline(reel: Reel, rep: Report, vo: dict[str, float] | None,
     total = timeline.total_seconds(rep.spans)
     rep.info.update(total_seconds=total, shots=len(reel.shots),
                     summary=f"{len(reel.shots)} shots, {total:.2f}s total")
+
+
+def _check_framing(reel: Reel, rep: Report) -> None:
+    """Warn when a `frame` rectangle cannot be shown whole at this aspect (cover fit crops it), and when a
+    trimmed / sped-up clip runs out before its shot ends (its last frame is held)."""
+    from . import framing
+    W, H = reel.settings.width, reel.settings.height
+    for i, sh in enumerate(reel.shots):
+        src = sh.source
+        if src.kind not in ("image", "video"):
+            continue
+        try:
+            path = _res(src.value, reel)
+            if src.kind == "video":
+                info = framing.probe_video(path)
+                sw, shh = framing.decode_size(info)
+            else:
+                sw, shh = framing.image_size(path)
+                info = None
+        except (ValueError, OSError):
+            continue
+        where = f"shot {sh.id}"
+        if sh.motion.type == "frame" and src.fit == "cover":
+            worst = max((framing.window(k.rect, sw, shh, W, H, fit="cover").cut for k in sh.motion.keys
+                         if k.rect != framing.FULL), default=0.0)      # the full frame is the normal cover crop
+            if worst > 0.02:
+                rep.warnings.append(f"{where}: at {W}x{H} a framed rectangle is {worst:.0%} cut off (the rect is too wide "
+                                    f"or too tall for this aspect); use fit \"contain\" (with pad) or a per-format "
+                                    f"motion override")
+        if info is not None and info.duration and not src.loop:
+            start, end = src.trim if src.trim else (0.0, info.duration)
+            sp = next((s for s in rep.spans if s.kind == "shot" and s.index == i), None)
+            if sp is not None:
+                need = framing.source_time(sp.duration, sp.duration, src.speed)
+                if need > (end - start) + 0.05:
+                    rep.warnings.append(f"{where}: plays {need:.2f}s of {src.value} at speed {list(src.speed)} but only "
+                                        f"{end - start:.2f}s are available; the last frame is held (set loop, trim "
+                                        f"or a faster speed)")
 
 
 def _check_reveal_timing(reel: Reel, rep: Report) -> None:

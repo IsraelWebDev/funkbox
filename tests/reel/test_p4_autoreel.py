@@ -109,13 +109,38 @@ def test_filler_funk2_is_used_and_reported_when_fewer_than_4_visuals(penv, gl):
     assert (px.max(1) - px.min(1)).mean() > 15                  # coloured, not grey
 
 
-def test_no_filler_for_real_assets_and_clip_cap(penv):
-    synth.make_project(scenes=2, clips=6)          # 8 visuals -> no filler; 6 clips but only 40% may be clips
+def test_no_filler_and_the_clip_share_follows_the_assets(penv):
+    synth.make_project(scenes=2, clips=6)          # 8 visuals -> no filler; 6 of them clips (75%)
     res = autoreel.auto_reel("demo")
     assert res.stats["filler"] == 0
     shots = res.report.reel.shots
+    n_clip = sum(1 for s in shots if s.source.kind == "video")
+    assert n_clip == min(6, int(0.75 * len(shots))) and n_clip > 0.4 * len(shots)
+    assert any("share follows the assets" in n for n in res.notes)
+    assert shots[0].source.kind == "video"          # mostly clips: the hook can be a clip too
+
+
+def test_clip_share_and_product_every_are_parameters(penv):
+    synth.make_project(scenes=2, clips=6)
+    shots = autoreel.auto_reel("demo", clip_share=0.4).report.reel.shots         # the v4.0 behaviour
     assert sum(1 for s in shots if s.source.kind == "video") <= 0.4 * len(shots)
-    assert any("at most 40%" in n for n in res.notes)
+    shots = autoreel.auto_reel("demo", clip_share=1.0, product_every=0).report.reel.shots
+    assert all(s.source.kind == "video" for s in shots) and not any(s.product for s in shots)
+    shots = autoreel.auto_reel("demo", product_every=1).report.reel.shots
+    assert all(s.product for s in shots)
+    with pytest.raises(ReelError):
+        autoreel.auto_reel("demo", clip_share=1.5)
+
+
+def test_auto_reel_formats_and_fixed_bpm(penv):
+    synth.make_project()
+    res = autoreel.auto_reel("demo", formats=["9x16", "16x9"], bpm=110)
+    reel = res.report.reel
+    assert [f.id for f in reel.formats] == ["9x16", "16x9"] and reel.audio.bpm == 110
+    assert reel.audio.snap_cuts_to_beats
+    beat = 60 / 110
+    cuts = [sp.start for sp in res.report.spans if sp.kind == "shot"][1:]
+    assert sum(abs(c / beat - round(c / beat)) < 0.07 for c in cuts) >= len(cuts) * 0.6   # most cuts on the grid
 
 
 def test_calm_pace_uses_longer_shots_and_crossfades(penv):

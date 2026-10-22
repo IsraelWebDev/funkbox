@@ -1,7 +1,8 @@
-## Reels and projects: shot list to vertical ad
+## Reels and projects: shot list to video ad (9:16, 16:9 or both)
 
 `funkbox reel ...` / `funkbox project ...` and the `reel_*` / `project_*` MCP tools turn a JSON shot list (`*.reel.json`) plus a copy deck (`copy.json`) into a
-9:16 ad: stills with Ken Burns or 2.5D parallax, your real product photo composited in (shadow + a
+9:16 ad (or 16:9, square, 4:5, several at once): stills with Ken Burns or 2.5D parallax, video clips and screen
+recordings framed with push-ins and speed ramps, your real product photo composited in (shadow + a
 capped global Lab colour match, label pixels stay exact), boxed animated captions, a branded end card,
 local voice-over (Piper), a music bed with ducking and loudness normalisation.
 
@@ -51,3 +52,44 @@ also available from the CLI (`python -m funkbox project new|ingest|brand|propose
 and the reel tools (`reel_validate`, `reel_storyboard`, `reel_still`, `reel_render`) accept `project=<name>` instead of a reel.
 The reel file is plain JSON you can edit by hand; copy still comes only from `copy.json` by id.
 
+
+## Shot lists for specific briefs
+
+`project_auto_reel` is a first draft. When a brief gives exact timings, framing or mostly screen recordings, edit the
+reel JSON (or write it from scratch) with these fields. Every one of them is optional, and none changes pixel content:
+framing only crops and scales.
+
+**Framing (`"motion": {"type": "frame"}`)** works on video and stills. Rectangles are `[x, y, w, h]` in fractions of the
+*source*; each frame shows the smallest window of the *output* aspect that contains the rectangle, so one rectangle
+gives the right crop in 9:16 and in 16:9.
+
+```json
+{"id": "accept", "source": {"video": "clips/app.mp4", "trim": [3.2, 6.0]}, "duration": "beats:4",
+ "motion": {"type": "frame", "to": [0.72, 0.54, 0.20, 0.13], "at": [0.1, 0.8], "ease": "out"},
+ "caption": {"copy_id": "hook", "style": "red-box", "anchor": "top"}}
+```
+
+- `from` (default: the whole frame) and `to`, moving during `at` = [start, end] fractions of the shot; or `keys`:
+  `[{"rect": [...], "t": 0.0}, {"rect": [...], "s": 1.6, "ease": "hold"}]` with `t` (fraction) or `s` (seconds) on
+  every key. Eases: `smooth` (default), `linear`, `in`, `out`, `hold` (jump at the key).
+- The centre moves linearly and the size changes geometrically, so a push-in feels even.
+- `kenburns` (zoom / pan) and `none` also work on video now. `parallax` needs a still.
+
+**Sources.** `focus: [x, y]` moves the default crop centre (a 16:9 recording in a 9:16 frame shows its left third with
+`[0.2, 0.5]`). `fit: "contain"` never crops; the rest is `pad`: a colour (`"#101820"`) or `"blur"` (a blurred, dimmed
+copy of the same frame). On video, `speed: 2` plays twice as fast and `speed: [1, 3]` ramps from 1x to 3x over the
+shot; `validate` warns when a clip runs out before its shot ends (its last frame is held unless `loop` is set).
+
+**Beat grid.** `"audio": {"bpm": 110, "beat_offset": 0.0}` sets a fixed grid (one beat = 60 / 110 = 0.545 s) without
+analysing any music. `"duration": "beats:4"` (halves allowed: `beats:1.5`) and `snap_cuts_to_beats` use it. Without `bpm`
+the grid is detected from `audio.music`.
+
+**Formats.** `"formats": ["9x16", "16x9"]` (presets `9x16`, `16x9`, `1x1`, `4x5`, or `{"id", "width", "height",
+"safe_area"}`) renders the same edit at each size: `reel_render` / `project_render` write `<name>-9x16.mp4` and
+`<name>-16x9.mp4` (`format=` renders one; `reel_storyboard` and `reel_still` take `format=` too). A shot can override
+per format: `"formats": {"16x9": {"caption": {"anchor": "bottom"}, "motion": {...}}}` (motion is replaced whole;
+`caption.anchor`, `product` x/y/height and `source` focus/fit/pad are merged). `validate` checks every format and
+prefixes problems with `[16x9]`. Safe areas: `reels` (keeps captions clear of the 9:16 app UI), `landscape`, `none`.
+
+**`project_auto_reel` options.** `clip_share` (default: follows the assets, so mostly recordings gives mostly clips),
+`product_every` (2 = every other shot, 0 = only on the end card), `formats`, `bpm`.

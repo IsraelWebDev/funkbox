@@ -19,6 +19,7 @@ from funkbox.media import encode_video, mux_audio, require_ffmpeg
 from . import depth as depthmod
 from . import captions as captions_mod
 from . import endcard as endcard_mod
+from . import framing
 from . import motion as motionmod
 from . import product as product_mod
 from .copydeck import CopyDeck
@@ -53,7 +54,9 @@ class VideoStream:
     def _open(self) -> None:
         self.close()
         ff = require_ffmpeg()
-        if self.fit == "contain":
+        if self.fit == "native":              # framing.py crops/scales each frame itself
+            vf = f"fps={self.fps},scale={self.w}:{self.h}"
+        elif self.fit == "contain":
             vf = (f"fps={self.fps},scale={self.w}:{self.h}:force_original_aspect_ratio=decrease,"
                   f"pad={self.w}:{self.h}:(ow-iw)/2:(oh-ih)/2:black")
         else:
@@ -171,11 +174,15 @@ class Renderer:
         if src.kind == "color":
             return np.full((self.h, self.w, 3), hex_rgb(src.value), np.uint8)
         if src.kind == "video":
+            if framing.needs_windowing(src, sh.motion):
+                return self._windowed_video(span, sh, stt, local)
             if stt.video is None:
                 stt.video = VideoStream(self._res(src.value), self.w, self.h, self.fps, src.trim, src.loop, src.fit)
             return stt.video.frame(local)
         if src.kind == "funk2":
             return self._funk2_frame(stt, src.value, local)
+        if framing.needs_windowing_image(src, sh.motion):
+            return self._windowed_image(span, sh, stt, local)
         # image
         t = local / max(1, span.end_frame - span.start_frame)
         if stt.image is None:
@@ -195,12 +202,43 @@ class Renderer:
         cam = motionmod.camera(sh.motion, t, mode)
         return self.motion.render(stt.image, cam)[..., :3]
 
+    # ---- framed sources (framing.py): crop + scale only, for video and for `frame` motion on stills
+    def _frame_u(self, span: ShotSpan, local: int) -> tuple[float, float]:
+        n = span.end_frame - span.start_frame
+        return local / max(1, n - 1), n / self.fps
+
+    def _window(self, sh: Shot, span: ShotSpan, local: int, sw: int, sh_px: int) -> framing.Window:
+        u, dur = self._frame_u(span, local)
+        cam = motionmod.camera(sh.motion, local / max(1, span.end_frame - span.start_frame), "kenburns") \
+            if sh.motion.type == "kenburns" else None
+        return framing.window_for(sh.motion, sh.source, u, dur, sw, sh_px, self.w, self.h, cam)
+
+    def _windowed_video(self, span: ShotSpan, sh: Shot, stt: _ShotState, local: int) -> np.ndarray:
+        src = sh.source
+        if stt.video is None:
+            path = self._res(src.value)
+            dw, dh = framing.decode_size(framing.probe_video(path))
+            rate = framing.decode_fps(self.fps, src.speed)
+            stt.video = VideoStream(path, dw, dh, rate, src.trim, src.loop, "native")
+            stt.extra["decode"] = (dw, dh, rate)
+        dw, dh, rate = stt.extra["decode"]
+        dur = (span.end_frame - span.start_frame) / self.fps
+        idx = int(round(framing.source_time(local / self.fps, dur, src.speed) * rate))
+        fr = stt.video.frame(idx)
+        return framing.draw(fr, self._window(sh, span, local, dw, dh), self.w, self.h, src.pad)
+
+    def _windowed_image(self, span: ShotSpan, sh: Shot, stt: _ShotState, local: int) -> np.ndarray:
+        im = stt.extra.get("pil")
+        if im is None:
+            im = stt.extra["pil"] = Image.open(self._res(sh.source.value)).convert("RGB")
+        return framing.draw(im, self._window(sh, span, local, im.width, im.height), self.w, self.h, sh.source.pad)
+
     def camera_for(self, span: ShotSpan, local: int) -> motionmod.Camera:
         """The camera the shot's source uses at frame ``local`` (for locking a product to it)."""
         sh = self.reel.shots[span.index]
         stt = self._state.get(span.index)
         t = local / max(1, span.end_frame - span.start_frame)
-        if sh.source.kind != "image":
+        if sh.source.kind != "image" or framing.needs_windowing_image(sh.source, sh.motion):
             return motionmod.camera(sh.motion, t, "none")
         mode = "parallax" if (sh.motion.type == "parallax" and stt is not None and stt.parallax_ok) else (
             "kenburns" if sh.motion.type in ("kenburns", "parallax") else "none")
@@ -428,11 +466,12 @@ class Plan:
     report: "object"
 
 
-def prepare(src, base_dir=None) -> Plan:
-    """Validate a reel (dict / path / Reel) and build its timeline. Raises ReelError listing problems."""
+def prepare(src, base_dir=None, fmt: str | None = None) -> Plan:
+    """Validate a reel (dict / path / Reel) and build its timeline. ``fmt`` picks one of the reel's formats.
+    Raises ReelError listing problems."""
     from .schema import ReelError
     from .validate import validate
-    rep = validate(src, base_dir)
+    rep = validate(src, base_dir, fmt=fmt)
     if not rep.ok or rep.reel is None or rep.deck is None:
         raise ReelError(rep.errors or ["invalid reel"])
     return Plan(rep.reel, rep.deck, rep.spans, rep)
@@ -453,9 +492,11 @@ class RenderOutput:
     shots: int
     audit_ok: bool | None = None
     warnings: list[str] = field(default_factory=list)
+    end_card: bool = True
 
     def report_line(self) -> str:
-        return (f"{self.duration:.2f}s, {self.shots} shots + end card, {self.width}x{self.height} @ {self.fps} fps, "
+        return (f"{self.duration:.2f}s, {self.shots} shots{' + end card' if self.end_card else ''}, "
+                f"{self.width}x{self.height} @ {self.fps} fps, "
                 f"{self.frames} frames rendered in {self.seconds:.1f}s")
 
 
@@ -518,7 +559,7 @@ def render_reel(src, name: str, *, base_dir=None, out_dir: str | Path | None = N
     finally:
         r.release()
     return RenderOutput(paths, frames, W, Hh, fps, time.perf_counter() - t0, frames / fps, len(reel.shots),
-                        audit_ok, plan.report.warnings if plan.report is not None else [])
+                        audit_ok, plan.report.warnings if plan.report is not None else [], reel.end_card is not None)
 
 
 def _build_audio(plan: Plan, out_dir: Path, name: str, fps: int) -> Path | None:
@@ -551,3 +592,15 @@ def _audit_json(r: Renderer, plan: Plan, name: str, out_dir: Path) -> dict:
     path = out_dir / f"{name}.text_audit.json"
     path.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return {"path": str(path), "ok": ok}
+
+
+def render_formats(src, name: str, *, base_dir=None, fmt: str | None = None, **kw) -> list[RenderOutput]:
+    """Render ``fmt``, or every format the reel declares (``<name>-<format>.mp4``), or just the reel's own size
+    when it declares none. ``kw`` goes to render_reel (draft, audit, out_dir, ...)."""
+    from .validate import formats_of
+    ids: list[str | None] = [fmt] if fmt else (formats_of(src, base_dir) or [None])
+    outs = []
+    for f in ids:
+        plan = prepare(src, base_dir, f)
+        outs.append(render_reel(None, f"{name}-{f}" if f else name, plan=plan, **kw))
+    return outs

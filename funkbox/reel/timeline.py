@@ -86,9 +86,9 @@ def build_timeline(reel: Reel, vo_durations: dict[str, float] | None = None,
             m = BEATS_RE.match(d)
             assert m
             if period is None:
-                raise TimelineError(f"shot {sh.id}: duration {d!r} needs a music beat grid "
-                                    f"(set audio.music, or use seconds)")
-            dur = int(m.group(1)) * period
+                raise TimelineError(f"shot {sh.id}: duration {d!r} needs a beat grid "
+                                    f"(set audio.bpm, or audio.music to detect one, or use seconds)")
+            dur = float(m.group(1)) * period
         else:
             dur = float(d)
         if v is not None and dur < need - 1e-6:
