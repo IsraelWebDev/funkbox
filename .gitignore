@@ -20,3 +20,5 @@ shortcuts/
 *.lnk
 *.wav
 *.lnk
+/inputs/
+*.bak-*
