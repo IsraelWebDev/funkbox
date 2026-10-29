@@ -22,3 +22,6 @@ shortcuts/
 *.lnk
 /inputs/
 *.bak-*
+promo/days/*/assets/
+promo/days/*/final.png
+promo/days/*/.final.audio/

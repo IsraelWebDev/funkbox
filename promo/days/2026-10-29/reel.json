@@ -1,0 +1,172 @@
+{
+  "version": 3,
+  "settings": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "safe_area": "reels"
+  },
+  "brand": {
+    "primary": "#e0245e",
+    "secondary": "#12141c",
+    "text": "#ffffff"
+  },
+  "copy": "copy.json",
+  "audio": {
+    "music": "assets/music.mp3",
+    "bpm": 110,
+    "snap_cuts_to_beats": true,
+    "voiceover": false,
+    "music_gain_db": -10
+  },
+  "shots": [
+    {
+      "id": "hook",
+      "source": {
+        "video": "assets/loop-party-poster.mp4",
+        "loop": true
+      },
+      "duration": "beats:5",
+      "motion": {
+        "type": "none"
+      },
+      "caption": {
+        "copy_id": "hook",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "center"
+      }
+    },
+    {
+      "id": "deck",
+      "source": {
+        "image": "assets/card-copy-json.png"
+      },
+      "duration": "beats:6",
+      "transition_in": "zoom-punch",
+      "motion": {
+        "type": "frame",
+        "from": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "to": [
+          0.05,
+          0.1,
+          0.5,
+          0.1
+        ],
+        "at": [
+          0.05,
+          0.7
+        ],
+        "ease": "out"
+      },
+      "caption": {
+        "copy_id": "p1",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "bottom"
+      }
+    },
+    {
+      "id": "lock",
+      "source": {
+        "image": "assets/card-reel-json.png"
+      },
+      "duration": "beats:6",
+      "transition_in": "push",
+      "motion": {
+        "type": "frame",
+        "from": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "to": [
+          0.02,
+          0.47,
+          0.74,
+          0.09
+        ],
+        "at": [
+          0.05,
+          0.7
+        ],
+        "ease": "out"
+      },
+      "caption": {
+        "copy_id": "p2",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "top"
+      }
+    },
+    {
+      "id": "proof",
+      "source": {
+        "image": "assets/card-text-exact.png"
+      },
+      "duration": "beats:7",
+      "transition_in": "flash",
+      "motion": {
+        "type": "frame",
+        "from": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "to": [
+          0.02,
+          0.08,
+          0.66,
+          0.3
+        ],
+        "at": [
+          0.05,
+          0.75
+        ],
+        "ease": "out"
+      },
+      "caption": {
+        "copy_id": "p3",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "bottom"
+      }
+    },
+    {
+      "id": "local",
+      "source": {
+        "video": "assets/loop-pop-moire.mp4",
+        "loop": true
+      },
+      "duration": "beats:5",
+      "transition_in": "zoom-punch",
+      "motion": {
+        "type": "none"
+      },
+      "caption": {
+        "copy_id": "p4",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "center"
+      }
+    }
+  ],
+  "end_card": {
+    "template": "brand-split",
+    "duration": 3.5,
+    "audio": "keep",
+    "copy": {
+      "headline": "end_head",
+      "sub": "end_sub",
+      "url": "url"
+    },
+    "headline_reveal": "typewriter"
+  }
+}

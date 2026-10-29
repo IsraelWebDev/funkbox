@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-29",
+  "trend": {
+    "summary": "No fresh (last 7 days), verifiable AI-video item with an honest funkbox link today; the most relevant hit (Veo 3.1 vertical output) dates from about January 2026. Evergreen angle used.",
+    "sources": []
+  },
+  "angle": "Exact captions: funkbox captions come only from an approved, hash-locked copy file, and every render is audited against it.",
+  "hook": "WHAT IF YOUR AD HAS A TYPO?",
+  "claims": [
+    {
+      "text": "EVERY CAPTION FROM ONE FILE",
+      "fact": "F12"
+    },
+    {
+      "text": "YOU APPROVE IT. THEN IT'S LOCKED.",
+      "fact": "F12"
+    },
+    {
+      "text": "EVERY RENDER IS AUDITED",
+      "fact": "F13"
+    },
+    {
+      "text": "RUNS ON YOUR OWN LAPTOP",
+      "fact": "F2"
+    },
+    {
+      "text": "FREE AND LOCAL",
+      "fact": "F1, F2"
+    }
+  ],
+  "not_a_repeat_of": "first post"
+}

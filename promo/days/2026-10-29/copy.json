@@ -1,0 +1,29 @@
+{
+  "brand_name": "funkbox",
+  "lines": {
+    "hook": {
+      "text": "WHAT IF YOUR AD\nHAS A TYPO?"
+    },
+    "p1": {
+      "text": "EVERY CAPTION\nFROM ONE FILE"
+    },
+    "p2": {
+      "text": "YOU APPROVE IT.\nTHEN IT'S LOCKED."
+    },
+    "p3": {
+      "text": "EVERY RENDER\nIS AUDITED"
+    },
+    "p4": {
+      "text": "RUNS ON YOUR\nOWN LAPTOP"
+    },
+    "end_head": {
+      "text": "funkbox"
+    },
+    "end_sub": {
+      "text": "FREE AND LOCAL"
+    },
+    "url": {
+      "text": "github.com/IsraelWebDev/funkbox"
+    }
+  }
+}

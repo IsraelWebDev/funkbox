@@ -154,6 +154,7 @@ One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP ser
 - [docs/studio.md](docs/studio.md): FastSD images and GIMP on demand
 - [docs/migration-v4.md](docs/migration-v4.md): old scripts and tool names to the new ones
 - [AGENTS.md](AGENTS.md): installation for agents and humans
+- [promo/](promo/README.md): how funkbox promotes itself: daily videos made with funkbox, checked by a second agent
 - [docs/history/](docs/history/): plans, hand-offs and build reports of earlier versions
 - [PRIVACY.md](PRIVACY.md): what funkbox reads, writes and sends (nothing)
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md): licences of everything funkbox uses or downloads

@@ -1,0 +1,8 @@
+{
+  "verdict": "PASS",
+  "reviewer": "reviewer agent",
+  "notes": "Judged the current files fresh (final.mp4 sha 9373764c..., not the version the earlier FAIL covered). LOOKED: 26 frames incl. every shot, typewriter states, all 5 cuts and the last frame; 1080x1920 vertical, 30 fps, 19.33 s, audio present (mean -14.7 dB); blackdetect finds no black frames; transitions clean; captions legible in red boxes, never clipped (code-card text is cropped only by the intended push-in; the source cards are complete); end card funkbox / FREE AND LOCAL / URL readable. text_audit ok=true, 9 entries all text_exact, nothing missing/inexact. Earlier FAIL items fixed: YouTube title is now 'Captions that match your approved copy, byte for byte' (F12/F13); demo-ad clip with its own GLOWMOP caption is gone, proof shot is now the docs/reel.md card (verbatim lines 9-11). WORDS: on-screen claims map to F12 (one copy file, approve then locked), F13 (every render audited), F2 (runs on your own laptop/local), F1 (free); description and X text say the same; hook is a question, not a claim that typos are impossible. No superlatives, numbers, competitors, testimonials; Claude only as a tag. Trend: evergreen angle (exact captions), no sources claimed, allowed by PLAYBOOK; no sensitive topic. X text 268 chars, no URL/domain; YT title 53 chars; 7 tags; spelling and grammar clean. First post (no posts.jsonl), so no repeat. Nothing I would not want under the owner's name.",
+  "video_sha256": "9373764ca9d20b713436a1f10ea98aedb494a1dd49704f64d9e0c9d56e78d98b",
+  "caption_sha256": "a56e25a1fc8872bbc5f1cec0c786444caf8b4b8c9234923bacad8404018f3f42",
+  "at": "2026-10-29T12:20:10+00:00"
+}
