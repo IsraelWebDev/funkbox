@@ -198,8 +198,12 @@ def test_code_cards_show_real_lines(tmp_path):
     first, lines = assets.find_lines(ROOT / "examples/mimic/copy.json", '"lines": {', 4)
     real = (ROOT / "examples/mimic/copy.json").read_text(encoding="utf-8").splitlines()
     assert lines == real[first - 1:first + 3]
-    out, span = assets.code_card(ROOT / "examples/mimic/copy.json", '"lines": {', 4, tmp_path / "c.png", "copy.json")
+    out, span, box = assets.code_card(ROOT / "examples/mimic/copy.json", '"lines": {', 4, tmp_path / "c.png", "copy.json")
     assert out.is_file() and span == f"{first}-{first + 3}"
+    assert 0 < box[0] < box[2] <= 1 and 0 < box[1] < box[3] <= assets.TEXT_BOTTOM
+    _, span, box = assets.code_card(ROOT / "README.md", "# funkbox", 400, tmp_path / "long.png", "README.md")
+    shown = int(span.split("-")[1]) - int(span.split("-")[0]) + 1
+    assert 1 <= shown < 400 and box[3] <= assets.TEXT_BOTTOM               # a long file is cut, never runs down
     for cid, rel, marker, n, *_ in assets.CARDS:                    # every card's marker still exists
         assets.find_lines(ROOT / rel, marker, n)
     with pytest.raises(ValueError):
@@ -208,7 +212,8 @@ def test_code_cards_show_real_lines(tmp_path):
 
 def test_playbook_and_review_reference_real_commands():
     pb = (ROOT / "promo" / "PLAYBOOK.md").read_text()
-    for needle in ("promo/assets.py", "promo/post.py", "promo/REVIEW.md", "SEPARATE agent", "promo/state.py", "$STATE/days",
+    for needle in ("promo/assets.py", "promo/post.py", "promo/REVIEW.md", "SEPARATE agent", "promo/state.py", "$STATE/days", "promo/lint.py", "promo/measure.py",
+                   "feedback.json", "novelty",
                    "promo/PAUSED", "FACTS.md"):
         assert needle in pb, needle
     tpl = json.loads((ROOT / "promo" / "templates" / "promo.reel.json").read_text())
@@ -320,3 +325,73 @@ def test_a_replaced_post_no_longer_counts(day, monkeypatch):
     post.LOG.write_text(json.dumps({"date": "2026-10-29", "platform": "x", "day": day.name, "ok": True,
                                     "url": "u1", "replaced": "deleted by the owner"}) + "\n")
     assert post.posted_day("x", day.name) is None and post.posted_today("x", "2026-10-29") is None
+
+
+def _brief(d, **kw):
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "brief.json").write_text(json.dumps({"format": "how-to", "selling_point": "S5", "hook": "one edit four formats",
+                                              "novelty": "first how-to", "claims": [{"text": "x", "fact": "F9"}], **kw}))
+    (d / "feedback.json").write_text(json.dumps({"observation": "o", "suggestion": "s", "evidence": ["e"]}))
+    return d
+
+
+def test_lint_variety_feedback_and_claims(tmp_path):
+    import lint
+    days = tmp_path / "days"
+    _brief(days / "2026-10-27", format="tip", selling_point="S2", hook="no gpu needed at all")
+    _brief(days / "2026-10-28", format="how-to", selling_point="S4", hook="captions exactly as approved")
+    today = _brief(days / "2026-10-29", format="how-to", selling_point="S2", hook="NO GPU needed at all, really")
+    probs = lint.variety_problems(today)
+    assert any("format 'how-to' was used on 2026-10-28" in p for p in probs)
+    assert any("selling point S2" in p for p in probs) and any("too close to 2026-10-27" in p for p in probs)
+    ok = _brief(days / "2026-10-30", format="behind-the-scenes", selling_point="S11", hook="what changed this week")
+    assert lint.variety_problems(ok) == [] and lint.feedback_problems(ok) == []
+    (ok / "feedback.json").write_text(json.dumps({"observation": "o"}))
+    assert len(lint.feedback_problems(ok)) == 2
+    _brief(ok, claims=[{"text": "fast", "fact": "F9 (the formats)"}, {"text": "83 s", "fact": "M-render"},
+                       {"text": "best", "fact": "F99"}])
+    (ok / "measured.json").write_text(json.dumps({"facts": {"M-render": {"say": "83 s"}}}))
+    assert [p for p in lint.claim_problems(ok)] == ["claim 'best' cites ['F99']: use F/L ids from FACTS.md or M-keys "
+                                                    "from measured.json"]
+    added = tmp_path / "feedback.jsonl"
+    assert lint.add_feedback(ok, added) and not lint.add_feedback(ok, added)
+
+
+def test_lint_catches_a_caption_on_card_text(tmp_path, monkeypatch):
+    import lint
+    from PIL import Image
+    day = tmp_path / "2026-10-29"
+    (day / "assets").mkdir(parents=True)
+    Image.new("RGB", (1080, 1920), (18, 20, 28)).save(day / "assets" / "card.png")
+    (day / "copy.json").write_text(json.dumps({"lines": {"c": {"text": "CAPTIONS MATCH\nYOUR COPY"}}}))
+    reel = {"version": 3, "settings": {"width": 1080, "height": 1920, "fps": 30, "safe_area": "reels"},
+            "copy": "copy.json", "shots": [{"id": "card", "source": {"image": "assets/card.png"}, "duration": 2,
+                                            "caption": {"copy_id": "c", "style": "red-box", "anchor": "bottom"}}]}
+    (day / "reel.json").write_text(json.dumps(reel))
+    monkeypatch.setenv("FUNK_INPUTS", str(tmp_path))
+
+    def manifest(rect):
+        (day / "assets.json").write_text(json.dumps({"assets": [{"path": "assets/card.png", "text_rect": rect}]}))
+    manifest([0.02, 0.09, 0.7, 0.56])                                    # text in the top part: clear
+    assert lint.caption_problems(day) == []
+    manifest([0.02, 0.09, 0.7, 0.75])                                    # text runs down behind the caption
+    assert "sits on the card's text" in lint.caption_problems(day)[0]
+    manifest([0.02, 0.09, 0.7, 0.56])                                    # a push-in onto the text brings it down
+    reel["shots"][0]["motion"] = {"type": "frame", "from": [0, 0, 1, 1], "to": [0.15, 0.05, 0.6, 0.5]}
+    (day / "reel.json").write_text(json.dumps(reel))
+    assert lint.caption_problems(day)
+
+
+def test_measured_facts_are_written_with_plain_sentences(tmp_path, monkeypatch):
+    import measure
+    day = tmp_path / "days" / "2026-10-30"
+    day.mkdir(parents=True)
+    (day / "final.text_audit.json").write_text(json.dumps({"ok": True, "entries": [{}] * 9}))
+    monkeypatch.setattr(measure, "machine", lambda: {"value": {"cores": 2, "gpu": False},
+                                                     "say": "a 2-core CPU with no GPU (software OpenGL)"})
+    monkeypatch.setattr(measure, "repo_counts", lambda: {"M-tools": {"value": 37, "say": "37 MCP tools"}})
+    doc = measure.write(day, render_s=87.4, frames=580)
+    f = doc["facts"]
+    assert f["M-render"]["say"] == "this video rendered in 87 seconds on a 2-core CPU with no GPU (software OpenGL)"
+    assert f["M-audit"]["value"] == {"strings": 9, "ok": True} and "M-video" not in f      # no video, no claim
+    assert json.loads((day / "measured.json").read_text())["facts"]["M-tools"]["value"] == 37

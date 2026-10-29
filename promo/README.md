@@ -26,6 +26,8 @@ takes a video by URL. Private works too, and X then gets a link to the Short.
 | `FACTS.md` | the only claims a promo may make (edit it when funkbox changes) |
 | `REVIEW.md` | the reviewer's checklist |
 | `assets.py`, `music.py` | the day's asset pack: fresh loops, the demo ad, real stills, code cards from real files, music |
+| `measure.py` | renders the day's video and records numbers a promo may quote (render time and machine, counts, what changed) in `measured.json` |
+| `lint.py` | mechanical checks before review: captions clear of card text, a new format, selling point and hook each day, product feedback written, every claim citing a real fact |
 | `review.py` | writes the verdict, bound to the sha256 of the exact video and caption |
 | `post.py` | posts. Refuses without a matching PASS; each promo once per platform and at most once per platform per day; X only after the Short is up; dry-runs a platform without credentials |
 | `pending.py` | saves the reviewed video before posting; the next run's `catchup` finishes what a failed run left (a missed upload, or an X post whose Short is up), for up to 2 days |
@@ -35,7 +37,10 @@ takes a video by URL. Private works too, and X then gets a link to the Short.
 ## The safeguards
 - **Review gate:** a separate agent reviews every video against `REVIEW.md`. Its verdict is bound to the exact bytes
   of the video and caption, so nothing changed after review can post. Two FAILs mean no post that day.
-- **Claims:** every claim must come from `FACTS.md`.
+- **Claims:** every claim must come from `FACTS.md` or the run's `measured.json`, so claims can be specific ("rendered
+  in 87 seconds on a 2-core CPU with no GPU") and still checked.
+- **Variety:** each day picks a format and a selling point it has not used recently (`lint.py` enforces it), and
+  writes product feedback from that day's research to the state repo's `feedback.jsonl`.
 - **Limits in code:** `post.py` enforces the posting rules above, the caption limits, and no URL in the reviewed X
   text (it appends one link itself: the repo when the video is attached, the Short otherwise).
 - **Kill switch:** see below.

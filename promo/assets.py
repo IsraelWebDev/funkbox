@@ -66,11 +66,18 @@ def find_lines(src: Path, marker: str, n: int) -> tuple[int, list[str]]:
     return i + 1, lines[i:i + n]
 
 
+TEXT_BOTTOM = 0.50   # card text stops here (fraction of height): below it stays clear for a bottom caption of up to 3 lines
+
+
 def code_card(src: Path, marker: str, n: int, out: Path, title: str, w: int = 1080, h: int = 1920,
-              text_w: int | None = None) -> tuple[Path, str]:
-    """``n`` real lines of a file (from the first containing ``marker``), drawn as an editor screenshot with line
-    numbers; long lines soft-wrap like an editor would (the text itself is verbatim). ``text_w`` narrows the wrap
-    column (prose cards) so a push-in can zoom while keeping whole lines in frame."""
+              text_w: int | None = None) -> tuple[Path, str, list[float]]:
+    """Up to ``n`` real lines of a file (from the first containing ``marker``), drawn as an editor screenshot with
+    line numbers; long lines soft-wrap like an editor would (the text itself is verbatim). ``text_w`` narrows the wrap
+    column (prose cards) so a push-in can zoom while keeping whole lines in frame.
+
+    Text stays above TEXT_BOTTOM so a bottom caption never sits on it; lines that do not fit are left out (the span
+    says which lines are shown). Returns the image, the shown line span and the text's bounding box as fractions
+    [x0, y0, x1, y1] of the card (promo/lint.py checks captions against it)."""
     import textwrap
     first, lines = find_lines(src, marker, n)
     img = Image.new("RGB", (w, h), (18, 20, 28))
@@ -84,20 +91,24 @@ def code_card(src: Path, marker: str, n: int, out: Path, title: str, w: int = 10
     size = max(30, min(44, int((tw - 150) / (0.6 * max(longest, 24)))))
     cols = int((tw - 150) / (0.602 * size))
     f, fn = _font(size), _font(int(size * 0.75))
-    y = 170
+    step, limit = int(size * 1.45), int(TEXT_BOTTOM * h)
+    y, shown, right = 170, 0, 0.0
     for num, line in enumerate(lines, start=first):
         parts = textwrap.wrap(line.expandtabs(4), cols, drop_whitespace=False, replace_whitespace=False,
                               subsequent_indent="  ") or [""]
+        if shown and y + len(parts) * step > limit:   # whole lines only; always show at least one
+            break
         for j, part in enumerate(parts):
             if j == 0:
                 d.text((20, y + size * 0.15), f"{num:>3}", font=fn, fill=(90, 98, 120))
             d.text((120, y), part, font=f, fill=(222, 226, 238))
-            y += int(size * 1.45)
-        if y > h - 140:
-            break
+            right = max(right, 120 + f.getlength(part))
+            y += step
+        shown += 1
     out.parent.mkdir(parents=True, exist_ok=True)
     img.save(out)
-    return out, f"{first}-{first + len(lines) - 1}"
+    box = [round(20 / w, 4), round(170 / h, 4), round(min(right + 8, w) / w, 4), round(min(y, h) / h, 4)]
+    return out, f"{first}-{first + shown - 1}", box
 
 
 def build(day: Path, seed: int) -> dict:
@@ -130,12 +141,13 @@ def build(day: Path, seed: int) -> dict:
     for cid, rel, marker, n, note, *opt in CARDS:
         src = ROOT / rel
         try:
-            path, span = code_card(src, marker, n, a / f"{cid}.png", rel, text_w=opt[0] if opt else None)
+            path, span, box = code_card(src, marker, n, a / f"{cid}.png", rel, text_w=opt[0] if opt else None)
         except (OSError, ValueError) as e:
             print(f"card {cid} skipped: {e}", file=sys.stderr)
             continue
-        add("image", path, f"{note} ({rel} lines {span}, verbatim; text sits in the top part of the card)",
-            size=[1080, 1920], source=f"{rel}:{span}")
+        add("image", path, f"{note} ({rel} lines {span}, verbatim). Its text fills text_rect (top part); a caption "
+            "must not cover or sit beside it: anchor captions at the bottom, and push in only where lint allows",
+            size=[1080, 1920], source=f"{rel}:{span}", text_rect=box)
     import music
     add("music", music.write(a / "music.mp3", 30.0, 110.0, seed), "seeded music bed, 110 BPM, 30 s", bpm=110)
     (day / "assets.json").write_text(json.dumps(man, indent=2) + "\n", encoding="utf-8")

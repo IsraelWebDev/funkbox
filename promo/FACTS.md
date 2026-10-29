@@ -1,8 +1,17 @@
 # What a funkbox promo may claim
 
 Every claim in a promo (on screen, in a title, description or post) must be one of these facts, or follow
-directly from one, or be a number measured in that day's run. The reviewer rejects anything else. When a fact
-changes in the code, change it here first.
+directly from one, or be a measured fact from that day's `measured.json` (an `M-` key, written by
+`promo/measure.py`). The reviewer rejects anything else. When a fact changes in the code, change it here first.
+
+## Make claims strong, not loud
+A claim gets past the reviewer AND lands with viewers when it is specific and checkable:
+- **A number from today:** "rendered in 83 seconds on a 2-core CPU with no GPU" (M-render) beats "fast".
+- **The real thing on screen:** a real file, command or shot-list line (the code cards), the text audit's result.
+- **A before/after or a cause:** "change one line, render again" (F12, F13), "one edit, four formats" (F9).
+- **The video itself as proof:** everything in a promo was made by funkbox (F18), so "this video" is evidence.
+Words like fast, easy, powerful or best add nothing and invite a FAIL. Quote an M-key's "say" sentence or a fact
+closely; rounding a number down is fine, rounding it up is not.
 
 ## What it is
 - F1. funkbox is free and open source (MIT), at github.com/IsraelWebDev/funkbox.
@@ -27,6 +36,17 @@ changes in the code, change it here first.
 ## Proof points (real outputs in the repo)
 - F15. The demo ad (examples/mimic): 23 s, fictional brand GLOWMOP, rendered on an Intel Iris Xe laptop in about 3.5 minutes.
 - F16. Its scenes came from FastSD, its bottle is drawn by code, its music is synthesized.
+
+## About these promos
+- F18. Every promo on this channel is made with funkbox; a second AI agent reviews it before it posts, and the code
+  that does this is in the repo (promo/).
+- F19. The promos use no video-generation model: motion comes from shaders, parallax, push-ins and edits; stills come
+  from FastSD or real files.
+
+## Measured each run (measured.json; cite the M-key)
+- M-render (this video's render time and machine), M-machine (CPU cores, GPU or none), M-video (length, size),
+  M-audit (strings checked, all exact), M-tools / M-presets / M-shaders / M-tests (counts read from the code),
+  M-commits (what changed since the last promo, by commit subject).
 
 ## Limits (say these plainly when relevant; never imply otherwise)
 - L1. It does not generate real motion of people; it animates stills or uses clips you supply.
