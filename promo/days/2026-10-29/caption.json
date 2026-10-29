@@ -1,10 +1,17 @@
 {
   "youtube": {
-    "title": "Paying credits for every AI video retake? Render on your own computer",
-    "description": "Paying credits for every retake? funkbox renders on your own computer: no credits, no accounts, no NVIDIA GPU needed. Change a line in the shot list and render again.\n\nFree, open source, runs locally: https://github.com/IsraelWebDev/funkbox\nMade with funkbox.",
-    "tags": ["funkbox", "AI video", "local AI", "open source", "video ads", "Shorts"]
+    "title": "Great AI video shots still need an edit: captions, beat cuts, 9:16 and 16:9",
+    "description": "Great AI shots still need an edit.\nfunkbox takes your clips, stills or screen recordings, cuts on the beat, keeps captions exactly as approved, and makes 9:16 and 16:9 from one edit.\nFree, open source, runs locally: https://github.com/IsraelWebDev/funkbox\nMade with funkbox.",
+    "tags": [
+      "funkbox",
+      "AI video",
+      "video editing",
+      "open source",
+      "local AI",
+      "Shorts"
+    ]
   },
   "x": {
-    "text": "Paying credits for every AI video retake?\n\nfunkbox renders on your own computer: no credits, no accounts, no NVIDIA GPU needed. Change a line in the shot list, render again.\n\nMade with funkbox. Free and open source: IsraelWebDev/funkbox on GitHub #AIvideo #opensource"
+    "text": "Video models keep making better shots. A short ad still needs the edit around them.\n\nfunkbox: drop in clips or stills, cut on the beat, captions exactly as approved, 9:16 and 16:9 from one edit. Free, open source, local.\n\nIsraelWebDev/funkbox #AIvideo"
   }
 }

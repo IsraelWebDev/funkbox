@@ -38,92 +38,9 @@
       }
     },
     {
-      "id": "install",
+      "id": "clips",
       "source": {
-        "image": "assets/card-install.png"
-      },
-      "duration": "beats:6",
-      "transition_in": "zoom-punch",
-      "motion": {
-        "type": "kenburns",
-        "zoom": [
-          1.0,
-          1.1
-        ],
-        "pan": [
-          [
-            0,
-            0
-          ],
-          [
-            -0.02,
-            -0.04
-          ]
-        ]
-      },
-      "caption": {
-        "copy_id": "p1",
-        "style": "red-box",
-        "reveal": "typewriter",
-        "anchor": "bottom"
-      }
-    },
-    {
-      "id": "nocredits",
-      "source": {
-        "video": "assets/loop-pop-moire.mp4",
-        "loop": true
-      },
-      "duration": "beats:5",
-      "transition_in": "flash",
-      "motion": {
-        "type": "none"
-      },
-      "caption": {
-        "copy_id": "p2",
-        "style": "red-box",
-        "reveal": "typewriter",
-        "anchor": "center"
-      }
-    },
-    {
-      "id": "retake",
-      "source": {
-        "image": "assets/card-reel-json.png"
-      },
-      "duration": "beats:6",
-      "transition_in": "push",
-      "motion": {
-        "type": "frame",
-        "from": [
-          0,
-          0,
-          1,
-          1
-        ],
-        "to": [
-          0.02,
-          0.3,
-          0.55,
-          0.2
-        ],
-        "at": [
-          0.05,
-          0.7
-        ],
-        "ease": "out"
-      },
-      "caption": {
-        "copy_id": "p3",
-        "style": "red-box",
-        "reveal": "typewriter",
-        "anchor": "bottom"
-      }
-    },
-    {
-      "id": "gpu",
-      "source": {
-        "image": "assets/scene-dog.jpg"
+        "image": "assets/scene-machine.jpg"
       },
       "duration": "beats:6",
       "transition_in": "zoom-punch",
@@ -145,10 +62,93 @@
         ]
       },
       "caption": {
+        "copy_id": "p1",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "bottom"
+      }
+    },
+    {
+      "id": "beat",
+      "source": {
+        "video": "assets/loop-pop-moire.mp4",
+        "loop": true
+      },
+      "duration": "beats:5",
+      "transition_in": "flash",
+      "motion": {
+        "type": "none"
+      },
+      "caption": {
+        "copy_id": "p2",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "center"
+      }
+    },
+    {
+      "id": "exact",
+      "source": {
+        "image": "assets/card-text-exact.png"
+      },
+      "duration": "beats:6",
+      "transition_in": "push",
+      "motion": {
+        "type": "frame",
+        "from": [
+          0,
+          0,
+          1,
+          1
+        ],
+        "to": [
+          0.02,
+          0.19,
+          0.62,
+          0.14
+        ],
+        "at": [
+          0.05,
+          0.7
+        ],
+        "ease": "out"
+      },
+      "caption": {
+        "copy_id": "p3",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "bottom"
+      }
+    },
+    {
+      "id": "formats",
+      "source": {
+        "image": "assets/scene-dog.jpg"
+      },
+      "duration": "beats:7",
+      "transition_in": "zoom-punch",
+      "motion": {
+        "type": "kenburns",
+        "zoom": [
+          1.0,
+          1.12
+        ],
+        "pan": [
+          [
+            0,
+            0
+          ],
+          [
+            -0.02,
+            -0.03
+          ]
+        ]
+      },
+      "caption": {
         "copy_id": "p4",
         "style": "red-box",
         "reveal": "typewriter",
-        "anchor": "top"
+        "anchor": "bottom"
       }
     }
   ],

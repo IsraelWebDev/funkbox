@@ -1,13 +1,29 @@
 {
   "brand_name": "funkbox",
   "lines": {
-    "hook": {"text": "PAYING CREDITS\nFOR EVERY RETAKE?"},
-    "p1": {"text": "FUNKBOX RENDERS ON\nYOUR OWN COMPUTER"},
-    "p2": {"text": "NO CREDITS.\nNO ACCOUNTS."},
-    "p3": {"text": "CHANGE A LINE.\nRENDER AGAIN."},
-    "p4": {"text": "NO NVIDIA GPU\nNEEDED"},
-    "end_head": {"text": "funkbox"},
-    "end_sub": {"text": "FREE AND LOCAL"},
-    "url": {"text": "github.com/IsraelWebDev/funkbox"}
+    "hook": {
+      "text": "GREAT AI SHOTS\nSTILL NEED\nAN EDIT"
+    },
+    "p1": {
+      "text": "DROP IN CLIPS, STILLS\nOR SCREEN RECORDINGS"
+    },
+    "p2": {
+      "text": "CUTS LAND\nON THE BEAT"
+    },
+    "p3": {
+      "text": "CAPTIONS MATCH\nYOUR APPROVED COPY"
+    },
+    "p4": {
+      "text": "9:16 AND 16:9\nFROM ONE EDIT"
+    },
+    "end_head": {
+      "text": "funkbox"
+    },
+    "end_sub": {
+      "text": "FREE. OPEN SOURCE. LOCAL."
+    },
+    "url": {
+      "text": "github.com/IsraelWebDev/funkbox"
+    }
   }
 }

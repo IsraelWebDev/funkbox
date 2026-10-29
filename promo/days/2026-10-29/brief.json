@@ -1,38 +1,42 @@
 {
   "date": "2026-10-29",
   "trend": {
-    "summary": "An Oct 27, 2026 roundup of popular AI video generators notes that on some services generations still count against your credits even when you discard the result, and advises tracking the money and time needed for one usable result.",
+    "summary": "On Oct 23, 2026 ByteDance's Volcano Engine released Seedance 2.5 4K, a video model aimed at film and TV production, in trials with selected enterprise customers; a draft mode lets users test shots with cheaper 480p previews before generating the final 4K version. Video models keep getting better at making shots; turning shots into a finished short ad (captions, cuts, formats) is still a separate edit.",
     "sources": [
       {
-        "title": "10 Popular AI Video Generators: Prices, Free Plans and Business Uses (FinChannel)",
-        "url": "https://finchannel.com/10-popular-ai-video-generators-and-what-businesses-actually-get-for-their-money/139566/reviews/2026/10",
-        "date": "2026-10-27"
+        "title": "ByteDance launches Seedance 2.5 4K video model for film production (TechNode)",
+        "url": "https://technode.com/2026/10/23/bytedance-launches-seedance-2-5-4k-video-model-for-film-production/",
+        "date": "2026-10-23"
       }
     ]
   },
-  "angle": "Retakes are free when the render runs on your own computer: funkbox has no credits and no accounts, so you change a line in the shot list and render again. No NVIDIA GPU needed.",
-  "hook": "PAYING CREDITS FOR EVERY RETAKE?",
+  "angle": "Video models make the shots; funkbox does the edit around them. Drop in clips, stills or screen recordings, cut on the beat, keep captions exactly as approved, and get 9:16 and 16:9 from one edit. No product is named in the public text.",
+  "hook": "GREAT AI SHOTS STILL NEED AN EDIT",
   "claims": [
     {
-      "text": "FUNKBOX RENDERS ON YOUR OWN COMPUTER",
-      "fact": "F2"
+      "text": "DROP IN CLIPS, STILLS OR SCREEN RECORDINGS",
+      "fact": "F10"
     },
     {
-      "text": "NO CREDITS. NO ACCOUNTS.",
-      "fact": "F2"
+      "text": "CUTS LAND ON THE BEAT",
+      "fact": "F11"
     },
     {
-      "text": "CHANGE A LINE. RENDER AGAIN.",
-      "fact": "F2 (no credits, so a re-render costs nothing); shown on a real shot list, F9/F10"
+      "text": "CAPTIONS MATCH YOUR APPROVED COPY",
+      "fact": "F12, F13 (shown on the real docs/reel.md text-audit lines)"
     },
     {
-      "text": "NO NVIDIA GPU NEEDED",
-      "fact": "F3 (shot shows a FastSD scene, F8/F16)"
+      "text": "9:16 AND 16:9 FROM ONE EDIT",
+      "fact": "F9 (shown over a FastSD scene, F8/F16; no other text on screen)"
     },
     {
-      "text": "FREE AND LOCAL",
+      "text": "FREE. OPEN SOURCE. LOCAL.",
       "fact": "F1, F2"
+    },
+    {
+      "text": "It does not generate motion of people itself (L1); it edits clips you supply",
+      "fact": "L1, F10"
     }
   ],
-  "not_a_repeat_of": "No posts yet in posts.jsonl. The earlier (unposted) draft for this date was about exact captions / the copy lock; this one is about local rendering with no credits, tied to a fresh trend, with a different hook and different shots (install card, shot list, FastSD scene)."
+  "not_a_repeat_of": "posts.jsonl is empty (nothing posted yet). Earlier unposted drafts for this date were about exact captions alone and about no credits / local rendering; this one is about funkbox as the edit around generated shots (clips in, beat cuts, exact captions, two formats), tied to a new trend, with a different hook and shots."
 }
