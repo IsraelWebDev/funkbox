@@ -43,8 +43,9 @@ def write(day: Path, verdict: str, reviewer: str, notes: str) -> dict:
     return doc
 
 
-def check(day: Path) -> str | None:
-    """None when <day> holds a PASS review of exactly the current video and caption; else the reason it doesn't."""
+def check(day: Path, video_sha: str | None = None) -> str | None:
+    """None when <day> holds a PASS review of exactly the current video and caption; else the reason it doesn't.
+    ``video_sha``: the video is no longer here (it was posted and not kept); its recorded hash stands in for it."""
     p = day / REVIEW
     if not p.is_file():
         return "no review.json: the reviewer has not signed off"
@@ -54,7 +55,13 @@ def check(day: Path) -> str | None:
         return f"review.json is not valid JSON: {e}"
     if r.get("verdict") != "PASS":
         return f"review verdict is {r.get('verdict')!r}: {r.get('notes', '')}"
-    for f, key in ((VIDEO, "video_sha256"), (CAPTION, "caption_sha256")):
+    if video_sha is not None and not (day / VIDEO).is_file():
+        if video_sha != r.get("video_sha256"):
+            return f"{VIDEO} that was posted is not the one reviewed (hash mismatch)"
+        files = ((CAPTION, "caption_sha256"),)
+    else:
+        files = ((VIDEO, "video_sha256"), (CAPTION, "caption_sha256"))
+    for f, key in files:
         if not (day / f).is_file():
             return f"{f} is missing"
         if sha256(day / f) != r.get(key):

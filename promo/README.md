@@ -13,6 +13,7 @@ whole history is public.
 | `assets.py`, `music.py` | the day's asset pack: fresh loops, the demo ad, real stills, code cards from real files, music |
 | `review.py` | writes the verdict, bound to the sha256 of the exact video and caption |
 | `post.py` | posts; refuses without a matching PASS, once per platform per day, dry-runs without secrets |
+| `pending.py` | keeps a reviewed video in the private repo IsraelWebDev/funkbox-pending until it is posted; the next run's `catchup` finishes what a failed run left (up to 2 days) |
 | `auth_youtube.py` | one-time YouTube sign-in that prints the refresh token |
 
 ## Pause or stop

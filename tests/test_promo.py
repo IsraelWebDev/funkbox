@@ -62,16 +62,24 @@ def test_one_post_per_platform_per_day(day, monkeypatch, capsys):
                         lambda p, v, c, l: calls.append(v) or {"id": "abc", "url": "https://youtube.com/shorts/abc"})
     assert post.run(day, ["youtube"], today="2026-10-29") == 0
     assert post.run(day, ["youtube"], today="2026-10-29") == 0
+    assert len(calls) == 1 and "already posted" in capsys.readouterr().out
+    other = day.parent / "2026-10-29-b"                                # a second promo the same UTC day: refused
+    other.mkdir()
+    for f in ("final.mp4", "caption.json"):
+        (other / f).write_bytes((day / f).read_bytes())
+    review.write(other, "PASS", "reviewer agent", "ok")
+    assert post.run(other, ["youtube"], today="2026-10-29") == 0
     assert len(calls) == 1 and "already posted today" in capsys.readouterr().out
     log = [json.loads(l) for l in post.LOG.read_text().splitlines()]
     assert log[0]["ok"] and log[0]["url"].endswith("abc") and log[0]["video_sha256"] == review.sha256(day / "final.mp4")
-    assert post.run(day, ["youtube"], today="2026-10-30") == 0 and len(calls) == 2
+    assert post.run(day, ["youtube"], today="2026-10-30") == 0 and len(calls) == 1   # same promo, next day: no repost
+    assert "already posted" in capsys.readouterr().out
 
 
 def test_failures_are_logged_and_exit_nonzero(day, monkeypatch):
     review.write(day, "PASS", "reviewer agent", "ok")
     monkeypatch.setenv("BUFFER_API_KEY", "k")
-    post.LOG.write_text(json.dumps({"date": "2026-10-29", "platform": "youtube", "ok": True,
+    post.LOG.write_text(json.dumps({"date": "2026-10-29", "platform": "youtube", "ok": True, "day": day.name,
                                     "url": "https://youtube.com/shorts/abc"}) + "\n")
 
     def boom(p, v, c, l):
@@ -146,9 +154,9 @@ def test_x_goes_through_buffer_after_youtube(day, monkeypatch, capsys):
     fake = FakeBuffer()
     monkeypatch.setattr(post, "_http", fake)
     assert post.run(day, ["x"], today="2026-10-29") == 0                     # no YouTube post yet: nothing sent
-    assert "no YouTube post today" in capsys.readouterr().out and not fake.reqs
-    post.LOG.write_text(json.dumps({"date": "2026-10-29", "platform": "youtube", "ok": True,
-                                    "url": "https://youtube.com/shorts/abc"}) + "\n")
+    assert "no YouTube post to link" in capsys.readouterr().out and not fake.reqs
+    post.LOG.write_text(json.dumps({"date": "2026-10-28", "platform": "youtube", "ok": True, "day": day.name,
+                                    "url": "https://youtube.com/shorts/abc"}) + "\n")   # yesterday's upload counts
     assert post.run(day, ["x"], today="2026-10-29") == 0
     create = next(r for r in fake.reqs if "createPost" in r["query"])["variables"]["input"]
     assert create["channelId"] == "c-x" and create["mode"] == "shareNow"
@@ -204,3 +212,60 @@ def test_playbook_and_review_reference_real_commands():
         assert needle in pb, needle
     tpl = json.loads((ROOT / "promo" / "templates" / "promo.reel.json").read_text())
     assert tpl["audio"]["bpm"] == 110 and tpl["settings"]["height"] == 1920
+
+
+@pytest.fixture
+def pending(day, monkeypatch, tmp_path):
+    """pending.py against a real (local, bare, empty) git repo standing in for the private one."""
+    import subprocess
+    import pending as pend
+    bare = tmp_path / "pending.git"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
+    monkeypatch.setattr(pend, "PENDING_URL", bare.as_uri())
+    monkeypatch.setattr(pend, "PENDING_DIR", tmp_path / "clone")
+    monkeypatch.setattr(pend, "DAYS", day.parent)
+    monkeypatch.setenv("GIT_AUTHOR_NAME", "t"); monkeypatch.setenv("GIT_COMMITTER_NAME", "t")
+    monkeypatch.setenv("GIT_AUTHOR_EMAIL", "t@e"); monkeypatch.setenv("GIT_COMMITTER_EMAIL", "t@e")
+    return pend
+
+
+def test_saved_video_is_posted_by_the_next_run(day, pending, monkeypatch):
+    pend = pending
+    with pytest.raises(pend.PendingError, match="review"):          # only reviewed videos are kept
+        pend.save(day)
+    review.write(day, "PASS", "reviewer agent", "ok")
+    pend.save(day)
+    assert pend.open_store().days() == ["2026-10-29"]               # pushed: a fresh clone has it
+    original = (day / "final.mp4").read_bytes()
+    (day / "final.mp4").unlink()                                   # the run died: its container is gone
+    posted = []
+    monkeypatch.setattr(post, "publish", lambda p, v, c, l: posted.append((p, v.read_bytes(), l)) or
+                        {"id": p, "url": f"https://example/{p}"})
+    for k in ("YT_AUTH", "BUFFER_AUTH"):
+        monkeypatch.setenv(k, "proxy")
+    notes = pend.catchup(today="2026-10-30")
+    assert posted == [("youtube", original, None), ("x", original, "https://example/youtube")], notes
+    assert pend.open_store().days() == []                          # posted, so the saved copy is gone
+    assert pend.catchup(today="2026-10-30") == ["nothing owed"]
+
+
+def test_catchup_finishes_x_without_the_video_and_drops_stale_days(day, pending, monkeypatch):
+    pend = pending
+    review.write(day, "PASS", "reviewer agent", "ok")
+    sha = review.sha256(day / "final.mp4")
+    (day / "final.mp4").unlink()
+    post.LOG.write_text(json.dumps({"date": "2026-10-29", "platform": "youtube", "day": day.name, "ok": True,
+                                    "url": "https://youtube.com/shorts/abc", "video_sha256": sha}) + "\n")
+    posted = []
+    monkeypatch.setattr(post, "publish", lambda p, v, c, l: posted.append((p, l)) or {"id": "1", "url": "u"})
+    monkeypatch.setenv("BUFFER_AUTH", "proxy")
+    pend.catchup(today="2026-10-30")
+    assert posted == [("x", "https://youtube.com/shorts/abc")]
+    assert json.loads(post.LOG.read_text().splitlines()[-1])["video_sha256"] == sha
+    # a video saved 3 days ago is dropped, not posted
+    old = day.parent / "2026-10-26"
+    old.mkdir()
+    (old / "final.mp4").write_bytes(b"old video")
+    pend.open_store().put("2026-10-26", old / "final.mp4")
+    notes = pend.catchup(today="2026-10-29")
+    assert any("dropped without posting" in n for n in notes) and pend.open_store().days() == []

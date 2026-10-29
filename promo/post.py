@@ -6,7 +6,7 @@
 Hard gates, in code (the agent cannot talk its way past them):
 - promo/PAUSED exists, or PROMO_PAUSED=1  -> nothing is posted (exit 3)
 - review.json must be a PASS for the exact bytes of final.mp4 and caption.json (promo/review.py)
-- at most one post per platform per UTC day (promo/posts.jsonl)
+- at most one post per platform per UTC day, and each promo day posts once per platform (promo/posts.jsonl)
 - caption limits: X text <= 255 chars and no URL (this script appends today's YouTube link, 23 chars on X);
   YouTube title <= 100, no < or > anywhere; video <= 60 s, vertical
 - a short post (X, or any other Buffer channel) goes out only after today's YouTube post succeeded
@@ -96,6 +96,12 @@ def history() -> list[dict]:
 
 def posted_today(platform: str, today: str) -> dict | None:
     return next((e for e in history() if e.get("platform") == platform and e.get("date") == today
+                 and not e.get("dry_run") and e.get("ok")), None)
+
+
+def posted_day(platform: str, day: str) -> dict | None:
+    """The successful post of promo day ``day`` (a folder name) on ``platform``, whenever it went out."""
+    return next((e for e in history() if e.get("platform") == platform and e.get("day") == day
                  and not e.get("dry_run") and e.get("ok")), None)
 
 
@@ -254,13 +260,16 @@ def run(day: Path, platforms: list[str], dry_run: bool = False, today: str | Non
     if PAUSE.exists() or os.environ.get("PROMO_PAUSED") == "1":
         print("PAUSED: promo/PAUSED exists or PROMO_PAUSED=1; nothing posted")
         return 3
-    why = review.check(day)
+    video = day / review.VIDEO
+    yt_done = posted_day("youtube", day.name)
+    # A day whose Short is already up can finish its short posts without the video: they only link to it.
+    linked_only = not video.is_file() and yt_done is not None and "youtube" not in platforms
+    why = review.check(day, video_sha=yt_done.get("video_sha256") if linked_only else None)
     if why:
         print(f"REFUSED: {why}")
         return 2
     cap = json.loads((day / review.CAPTION).read_text(encoding="utf-8"))
-    video = day / review.VIDEO
-    probs = caption_problems(cap) + video_problems(video)
+    probs = caption_problems(cap) + ([] if linked_only else video_problems(video))
     if probs:
         print("REFUSED:\n  " + "\n  ".join(probs))
         return 2
@@ -271,14 +280,19 @@ def run(day: Path, platforms: list[str], dry_run: bool = False, today: str | Non
             rc = 2
             continue
         text = cap.get("youtube", {}).get("title") if p == "youtube" else (cap.get(p) or cap["x"])["text"]
-        entry = {"date": today, "platform": p, "day": day.name, "video_sha256": review.sha256(video), "title": text}
+        entry = {"date": today, "platform": p, "day": day.name, "title": text,
+                 "video_sha256": yt_done["video_sha256"] if linked_only else review.sha256(video)}
+        prev = posted_day(p, day.name)
+        if prev:
+            print(f"{p}: this promo is already posted ({prev.get('url')}); skipped")
+            continue
         prev = posted_today(p, today)
         if prev:
             print(f"{p}: already posted today ({prev.get('url')}); skipped")
             continue
         link = None
-        if p != "youtube":                                # short posts link to today's Short, so it must exist
-            yt = posted_today("youtube", today)
+        if p != "youtube":                                # short posts link to this promo's Short, so it must exist
+            yt = posted_day("youtube", day.name)
             link = yt.get("url") if yt else None
         missing = [k for k in secrets_for(p) if not os.environ.get(k)]
         if dry_run or missing:
@@ -286,7 +300,7 @@ def run(day: Path, platforms: list[str], dry_run: bool = False, today: str | Non
             print(f"{p}: DRY RUN ({why}); would post {text!r}" + (f" + {link or '<the YouTube link>'}" if p != "youtube" else ""))
             continue
         if p != "youtube" and not link:
-            print(f"{p}: skipped, no YouTube post today to link to")
+            print(f"{p}: skipped, this promo has no YouTube post to link to yet")
             continue
         try:
             res = publish(p, video, cap, link)

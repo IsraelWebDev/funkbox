@@ -6,9 +6,14 @@ YouTube Shorts and X after an independent review. Follow these steps in order. W
 
 ## 0. Setup (fresh session)
 - Get a push-capable checkout of IsraelWebDev/funkbox (attach the repo with push access, then clone), `cd` into it.
+  Also attach IsraelWebDev/funkbox-pending (private) with push access; `promo/pending.py` clones it itself.
 - `pip install --break-system-packages -r requirements.txt` ; on Linux without a display `export FUNK_GL_BACKEND=egl`.
 - If `promo/PAUSED` exists: report "paused" and stop.
 - Read `promo/FACTS.md`, `promo/REVIEW.md` and the last 14 lines of `promo/posts.jsonl`.
+- Catch up first: `python promo/pending.py catchup`. It posts what earlier runs still owe (a reviewed video saved
+  before a failed upload, or an X post whose Short is already up) through the same gates. If it changed
+  `promo/posts.jsonl`, commit that (`promo: catch up [skip ci]`) and push. If it posted to YouTube today, today's
+  slot is used: skip to step 5 and report the catch-up.
 
 ## 1. Find today's angle (10 minutes, not more)
 - Web-search what is new in AI video in the last 48 hours: model releases, features, creator workflows, debates
@@ -44,10 +49,17 @@ YouTube Shorts and X after an independent review. Follow these steps in order. W
   FAIL means no post today: log why in your report and stop.
 
 ## 4. Post
-- `python promo/post.py promo/days/<date>` (it refuses without a PASS for the exact files, posts at most once per
-  platform per day, and dry-runs a platform whose secrets are missing).
-- Commit `promo/days/<date>/{brief,copy,reel,caption,review}.json`, `assets.json` and `promo/posts.jsonl` with message
-  `promo: <date> <angle> [skip ci]` and push to main. Never commit videos or secrets.
+- Save first: `python promo/pending.py save promo/days/<date>` keeps the reviewed video in the private repo
+  IsraelWebDev/funkbox-pending until it is posted, so a failure below can be finished by tomorrow's catch-up
+  instead of redone. If saving fails, note it in the report and continue.
+- Commit `promo/days/<date>/{brief,copy,reel,caption,review}.json`, `assets.json` and `final.text_audit.json` with
+  message `promo: <date> <angle> [skip ci]` and push to main, BEFORE posting (the catch-up needs the review).
+  Never commit videos or secrets.
+- `python promo/post.py promo/days/<date>` (it refuses without a PASS for the exact files, posts each promo once
+  per platform and at most once per platform per day, posts X only after the Short is up, and dry-runs a platform
+  whose secrets are missing). If it fails, run it once more; if it fails again, stop: the catch-up retries tomorrow.
+- `python promo/pending.py done promo/days/<date>` (drops the saved copy once YouTube has it).
+- Commit `promo/posts.jsonl` (`promo: <date> posted [skip ci]`) and push.
 
 ## 5. Report
 Reply with: the angle and its source links, the post URLs (or "dry run" / "skipped" and why), and the reviewer's notes.
