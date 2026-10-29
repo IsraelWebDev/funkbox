@@ -139,22 +139,22 @@
       "source": "docs/reel.md:67-69"
     },
     {
-      "id": "music",
-      "kind": "music",
-      "path": "assets/music.mp3",
-      "note": "seeded music bed, 110 BPM, 30 s",
-      "bpm": 110
-    },
-    {
       "id": "card-text-exact",
       "kind": "image",
       "path": "assets/card-text-exact.png",
-      "note": "how the text audit works, from the docs (docs/reel.md lines 9-11, verbatim)",
+      "note": "how the text audit works, from the docs (docs/reel.md lines 9-11, verbatim; text sits in the top part of the card)",
       "size": [
         1080,
         1920
       ],
       "source": "docs/reel.md:9-11"
+    },
+    {
+      "id": "music",
+      "kind": "music",
+      "path": "assets/music.mp3",
+      "note": "seeded music bed, 110 BPM, 30 s",
+      "bpm": 110
     }
   ]
 }

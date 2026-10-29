@@ -1,18 +1,10 @@
 {
   "youtube": {
-    "title": "Captions that match your approved copy, byte for byte",
-    "description": "What if your ad has a typo? In funkbox every caption comes from one approved copy file. You approve the wording, it is hash-locked, and every render writes a text audit proving each on-screen string matches, byte for byte.\n\nFree, open source, runs locally: https://github.com/IsraelWebDev/funkbox\nMade with funkbox.",
-    "tags": [
-      "funkbox",
-      "AI video",
-      "Claude",
-      "MCP",
-      "open source",
-      "video ads",
-      "local AI"
-    ]
+    "title": "Paying credits for every AI video retake? Render on your own computer",
+    "description": "Paying credits for every retake? funkbox renders on your own computer: no credits, no accounts, no NVIDIA GPU needed. Change a line in the shot list and render again.\n\nFree, open source, runs locally: https://github.com/IsraelWebDev/funkbox\nMade with funkbox.",
+    "tags": ["funkbox", "AI video", "local AI", "open source", "video ads", "Shorts"]
   },
   "x": {
-    "text": "What if your ad has a typo?\n\nIn funkbox every caption comes from one approved copy file. It's hash-locked, and every render is audited against it, byte for byte. Runs on your own laptop.\n\nMade with funkbox. Free and open source: IsraelWebDev/funkbox on GitHub #AIvideo"
+    "text": "Paying credits for every AI video retake?\n\nfunkbox renders on your own computer: no credits, no accounts, no NVIDIA GPU needed. Change a line in the shot list, render again.\n\nMade with funkbox. Free and open source: IsraelWebDev/funkbox on GitHub #AIvideo #opensource"
   }
 }

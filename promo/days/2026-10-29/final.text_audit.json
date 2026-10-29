@@ -1,6 +1,6 @@
 {
   "reel": "final",
-  "copy_deck": "/home/claude/funkbox-pub/promo/days/2026-10-29/copy.json",
+  "copy_deck": "/home/claude/funkbox/promo/days/2026-10-29/copy.json",
   "fps": 30,
   "ok": true,
   "missing": [],
@@ -15,11 +15,12 @@
       "copy_id": "hook",
       "first_frame": 5,
       "last_frame": 81,
-      "text": "WHAT IF YOUR AD\nHAS A TYPO?",
-      "complete_frame": 32,
+      "text": "PAYING CREDITS\nFOR EVERY RETAKE?",
+      "complete_frame": 38,
       "drawn_lines": [
-        "WHAT IF YOUR AD",
-        "HAS A TYPO?"
+        "PAYING CREDITS",
+        "FOR EVERY",
+        "RETAKE?"
       ],
       "text_exact": true,
       "frames": [
@@ -29,17 +30,19 @@
     },
     {
       "kind": "caption",
-      "shot": "deck",
+      "shot": "install",
       "slot": "caption",
       "instance": "main",
       "copy_id": "p1",
       "first_frame": 87,
       "last_frame": 179,
-      "text": "EVERY CAPTION\nFROM ONE FILE",
-      "complete_frame": 114,
+      "text": "FUNKBOX RENDERS ON\nYOUR OWN COMPUTER",
+      "complete_frame": 124,
       "drawn_lines": [
-        "EVERY CAPTION",
-        "FROM ONE FILE"
+        "FUNKBOX",
+        "RENDERS ON",
+        "YOUR OWN",
+        "COMPUTER"
       ],
       "text_exact": true,
       "frames": [
@@ -49,62 +52,62 @@
     },
     {
       "kind": "caption",
-      "shot": "lock",
+      "shot": "nocredits",
       "slot": "caption",
       "instance": "main",
       "copy_id": "p2",
       "first_frame": 185,
-      "last_frame": 277,
-      "text": "YOU APPROVE IT.\nTHEN IT'S LOCKED.",
-      "complete_frame": 219,
+      "last_frame": 261,
+      "text": "NO CREDITS.\nNO ACCOUNTS.",
+      "complete_frame": 209,
       "drawn_lines": [
-        "YOU APPROVE IT.",
-        "THEN IT'S LOCKED."
+        "NO CREDITS.",
+        "NO ACCOUNTS."
       ],
       "text_exact": true,
       "frames": [
         185,
-        277
+        261
       ]
     },
     {
       "kind": "caption",
-      "shot": "proof",
+      "shot": "retake",
       "slot": "caption",
       "instance": "main",
       "copy_id": "p3",
-      "first_frame": 283,
-      "last_frame": 392,
-      "text": "EVERY RENDER\nIS AUDITED",
-      "complete_frame": 306,
+      "first_frame": 267,
+      "last_frame": 359,
+      "text": "CHANGE A LINE.\nRENDER AGAIN.",
+      "complete_frame": 295,
       "drawn_lines": [
-        "EVERY RENDER",
-        "IS AUDITED"
+        "CHANGE A LINE.",
+        "RENDER AGAIN."
       ],
       "text_exact": true,
       "frames": [
-        283,
-        392
+        267,
+        359
       ]
     },
     {
       "kind": "caption",
-      "shot": "local",
+      "shot": "gpu",
       "slot": "caption",
       "instance": "main",
       "copy_id": "p4",
-      "first_frame": 398,
-      "last_frame": 474,
-      "text": "RUNS ON YOUR\nOWN LAPTOP",
-      "complete_frame": 421,
+      "first_frame": 365,
+      "last_frame": 457,
+      "text": "NO NVIDIA GPU\nNEEDED",
+      "complete_frame": 385,
       "drawn_lines": [
-        "RUNS ON YOUR",
-        "OWN LAPTOP"
+        "NO NVIDIA GPU",
+        "NEEDED"
       ],
       "text_exact": true,
       "frames": [
-        398,
-        474
+        365,
+        457
       ]
     },
     {
@@ -113,17 +116,17 @@
       "slot": "url",
       "instance": "bottom",
       "copy_id": "url",
-      "first_frame": 475,
-      "last_frame": 579,
+      "first_frame": 458,
+      "last_frame": 562,
       "text": "github.com/IsraelWebDev/funkbox",
-      "complete_frame": 475,
+      "complete_frame": 458,
       "drawn_lines": [
         "github.com/IsraelWebDev/funkbox"
       ],
       "text_exact": true,
       "frames": [
-        475,
-        579
+        458,
+        562
       ]
     },
     {
@@ -132,17 +135,17 @@
       "slot": "url",
       "instance": "top",
       "copy_id": "url",
-      "first_frame": 475,
-      "last_frame": 579,
+      "first_frame": 458,
+      "last_frame": 562,
       "text": "github.com/IsraelWebDev/funkbox",
-      "complete_frame": 475,
+      "complete_frame": 458,
       "drawn_lines": [
         "github.com/IsraelWebDev/funkbox"
       ],
       "text_exact": true,
       "frames": [
-        475,
-        579
+        458,
+        562
       ]
     },
     {
@@ -151,17 +154,17 @@
       "slot": "headline",
       "instance": "main",
       "copy_id": "end_head",
-      "first_frame": 485,
-      "last_frame": 579,
+      "first_frame": 468,
+      "last_frame": 562,
       "text": "funkbox",
-      "complete_frame": 498,
+      "complete_frame": 481,
       "drawn_lines": [
         "funkbox"
       ],
       "text_exact": true,
       "frames": [
-        485,
-        579
+        468,
+        562
       ]
     },
     {
@@ -170,17 +173,17 @@
       "slot": "sub",
       "instance": "main",
       "copy_id": "end_sub",
-      "first_frame": 504,
-      "last_frame": 579,
+      "first_frame": 487,
+      "last_frame": 562,
       "text": "FREE AND LOCAL",
-      "complete_frame": 504,
+      "complete_frame": 487,
       "drawn_lines": [
         "FREE AND LOCAL"
       ],
       "text_exact": true,
       "frames": [
-        504,
-        579
+        487,
+        562
       ]
     }
   ]

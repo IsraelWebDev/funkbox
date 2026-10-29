@@ -1,32 +1,38 @@
 {
   "date": "2026-10-29",
   "trend": {
-    "summary": "No fresh (last 7 days), verifiable AI-video item with an honest funkbox link today; the most relevant hit (Veo 3.1 vertical output) dates from about January 2026. Evergreen angle used.",
-    "sources": []
+    "summary": "An Oct 27, 2026 roundup of popular AI video generators notes that on some services generations still count against your credits even when you discard the result, and advises tracking the money and time needed for one usable result.",
+    "sources": [
+      {
+        "title": "10 Popular AI Video Generators: Prices, Free Plans and Business Uses (FinChannel)",
+        "url": "https://finchannel.com/10-popular-ai-video-generators-and-what-businesses-actually-get-for-their-money/139566/reviews/2026/10",
+        "date": "2026-10-27"
+      }
+    ]
   },
-  "angle": "Exact captions: funkbox captions come only from an approved, hash-locked copy file, and every render is audited against it.",
-  "hook": "WHAT IF YOUR AD HAS A TYPO?",
+  "angle": "Retakes are free when the render runs on your own computer: funkbox has no credits and no accounts, so you change a line in the shot list and render again. No NVIDIA GPU needed.",
+  "hook": "PAYING CREDITS FOR EVERY RETAKE?",
   "claims": [
     {
-      "text": "EVERY CAPTION FROM ONE FILE",
-      "fact": "F12"
-    },
-    {
-      "text": "YOU APPROVE IT. THEN IT'S LOCKED.",
-      "fact": "F12"
-    },
-    {
-      "text": "EVERY RENDER IS AUDITED",
-      "fact": "F13"
-    },
-    {
-      "text": "RUNS ON YOUR OWN LAPTOP",
+      "text": "FUNKBOX RENDERS ON YOUR OWN COMPUTER",
       "fact": "F2"
+    },
+    {
+      "text": "NO CREDITS. NO ACCOUNTS.",
+      "fact": "F2"
+    },
+    {
+      "text": "CHANGE A LINE. RENDER AGAIN.",
+      "fact": "F2 (no credits, so a re-render costs nothing); shown on a real shot list, F9/F10"
+    },
+    {
+      "text": "NO NVIDIA GPU NEEDED",
+      "fact": "F3 (shot shows a FastSD scene, F8/F16)"
     },
     {
       "text": "FREE AND LOCAL",
       "fact": "F1, F2"
     }
   ],
-  "not_a_repeat_of": "first post"
+  "not_a_repeat_of": "No posts yet in posts.jsonl. The earlier (unposted) draft for this date was about exact captions / the copy lock; this one is about local rendering with no credits, tied to a fresh trend, with a different hook and different shots (install card, shot list, FastSD scene)."
 }

@@ -38,31 +38,28 @@
       }
     },
     {
-      "id": "deck",
+      "id": "install",
       "source": {
-        "image": "assets/card-copy-json.png"
+        "image": "assets/card-install.png"
       },
       "duration": "beats:6",
       "transition_in": "zoom-punch",
       "motion": {
-        "type": "frame",
-        "from": [
-          0.0,
-          0.0,
+        "type": "kenburns",
+        "zoom": [
           1.0,
-          1.0
+          1.1
         ],
-        "to": [
-          0.05,
-          0.1,
-          0.5,
-          0.1
-        ],
-        "at": [
-          0.05,
-          0.7
-        ],
-        "ease": "out"
+        "pan": [
+          [
+            0,
+            0
+          ],
+          [
+            -0.02,
+            -0.04
+          ]
+        ]
       },
       "caption": {
         "copy_id": "p1",
@@ -72,7 +69,25 @@
       }
     },
     {
-      "id": "lock",
+      "id": "nocredits",
+      "source": {
+        "video": "assets/loop-pop-moire.mp4",
+        "loop": true
+      },
+      "duration": "beats:5",
+      "transition_in": "flash",
+      "motion": {
+        "type": "none"
+      },
+      "caption": {
+        "copy_id": "p2",
+        "style": "red-box",
+        "reveal": "typewriter",
+        "anchor": "center"
+      }
+    },
+    {
+      "id": "retake",
       "source": {
         "image": "assets/card-reel-json.png"
       },
@@ -81,54 +96,20 @@
       "motion": {
         "type": "frame",
         "from": [
-          0.0,
-          0.0,
-          1.0,
-          1.0
+          0,
+          0,
+          1,
+          1
         ],
         "to": [
           0.02,
-          0.47,
-          0.74,
-          0.09
+          0.3,
+          0.55,
+          0.2
         ],
         "at": [
           0.05,
           0.7
-        ],
-        "ease": "out"
-      },
-      "caption": {
-        "copy_id": "p2",
-        "style": "red-box",
-        "reveal": "typewriter",
-        "anchor": "top"
-      }
-    },
-    {
-      "id": "proof",
-      "source": {
-        "image": "assets/card-text-exact.png"
-      },
-      "duration": "beats:7",
-      "transition_in": "flash",
-      "motion": {
-        "type": "frame",
-        "from": [
-          0.0,
-          0.0,
-          1.0,
-          1.0
-        ],
-        "to": [
-          0.02,
-          0.08,
-          0.66,
-          0.3
-        ],
-        "at": [
-          0.05,
-          0.75
         ],
         "ease": "out"
       },
@@ -140,21 +121,34 @@
       }
     },
     {
-      "id": "local",
+      "id": "gpu",
       "source": {
-        "video": "assets/loop-pop-moire.mp4",
-        "loop": true
+        "image": "assets/scene-dog.jpg"
       },
-      "duration": "beats:5",
+      "duration": "beats:6",
       "transition_in": "zoom-punch",
       "motion": {
-        "type": "none"
+        "type": "kenburns",
+        "zoom": [
+          1.0,
+          1.12
+        ],
+        "pan": [
+          [
+            0,
+            0
+          ],
+          [
+            0.02,
+            -0.03
+          ]
+        ]
       },
       "caption": {
         "copy_id": "p4",
         "style": "red-box",
         "reveal": "typewriter",
-        "anchor": "center"
+        "anchor": "top"
       }
     }
   ],
