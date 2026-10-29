@@ -95,15 +95,18 @@ def history() -> list[dict]:
     return [json.loads(l) for l in LOG.read_text(encoding="utf-8").splitlines() if l.strip()]
 
 
+def _live(e: dict) -> bool:
+    """A real, successful post that still stands (not a dry run, and not marked "replaced" by the owner)."""
+    return bool(e.get("ok")) and not e.get("dry_run") and not e.get("replaced")
+
+
 def posted_today(platform: str, today: str) -> dict | None:
-    return next((e for e in history() if e.get("platform") == platform and e.get("date") == today
-                 and not e.get("dry_run") and e.get("ok")), None)
+    return next((e for e in history() if e.get("platform") == platform and e.get("date") == today and _live(e)), None)
 
 
 def posted_day(platform: str, day: str) -> dict | None:
     """The successful post of promo day ``day`` (a folder name) on ``platform``, whenever it went out."""
-    return next((e for e in history() if e.get("platform") == platform and e.get("day") == day
-                 and not e.get("dry_run") and e.get("ok")), None)
+    return next((e for e in history() if e.get("platform") == platform and e.get("day") == day and _live(e)), None)
 
 
 # --------------------------------------------------------------------------- http

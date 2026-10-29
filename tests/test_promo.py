@@ -314,3 +314,9 @@ def test_x_falls_back_to_the_link_when_buffer_refuses_the_video(day, monkeypatch
     monkeypatch.setattr(post, "buffer_post", bp)
     assert post.publish("x", day / "final.mp4", GOOD_CAP, "https://youtube.com/shorts/abc", "https://v")["media"] == "link"
     assert calls == ["https://v", None] and "posting the link instead" in capsys.readouterr().out
+
+
+def test_a_replaced_post_no_longer_counts(day, monkeypatch):
+    post.LOG.write_text(json.dumps({"date": "2026-10-29", "platform": "x", "day": day.name, "ok": True,
+                                    "url": "u1", "replaced": "deleted by the owner"}) + "\n")
+    assert post.posted_day("x", day.name) is None and post.posted_today("x", "2026-10-29") is None
