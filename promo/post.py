@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Post a reviewed promo day to YouTube (Shorts) and X.
+"""Post a reviewed promo day to YouTube (Shorts), then a short post linking to it on X (through Buffer).
 
     python promo/post.py promo/days/2026-10-29 [--platforms youtube,x] [--dry-run]
 
@@ -7,35 +7,33 @@ Hard gates, in code (the agent cannot talk its way past them):
 - promo/PAUSED exists, or PROMO_PAUSED=1  -> nothing is posted (exit 3)
 - review.json must be a PASS for the exact bytes of final.mp4 and caption.json (promo/review.py)
 - at most one post per platform per UTC day (promo/posts.jsonl)
-- caption limits: X text <= 280 chars and NO URLs (a link post costs ~13x more on X); YouTube title <= 100,
-  no < or > anywhere; video <= 60 s, vertical
+- caption limits: X text <= 255 chars and no URL (this script appends today's YouTube link, 23 chars on X);
+  YouTube title <= 100, no < or > anywhere; video <= 60 s, vertical
+- a short post (X, or any other Buffer channel) goes out only after today's YouTube post succeeded
 - a platform whose secrets are not set is skipped as a dry run, never an error
 
 Secrets come from the environment only: YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN (YouTube, OAuth refresh
-token from promo/auth_youtube.py) and X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET (X, OAuth 1.0a user
-context). Nothing secret is printed or written anywhere.
+token from promo/auth_youtube.py) and BUFFER_API_KEY (Buffer, which posts to X for free; the X account is connected
+inside Buffer). Nothing secret is printed or written anywhere.
 
 YT_AUTH=proxy: the three YouTube values are not in the environment at all. A network proxy that holds them (Claude
 Code on the web: a "Body parameter" network secret for oauth2.googleapis.com /token) adds client_id, client_secret
 and refresh_token to the token request, so this script sends only grant_type and never sees them.
+BUFFER_AUTH=proxy: the same for Buffer, with a "Header" network secret (Authorization: Bearer <key>) for
+api.buffer.com; this script then sends no Authorization header.
 """
 from __future__ import annotations
 
 import argparse
-import base64
 import datetime as dt
-import hashlib
-import hmac
 import json
 import os
 import re
-import secrets
 import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
-import uuid
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -47,8 +45,6 @@ LOG = HERE / "posts.jsonl"
 PAUSE = HERE / "PAUSED"
 URL_RE = re.compile(r"https?://|www\.|\b[a-z0-9-]+\.(com|io|ai|dev|org|net|app|co|so|gg)\b", re.I)
 YT_SECRETS = ("YT_CLIENT_ID", "YT_CLIENT_SECRET", "YT_REFRESH_TOKEN")
-X_SECRETS = ("X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_SECRET")
-X_API = "https://api.x.com"
 
 
 class PostError(RuntimeError):
@@ -69,8 +65,8 @@ def caption_problems(cap: dict) -> list[str]:
     if not isinstance(tags, list) or sum(len(t) + 1 for t in tags) > 450:
         out.append("youtube.tags must be a list totalling under 450 chars")
     text = x.get("text", "")
-    if not text or len(text) > 280:
-        out.append(f"x.text must be 1-280 chars (has {len(text)})")
+    if not text or len(text) > 255:
+        out.append(f"x.text must be 1-255 chars (has {len(text)}; the YouTube link is added after it)")
     if URL_RE.search(text):
         out.append("x.text must not contain a URL or domain (name the repo as IsraelWebDev/funkbox instead)")
     return out
@@ -166,82 +162,90 @@ def youtube_upload(video: Path, cap: dict) -> dict:
     return {"id": vid, "url": f"https://youtube.com/shorts/{vid}"}
 
 
-# --------------------------------------------------------------------------- X (OAuth 1.0a user context)
-def _pct(s: str) -> str:
-    return urllib.parse.quote(str(s), safe="~")
+# --------------------------------------------------------------------------- X and others, through Buffer
+BUFFER_API = "https://api.buffer.com"
+BUFFER_SERVICE = {"x": "twitter"}          # our platform name -> Buffer's channel "service"; others map to themselves
 
 
-def oauth1_header(method: str, url: str, params: dict, key: str, secret: str, token: str, token_secret: str,
-                  nonce: str | None = None, timestamp: str | None = None) -> str:
-    """RFC 5849 HMAC-SHA1 Authorization header. ``params``: query (and form) parameters; JSON/multipart bodies are
-    not signed."""
-    oauth = {"oauth_consumer_key": key, "oauth_nonce": nonce or secrets.token_hex(16),
-             "oauth_signature_method": "HMAC-SHA1", "oauth_timestamp": timestamp or str(int(time.time())),
-             "oauth_token": token, "oauth_version": "1.0"}
-    allp = {**params, **oauth}
-    base_params = "&".join(f"{_pct(k)}={_pct(v)}" for k, v in sorted((str(k), str(v)) for k, v in allp.items()))
-    base = "&".join([method.upper(), _pct(url.split("?")[0]), _pct(base_params)])
-    sig = base64.b64encode(hmac.new(f"{_pct(secret)}&{_pct(token_secret)}".encode(), base.encode(), hashlib.sha1).digest())
-    oauth["oauth_signature"] = sig.decode()
-    return "OAuth " + ", ".join(f'{_pct(k)}="{_pct(v)}"' for k, v in sorted(oauth.items()))
+def buffer_proxy() -> bool:
+    return os.environ.get("BUFFER_AUTH", "").lower() == "proxy"
 
 
-def _x(method: str, path: str, *, query: dict | None = None, json_body: dict | None = None,
-       multipart: tuple[bytes, str] | None = None, timeout: float = 120) -> dict:
-    url = X_API + path
-    q = query or {}
-    auth = oauth1_header(method, url, q, os.environ["X_API_KEY"], os.environ["X_API_SECRET"],
-                         os.environ["X_ACCESS_TOKEN"], os.environ["X_ACCESS_SECRET"])
-    headers = {"Authorization": auth}
-    data = None
-    if json_body is not None:
-        data, headers["Content-Type"] = json.dumps(json_body).encode(), "application/json"
-    elif multipart is not None:
-        data, headers["Content-Type"] = multipart
-    full = url + ("?" + urllib.parse.urlencode(q) if q else "")
-    st, _, body = _http(method, full, data=data, headers=headers, timeout=timeout)
-    if st >= 300:
-        raise PostError(f"X {method} {path} failed ({st}): {_json(body)}")
-    return _json(body)
+def buffer_secrets() -> tuple[str, ...]:
+    return () if buffer_proxy() else ("BUFFER_API_KEY",)
 
 
-def _multipart(fields: dict, file_field: str, blob: bytes) -> tuple[bytes, str]:
-    b = uuid.uuid4().hex
-    parts = [f"--{b}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n".encode() for k, v in fields.items()]
-    parts.append(f"--{b}\r\nContent-Disposition: form-data; name=\"{file_field}\"; filename=\"chunk\"\r\n"
-                 f"Content-Type: application/octet-stream\r\n\r\n".encode() + blob + b"\r\n")
-    return b"".join(parts) + f"--{b}--\r\n".encode(), f"multipart/form-data; boundary={b}"
+def _gql(query: str, variables: dict | None = None) -> dict:
+    """One Buffer GraphQL call. Behind the proxy no Authorization header is sent: the proxy adds it."""
+    headers = {"Content-Type": "application/json"}
+    if not buffer_proxy():
+        headers["Authorization"] = f"Bearer {os.environ['BUFFER_API_KEY']}"
+    st, _, body = _http("POST", BUFFER_API, data=json.dumps({"query": query, "variables": variables or {}}).encode(),
+                        headers=headers, timeout=60)
+    res = _json(body)
+    if st != 200 or res.get("errors"):
+        raise PostError(f"Buffer API failed ({st}): {res.get('errors') or res}")
+    return res.get("data") or {}
 
 
-def x_post(video: Path, cap: dict) -> dict:
-    blob = video.read_bytes()
-    init = _x("POST", "/2/media/upload/initialize",
-              json_body={"media_type": "video/mp4", "total_bytes": len(blob), "media_category": "amplify_video"})
-    mid = (init.get("data") or init).get("id") or (init.get("data") or init).get("media_id_string")
-    if not mid:
-        raise PostError(f"X media initialize returned no id: {init}")
-    step = 4 * 1024 * 1024
-    for i in range(0, len(blob), step):
-        _x("POST", f"/2/media/upload/{mid}/append", multipart=_multipart({"segment_index": i // step}, "media",
-                                                                            blob[i:i + step]), timeout=300)
-    fin = _x("POST", f"/2/media/upload/{mid}/finalize")
-    info = (fin.get("data") or fin).get("processing_info")
-    for _ in range(60):
-        if not info or info.get("state") == "succeeded":
+def buffer_channel(service: str) -> dict:
+    org = os.environ.get("BUFFER_ORG_ID") or next(
+        (o["id"] for o in _gql("query { account { organizations { id } } }")["account"]["organizations"]), None)
+    if not org:
+        raise PostError("Buffer: the account has no organization")
+    # ids are inlined as JSON strings rather than typed variables, so nothing depends on Buffer's scalar names
+    chans = _gql("query { channels(input: {organizationId: %s}) { id service name isQueuePaused } }"
+                 % json.dumps(org))["channels"]
+    match = [c for c in chans if c.get("service") == service]
+    if not match:
+        raise PostError(f"Buffer: no {service} channel connected (have {sorted({c.get('service') for c in chans})})")
+    if match[0].get("isQueuePaused"):
+        raise PostError(f"Buffer: the {service} channel's queue is paused")
+    return match[0]
+
+
+def short_text(platform: str, cap: dict, link: str) -> str:
+    """The reviewed short-post text plus today's YouTube link. The link is added here, not by the agent, so the
+    reviewed words are exactly what goes out."""
+    text = (cap.get(platform) or cap["x"])["text"]
+    return f"{text}\n\n{link}"
+
+
+def buffer_post(platform: str, cap: dict, link: str) -> dict:
+    ch = buffer_channel(BUFFER_SERVICE.get(platform, platform))
+    data = _gql("""mutation($input: CreatePostInput!) { createPost(input: $input) {
+        ... on PostActionSuccess { post { id status externalLink } }
+        ... on MutationError { message } } }""",
+                {"input": {"text": short_text(platform, cap, link), "channelId": ch["id"],
+                           "schedulingType": "automatic", "mode": "shareNow"}})["createPost"]
+    if not data.get("post"):
+        raise PostError(f"Buffer refused the post: {data.get('message') or data}")
+    post = data["post"]
+    for _ in range(12):                                   # shareNow publishes within seconds; wait for the link
+        if post.get("externalLink") or post.get("status") in ("error", "sent"):
             break
-        if info.get("state") == "failed":
-            raise PostError(f"X video processing failed: {info}")
-        time.sleep(max(2, int(info.get("check_after_secs", 5))))
-        stat = _x("GET", "/2/media/upload", query={"command": "STATUS", "media_id": mid})
-        info = (stat.get("data") or stat).get("processing_info")
-    else:
-        raise PostError("X video processing did not finish in time")
-    res = _x("POST", "/2/tweets", json_body={"text": cap["x"]["text"], "media": {"media_ids": [str(mid)]}})
-    tid = (res.get("data") or {}).get("id")
-    return {"id": tid, "url": f"https://x.com/i/web/status/{tid}"}
+        time.sleep(5)
+        try:
+            post = {**post, **_gql("query { post(input: {id: %s}) { id status externalLink error { message } } }"
+                                   % json.dumps(post["id"]))["post"]}
+        except PostError:
+            break                                         # the post went out; only the status lookup failed
+    if post.get("status") == "error":
+        raise PostError(f"Buffer could not publish: {(post.get('error') or {}).get('message')}")
+    return {"id": post["id"], "url": post.get("externalLink") or f"buffer:{post['id']}", "via": "buffer"}
 
 
-PLATFORMS = {"youtube": (YT_SECRETS, youtube_upload), "x": (X_SECRETS, x_post)}
+PLATFORMS = ("youtube", "x")               # any other Buffer service name (bluesky, mastodon, threads, ...) works too
+
+
+def secrets_for(p: str) -> tuple[str, ...]:
+    if p == "youtube":
+        return () if yt_proxy() else YT_SECRETS
+    return buffer_secrets()
+
+
+def publish(p: str, video: Path, cap: dict, link: str | None) -> dict:
+    return youtube_upload(video, cap) if p == "youtube" else buffer_post(p, cap, link)
 
 
 # --------------------------------------------------------------------------- main
@@ -262,26 +266,30 @@ def run(day: Path, platforms: list[str], dry_run: bool = False, today: str | Non
         return 2
     rc = 0
     for p in platforms:
-        if p not in PLATFORMS:
-            print(f"{p}: unknown platform (have {sorted(PLATFORMS)})")
+        if not re.fullmatch(r"[a-z]+", p):
+            print(f"{p}: not a platform name (use youtube, x, or a Buffer service like bluesky)")
             rc = 2
             continue
-        need, fn = PLATFORMS[p]
-        entry = {"date": today, "platform": p, "day": day.name, "video_sha256": review.sha256(video),
-                 "title": cap.get("youtube", {}).get("title") if p == "youtube" else cap.get("x", {}).get("text")}
+        text = cap.get("youtube", {}).get("title") if p == "youtube" else (cap.get(p) or cap["x"])["text"]
+        entry = {"date": today, "platform": p, "day": day.name, "video_sha256": review.sha256(video), "title": text}
         prev = posted_today(p, today)
         if prev:
             print(f"{p}: already posted today ({prev.get('url')}); skipped")
             continue
-        if p == "youtube" and yt_proxy():
-            need = ()                                         # the proxy holds them
-        missing = [k for k in need if not os.environ.get(k)]
+        link = None
+        if p != "youtube":                                # short posts link to today's Short, so it must exist
+            yt = posted_today("youtube", today)
+            link = yt.get("url") if yt else None
+        missing = [k for k in secrets_for(p) if not os.environ.get(k)]
         if dry_run or missing:
             why = "dry run" if dry_run else f"not configured (set {', '.join(missing)})"
-            print(f"{p}: DRY RUN ({why}); would post {entry['title']!r}")
+            print(f"{p}: DRY RUN ({why}); would post {text!r}" + (f" + {link or '<the YouTube link>'}" if p != "youtube" else ""))
+            continue
+        if p != "youtube" and not link:
+            print(f"{p}: skipped, no YouTube post today to link to")
             continue
         try:
-            res = fn(video, cap)
+            res = publish(p, video, cap, link)
             entry.update(ok=True, **res)
             print(f"{p}: posted {res.get('url')}")
         except (PostError, OSError, KeyError) as e:

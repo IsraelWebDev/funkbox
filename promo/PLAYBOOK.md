@@ -34,7 +34,8 @@ YouTube Shorts and X after an independent review. Follow these steps in order. W
   (Keeps `final.mp4` and `final.text_audit.json` in the day folder.)
 - Write `caption.json`: {"youtube": {"title" (<= 100 chars, no < >), "description" (2-4 short lines; first line the
   hook; include "Free, open source, runs locally: https://github.com/IsraelWebDev/funkbox" and "Made with funkbox."),
-  "tags": [<= 8]}, "x": {"text" (<= 280 chars, NO URL or domain; name the repo as IsraelWebDev/funkbox; 1-2 hashtags)}}.
+  "tags": [<= 8]}, "x": {"text" (<= 255 chars, NO URL or domain; name the repo as IsraelWebDev/funkbox; 1-2 hashtags; post.py
+  appends the link to today's YouTube Short)}}.
 
 ## 3. Independent review
 - Spawn a SEPARATE agent (it must not be you) with this instruction: "Review the promo in promo/days/<date> by

@@ -1,4 +1,4 @@
-"""promo/: the review gate, the posting gates (no network), X request signing, and the asset helpers."""
+"""promo/: the review gate, the posting gates (no network), the Buffer calls (faked), and the asset helpers."""
 import json
 import sys
 import wave
@@ -25,7 +25,7 @@ def day(tmp_path, monkeypatch):
     monkeypatch.setattr(post, "LOG", tmp_path / "posts.jsonl")
     monkeypatch.setattr(post, "PAUSE", tmp_path / "PAUSED")
     monkeypatch.setattr(post, "video_problems", lambda p: [])
-    for k in post.YT_SECRETS + post.X_SECRETS + ("PROMO_PAUSED", "YT_AUTH"):
+    for k in post.YT_SECRETS + ("BUFFER_API_KEY", "BUFFER_AUTH", "BUFFER_ORG_ID", "PROMO_PAUSED", "YT_AUTH"):
         monkeypatch.delenv(k, raising=False)
     return d
 
@@ -58,8 +58,8 @@ def test_one_post_per_platform_per_day(day, monkeypatch, capsys):
     for k in post.YT_SECRETS:
         monkeypatch.setenv(k, "x")
     calls = []
-    monkeypatch.setitem(post.PLATFORMS, "youtube",
-                        (post.YT_SECRETS, lambda v, c: calls.append(v) or {"id": "abc", "url": "https://youtube.com/shorts/abc"}))
+    monkeypatch.setattr(post, "publish",
+                        lambda p, v, c, l: calls.append(v) or {"id": "abc", "url": "https://youtube.com/shorts/abc"})
     assert post.run(day, ["youtube"], today="2026-10-29") == 0
     assert post.run(day, ["youtube"], today="2026-10-29") == 0
     assert len(calls) == 1 and "already posted today" in capsys.readouterr().out
@@ -70,14 +70,15 @@ def test_one_post_per_platform_per_day(day, monkeypatch, capsys):
 
 def test_failures_are_logged_and_exit_nonzero(day, monkeypatch):
     review.write(day, "PASS", "reviewer agent", "ok")
-    for k in post.X_SECRETS:
-        monkeypatch.setenv(k, "x")
+    monkeypatch.setenv("BUFFER_API_KEY", "k")
+    post.LOG.write_text(json.dumps({"date": "2026-10-29", "platform": "youtube", "ok": True,
+                                    "url": "https://youtube.com/shorts/abc"}) + "\n")
 
-    def boom(v, c):
-        raise post.PostError("X POST /2/tweets failed (402)")
-    monkeypatch.setitem(post.PLATFORMS, "x", (post.X_SECRETS, boom))
+    def boom(p, v, c, l):
+        raise post.PostError("Buffer refused the post (402)")
+    monkeypatch.setattr(post, "publish", boom)
     assert post.run(day, ["x"], today="2026-10-29") == 1
-    e = json.loads(post.LOG.read_text())
+    e = json.loads(post.LOG.read_text().splitlines()[-1])
     assert e["ok"] is False and "402" in e["error"]
     assert post.posted_today("x", "2026-10-29") is None           # a failed post does not use up the day
 
@@ -93,8 +94,8 @@ def test_youtube_proxy_mode_sends_no_credentials(day, monkeypatch, capsys):
         monkeypatch.delenv(k)
     review.write(day, "PASS", "reviewer agent", "ok")
     calls = []
-    monkeypatch.setitem(post.PLATFORMS, "youtube",
-                        (post.YT_SECRETS, lambda v, c: calls.append(v) or {"id": "p", "url": "https://youtube.com/shorts/p"}))
+    monkeypatch.setattr(post, "publish",
+                        lambda p, v, c, l: calls.append(v) or {"id": "p", "url": "https://youtube.com/shorts/p"})
     assert post.run(day, ["youtube"], today="2026-10-29") == 0 and len(calls) == 1   # configured without the variables
 
 
@@ -103,7 +104,7 @@ def test_youtube_proxy_mode_sends_no_credentials(day, monkeypatch, capsys):
     ("see https://github.com/IsraelWebDev/funkbox", True),
     ("see github.com/IsraelWebDev/funkbox", True),
     ("try funkbox.dev today", True),
-    ("x" * 281, True),
+    ("x" * 256, True),                                            # 255 + the 23-char link would pass 280
 ])
 def test_x_text_rules(text, bad):
     probs = post.caption_problems({**GOOD_CAP, "x": {"text": text}})
@@ -115,15 +116,62 @@ def test_youtube_caption_rules():
     assert post.caption_problems({**GOOD_CAP, "youtube": {**GOOD_CAP["youtube"], "description": "use <b>"}})
 
 
-def test_oauth1_signature_matches_the_published_example():
-    """The worked example from X's (Twitter's) "Creating a signature" documentation."""
-    h = post.oauth1_header(
-        "POST", "https://api.twitter.com/1.1/statuses/update.json",
-        {"include_entities": "true", "status": "Hello Ladies + Gentlemen, a signed OAuth request!"},
-        "xvz1evFS4wEEPTGEFPHBog", "kAcSOqF21Fu85e7zjz7ZN2U4ZRhfV3WpwPAoE3Z7kBw",
-        "370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb", "LswwdoUaIvS8ltyTt5jkRh4J50vUPVVHtR2YPi5kE",
-        nonce="kYjzVBB8Y0ZFabxSWbWovY3uYSQ2pTgmZeNu2VS4cg", timestamp="1318622958")
-    assert 'oauth_signature="hCtSmYh%2BiHYCEqBWrE7C7hYmtUk%3D"' in h
+class FakeBuffer:
+    """Answers Buffer GraphQL calls by what the query asks for; records every request."""
+    def __init__(self, status="sent", chans=None):
+        self.reqs, self.status = [], status
+        self.chans = chans if chans is not None else [{"id": "c-bsky", "service": "bluesky", "isQueuePaused": False},
+                                                      {"id": "c-x", "service": "twitter", "isQueuePaused": False}]
+
+    def __call__(self, method, url, *, data=None, headers=None, timeout=0):
+        body = json.loads(data)
+        self.reqs.append({"url": url, "headers": headers, **body})
+        q = body["query"]
+        if "organizations" in q:
+            d = {"account": {"organizations": [{"id": "org1"}]}}
+        elif "channels" in q:
+            d = {"channels": self.chans}
+        elif "createPost" in q:
+            d = {"createPost": {"post": {"id": "p1", "status": "sending", "externalLink": None}}}
+        else:
+            d = {"post": {"id": "p1", "status": self.status, "externalLink": "https://x.com/funkbox/status/9"
+                          if self.status == "sent" else None, "error": {"message": "channel disconnected"}}}
+        return 200, {}, json.dumps({"data": d}).encode()
+
+
+def test_x_goes_through_buffer_after_youtube(day, monkeypatch, capsys):
+    review.write(day, "PASS", "reviewer agent", "ok")
+    monkeypatch.setenv("BUFFER_API_KEY", "secret-key")
+    monkeypatch.setattr(post.time, "sleep", lambda s: None)
+    fake = FakeBuffer()
+    monkeypatch.setattr(post, "_http", fake)
+    assert post.run(day, ["x"], today="2026-10-29") == 0                     # no YouTube post yet: nothing sent
+    assert "no YouTube post today" in capsys.readouterr().out and not fake.reqs
+    post.LOG.write_text(json.dumps({"date": "2026-10-29", "platform": "youtube", "ok": True,
+                                    "url": "https://youtube.com/shorts/abc"}) + "\n")
+    assert post.run(day, ["x"], today="2026-10-29") == 0
+    create = next(r for r in fake.reqs if "createPost" in r["query"])["variables"]["input"]
+    assert create["channelId"] == "c-x" and create["mode"] == "shareNow"
+    assert create["text"] == GOOD_CAP["x"]["text"] + "\n\nhttps://youtube.com/shorts/abc"
+    assert all(r["headers"]["Authorization"] == "Bearer secret-key" for r in fake.reqs)
+    assert json.loads(post.LOG.read_text().splitlines()[-1])["url"] == "https://x.com/funkbox/status/9"
+
+
+def test_buffer_proxy_mode_and_failures(day, monkeypatch):
+    monkeypatch.setenv("BUFFER_AUTH", "proxy")
+    monkeypatch.setattr(post.time, "sleep", lambda s: None)
+    fake = FakeBuffer()
+    monkeypatch.setattr(post, "_http", fake)
+    assert post.secrets_for("x") == ()
+    post.buffer_post("bluesky", GOOD_CAP, "https://youtube.com/shorts/abc")
+    assert all("Authorization" not in r["headers"] for r in fake.reqs)       # the proxy adds it
+    assert next(r for r in fake.reqs if "createPost" in r["query"])["variables"]["input"]["channelId"] == "c-bsky"
+    monkeypatch.setattr(post, "_http", FakeBuffer(status="error"))
+    with pytest.raises(post.PostError, match="channel disconnected"):
+        post.buffer_post("x", GOOD_CAP, "l")
+    monkeypatch.setattr(post, "_http", FakeBuffer(chans=[]))
+    with pytest.raises(post.PostError, match="no twitter channel"):
+        post.buffer_post("x", GOOD_CAP, "l")
 
 
 def test_music_is_seeded_and_the_right_length(tmp_path):

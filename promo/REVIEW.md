@@ -20,7 +20,7 @@ entries of `promo/posts.jsonl`.
 4. The trend tie-in is honest: the sources in brief.json are real, recent (last 7 days) and say what the brief
    says. funkbox's link to the trend is true, not forced. If the trend is a tragedy, politics, a lawsuit, a person's
    private life, or a security incident, FAIL.
-5. Spelling and grammar are clean; the X text is <= 280 chars with no URL; the YouTube title <= 100 chars.
+5. Spelling and grammar are clean; the X text is <= 255 chars with no URL (post.py adds the YouTube link); the YouTube title <= 100 chars.
 6. Not a repeat: the angle and hook differ from the last 14 posts.
 7. Nothing in the frames, captions or caption.json that you would not want under the owner's name.
 

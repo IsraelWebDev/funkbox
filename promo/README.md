@@ -1,7 +1,7 @@
 # promo: funkbox promotes itself
 
 Once a day an agent looks for what is new in AI video, picks an honest angle, makes a short vertical video about
-funkbox **with funkbox**, has a **second agent** review it, and posts it to YouTube Shorts and X. Every day leaves
+funkbox **with funkbox**, has a **second agent** review it, and posts it to YouTube Shorts, then a short post linking to it on X (through Buffer). Every day leaves
 its brief, copy, shot list, captions and review in `promo/days/<date>/` and a line in `promo/posts.jsonl`, so the
 whole history is public.
 
@@ -30,17 +30,24 @@ Nothing posts until these secrets exist; until then every run renders, reviews a
 3. On your computer: `python promo/auth_youtube.py client_secret.json`, sign in as the channel, choose the channel.
    It prints `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN` (or writes them to a file with `--out`).
 
-**X** (pay per use, about $0.015 per post; no link in the post text, which would cost about $0.20):
-1. Create the account, then console.x.com: create an app, **User authentication settings: Read and write**, then
-   generate the **Access Token and Secret** (after setting Read and write, or they stay read-only). Add credits.
-2. You need `X_API_KEY`, `X_API_SECRET` (the app's consumer keys), `X_ACCESS_TOKEN`, `X_ACCESS_SECRET`.
+**X** (free, through [Buffer](https://buffer.com)): X's own API charges per post, so the X post goes through Buffer's
+free plan instead. It is a short post with the reviewed text plus a link to that day's Short, sent only after the
+YouTube upload succeeded.
+1. Create a Buffer account, connect the X account as a channel, and create an API key (Settings -> API).
+2. Other Buffer channels work the same way: connect, say, Bluesky in Buffer and add `bluesky` to `--platforms`
+   (the free plan allows 3 channels). They reuse the X text unless `caption.json` has its own entry.
 
-**Where the secrets go:** never in the repo. In Claude Code on the web, put the YouTube three in a **network secret**
-of the environment the scheduled task runs in, so no session ever sees them: Secret type **Body parameter**, website
-`oauth2.googleapis.com`, path `/token`, parameters `client_id`, `client_secret`, `refresh_token`; then add the plain
-environment variable `YT_AUTH=proxy`. Elsewhere, set `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN` as
-environment variables. X signs each request with its secrets (OAuth 1.0a), so its four values must be environment
-variables. `post.py` never prints any of them.
+**Where the secrets go:** never in the repo. In Claude Code on the web, put them in **network secrets** of the
+environment the scheduled task runs in, so no session ever sees them, then add plain environment variables that
+tell `post.py` the proxy holds them:
+
+| secret | type | website, path | names / value | environment variable |
+|---|---|---|---|---|
+| YouTube | Body parameter | `oauth2.googleapis.com`, `/token` | `client_id`, `client_secret`, `refresh_token` | `YT_AUTH=proxy` |
+| Buffer | Header | `api.buffer.com` | `Authorization` = `Bearer <API key>` | `BUFFER_AUTH=proxy` |
+
+Elsewhere, set `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN` and `BUFFER_API_KEY` as environment variables.
+`post.py` never prints any of them.
 
 ## Run a day by hand
 ```bash
