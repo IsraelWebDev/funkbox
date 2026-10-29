@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """One-time YouTube sign-in for promo/post.py. Run it YOURSELF on your own computer:
 
-    python promo/auth_youtube.py path/to/client_secret.json
+    python promo/auth_youtube.py path/to/client_secret.json [--out promo/secrets/youtube.env]
 
 It opens your browser at Google's consent page (scope: upload videos only), catches the reply on
 http://127.0.0.1:<port>, and prints the three values to store as secrets: YT_CLIENT_ID, YT_CLIENT_SECRET and
-YT_REFRESH_TOKEN. Nothing is saved to disk and nothing is sent anywhere except Google.
+YT_REFRESH_TOKEN (with --out, they are written to that file instead of the screen). Nothing is sent anywhere
+except Google.
 
 client_secret.json: Google Cloud console -> APIs & Services -> enable "YouTube Data API v3" -> Credentials ->
 Create OAuth client ID -> Application type "Desktop app" -> Download JSON. Set the OAuth consent screen's publishing
@@ -27,7 +28,7 @@ import webbrowser
 SCOPE = "https://www.googleapis.com/auth/youtube.upload"
 
 
-def main(path: str) -> None:
+def main(path: str, out: str | None = None) -> None:
     raw = json.load(open(path, encoding="utf-8"))
     c = raw.get("installed") or raw.get("web") or raw
     cid, csec = c["client_id"], c["client_secret"]
@@ -67,11 +68,22 @@ def main(path: str) -> None:
     if "refresh_token" not in tok:
         sys.exit("No refresh token came back. Remove the app's access at myaccount.google.com/permissions and run "
                  "this again.")
-    print("Store these three as secrets (environment variables) where the daily run executes:\n")
-    print(f"YT_CLIENT_ID={cid}\nYT_CLIENT_SECRET={csec}\nYT_REFRESH_TOKEN={tok['refresh_token']}")
+    lines = f"YT_CLIENT_ID={cid}\nYT_CLIENT_SECRET={csec}\nYT_REFRESH_TOKEN={tok['refresh_token']}\n"
+    if out:
+        from pathlib import Path
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        Path(out).write_text(lines, encoding="utf-8")
+        print(f"Done. The three values are in {out}: copy them into the environment variables of the cloud "
+              "environment that runs the daily task, then delete the file.")
+    else:
+        print("Store these three as secrets (environment variables) where the daily run executes:\n\n" + lines)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    args = [a for a in sys.argv[1:] if a != "--out"]
+    out = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else None
+    if out:
+        args.remove(out)
+    if len(args) != 1:
         sys.exit(__doc__)
-    main(sys.argv[1])
+    main(args[0], out)
