@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import time
@@ -586,7 +587,12 @@ def _audit_json(r: Renderer, plan: Plan, name: str, out_dir: Path) -> dict:
     inexact = [f"{e['shot']}/{e['slot']}/{e['instance']}" for e in entries if not e["text_exact"]]
     incomplete = [f"{e['shot']}/{e['slot']}/{e['instance']}" for e in entries if e["complete_frame"] is None]
     ok = not missing and not inexact
-    doc = {"reel": name, "copy_deck": plan.deck.path, "fps": plan.reel.settings.fps,
+    deck = str(plan.deck.path)
+    try:                                   # relative to the audit file, so audits can be committed and shared
+        deck = os.path.relpath(deck, out_dir).replace(os.sep, "/")
+    except ValueError:                     # another drive on Windows
+        pass
+    doc = {"reel": name, "copy_deck": deck, "fps": plan.reel.settings.fps,
            "ok": ok, "missing": missing, "inexact": inexact, "never_fully_typed": incomplete,
            "entries": entries}
     path = out_dir / f"{name}.text_audit.json"
