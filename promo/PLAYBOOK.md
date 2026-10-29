@@ -5,14 +5,13 @@ YouTube Shorts and X after an independent review. Follow these steps in order. I
 nothing, and report why.
 
 The code is in the funkbox checkout; the state is NOT. Each day's files, the post log and videos waiting to post
-live in the state repo IsraelWebDev/funkbox-pending, cloned at `$STATE` (`~/funkbox-pending`, see
-`promo/state.py`). Work in `$STATE/days/<YYYY-MM-DD>/` (UTC date), written `DAY` below. Never write promo state into
+live in the state repo named by `$PROMO_STATE_REPO`, cloned at `$STATE` (see `promo/state.py`). Work in `$STATE/days/<YYYY-MM-DD>/` (UTC date), written `DAY` below. Never write promo state into
 the funkbox checkout.
 
 ## 0. Setup (fresh session)
 - Get a push-capable checkout of IsraelWebDev/funkbox (attach the repo with push access, then clone), `cd` into it.
-  Also attach IsraelWebDev/funkbox-pending with push access, then `STATE=$(python promo/state.py init)` (clones or
-  pulls it) and `DAY=$STATE/days/<date>`.
+  Also attach the state repo (`$PROMO_STATE_REPO`) with push access, then `eval "$(python promo/state.py env)"`
+  (clones or pulls it, sets `STATE` and lets funkbox read and write the day folders) and `DAY=$STATE/days/<date>`.
 - `pip install --break-system-packages -r requirements.txt` ; on Linux without a display `export FUNK_GL_BACKEND=egl`.
 - If `promo/PAUSED` exists: report "paused" and stop.
 - Read `promo/FACTS.md`, `promo/REVIEW.md` and the last 14 lines of `$STATE/posts.jsonl` (if it exists).

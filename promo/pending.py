@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """Keep a reviewed promo video until it is posted, so a failed run can post it later instead of starting over.
 
-    python promo/pending.py save ~/funkbox-pending/days/<date>   # after the review PASS, before posting
-    python promo/pending.py done ~/funkbox-pending/days/<date>   # after posting: drops the copy once YouTube has it
+    python promo/pending.py save $STATE/days/<date>   # after the review PASS, before posting
+    python promo/pending.py done $STATE/days/<date>   # after posting: drops the copy once YouTube has it
     python promo/pending.py catchup                    # at the start of every run: posts what earlier runs still owe
 
-The saved copy is <date>.mp4 at the top of the state repo IsraelWebDev/funkbox-pending (promo/state.py), next to
-the day folders and the post log, and is removed once posted. That repo is public so that Buffer can fetch the
-video by URL and post it to X natively (post.py VIDEO_URL_BASE); it only ever holds videos that are about to be
-public on YouTube anyway. A cloud session cannot write GitHub releases, but it can push.
+The saved copy is <date>.mp4 at the top of the state repo (promo/state.py), next to the day folders and the post
+log, and is removed once posted. If that repo is public, Buffer can fetch the video from it and post it to X
+natively (post.py VIDEO_URL_BASE). A cloud session cannot write GitHub releases, but it can push.
 
 catchup handles the two ways a day can be left unfinished:
 - the YouTube upload never happened (failure, or the run died after the review): the video is downloaded, checked

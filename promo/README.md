@@ -9,13 +9,14 @@ about funkbox **with funkbox**, has a **second agent** review it, and posts it: 
 | what | where |
 |---|---|
 | The code and rules (this folder) | `IsraelWebDev/funkbox`, `promo/` |
-| Each day's brief, copy, shot list, caption, review, text audit | [IsraelWebDev/funkbox-pending](https://github.com/IsraelWebDev/funkbox-pending) `days/<date>/` |
-| The post log (every attempt, with links or errors) | funkbox-pending `posts.jsonl` |
-| A reviewed video waiting to post | funkbox-pending `<date>.mp4`, deleted once it is on YouTube |
+| Each day's brief, copy, shot list, caption, review, text audit | the state repo, `days/<date>/` |
+| The post log (every attempt, with links or errors) | the state repo, `posts.jsonl` |
+| A reviewed video waiting to post | the state repo, `<date>.mp4`, deleted once it is on YouTube |
 | Credentials | network secrets of the cloud environment the task runs in (see Setup); never in a repo |
 
-funkbox-pending is public on purpose: Buffer can only take a video by URL, so X gets it from there. It only holds
-what is public on YouTube anyway. `state.py` clones it to `~/funkbox-pending` (`PROMO_STATE_DIR` overrides).
+The state repo is a separate GitHub repo you name in `PROMO_STATE_REPO` (owner/name); `state.py` clones it to
+`~/promo-state` (`PROMO_STATE_DIR` overrides). Make it public if you want X to get the video itself: Buffer only
+takes a video by URL. Private works too, and X then gets a link to the Short.
 
 ## The files
 
@@ -28,7 +29,7 @@ what is public on YouTube anyway. `state.py` clones it to `~/funkbox-pending` (`
 | `review.py` | writes the verdict, bound to the sha256 of the exact video and caption |
 | `post.py` | posts. Refuses without a matching PASS; each promo once per platform and at most once per platform per day; X only after the Short is up; dry-runs a platform without credentials |
 | `pending.py` | saves the reviewed video before posting; the next run's `catchup` finishes what a failed run left (a missed upload, or an X post whose Short is up), for up to 2 days |
-| `state.py` | clones or pulls funkbox-pending and commits to it |
+| `state.py` | clones or pulls the state repo and commits to it |
 | `auth_youtube.py` | one-time YouTube sign-in that prints the refresh token |
 
 ## The safeguards
@@ -60,7 +61,8 @@ free plan instead.
 2. Other Buffer channels work the same way: connect, say, Bluesky in Buffer and add `bluesky` to `--platforms`
    (the free plan allows 3 channels). They reuse the X text unless `caption.json` has its own entry.
 
-**The state repo:** create `funkbox-pending` (public, empty) and give the scheduled task push access to it.
+**The state repo:** create an empty repo, give the scheduled task push access to it, and set
+`PROMO_STATE_REPO=owner/name` in the environment it runs in.
 
 **Where the credentials go:** in Claude Code on the web, put them in **network secrets** of the environment the
 scheduled task runs in, so no session ever sees them, then add plain environment variables that tell `post.py`
@@ -76,7 +78,7 @@ Elsewhere, set `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN` and `BUFFE
 
 ## Run a day by hand
 ```bash
-STATE=$(python promo/state.py init); DAY=$STATE/days/$(date -u +%F)
+eval "$(PROMO_STATE_REPO=owner/name python promo/state.py env)"; DAY=$STATE/days/$(date -u +%F)
 python promo/assets.py $DAY                       # then write brief/copy/reel/caption (see PLAYBOOK.md)
 python -m funkbox reel render $DAY/reel.json --name final --out $DAY --audit
 python promo/review.py show $DAY                  # after the reviewer wrote its verdict

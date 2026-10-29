@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Post a reviewed promo day to YouTube (Shorts), then a short post linking to it on X (through Buffer).
 
-    python promo/post.py ~/funkbox-pending/days/2026-10-29 [--platforms youtube,x] [--dry-run]
+    python promo/post.py $STATE/days/2026-10-29 [--platforms youtube,x] [--dry-run]
 
 Hard gates, in code (the agent cannot talk its way past them):
 - promo/PAUSED exists, or PROMO_PAUSED=1  -> nothing is posted (exit 3)
@@ -211,9 +211,10 @@ def buffer_channel(service: str) -> dict:
     return match[0]
 
 
-# Where pending.py keeps the reviewed video while it posts (a public repo: Buffer only takes video by URL).
-VIDEO_URL_BASE = os.environ.get("PROMO_VIDEO_URL_BASE",
-                                "https://raw.githubusercontent.com/IsraelWebDev/funkbox-pending/main/")
+# Where pending.py keeps the reviewed video while it posts. Buffer only takes video by URL, so this works when the
+# state repo is public; PROMO_VIDEO_URL_BASE overrides it, and empty means X gets the Short's link instead.
+VIDEO_URL_BASE = os.environ.get("PROMO_VIDEO_URL_BASE", f"https://raw.githubusercontent.com/{state.STATE_REPO}/main/"
+                                if state.STATE_REPO else "")
 REPO_URL = "https://github.com/IsraelWebDev/funkbox"
 
 
