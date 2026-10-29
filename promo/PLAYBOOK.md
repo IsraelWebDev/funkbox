@@ -12,7 +12,9 @@ the funkbox checkout.
 - Get a push-capable checkout of IsraelWebDev/funkbox (attach the repo with push access, then clone), `cd` into it.
   Also attach the state repo (`$PROMO_STATE_REPO`) with push access, then `eval "$(python promo/state.py env)"`
   (clones or pulls it, sets `STATE` and lets funkbox read and write the day folders) and `DAY=$STATE/days/<date>`.
-- `pip install --break-system-packages -r requirements.txt` ; on Linux without a display `export FUNK_GL_BACKEND=egl`.
+- `python -m pip install --break-system-packages --ignore-installed -r requirements.txt` (with `python -m`, so the
+  packages land in the Python that runs the scripts; `--ignore-installed` steps over Debian's own Pillow and PyJWT).
+  On Linux without a display, `export FUNK_GL_BACKEND=egl`.
 - If `promo/PAUSED` exists: report "paused" and stop.
 - Read `promo/FACTS.md`, `promo/REVIEW.md` and the last 14 lines of `$STATE/posts.jsonl` (if it exists).
 - Catch up first: `python promo/pending.py catchup`. It posts what earlier runs still owe (a reviewed video saved
