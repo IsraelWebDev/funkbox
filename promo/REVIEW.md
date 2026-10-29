@@ -20,8 +20,11 @@ entries of `$STATE/posts.jsonl` (the post log, next to the day folders; it may n
 4. The trend tie-in is honest: the sources in brief.json are real, recent (last 7 days) and say what the brief
    says. funkbox's link to the trend is true, not forced. If the trend is a tragedy, politics, a lawsuit, a person's
    private life, or a security incident, FAIL.
-5. Spelling and grammar are clean; the X text is <= 255 chars with no URL (post.py adds the YouTube link); the YouTube title <= 100 chars.
-6. Not a repeat: the angle and hook differ from the last 14 posts.
+5. Spelling and grammar are clean; the X text is <= 255 chars with no URL (post.py adds one link itself); the YouTube
+   title <= 100 chars.
+6. Not a repeat: the angle and hook differ from the last 14 posts of OTHER days. Log entries for this same day
+   (same "day") are this promo itself, for example its Short that is already up or an X post marked "replaced"
+   by the owner, so they are not repeats.
 7. Nothing in the frames, captions or caption.json that you would not want under the owner's name.
 
 ## Verdict
@@ -29,5 +32,9 @@ Run exactly one of:
 
     python promo/review.py write DAY --verdict PASS --reviewer "reviewer agent" --notes "<what you checked>"
     python promo/review.py write DAY --verdict FAIL --reviewer "reviewer agent" --notes "<each problem, specific>"
+
+Judge the files in front of you. If DAY already had a review.json, it may be for an earlier render of the same
+promo: a video hash that differs from it is expected after a re-render and is not by itself a reason to FAIL
+(review.py binds your verdict to the exact bytes you reviewed).
 
 PASS only if every check passed. When in doubt, FAIL with the reason. Then reply with the verdict and notes.
