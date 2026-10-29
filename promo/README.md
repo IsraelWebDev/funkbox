@@ -28,16 +28,19 @@ Nothing posts until these secrets exist; until then every run renders, reviews a
    then **Publish app** (status "In production"; in "Testing" the token dies after 7 days) -> Credentials -> Create
    OAuth client ID -> **Desktop app** -> download the JSON.
 3. On your computer: `python promo/auth_youtube.py client_secret.json`, sign in as the channel, choose the channel.
-   It prints `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN`.
+   It prints `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN` (or writes them to a file with `--out`).
 
 **X** (pay per use, about $0.015 per post; no link in the post text, which would cost about $0.20):
 1. Create the account, then console.x.com: create an app, **User authentication settings: Read and write**, then
    generate the **Access Token and Secret** (after setting Read and write, or they stay read-only). Add credits.
 2. You need `X_API_KEY`, `X_API_SECRET` (the app's consumer keys), `X_ACCESS_TOKEN`, `X_ACCESS_SECRET`.
 
-**Where the secrets go:** as environment variables of the cloud environment the scheduled task runs in (Claude
-Code on the web -> the environment's settings -> environment variables). Never commit them; `post.py` only reads
-them from the environment and never prints them.
+**Where the secrets go:** never in the repo. In Claude Code on the web, put the YouTube three in a **network secret**
+of the environment the scheduled task runs in, so no session ever sees them: Secret type **Body parameter**, website
+`oauth2.googleapis.com`, path `/token`, parameters `client_id`, `client_secret`, `refresh_token`; then add the plain
+environment variable `YT_AUTH=proxy`. Elsewhere, set `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN` as
+environment variables. X signs each request with its secrets (OAuth 1.0a), so its four values must be environment
+variables. `post.py` never prints any of them.
 
 ## Run a day by hand
 ```bash

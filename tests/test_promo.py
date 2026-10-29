@@ -25,7 +25,7 @@ def day(tmp_path, monkeypatch):
     monkeypatch.setattr(post, "LOG", tmp_path / "posts.jsonl")
     monkeypatch.setattr(post, "PAUSE", tmp_path / "PAUSED")
     monkeypatch.setattr(post, "video_problems", lambda p: [])
-    for k in post.YT_SECRETS + post.X_SECRETS + ("PROMO_PAUSED",):
+    for k in post.YT_SECRETS + post.X_SECRETS + ("PROMO_PAUSED", "YT_AUTH"):
         monkeypatch.delenv(k, raising=False)
     return d
 
@@ -80,6 +80,22 @@ def test_failures_are_logged_and_exit_nonzero(day, monkeypatch):
     e = json.loads(post.LOG.read_text())
     assert e["ok"] is False and "402" in e["error"]
     assert post.posted_today("x", "2026-10-29") is None           # a failed post does not use up the day
+
+
+def test_youtube_proxy_mode_sends_no_credentials(day, monkeypatch, capsys):
+    for k, v in zip(post.YT_SECRETS, ("cid", "csec", "rtok")):
+        monkeypatch.setenv(k, v)
+    direct = dict(__import__("urllib.parse").parse.parse_qsl(post.youtube_token_body().decode()))
+    assert direct == {"grant_type": "refresh_token", "client_id": "cid", "client_secret": "csec", "refresh_token": "rtok"}
+    monkeypatch.setenv("YT_AUTH", "proxy")
+    assert post.youtube_token_body() == b"grant_type=refresh_token"   # even with the variables still set
+    for k in post.YT_SECRETS:
+        monkeypatch.delenv(k)
+    review.write(day, "PASS", "reviewer agent", "ok")
+    calls = []
+    monkeypatch.setitem(post.PLATFORMS, "youtube",
+                        (post.YT_SECRETS, lambda v, c: calls.append(v) or {"id": "p", "url": "https://youtube.com/shorts/p"}))
+    assert post.run(day, ["youtube"], today="2026-10-29") == 0 and len(calls) == 1   # configured without the variables
 
 
 @pytest.mark.parametrize("text, bad", [

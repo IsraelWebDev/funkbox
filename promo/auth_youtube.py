@@ -73,8 +73,8 @@ def main(path: str, out: str | None = None) -> None:
         from pathlib import Path
         Path(out).parent.mkdir(parents=True, exist_ok=True)
         Path(out).write_text(lines, encoding="utf-8")
-        print(f"Done. The three values are in {out}: copy them into the environment variables of the cloud "
-              "environment that runs the daily task, then delete the file.")
+        print(f"Done. The three values are in {out}: copy them into the cloud environment's network secret "
+              "(see promo/README.md), then delete the file.")
     else:
         print("Store these three as secrets (environment variables) where the daily run executes:\n\n" + lines)
 

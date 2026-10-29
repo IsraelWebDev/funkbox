@@ -14,6 +14,10 @@ Hard gates, in code (the agent cannot talk its way past them):
 Secrets come from the environment only: YT_CLIENT_ID, YT_CLIENT_SECRET, YT_REFRESH_TOKEN (YouTube, OAuth refresh
 token from promo/auth_youtube.py) and X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET (X, OAuth 1.0a user
 context). Nothing secret is printed or written anywhere.
+
+YT_AUTH=proxy: the three YouTube values are not in the environment at all. A network proxy that holds them (Claude
+Code on the web: a "Body parameter" network secret for oauth2.googleapis.com /token) adds client_id, client_secret
+and refresh_token to the token request, so this script sends only grant_type and never sees them.
 """
 from __future__ import annotations
 
@@ -118,9 +122,22 @@ def _json(b: bytes) -> dict:
 
 
 # --------------------------------------------------------------------------- YouTube
+def yt_proxy() -> bool:
+    return os.environ.get("YT_AUTH", "").lower() == "proxy"
+
+
+def youtube_token_body() -> bytes:
+    """The token-refresh form. Behind the proxy it must hold no credential keys: a client key that collides with an
+    injected one makes the proxy refuse the request (502) instead of overriding it."""
+    form = {"grant_type": "refresh_token"}
+    if not yt_proxy():
+        form.update(client_id=os.environ["YT_CLIENT_ID"], client_secret=os.environ["YT_CLIENT_SECRET"],
+                    refresh_token=os.environ["YT_REFRESH_TOKEN"])
+    return urllib.parse.urlencode(form).encode()
+
+
 def youtube_upload(video: Path, cap: dict) -> dict:
-    tok = urllib.parse.urlencode({"client_id": os.environ["YT_CLIENT_ID"], "client_secret": os.environ["YT_CLIENT_SECRET"],
-                                  "refresh_token": os.environ["YT_REFRESH_TOKEN"], "grant_type": "refresh_token"}).encode()
+    tok = youtube_token_body()
     st, _, body = _http("POST", "https://oauth2.googleapis.com/token", data=tok,
                         headers={"Content-Type": "application/x-www-form-urlencoded"}, timeout=60)
     if st != 200:
@@ -256,6 +273,8 @@ def run(day: Path, platforms: list[str], dry_run: bool = False, today: str | Non
         if prev:
             print(f"{p}: already posted today ({prev.get('url')}); skipped")
             continue
+        if p == "youtube" and yt_proxy():
+            need = ()                                         # the proxy holds them
         missing = [k for k in need if not os.environ.get(k)]
         if dry_run or missing:
             why = "dry run" if dry_run else f"not configured (set {', '.join(missing)})"
