@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build one day's asset pack for a funkbox promo: everything in it is real funkbox output or a real repo file.
 
-    python promo/assets.py promo/days/2026-10-29 [--seed N]
+    python promo/assets.py ~/funkbox-pending/days/2026-10-29 [--seed N]
 
 Writes into <day>/assets/ and prints assets.json, a manifest the agent picks shots from:
 - loops: two fresh shader loops (a preset look each, seeded by the day), 720x1280 mp4
@@ -144,7 +144,8 @@ def build(day: Path, seed: int) -> dict:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="build a promo day's asset pack")
-    ap.add_argument("day", nargs="?", default=str(ROOT / "promo" / "days" / dt.date.today().isoformat()))
+    import state
+    ap.add_argument("day", nargs="?", default=str(state.DAYS / dt.datetime.now(dt.timezone.utc).date().isoformat()))
     ap.add_argument("--seed", type=int, default=None)
     x = ap.parse_args()
     d = Path(x.day)

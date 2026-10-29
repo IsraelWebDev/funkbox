@@ -25,6 +25,7 @@ def day(tmp_path, monkeypatch):
     monkeypatch.setattr(post, "LOG", tmp_path / "posts.jsonl")
     monkeypatch.setattr(post, "PAUSE", tmp_path / "PAUSED")
     monkeypatch.setattr(post, "video_problems", lambda p: [])
+    monkeypatch.setattr(post, "VIDEO_URL_BASE", "")                 # no public copy unless a test sets one
     for k in post.YT_SECRETS + ("BUFFER_API_KEY", "BUFFER_AUTH", "BUFFER_ORG_ID", "PROMO_PAUSED", "YT_AUTH"):
         monkeypatch.delenv(k, raising=False)
     return d
@@ -59,7 +60,7 @@ def test_one_post_per_platform_per_day(day, monkeypatch, capsys):
         monkeypatch.setenv(k, "x")
     calls = []
     monkeypatch.setattr(post, "publish",
-                        lambda p, v, c, l: calls.append(v) or {"id": "abc", "url": "https://youtube.com/shorts/abc"})
+                        lambda p, v, c, l, u=None: calls.append(v) or {"id": "abc", "url": "https://youtube.com/shorts/abc"})
     assert post.run(day, ["youtube"], today="2026-10-29") == 0
     assert post.run(day, ["youtube"], today="2026-10-29") == 0
     assert len(calls) == 1 and "already posted" in capsys.readouterr().out
@@ -82,7 +83,7 @@ def test_failures_are_logged_and_exit_nonzero(day, monkeypatch):
     post.LOG.write_text(json.dumps({"date": "2026-10-29", "platform": "youtube", "ok": True, "day": day.name,
                                     "url": "https://youtube.com/shorts/abc"}) + "\n")
 
-    def boom(p, v, c, l):
+    def boom(p, v, c, l, u=None):
         raise post.PostError("Buffer refused the post (402)")
     monkeypatch.setattr(post, "publish", boom)
     assert post.run(day, ["x"], today="2026-10-29") == 1
@@ -103,7 +104,7 @@ def test_youtube_proxy_mode_sends_no_credentials(day, monkeypatch, capsys):
     review.write(day, "PASS", "reviewer agent", "ok")
     calls = []
     monkeypatch.setattr(post, "publish",
-                        lambda p, v, c, l: calls.append(v) or {"id": "p", "url": "https://youtube.com/shorts/p"})
+                        lambda p, v, c, l, u=None: calls.append(v) or {"id": "p", "url": "https://youtube.com/shorts/p"})
     assert post.run(day, ["youtube"], today="2026-10-29") == 0 and len(calls) == 1   # configured without the variables
 
 
@@ -207,7 +208,7 @@ def test_code_cards_show_real_lines(tmp_path):
 
 def test_playbook_and_review_reference_real_commands():
     pb = (ROOT / "promo" / "PLAYBOOK.md").read_text()
-    for needle in ("promo/assets.py", "promo/post.py", "promo/REVIEW.md", "SEPARATE agent", "[skip ci]",
+    for needle in ("promo/assets.py", "promo/post.py", "promo/REVIEW.md", "SEPARATE agent", "promo/state.py", "$STATE/days",
                    "promo/PAUSED", "FACTS.md"):
         assert needle in pb, needle
     tpl = json.loads((ROOT / "promo" / "templates" / "promo.reel.json").read_text())
@@ -221,9 +222,10 @@ def pending(day, monkeypatch, tmp_path):
     import pending as pend
     bare = tmp_path / "pending.git"
     subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
-    monkeypatch.setattr(pend, "PENDING_URL", bare.as_uri())
-    monkeypatch.setattr(pend, "PENDING_DIR", tmp_path / "clone")
-    monkeypatch.setattr(pend, "DAYS", day.parent)
+    import state
+    monkeypatch.setattr(state, "STATE_URL", bare.as_uri())
+    monkeypatch.setattr(state, "STATE_DIR", tmp_path / "clone")
+    monkeypatch.setattr(state, "DAYS", day.parent)
     monkeypatch.setenv("GIT_AUTHOR_NAME", "t"); monkeypatch.setenv("GIT_COMMITTER_NAME", "t")
     monkeypatch.setenv("GIT_AUTHOR_EMAIL", "t@e"); monkeypatch.setenv("GIT_COMMITTER_EMAIL", "t@e")
     return pend
@@ -235,11 +237,17 @@ def test_saved_video_is_posted_by_the_next_run(day, pending, monkeypatch):
         pend.save(day)
     review.write(day, "PASS", "reviewer agent", "ok")
     pend.save(day)
-    assert pend.open_store().days() == ["2026-10-29"]               # pushed: a fresh clone has it
+    assert pend.open_store().days() == ["2026-10-29"]
+    import state
+    import subprocess
+    other = day.parent / "elsewhere"                                # pushed: another machine's clone has it
+    subprocess.run(["git", "clone", "-q", state.STATE_URL, str(other)], check=True)
+    assert (other / "2026-10-29.mp4").read_bytes() == (day / "final.mp4").read_bytes()
+    assert "days/*/final.mp4" in (state.STATE_DIR / ".gitignore").read_text()
     original = (day / "final.mp4").read_bytes()
     (day / "final.mp4").unlink()                                   # the run died: its container is gone
     posted = []
-    monkeypatch.setattr(post, "publish", lambda p, v, c, l: posted.append((p, v.read_bytes(), l)) or
+    monkeypatch.setattr(post, "publish", lambda p, v, c, l, u=None: posted.append((p, v.read_bytes(), l)) or
                         {"id": p, "url": f"https://example/{p}"})
     for k in ("YT_AUTH", "BUFFER_AUTH"):
         monkeypatch.setenv(k, "proxy")
@@ -257,7 +265,7 @@ def test_catchup_finishes_x_without_the_video_and_drops_stale_days(day, pending,
     post.LOG.write_text(json.dumps({"date": "2026-10-29", "platform": "youtube", "day": day.name, "ok": True,
                                     "url": "https://youtube.com/shorts/abc", "video_sha256": sha}) + "\n")
     posted = []
-    monkeypatch.setattr(post, "publish", lambda p, v, c, l: posted.append((p, l)) or {"id": "1", "url": "u"})
+    monkeypatch.setattr(post, "publish", lambda p, v, c, l, u=None: posted.append((p, l)) or {"id": "1", "url": "u"})
     monkeypatch.setenv("BUFFER_AUTH", "proxy")
     pend.catchup(today="2026-10-30")
     assert posted == [("x", "https://youtube.com/shorts/abc")]
@@ -269,3 +277,40 @@ def test_catchup_finishes_x_without_the_video_and_drops_stale_days(day, pending,
     pend.open_store().put("2026-10-26", old / "final.mp4")
     notes = pend.catchup(today="2026-10-29")
     assert any("dropped without posting" in n for n in notes) and pend.open_store().days() == []
+
+
+def test_x_attaches_the_video_when_its_public_copy_matches(day, monkeypatch, capsys):
+    review.write(day, "PASS", "reviewer agent", "ok")
+    monkeypatch.setenv("BUFFER_AUTH", "proxy")
+    monkeypatch.setattr(post.time, "sleep", lambda s: None)
+    monkeypatch.setattr(post, "VIDEO_URL_BASE", "https://raw.example/pending/main/")
+    post.LOG.write_text(json.dumps({"date": "2026-10-29", "platform": "youtube", "ok": True, "day": day.name,
+                                    "url": "https://youtube.com/shorts/abc"}) + "\n")
+    fake, size = FakeBuffer(), str((day / "final.mp4").stat().st_size)
+
+    def http(method, url, **kw):
+        if method == "HEAD":
+            return (200, {"Content-Length": size}, b"") if url.endswith(f"{day.name}.mp4") else (404, {}, b"")
+        return fake(method, url, **kw)
+    monkeypatch.setattr(post, "_http", http)
+    assert post.run(day, ["x"], today="2026-10-29") == 0
+    sent = next(r for r in fake.reqs if "createPost" in r["query"])["variables"]["input"]
+    assert sent["assets"] == [{"video": {"url": f"https://raw.example/pending/main/{day.name}.mp4"}}]
+    assert sent["text"].endswith("\n\nhttps://github.com/IsraelWebDev/funkbox")          # the repo, not YouTube
+    assert json.loads(post.LOG.read_text().splitlines()[-1])["media"] == "video"
+    # a copy of another size (stale or partial) is not used
+    size = "1"
+    assert post.public_video_url(day.name, day / "final.mp4") is None
+
+
+def test_x_falls_back_to_the_link_when_buffer_refuses_the_video(day, monkeypatch, capsys):
+    calls = []
+
+    def bp(p, cap, link, video_url=None):
+        calls.append(video_url)
+        if video_url:
+            raise post.PostError("Buffer refused the post: unsupported media")
+        return {"id": "1", "url": "u", "media": "link"}
+    monkeypatch.setattr(post, "buffer_post", bp)
+    assert post.publish("x", day / "final.mp4", GOOD_CAP, "https://youtube.com/shorts/abc", "https://v")["media"] == "link"
+    assert calls == ["https://v", None] and "posting the link instead" in capsys.readouterr().out

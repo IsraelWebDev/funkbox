@@ -3,10 +3,10 @@
 You are the reviewer. You did not make this video. Your job is to stop a bad post, not to polish a good one.
 Look at the artifacts yourself; do not take the maker's word for anything.
 
-Inputs, all in the day folder `promo/days/<date>/`:
+Inputs, all in the day folder you were given (`~/funkbox-pending/days/<date>/`, called DAY below):
 `brief.json` (trend, sources, angle, claims with fact ids), `copy.json`, `reel.json`, `caption.json`,
 `final.mp4`, `final.text_audit.json`, and frames you extract yourself. Also `promo/FACTS.md` and the last 14
-entries of `promo/posts.jsonl`.
+entries of `~/funkbox-pending/posts.jsonl` (the post log, next to the day folders; it may not exist yet).
 
 ## Look at it
 1. Extract at least 6 frames spread over `final.mp4` (ffmpeg via `python -c "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())"`)
@@ -27,7 +27,7 @@ entries of `promo/posts.jsonl`.
 ## Verdict
 Run exactly one of:
 
-    python promo/review.py write promo/days/<date> --verdict PASS --reviewer "reviewer agent" --notes "<what you checked>"
-    python promo/review.py write promo/days/<date> --verdict FAIL --reviewer "reviewer agent" --notes "<each problem, specific>"
+    python promo/review.py write DAY --verdict PASS --reviewer "reviewer agent" --notes "<what you checked>"
+    python promo/review.py write DAY --verdict FAIL --reviewer "reviewer agent" --notes "<each problem, specific>"
 
 PASS only if every check passed. When in doubt, FAIL with the reason. Then reply with the verdict and notes.

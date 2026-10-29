@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Keep a reviewed promo video until it is posted, so a failed run can post it later instead of starting over.
 
-    python promo/pending.py save promo/days/<date>     # after the review PASS, before posting
-    python promo/pending.py done promo/days/<date>     # after posting: drops the saved copy once YouTube has it
+    python promo/pending.py save ~/funkbox-pending/days/<date>   # after the review PASS, before posting
+    python promo/pending.py done ~/funkbox-pending/days/<date>   # after posting: drops the copy once YouTube has it
     python promo/pending.py catchup                    # at the start of every run: posts what earlier runs still owe
 
-Videos are never committed to funkbox. The saved copy goes to a small PRIVATE repo (default
-IsraelWebDev/funkbox-pending, override with PROMO_PENDING_REPO) as <date>.mp4 and is removed once posted. A cloud
-session cannot write GitHub releases, but it can push, and a separate private repo keeps the public one lean.
+The saved copy is <date>.mp4 at the top of the state repo IsraelWebDev/funkbox-pending (promo/state.py), next to
+the day folders and the post log, and is removed once posted. That repo is public so that Buffer can fetch the
+video by URL and post it to X natively (post.py VIDEO_URL_BASE); it only ever holds videos that are about to be
+public on YouTube anyway. A cloud session cannot write GitHub releases, but it can push.
 
 catchup handles the two ways a day can be left unfinished:
 - the YouTube upload never happened (failure, or the run died after the review): the video is downloaded, checked
@@ -18,10 +19,8 @@ Anything older than KEEP_DAYS is dropped instead: a stale angle should not post 
 from __future__ import annotations
 
 import datetime as dt
-import os
 import re
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -29,12 +28,9 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import post  # noqa: E402
 import review  # noqa: E402
+import state  # noqa: E402
 
-PENDING_REPO = os.environ.get("PROMO_PENDING_REPO", "IsraelWebDev/funkbox-pending")
-PENDING_URL = os.environ.get("PROMO_PENDING_URL", f"https://github.com/{PENDING_REPO}.git")
-PENDING_DIR = Path(os.environ.get("PROMO_PENDING_DIR", Path.home() / "funkbox-pending"))
 KEEP_DAYS = 2
-DAYS = HERE / "days"
 DAY_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
 
 
@@ -43,58 +39,48 @@ class PendingError(RuntimeError):
 
 
 class Store:
-    """A shallow clone of the private repo; every change is committed and pushed at once."""
+    """The waiting videos: <date>.mp4 at the top of the state repo (promo/state.py). Each change is pushed at once."""
 
-    def __init__(self, path: Path):
-        self.path = path
-
-    def git(self, *args: str) -> str:
-        r = subprocess.run(["git", "-C", str(self.path), *args], capture_output=True, text=True)
-        if r.returncode:
-            raise PendingError(f"git {args[0]} failed: {(r.stderr or r.stdout).strip()[:300]}")
-        return r.stdout
+    @property
+    def path(self) -> Path:
+        return state.STATE_DIR
 
     def days(self) -> list[str]:
         return sorted(f.stem for f in self.path.glob("*.mp4"))
 
-    def _commit(self, msg: str) -> None:
-        ident = [] if _has_ident(self.path) else \
-            ["-c", "user.name=funkbox promo", "-c", "user.email=promo@users.noreply.github.com"]
-        self.git(*ident, "commit", "-q", "-m", msg)
-        self.git("push", "-q", "origin", "HEAD:main")
-
     def put(self, day: str, src: Path) -> None:
         shutil.copyfile(src, self.path / f"{day}.mp4")
-        self.git("add", f"{day}.mp4")
-        self._commit(f"save {day}")
+        self._commit([f"{day}.mp4"], f"save {day}")
 
     def get(self, day: str, dst: Path) -> bool:
         src = self.path / f"{day}.mp4"
         if not src.is_file():
             return False
-        shutil.copyfile(src, dst)
+        if src.resolve() != dst.resolve():
+            shutil.copyfile(src, dst)
         return True
 
     def remove(self, day: str) -> bool:
         if not (self.path / f"{day}.mp4").is_file():
             return False
-        self.git("rm", "-q", f"{day}.mp4")
-        self._commit(f"posted or expired: {day}")
+        (self.path / f"{day}.mp4").unlink()
+        self._commit([f"{day}.mp4"], f"posted or expired: {day}")
         return True
 
-
-def _has_ident(path: Path) -> bool:
-    return subprocess.run(["git", "-C", str(path), "config", "user.email"], capture_output=True).returncode == 0
+    @staticmethod
+    def _commit(paths: list[str], msg: str) -> None:
+        try:
+            state.commit(paths, msg)
+        except state.StateError as e:
+            raise PendingError(str(e)) from e
 
 
 def open_store() -> Store:
-    """A fresh shallow clone each time: the repo only ever holds a day or two of videos."""
-    if PENDING_DIR.exists():
-        shutil.rmtree(PENDING_DIR)
-    r = subprocess.run(["git", "clone", "-q", "--depth", "1", PENDING_URL, str(PENDING_DIR)], capture_output=True, text=True)
-    if r.returncode:
-        raise PendingError(f"cannot clone {PENDING_REPO} (attach it with push access): {r.stderr.strip()[:300]}")
-    return Store(PENDING_DIR)
+    try:
+        state.ensure()
+    except state.StateError as e:
+        raise PendingError(str(e)) from e
+    return Store()
 
 
 def save(day: Path) -> str:
@@ -102,7 +88,7 @@ def save(day: Path) -> str:
     if why:
         raise PendingError(f"not saving {day.name}: {why}")
     open_store().put(day.name, day / review.VIDEO)
-    return f"{day.name}: saved for later in {PENDING_REPO}"
+    return f"{day.name}: saved for later in {state.STATE_REPO}"
 
 
 def restore(day: Path, store: Store | None = None) -> None:
@@ -140,7 +126,7 @@ def catchup(today: str | None = None) -> list[str]:
     except PendingError as e:                              # store unreachable: the X catch-up still works
         store, notes = None, [f"saved videos unavailable: {e}"]
     for d in owed(today_d, store):
-        folder = DAYS / d
+        folder = state.DAYS / d
         age = _age(d, today_d)
         if age is None or age > KEEP_DAYS:
             if store and store.remove(d):

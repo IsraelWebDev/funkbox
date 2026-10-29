@@ -22,7 +22,7 @@ shortcuts/
 *.lnk
 /inputs/
 *.bak-*
-promo/days/*/assets/
-promo/days/*/final.png
-promo/days/*/.final.audio/
+# promo state lives in IsraelWebDev/funkbox-pending (promo/state.py), never here
+/promo/days/
+/promo/posts.jsonl
 promo/secrets/

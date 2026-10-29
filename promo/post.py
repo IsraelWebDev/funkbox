@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Post a reviewed promo day to YouTube (Shorts), then a short post linking to it on X (through Buffer).
 
-    python promo/post.py promo/days/2026-10-29 [--platforms youtube,x] [--dry-run]
+    python promo/post.py ~/funkbox-pending/days/2026-10-29 [--platforms youtube,x] [--dry-run]
 
 Hard gates, in code (the agent cannot talk its way past them):
 - promo/PAUSED exists, or PROMO_PAUSED=1  -> nothing is posted (exit 3)
 - review.json must be a PASS for the exact bytes of final.mp4 and caption.json (promo/review.py)
-- at most one post per platform per UTC day, and each promo day posts once per platform (promo/posts.jsonl)
+- at most one post per platform per UTC day, and each promo day posts once per platform (posts.jsonl, see state.py)
 - caption limits: X text <= 255 chars and no URL (this script appends today's YouTube link, 23 chars on X);
   YouTube title <= 100, no < or > anywhere; video <= 60 s, vertical
 - a short post (X, or any other Buffer channel) goes out only after today's YouTube post succeeded
@@ -40,8 +40,9 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 import review  # noqa: E402
+import state  # noqa: E402
 
-LOG = HERE / "posts.jsonl"
+LOG = state.LOG
 PAUSE = HERE / "PAUSED"
 URL_RE = re.compile(r"https?://|www\.|\b[a-z0-9-]+\.(com|io|ai|dev|org|net|app|co|so|gg)\b", re.I)
 YT_SECRETS = ("YT_CLIENT_ID", "YT_CLIENT_SECRET", "YT_REFRESH_TOKEN")
@@ -210,20 +211,40 @@ def buffer_channel(service: str) -> dict:
     return match[0]
 
 
+# Where pending.py keeps the reviewed video while it posts (a public repo: Buffer only takes video by URL).
+VIDEO_URL_BASE = os.environ.get("PROMO_VIDEO_URL_BASE",
+                                "https://raw.githubusercontent.com/IsraelWebDev/funkbox-pending/main/")
+REPO_URL = "https://github.com/IsraelWebDev/funkbox"
+
+
+def public_video_url(day: str, video: Path) -> str | None:
+    """The saved copy's public URL if it is there and the same size as the reviewed video, else None."""
+    if not VIDEO_URL_BASE or not video.is_file():
+        return None
+    url = f"{VIDEO_URL_BASE.rstrip('/')}/{day}.mp4"
+    try:
+        st, hdr, _ = _http("HEAD", url, timeout=30)
+    except OSError:
+        return None
+    size = {k.lower(): v for k, v in hdr.items()}.get("content-length")
+    return url if st == 200 and size == str(video.stat().st_size) else None
+
+
 def short_text(platform: str, cap: dict, link: str) -> str:
-    """The reviewed short-post text plus today's YouTube link. The link is added here, not by the agent, so the
-    reviewed words are exactly what goes out."""
+    """The reviewed short-post text plus one link, added here rather than by the agent, so the reviewed words are
+    exactly what goes out: the repo when the video is attached, else the Short that holds it."""
     text = (cap.get(platform) or cap["x"])["text"]
     return f"{text}\n\n{link}"
 
 
-def buffer_post(platform: str, cap: dict, link: str) -> dict:
+def buffer_post(platform: str, cap: dict, link: str, video_url: str | None = None) -> dict:
     ch = buffer_channel(BUFFER_SERVICE.get(platform, platform))
+    extra = {"assets": [{"video": {"url": video_url}}]} if video_url else {}
     data = _gql("""mutation($input: CreatePostInput!) { createPost(input: $input) {
         ... on PostActionSuccess { post { id status externalLink } }
         ... on MutationError { message } } }""",
-                {"input": {"text": short_text(platform, cap, link), "channelId": ch["id"],
-                           "schedulingType": "automatic", "mode": "shareNow"}})["createPost"]
+                {"input": {"text": short_text(platform, cap, REPO_URL if video_url else link), "channelId": ch["id"],
+                           "schedulingType": "automatic", "mode": "shareNow", **extra}})["createPost"]
     if not data.get("post"):
         raise PostError(f"Buffer refused the post: {data.get('message') or data}")
     post = data["post"]
@@ -238,7 +259,8 @@ def buffer_post(platform: str, cap: dict, link: str) -> dict:
             break                                         # the post went out; only the status lookup failed
     if post.get("status") == "error":
         raise PostError(f"Buffer could not publish: {(post.get('error') or {}).get('message')}")
-    return {"id": post["id"], "url": post.get("externalLink") or f"buffer:{post['id']}", "via": "buffer"}
+    return {"id": post["id"], "url": post.get("externalLink") or f"buffer:{post['id']}", "via": "buffer",
+            "media": "video" if video_url else "link"}
 
 
 PLATFORMS = ("youtube", "x")               # any other Buffer service name (bluesky, mastodon, threads, ...) works too
@@ -250,8 +272,15 @@ def secrets_for(p: str) -> tuple[str, ...]:
     return buffer_secrets()
 
 
-def publish(p: str, video: Path, cap: dict, link: str | None) -> dict:
-    return youtube_upload(video, cap) if p == "youtube" else buffer_post(p, cap, link)
+def publish(p: str, video: Path, cap: dict, link: str | None, video_url: str | None = None) -> dict:
+    if p == "youtube":
+        return youtube_upload(video, cap)
+    if video_url:
+        try:
+            return buffer_post(p, cap, link, video_url)
+        except PostError as e:                            # the video was refused: the link still gets the post out
+            print(f"{p}: native video refused ({e}); posting the link instead")
+    return buffer_post(p, cap, link)
 
 
 # --------------------------------------------------------------------------- main
@@ -303,7 +332,8 @@ def run(day: Path, platforms: list[str], dry_run: bool = False, today: str | Non
             print(f"{p}: skipped, this promo has no YouTube post to link to yet")
             continue
         try:
-            res = publish(p, video, cap, link)
+            res = publish(p, video, cap, link, None if p == "youtube" or linked_only else
+                          public_video_url(day.name, video))
             entry.update(ok=True, **res)
             print(f"{p}: posted {res.get('url')}")
         except (PostError, OSError, KeyError) as e:
