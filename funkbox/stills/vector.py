@@ -297,9 +297,9 @@ def _gradient_item(lay: dict, ctx) -> PathItem:
 def _text_items(lay: dict, ctx, text: str) -> list[PathItem]:
     from funkbox.reel import captions
     from .text import _fx, _line_x, layout_text
-    from .typeset import is_advanced, typeset
+    from .typeset import typeset, use_outlines
     fonts = captions.fonts_for(ctx.brand, ctx.base_dir)
-    if is_advanced(lay):
+    if use_outlines(lay):
         ts = typeset(lay, text, ctx, fonts)
         base = _rgba(lay.get("color", "brand.text"), ctx.brand)
         st = _fx(lay, "stroke", ctx, ts.px, base[:3], {"width": 0.0, "opacity": 1.0, "color": "#000000"})

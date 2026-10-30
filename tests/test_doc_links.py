@@ -2,7 +2,7 @@
 (a link to an ignored file is a 404 on GitHub even though it works locally)."""
 import re
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pytest
 
@@ -19,7 +19,7 @@ def tracked() -> set[str]:
 
 def test_markdown_links_resolve_to_tracked_files():
     files = tracked()
-    dirs = {str(Path(f).parent) for f in files} | {str(p) for f in files for p in Path(f).parents}
+    dirs = {p.as_posix() for f in files for p in PurePosixPath(f).parents}          # "/" on Windows too
     bad = []
     for md in sorted(f for f in files if f.endswith(".md")):
         text = (ROOT / md).read_text(encoding="utf-8", errors="replace")

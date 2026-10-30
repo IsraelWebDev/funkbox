@@ -40,6 +40,13 @@ def is_advanced(lay: dict) -> bool:
     return any(lay.get(k) for k in ADVANCED)
 
 
+def use_outlines(lay: dict) -> bool:
+    """Draw this layer with HarfBuzz outlines: it asks for typography, or Pillow has no libraqm (Windows wheels),
+    whose basic layout has no kerning and no right-to-left."""
+    from funkbox.bidi import pillow_has_raqm
+    return is_advanced(lay) or not pillow_has_raqm()
+
+
 @dataclass
 class Piece:
     start: int

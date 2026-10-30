@@ -383,6 +383,8 @@ def draw_block(lay: Layout, strings: list[str | None], t: float = 1e9, anim: str
             continue
         base = m + lay.pad + i * lay.line_h + (lay.line_h + lay.cap_h) / 2
         x = m + lay.line_x(i)
+        from funkbox.bidi import shown
+        s = shown(s)                                  # right-to-left lines in display order without libraqm
         if st.shadow > 0:
             off = max(1, int(round(st.shadow * lay.px)))
             d.text((x + off, base + off), s, font=font, fill=(0, 0, 0, 120), anchor="ls",

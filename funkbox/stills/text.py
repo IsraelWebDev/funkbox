@@ -208,6 +208,8 @@ def draw_text(lay: dict, lo: captions.Layout, frame_w: int, ctx: RCtx) -> tuple[
         base = margin + i * lo.line_h + (lo.line_h + lo.cap_h) / 2
         x = margin + _line_x(lay, lo, i, frame_w)
         if line:
+            from funkbox.bidi import shown
+            line = shown(line)                        # right-to-left in display order without libraqm
             df.text((x, base), line, font=font, fill=(*fill, 255), anchor="ls", stroke_width=sw,
                     stroke_fill=(*(stroke["rgb"] if stroke else fill), int(round(255 * (stroke or {}).get("opacity", 1.0)))))
             dm.text((x, base), line, font=font, fill=255, anchor="ls", stroke_width=sw)
@@ -251,15 +253,17 @@ def raster_text(lay: dict, ctx: RCtx, doc: Doc, deck: CopyDeck | None) -> tuple[
         source, text = "literal", lay["text"]
     fonts = _fonts(ctx)
     from . import typeset
-    if typeset.is_advanced(lay):
+    if typeset.use_outlines(lay):
         ts = typeset.typeset(lay, text, ctx, fonts)
         rgba = draw_set(lay, ts, ctx)
         rebuilt = ts.reconstruct()
         entry = {"layer": lay["id"], "source": source, "copy_id": lay.get("copy_id"), "text": rebuilt,
                  "text_exact": rebuilt == text, "drawn_lines": ts.drawn, "font": lay.get("style", "caption"),
-                 "px": ts.px, "box": list(ts.box),
-                 "typography": {k: lay[k] for k in ("letter_spacing", "on_path") if lay.get(k)}
-                 | ({"runs": [r["match"] for r in lay["runs"]]} if lay.get("runs") else {})}
+                 "px": ts.px, "box": list(ts.box)}
+        typo = {k: lay[k] for k in ("letter_spacing", "on_path") if lay.get(k)}
+        typo |= {"runs": [r["match"] for r in lay["runs"]]} if lay.get("runs") else {}
+        if typo:
+            entry["typography"] = typo
         geo = {k: lay[k] for k in ("arc", "rotate_deg", "skew_x", "skew_y") if lay.get(k)}
         if geo:
             entry["geometry"] = geo

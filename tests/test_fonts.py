@@ -76,14 +76,22 @@ def test_the_fallback_draws_what_the_main_font_cannot():
         captions.Fonts(OSWALD, OSWALD).path_for("caption", "צהל")
 
 
-def test_hebrew_is_drawn_right_to_left():
+@pytest.mark.parametrize("engine", ["raqm", "basic"])
+def test_hebrew_is_drawn_right_to_left(engine, monkeypatch):
     """The lamed rises above the other letters, so the column where ink starts highest is the lamed. In צהל it is
-    the last letter, so right to left it is drawn at the LEFT end; in להצ (lamed first) at the right end."""
-    f = ImageFont.truetype(str(RUBIK), 64)
+    the last letter, so right to left it is drawn at the LEFT end; in להצ (lamed first) at the right end. With
+    Pillow's basic layout (Windows wheels have no libraqm) funkbox reorders the line itself."""
+    from PIL import features
+    from funkbox import bidi
+    if engine == "raqm" and not features.check("raqm"):
+        pytest.skip("this Pillow has no libraqm")
+    layout = ImageFont.Layout.RAQM if engine == "raqm" else ImageFont.Layout.BASIC
+    f = ImageFont.truetype(str(RUBIK), 64, layout_engine=layout)
+    monkeypatch.setattr(bidi, "pillow_has_raqm", lambda: engine == "raqm")
 
     def lamed_side(text):
         im = Image.new("L", (400, 120))
-        ImageDraw.Draw(im).text((10, 100), text, font=f, fill=255, anchor="ls")     # as captions and posters draw
+        ImageDraw.Draw(im).text((10, 100), bidi.shown(text), font=f, fill=255, anchor="ls")   # as funkbox draws
         a = np.asarray(im) > 0
         cols = np.nonzero(a.any(0))[0]
         top = np.array([np.argmax(a[:, c]) for c in cols])
