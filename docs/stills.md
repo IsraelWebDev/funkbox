@@ -22,7 +22,7 @@ python -m funkbox poster export-ora examples/stills/glowmop_poster.poster.json  
 |---|---|
 | `poster_presets()` | canvas presets, layer types, blends, filters, effects, export formats, edit ops |
 | `poster_preview(poster, max_side=720)` | small render with the same layout and text, writes nothing: look before you render |
-| `poster_render(poster, name)` | full render to `out/posters/` (a project poster goes to `projects/<p>/out/`): PNG (or JPG/WebP/ORA per `export.formats`), `<name>.poster.json` sidecar, `<name>.text_audit.json` |
+| `poster_render(poster, name)` | full render to `out/posters/` (a project poster goes to `projects/<p>/out/`): PNG (or JPG/WebP/ORA/SVG/PDF per `export.formats`), `<name>.poster.json` sidecar, `<name>.text_audit.json` |
 | `poster_variations(poster, vary, name)` | up to 12 variants and a labelled contact sheet |
 | `image_edit(path, ops, name)` | non-destructive edit of a copy; writes `out/edits/<stem>-<n>.png`, a sidecar and a before/after sheet |
 | `loop_still(recipe_or_shader, t, preset)` | one frame of a loop recipe or shader as a poster background |
@@ -107,6 +107,18 @@ adjustments, filters, effects and masks; blend modes map to `svg:src-over`, `svg
 `svg:overlay`, `svg:difference`, `svg:soft-light`, `svg:hue`. A group is one flattened layer. Poster-level `post`
 passes cannot be layers, so they appear only in the PNG/JPG, not in the `.ora` (`mergedimage.png` is the stack
 without them). `funkbox poster ora-check FILE` validates a file.
+
+## SVG and PDF
+
+Add `"svg"` and/or `"pdf"` to `export.formats` for files that stay sharp at any size (print, signage, a cutter).
+Solids, borders, gradients, shapes, imported SVGs and text are written as vector paths. Text is shaped with HarfBuzz
+(the same shaping as the pixel render: kerning, ligatures, right-to-left) and saved as glyph outlines, so the file needs
+no fonts and carries exactly the approved words; `arc`, `skew_x/y` and `rotate_deg` bend the outlines themselves.
+Layers that are pixels (image, product, shader, group) or that `adjust`, `filters`, a `mask`, or a text `shadow`/`glow`
+turned into pixels are embedded as pictures in place, and the render's warnings name them. Blend modes become CSS
+`mix-blend-mode` in SVG and PDF blend modes (`add` has no PDF equivalent); poster-level `post` passes are pixel-only.
+The PDF page is the canvas at 96 dpi (a 1080 px poster is 11.25 in wide). From Python:
+`funkbox.stills.vector.export(rendered, "poster.pdf")` returns which layers are vectors and which are pictures.
 
 ## Generating pictures first
 

@@ -51,6 +51,7 @@ class Rendered:
     resolved: dict = field(default_factory=dict)      # the sidecar document
     alpha: np.ndarray | None = None                   # HxW uint8 when canvas.background is "transparent"
     info: dict = field(default_factory=dict)
+    base_dir: Path | None = None                      # where relative files (fonts, svgs) were found
 
     @property
     def pil(self) -> Image.Image:
@@ -254,7 +255,8 @@ def render_document(doc_in: Any, base_dir: str | Path | None = None, scale: floa
     image = gl.post(flat, doc.post, doc.seed)
     resolved = copy.deepcopy(doc.raw)
     _inline(resolved["layers"], run.resolved_layers)
-    return Rendered(doc, w, h, outs, flat, image, bg[:3], run.audit, ctx.warnings, resolved, alpha, ctx.info)
+    return Rendered(doc, w, h, outs, flat, image, bg[:3], run.audit, ctx.warnings, resolved, alpha, ctx.info,
+                    ctx.base_dir)
 
 
 def _inline(layers: list[dict], res: dict[str, dict]) -> None:
@@ -314,6 +316,10 @@ def write_outputs(r: Rendered, out_dir: str | Path, name: str, formats: list[str
         elif f == "ora":
             from . import ora
             ora.write_ora(r, p)
+        elif f in ("svg", "pdf"):
+            from . import vector
+            r.info.setdefault("vector", {})[f] = rep = vector.export(r, p)
+            r.warnings += [f"{f}: {w}" for w in rep["warnings"]]
         paths[f] = p
     audit = d / f"{name}.text_audit.json"
     _atomic_json(audit, r.audit)

@@ -31,7 +31,7 @@ SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 
 LAYER_TYPES = ("image", "solid", "gradient", "shader", "product", "text", "group", "border", "shape", "svg")
 FITS = ("cover", "contain", "stretch")
-EXPORTS = ("png", "jpg", "webp", "ora")
+EXPORTS = ("png", "jpg", "webp", "ora", "svg", "pdf")
 MAX_LAYERS = 64
 MAX_DEPTH = 8
 
