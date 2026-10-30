@@ -18,6 +18,7 @@ dependencies = [
 [project.optional-dependencies]
 reel = [
   "onnxruntime>=1.17",
+  "kokoro-onnx>=0.4",
   "piper-tts>=1.2",
 ]
 dev = [

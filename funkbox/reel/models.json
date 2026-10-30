@@ -36,5 +36,27 @@
     "license": "Dataset: public domain (LJ Speech); voice repo rhasspy/piper-voices: MIT",
     "license_note": "MODEL_CARD (sha256 fbee1529c89d36b3fe76d7e9f3f832dce17f44900a52d76a9bda735654766b4d) says: Dataset License: public domain (https://keithito.com/LJ-Speech-Dataset/). Commercial use is allowed. NOTE: the piper-tts runtime package is GPL-3.0 (it bundles espeak-ng); it is an optional extra and is not distributed with funk.",
     "license_url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ljspeech/medium/MODEL_CARD"
+  },
+  "kokoro": {
+    "name": "Kokoro-82M v1.0 (ONNX, fp32) with its voice pack: natural US and UK English voices, 24 kHz",
+    "repo": "thewh1teagle/kokoro-onnx (release model-files-v1.0) of hexgrad/Kokoro-82M",
+    "revision": "model-files-v1.0",
+    "files": [
+      {
+        "url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx",
+        "dest": "kokoro-v1.0.onnx",
+        "sha256": "7d5df8ecf7d4b1878015a32686053fd0eebe2bc377234608764cc0ef3636a6c5",
+        "size": 325532387
+      },
+      {
+        "url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin",
+        "dest": "voices-v1.0.bin",
+        "sha256": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d",
+        "size": 28214398
+      }
+    ],
+    "license": "Apache-2.0 (Kokoro-82M model and voices); kokoro-onnx package: MIT",
+    "license_note": "Kokoro-82M is released under Apache-2.0 by hexgrad. The kokoro-onnx runtime is MIT, but it uses phonemizer and espeak-ng (GPL-3.0); like piper-tts it is an optional extra (requirements-reel.txt) and is not distributed with funkbox.",
+    "license_url": "https://huggingface.co/hexgrad/Kokoro-82M"
   }
 }

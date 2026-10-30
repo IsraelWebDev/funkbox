@@ -80,7 +80,7 @@ def test_cli_validate_still_storyboard_beats_cutout(demo, gl, work):
 def test_setup_models_checks_hashes(work, monkeypatch):
     from funkbox.reel import models
     st = models.status()
-    assert set(st) == {"depth", "voice"}
+    assert set(st) == {"depth", "voice", "kokoro"}
     man = models.models_manifest()
     for m in man.values():
         assert m["license"] and all(len(f["sha256"]) == 64 for f in m["files"])

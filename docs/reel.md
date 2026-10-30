@@ -4,15 +4,15 @@
 9:16 ad (or 16:9, square, 4:5, several at once): stills with Ken Burns or 2.5D parallax, video clips and screen
 recordings framed with push-ins and speed ramps, your real product photo composited in (shadow + a
 capped global Lab colour match, label pixels stay exact), boxed animated captions, a branded end card,
-local voice-over (Piper), a music bed with ducking and loudness normalisation.
+local voice-over (Kokoro, or Piper), a music bed with ducking and loudness normalisation.
 
 **Text is exact by construction.** Shots reference copy by ID; the validator rejects any literal-text key;
 `reel render --audit` writes `<name>.text_audit.json` proving every drawn string equals its copy entry byte for
 byte. The only tool that writes the copy deck is `project_approve_copy`, after your approval.
 
 ```
-pip install -r requirements-reel.txt          # optional: onnxruntime + piper-tts
-python -m funkbox reel setup-models           # once: depth (Apache-2.0) + voice (public-domain data), hashes verified
+pip install -r requirements-reel.txt          # optional: onnxruntime + kokoro-onnx + piper-tts
+python -m funkbox reel setup-models           # once: depth + Kokoro (Apache-2.0) + Piper voice (public-domain data), hashes verified
 python examples/reel_demo/make_assets.py      # synthetic demo assets
 python -m funkbox reel validate   examples/reel_demo/demo.reel.json
 python -m funkbox reel storyboard examples/reel_demo/demo.reel.json -o out/sb.png
@@ -23,8 +23,14 @@ python -m funkbox reel beats music.mp3
 ```
 The MCP tools are `reel_copy_lines`, `reel_templates`, `reel_validate`, `reel_storyboard`, `reel_still`, `reel_render`
 (registered with everything else by `python install.py --register ...`). On Linux without a
-display set `FUNK_GL_BACKEND=egl`. Without the depth model `parallax` degrades to Ken Burns; without a Piper
-voice `voiceover: true` is an error (the sine-burst stub exists for tests only: `REEL_TTS=stub`).
+display set `FUNK_GL_BACKEND=egl`. Without the depth model `parallax` degrades to Ken Burns; without a voice
+`voiceover: true` is an error (the sine-burst stub exists for tests only: `REEL_TTS=stub`).
+
+**Voices.** `"audio": {"voiceover": true, "voice": "kokoro:af_heart", "voice_speed": 1.0}`. The default is Kokoro-82M
+(natural, about twice real time on a laptop CPU, 24 kHz) when installed, else Piper (`en_US-ljspeech-medium`). The
+approved ad voices are `kokoro:af_heart` (US, female), `kokoro:am_michael` (US, male) and `kokoro:bm_george` (UK, male);
+any Kokoro voice id works (`a`/`b` prefixes speak US/UK English). `"voice": "piper"` keeps the old voice;
+`voice_speed` is 0.7..1.4. `FUNK_VOICE` sets the default for every reel. Each line is cached per voice and speed.
 Fonts in `fonts/` are SIL OFL (Oswald, DM Serif Display, and Rubik Bold, which covers Hebrew and Cyrillic); licence
 texts alongside.
 

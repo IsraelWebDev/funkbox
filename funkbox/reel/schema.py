@@ -70,6 +70,8 @@ class Audio:
     beat_offset: float = 0.0                # seconds of the first beat on that grid
     music_gain_db: float = -14.0
     voiceover: bool = False
+    voice: str | None = None                # "kokoro:af_heart" | "kokoro:am_michael" | "kokoro:bm_george" | "piper"
+    voice_speed: float = 1.0
     duck_db: float = -10.0
     snap_cuts_to_beats: bool = False
     loudness_lufs: float = -14.0
@@ -517,6 +519,8 @@ def parse_reel(d: Any, base_dir: str | None = None) -> Reel:
                        voiceover=a.b("voiceover", False), duck_db=a.num("duck_db", -10.0, -40.0, 0.0),
                        snap_cuts_to_beats=a.b("snap_cuts_to_beats", False),
                        loudness_lufs=a.num("loudness_lufs", -14.0, -40.0, -5.0))
+    reel.audio.voice = a.s("voice", None, pattern=re.compile(r"^(piper|kokoro:[a-z]{2}_[a-z]+)$"))
+    reel.audio.voice_speed = a.num("voice_speed", 1.0, 0.7, 1.4)
     if a.has("bpm"):
         reel.audio.bpm = a.num("bpm", 120.0, 30.0, 300.0)
     reel.audio.beat_offset = a.num("beat_offset", 0.0, 0.0, 10.0)

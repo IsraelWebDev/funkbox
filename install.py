@@ -349,9 +349,10 @@ def make_venv(r: Runner, parts: tuple[str, ...]) -> bool:
 
 
 def setup_reel(r: Runner) -> None:
-    r.step("reel models (depth + voice)")
-    r.say("   Licences: Depth-Anything-V2-Small is Apache-2.0; Piper voice en_US-ljspeech-medium is "
-          "public-domain data; piper-tts itself is GPL-3.0 (installed here, not bundled). See THIRD_PARTY_NOTICES.md.")
+    r.step("reel models (depth + voices)")
+    r.say("   Licences: Depth-Anything-V2-Small and Kokoro-82M are Apache-2.0; Piper voice en_US-ljspeech-medium is "
+          "public-domain data; piper-tts and espeak-ng (used by kokoro-onnx) are GPL-3.0 (installed here, not "
+          "bundled). See THIRD_PARTY_NOTICES.md.")
     r.run([str(venv_python(r.root)), "-m", "funkbox", "reel", "setup-models"], cwd=r.root)
 
 

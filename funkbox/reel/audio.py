@@ -1,4 +1,4 @@
-"""Audio for reels: local TTS (Piper), music beat detection, ducked mix, loudness normalisation.
+"""Audio for reels: local TTS (Kokoro, or Piper), music beat detection, ducked mix, loudness normalisation.
 
 No librosa: onset strength = spectral flux, tempo = autocorrelation (70-180 BPM), beat grid by
 scoring a comb against the onset envelope. The mix is one ffmpeg filtergraph per pass
@@ -42,6 +42,11 @@ def _log(*a) -> None:
 # TTS
 # --------------------------------------------------------------------------- #
 _VOICE = None
+_KOKORO = None
+DEFAULT_VOICE = "kokoro:af_heart"
+#: the Kokoro voices we have listened to and approved for ads; any Kokoro voice id works
+APPROVED_VOICES = ("kokoro:af_heart", "kokoro:am_michael", "kokoro:bm_george")
+VOICE_RE = re.compile(r"^(piper|kokoro:[a-z]{2}_[a-z]+)$")
 
 
 def voice_files() -> tuple[Path, Path]:
@@ -49,23 +54,52 @@ def voice_files() -> tuple[Path, Path]:
     return fs[0], fs[1]
 
 
-def tts_mode() -> str:
-    """"piper" | "stub" | "none". REEL_TTS=stub|off forces a mode; the stub is for tests only."""
+def kokoro_files() -> tuple[Path, Path]:
+    fs = [models_dir() / f["dest"] for f in models_manifest()["kokoro"]["files"]]
+    return fs[0], fs[1]
+
+
+def _has(mod: str) -> bool:
+    import importlib.util
+    return importlib.util.find_spec(mod) is not None
+
+
+def _kokoro_ready() -> bool:
+    return _has("kokoro_onnx") and all(p.exists() for p in kokoro_files())
+
+
+def _piper_ready() -> bool:
+    return _has("piper") and all(p.exists() for p in voice_files())
+
+
+def resolve_voice(voice: str | None = None) -> str:
+    """The voice a reel will speak with: its ``audio.voice`` ("kokoro:<id>" or "piper"), else FUNK_VOICE, else
+    Kokoro's af_heart when installed, else Piper."""
+    import os
+    want = voice or os.environ.get("FUNK_VOICE") or ""
+    if want:
+        return want
+    return DEFAULT_VOICE if _kokoro_ready() or not _piper_ready() else "piper"
+
+
+def tts_mode(voice: str | None = None) -> str:
+    """"kokoro" | "piper" | "stub" | "none". REEL_TTS=stub|off forces a mode; the stub is for tests only."""
     forced = _config().reel_tts
     if forced in ("stub", "off", "none"):
         return "stub" if forced == "stub" else "none"
-    try:
-        import piper  # noqa: F401
-    except ImportError:
-        return "none"
-    onnx, cfg = voice_files()
-    return "piper" if onnx.exists() and cfg.exists() else "none"
+    v = resolve_voice(voice)
+    if v.startswith("kokoro:"):
+        return "kokoro" if _kokoro_ready() else "none"
+    return "piper" if _piper_ready() else "none"
 
 
-def tts_unavailable_reason() -> str:
-    try:
-        import piper  # noqa: F401
-    except ImportError:
+def tts_unavailable_reason(voice: str | None = None) -> str:
+    v = resolve_voice(voice)
+    if v.startswith("kokoro:"):
+        if not _has("kokoro_onnx"):
+            return "kokoro-onnx is not installed (pip install -r requirements-reel.txt)"
+        return f"no Kokoro model in {models_dir()} (run: funkbox reel setup-models)"
+    if not _has("piper"):
         return "piper-tts is not installed (pip install -r requirements-reel.txt)"
     return f"no Piper voice found in {models_dir()} (run: funkbox reel setup-models)"
 
@@ -77,6 +111,32 @@ def _voice():
         onnx, cfg = voice_files()
         _VOICE = PiperVoice.load(onnx, cfg)
     return _VOICE
+
+
+def _kokoro():
+    global _KOKORO
+    if _KOKORO is None:
+        from kokoro_onnx import Kokoro
+        model, voices = kokoro_files()
+        _KOKORO = Kokoro(str(model), str(voices))
+    return _KOKORO
+
+
+def _kokoro_wav(text: str, voice_id: str, speed: float, path: Path) -> None:
+    lang = "en-gb" if voice_id.startswith("b") else "en-us"
+    k = _kokoro()
+    if voice_id not in k.get_voices():
+        raise RuntimeError(f"Kokoro has no voice {voice_id!r}; try {', '.join(v.split(':')[1] for v in APPROVED_VOICES)}")
+    y, sr = k.create(text, voice=voice_id, speed=speed, lang=lang)
+    y = np.asarray(y, np.float64)
+    peak = float(np.abs(y).max()) if y.size else 0.0
+    if peak > 0.98:
+        y = y * (0.98 / peak)
+    with wave.open(str(path), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(int(sr))
+        wf.writeframes((np.clip(y, -1, 1) * 32767).astype("<i2").tobytes())
 
 
 def _stub_wav(text: str, path: Path) -> None:
@@ -102,14 +162,15 @@ def _stub_wav(text: str, path: Path) -> None:
         wf.writeframes((np.clip(y, -1, 1) * 32767).astype("<i2").tobytes())
 
 
-def synthesize(deck: CopyDeck, copy_id: str) -> Path:
+def synthesize(deck: CopyDeck, copy_id: str, voice: str | None = None, speed: float = 1.0) -> Path:
     """TTS for one copy line (``say`` text, pronunciations applied) -> cached wav."""
-    mode = tts_mode()
+    mode = tts_mode(voice)
     if mode == "none":
-        raise RuntimeError(f"voiceover needs a TTS voice: {tts_unavailable_reason()}")
+        raise RuntimeError(f"voiceover needs a TTS voice: {tts_unavailable_reason(voice)}")
     text = deck.say(copy_id)
     onnx, _ = voice_files()
-    ident = f"{mode}:{onnx.name if mode == 'piper' else 'stub'}"
+    ident = {"piper": f"piper:{onnx.name}", "stub": "stub",
+             "kokoro": f"{resolve_voice(voice)}@{speed:g}:{kokoro_files()[0].name}"}[mode]
     key = hashlib.sha1((ident + "\n" + text).encode("utf-8")).hexdigest()
     out = funk_out() / "cache" / "tts" / f"{key}.wav"
     if out.exists():
@@ -118,6 +179,8 @@ def synthesize(deck: CopyDeck, copy_id: str) -> Path:
     tmp = out.with_suffix(".part.wav")
     if mode == "stub":
         _stub_wav(text, tmp)
+    elif mode == "kokoro":
+        _kokoro_wav(text, resolve_voice(voice).split(":", 1)[1], speed, tmp)
     else:
         with wave.open(str(tmp), "wb") as wf:
             _voice().synthesize_wav(text, wf)
@@ -140,7 +203,7 @@ def vo_ids(reel: Reel) -> list[str]:
 
 def vo_durations(reel: Reel, deck: CopyDeck) -> dict[str, float]:
     """Seconds of speech per copy id (from the wav header)."""
-    return {cid: wav_duration(synthesize(deck, cid)) for cid in vo_ids(reel)}
+    return {cid: wav_duration(synthesize(deck, cid, reel.audio.voice, reel.audio.voice_speed)) for cid in vo_ids(reel)}
 
 
 # --------------------------------------------------------------------------- #
@@ -367,7 +430,7 @@ def build_mix(plan, out_dir: Path, name: str) -> Path | None:
     if a.voiceover:
         for sp in spans:
             if sp.kind == "shot" and sp.vo_id and sp.vo_start is not None:
-                clips.append((synthesize(deck, sp.vo_id), sp.vo_start))
+                clips.append((synthesize(deck, sp.vo_id, a.voice, a.voice_speed), sp.vo_start))
     if music is None and not clips:
         return None
     total = spans[-1].end

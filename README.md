@@ -74,7 +74,7 @@ shampoo, built to mimic the rhythm of a real social product ad. Watch [preview.m
   - the scenes are the FastSD images above;
   - the bottle is drawn by code, so its label is exact;
   - the music is synthesized;
-  - the voice is Piper, running locally;
+  - the voice is local text-to-speech (Kokoro by default, Piper as the fallback);
   - rendering took about 3.5 minutes on an Intel Iris Xe laptop.
 
 A conversation that builds an ad like this:
@@ -171,6 +171,6 @@ FUNK_GL_BACKEND=egl pytest -q        # leave the variable out when a GPU driver 
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Optional components keep their own licences (GPL-3.0 for piper-tts and gimp-mcp,
+MIT, see [LICENSE](LICENSE). Optional components keep their own licences (GPL-3.0 for piper-tts, espeak-ng used by kokoro-onnx, and gimp-mcp,
 which are installed on request and not bundled). FastSD images are covered by the Stability AI Community License
 (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).

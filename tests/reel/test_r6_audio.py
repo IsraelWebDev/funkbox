@@ -55,9 +55,9 @@ def test_tts_cache_key_depends_on_spoken_text(work):
                     reason="Piper or its voice model not installed")
 def test_real_piper_voice_speaks(monkeypatch):
     monkeypatch.delenv("REEL_TTS", raising=False)
-    assert audio.tts_mode() == "piper"
+    assert audio.tts_mode("piper") == "piper"
     deck = parse_copy({"lines": {"a": {"text": "Look closer. Time for a clean?"}}})
-    p = audio.synthesize(deck, "a")
+    p = audio.synthesize(deck, "a", "piper")
     d = audio.wav_duration(p)
     assert 1.0 < d < 6.0
     with wave.open(str(p)) as wf:
@@ -87,6 +87,25 @@ def _piper_ready():
     return bool(importlib.util.find_spec("piper")) and audio.voice_files()[0].exists()
 
 
+def _kokoro_ready():
+    return audio._kokoro_ready()
+
+
+@pytest.mark.skipif(not audio._kokoro_ready(), reason="kokoro-onnx or the Kokoro model not installed")
+@pytest.mark.parametrize("voice", audio.APPROVED_VOICES)
+def test_real_kokoro_voices_speak(voice, monkeypatch):
+    monkeypatch.delenv("REEL_TTS", raising=False)
+    assert audio.tts_mode(voice) == "kokoro"
+    deck = parse_copy({"lines": {"a": {"text": "Look closer. Time for a clean?"}}})
+    p = audio.synthesize(deck, "a", voice)
+    fast = audio.synthesize(deck, "a", voice, 1.3)
+    assert p != fast and 1.0 < audio.wav_duration(p) < 6.0 and audio.wav_duration(fast) < audio.wav_duration(p)
+    with wave.open(str(p)) as wf:
+        assert wf.getframerate() == 24000
+        y = np.frombuffer(wf.readframes(wf.getnframes()), "<i2").astype(float) / 32768
+    assert np.sqrt((y ** 2).mean()) > 0.01
+
+
 @pytest.fixture(scope="module", params=["stub", "piper"])
 def mixed(request, demo, gl):
     """The demo reel mixed with the stub voice and (when installed) with the real Piper voice."""
@@ -96,8 +115,10 @@ def mixed(request, demo, gl):
     if request.param == "piper" and not _piper_ready():
         pytest.skip("Piper voice not installed")
     old = os.environ.get("REEL_TTS")
+    old_voice = os.environ.get("FUNK_VOICE")
     if request.param == "piper":
         os.environ.pop("REEL_TTS", None)
+        os.environ["FUNK_VOICE"] = "piper"
     else:
         os.environ["REEL_TTS"] = "stub"
     try:
@@ -114,6 +135,10 @@ def mixed(request, demo, gl):
             os.environ.pop("REEL_TTS", None)
         else:
             os.environ["REEL_TTS"] = old
+        if old_voice is None:
+            os.environ.pop("FUNK_VOICE", None)
+        else:
+            os.environ["FUNK_VOICE"] = old_voice
 
 
 def test_vo_is_6db_louder_than_music_only_windows(mixed):

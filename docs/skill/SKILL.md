@@ -130,6 +130,8 @@ Describe → generate variations → pick → poster or edit → export.
   score and the side-by-side, raise `detail` or lower `tolerance` for small lettering.
 - **Motion:** add a `motion` block (entrances, keyframed tracks) and `poster_animate(poster, scale=0.5)` for a draft,
   then full size. The last frame is the poster; read the per-frame audit.
+- **Voice:** reels speak with Kokoro by default; offer `audio.voice` `kokoro:af_heart`, `kokoro:am_michael` or
+  `kokoro:bm_george` (the approved ad voices) and `voice_speed` for pacing.
 - **Other sizes:** `poster_sizes(poster, ["story","landscape","square"])` makes the set from one design; pin bands with
   `"resize": "bottom"`, use `fit_to="content"` for banners, and fix one size with its `set` patch, never by hand.
 - **Match a reference:** when the user wants it "like this picture", `poster_compare(poster, reference)` after each

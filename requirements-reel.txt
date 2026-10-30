@@ -1,3 +1,4 @@
 # funk v3 "reel" optional extras (the core reel engine only needs requirements.txt)
 onnxruntime>=1.17   # CPU depth estimation (Depth-Anything-V2-Small, Apache-2.0)
-piper-tts>=1.2      # local text-to-speech voiceover
+kokoro-onnx>=0.4    # local text-to-speech voiceover, the default voice (Kokoro-82M, Apache-2.0; runtime MIT, uses GPL espeak-ng)
+piper-tts>=1.2      # the fallback voice

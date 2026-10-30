@@ -12,6 +12,8 @@ file is in this repository; "downloaded" means fetched on request; "optional" me
 | Fonts fetched by name (`"Rubik:800"`) | each font's own: SIL OFL 1.1, Apache 2.0 or Ubuntu Font Licence (only those Google Fonts folders are used) | downloaded on first use into `FUNK_HOME/fonts-cache/`, with the licence file next to each font |
 | Depth-Anything-V2-Small (ONNX) | Apache-2.0 | downloaded by `funkbox reel setup-models` into `models/` |
 | Piper voice `en_US-ljspeech-medium` | public-domain training data (LJ Speech); model released under MIT | downloaded by `funkbox reel setup-models` into `models/` |
+| Kokoro-82M v1.0 (ONNX) and its voice pack | Apache-2.0 | the default voice, downloaded by `funkbox reel setup-models` into `models/` (hash-checked) |
+| kokoro-onnx | MIT (it uses phonemizer and espeak-ng, GPL-3.0) | optional Python package (`requirements-reel.txt`), installed on request, not bundled |
 | piper-tts | GPL-3.0 | optional Python package (`requirements-reel.txt`), installed on request, not bundled |
 | FastSD CPU | MIT | optional, cloned by `install.py --with fastsd` into `vendor/` |
 | SD-Turbo (`rupeshs/sd-turbo-openvino`) | Stability AI Community License | the default FastSD model, downloaded by FastSD on first use; see the note below |

@@ -73,7 +73,7 @@ Config backups stay next to the config as `*.bak-<timestamp>`.
 
 | part | what it does |
 |---|---|
-| `reel` | installs onnxruntime and piper-tts, downloads the depth and voice models (`funkbox reel setup-models`) |
+| `reel` | installs onnxruntime, kokoro-onnx and piper-tts, downloads the depth model and the Kokoro and Piper voices (`funkbox reel setup-models`, about 520 MB) |
 | `fastsd` | clones FastSD CPU into `vendor/fastsdcpu`, Python 3.11 venv via `uv`, CPU torch, copies the localhost-only launcher |
 | `gimp` | clones `gimp-mcp` into `vendor/gimp-mcp` and runs `uv sync`; looks for GIMP 3 and prints the download if missing |
 
