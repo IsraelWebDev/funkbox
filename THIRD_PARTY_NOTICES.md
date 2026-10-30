@@ -17,8 +17,12 @@ file is in this repository; "downloaded" means fetched on request; "optional" me
 | SD-Turbo (`rupeshs/sd-turbo-openvino`) | Stability AI Community License | the default FastSD model, downloaded by FastSD on first use; see the note below |
 | gimp-mcp | GPL-3.0 | optional, cloned by `install.py --with gimp` into `vendor/` |
 | GIMP | GPL-3.0 | installed by you; funkbox never installs it |
+| GeneralUser GS (General MIDI SoundFont) | GeneralUser GS License v2.0: free use in music, private or commercial, and in software | downloaded on first `music_render` from its GitHub repository into `FUNK_HOME/soundfonts/`, with its licence file; not bundled |
+| HarfBuzz via uharfbuzz | MIT (HarfBuzz) / Apache-2.0 (uharfbuzz) | Python package from PyPI: text shaping for outlines (SVG/PDF export, typography) |
+| fontTools | MIT | Python package from PyPI: font names, glyph checks, outlines |
+| ReportLab | BSD | Python package from PyPI: PDF export |
 
-Python dependencies (numpy, Pillow, imageio-ffmpeg, mcp, moderngl, onnxruntime) are installed from PyPI under their
+Python dependencies (numpy, Pillow, imageio-ffmpeg, mcp, moderngl, fonttools, uharfbuzz, reportlab, onnxruntime) are installed from PyPI under their
 own licences; imageio-ffmpeg downloads an ffmpeg binary (LGPL/GPL builds, see imageio-ffmpeg).
 Because the GPL components are neither bundled nor linked into funkbox, funkbox stays MIT; if you redistribute a
 build that includes them, their licences apply to that distribution.

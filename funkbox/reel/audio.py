@@ -242,6 +242,30 @@ def fixed_grid(bpm: float, offset: float = 0.0, seconds: float = 600.0) -> list[
     return [round(offset + k * period, 4) for k in range(int((seconds - offset) / period) + 1)]
 
 
+def music_file(reel: Reel) -> Path | None:
+    """The reel's music as an audio file. A ``*.music.json`` score is rendered with funkbox.music (once per score
+    content, cached under FUNK_OUT/music)."""
+    if not reel.audio.music:
+        return None
+    p = resolve_path(reel.audio.music, reel.base_dir)
+    if not p.name.endswith(".music.json"):
+        return p
+    import hashlib
+    from funkbox.config import funk_out
+    from funkbox.music.score import render as render_music
+    out = funk_out() / "music" / f"{p.name[:-len('.music.json')]}-{hashlib.sha256(p.read_bytes()).hexdigest()[:16]}.wav"
+    if not out.is_file():
+        render_music(p, out)
+    return out
+
+
+def _score_bpm(reel: Reel) -> float | None:
+    if reel.audio.music and str(reel.audio.music).endswith(".music.json"):
+        p = resolve_path(reel.audio.music, reel.base_dir)
+        return float(json.loads(p.read_text(encoding="utf-8-sig")).get("bpm", 100))
+    return None
+
+
 def beat_grid_for(reel: Reel) -> list[float] | None:
     """Beat times (seconds): ``audio.bpm`` when set (a fixed grid, music or not); otherwise the beats detected in
     the reel's music, extended over the whole reel (the music loops)."""
@@ -249,6 +273,9 @@ def beat_grid_for(reel: Reel) -> list[float] | None:
         return fixed_grid(reel.audio.bpm, reel.audio.beat_offset)
     if not reel.audio.music:
         return None
+    bpm = _score_bpm(reel)
+    if bpm:                                            # a score knows its own tempo
+        return fixed_grid(bpm, reel.audio.beat_offset)
     p = resolve_path(reel.audio.music, reel.base_dir)
     key = (str(p), p.stat().st_mtime_ns)
     info = _BEAT_CACHE.get(key)
@@ -335,7 +362,7 @@ def build_mix(plan, out_dir: Path, name: str) -> Path | None:
     """Mix music + VO into ``<out_dir>/<name>.mix.wav`` (48 kHz stereo). None if the reel has no audio."""
     reel, deck, spans = plan.reel, plan.deck, plan.spans
     a = reel.audio
-    music = resolve_path(a.music, reel.base_dir) if a.music else None
+    music = music_file(reel)
     clips: list[tuple[Path, float]] = []
     if a.voiceover:
         for sp in spans:

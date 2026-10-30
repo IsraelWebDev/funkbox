@@ -28,7 +28,8 @@ INSTRUCTIONS = (
     "Errors come back as text starting with ERROR:, and the loop, copy and path checks are there to be obeyed."
 )
 
-AREAS = ("funkbox.loops.tools", "funkbox.reel.tools", "funkbox.stills.tools", "funkbox.studio.tools")
+AREAS = ("funkbox.loops.tools", "funkbox.reel.tools", "funkbox.stills.tools", "funkbox.studio.tools",
+         "funkbox.music.tools")
 
 
 def build_server() -> Server:

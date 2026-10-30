@@ -128,13 +128,14 @@ macOS and Linux) and [skills/funk-studio/SKILL.md](skills/funk-studio/SKILL.md) 
 
 ## What is in the box
 
-One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP server (`funkbox`, 37 tools).
+One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP server (`funkbox`, 42 tools).
 
 | area | what | command / tools |
 |---|---|---|
 | loops | GPU shader engine: GLSL layers, recipes, post passes, audio reactivity, tiling, a machine check that every loop is seamless, and eight preset looks | `funkbox loop ...`, `loop_*` |
 | reel + projects | a JSON shot list plus an approved copy deck become a 9:16 and/or 16:9 ad (parallax shots, screen recordings with push-ins and speed ramps, captions, end card, cuts on a beat grid, local voiceover, text audit). Projects add: inbox ingest, product cut-out, brand colours, copy approval with a hash lock, and an automatic shot list | `funkbox reel ...`, `funkbox project ...`, `reel_*`, `project_*` |
-| posters + images | layered posters and photo edits with exact text, variations, OpenRaster export for GIMP; FastSD text-to-image, img2img and upscale | `funkbox poster ...`, `funkbox image ...`, `poster_*`, `image_*` |
+| posters + images | layered posters and photo edits with exact text: shapes, SVG import, clipping, letter spacing, styled runs, text on any path; variations, one design in many sizes, animated posters (MP4), SVG/PDF vector export, OpenRaster for GIMP, scoring against a reference picture, tracing a logo into vectors; FastSD text-to-image, img2img and upscale | `funkbox poster ...`, `funkbox image ...`, `poster_*`, `image_*` |
+| music | short scores played by sampled General MIDI instruments (a numpy SoundFont player), usable as a reel's music with its beat grid | `funkbox music ...`, `music_render` |
 | apps | on-demand FastSD CPU image model and a GIMP 3 MCP bridge | `funkbox apps ...`, `apps_*`, `install.py --with fastsd,gimp` |
 
 `python -m funkbox doctor` prints the resolved settings and what was found (GL, ffmpeg, models, apps).
@@ -150,7 +151,8 @@ One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP ser
 
 - [docs/loops.md](docs/loops.md): loops, shader contract, recipes, presets, adding an effect
 - [docs/reel.md](docs/reel.md): the ad engine, the projects flow, the copy lock
-- [docs/stills.md](docs/stills.md): posters, edits, variations, OpenRaster
+- [docs/stills.md](docs/stills.md): posters, edits, typography, variations, sizes, motion, SVG/PDF, OpenRaster, tracing, comparing
+- [docs/music.md](docs/music.md): scores, instruments, music for reels
 - [docs/studio.md](docs/studio.md): FastSD images and GIMP on demand
 - [docs/migration-v4.md](docs/migration-v4.md): old scripts and tool names to the new ones
 - [AGENTS.md](AGENTS.md): installation for agents and humans

@@ -17,7 +17,7 @@ closely; rounding a number down is fine, rounding it up is not.
 - F1. funkbox is free and open source (MIT), at github.com/IsraelWebDev/funkbox.
 - F2. It runs on your own computer: no cloud, no accounts, no API keys, no credits.
 - F3. No NVIDIA GPU is needed. OpenGL 3.3 is enough; an Intel integrated GPU works.
-- F4. Claude drives it over MCP (one server, 37 tools), in Claude Desktop or Claude Code; everything also has a command line.
+- F4. Claude drives it over MCP (one server, 42 tools), in Claude Desktop or Claude Code; everything also has a command line.
 - F5. There is a Claude Code plugin: /plugin install funkbox --marketplace IsraelWebDev/funkbox
 
 ## What it makes

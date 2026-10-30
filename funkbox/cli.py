@@ -78,6 +78,8 @@ def build_parser() -> argparse.ArgumentParser:
     stills_cli.add_cli(sub)          # poster + image edit
     images.add_cli(sub)              # image generate/restyle/upscale (same `image` group)
     apps.add_cli(sub)
+    from funkbox.music import tools as music_tools
+    music_tools.add_cli(sub)
     sub.add_parser("doctor", help="GL info, ffmpeg, models, FastSD/GIMP paths, config").set_defaults(fn=cmd_doctor)
     sub.add_parser("serve", help="run the MCP server (stdio)").set_defaults(fn=cmd_serve)
     return ap
