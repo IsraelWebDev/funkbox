@@ -173,8 +173,24 @@ def image_trace(path: str, name: str = "", colors: int = 6, palette: list | None
     return ["\n".join(lines), _png(side, 1400)]
 
 
+@safe
+def poster_animate(poster: dict | str, name: str = "", scale: float = 1.0, gif: bool = False,
+                   seconds: float | None = None, fps: int | None = None, project: str = "") -> list:
+    """Render a poster's ``motion`` block as a video: <name>.mp4 (+ .gif), the last frame as <name>.png (the poster
+    itself: animations run towards the document's values), six frames on <name>-frames.png and
+    <name>.motion_audit.json (every frame's text). motion = {seconds, fps, enter: [{layer, effect: fade|rise|drop|
+    slide-left|slide-right|pop, at, dur}], tracks: {"layers.<id>.<prop>|dx|dy|scale": [[sec, value, ease?], ...]},
+    loop_shaders}. ``scale`` 0.5 renders a quick draft."""
+    from funkbox.stills import motion
+    doc, base = api.load_poster(poster, project)
+    res = on_gl(motion.animate, doc, _out_dir(doc), name, base, scale, gif, seconds, fps)
+    lines = [f"{res.frames} frames, {res.seconds:g}s at {res.fps} fps; text exact in every frame: {res.all_exact}"]
+    lines += [f"{k}: {v}" for k, v in res.paths.items()] + res.warnings
+    return ["\n".join(lines), _png(res.sheet_image, 1600)]
+
+
 TOOLS = [poster_presets, poster_preview, poster_render, poster_variations, poster_export_ora, poster_compare,
-         poster_sizes, image_edit, image_trace]
+         poster_sizes, poster_animate, image_edit, image_trace]
 
 
 def register(server) -> None:

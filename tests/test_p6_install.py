@@ -145,7 +145,7 @@ def test_the_registered_entry_starts_the_server_from_any_folder(tmp_path):
                 await s.initialize()
                 return {t.name for t in (await s.list_tools()).tools}
     names = asyncio.run(go())
-    assert len(names) == 40 and "project_approve_copy" in names
+    assert len(names) == 41 and "project_approve_copy" in names
 
 
 def test_gimp_cmd_template_rendered_without_machine_paths(tmp_path):

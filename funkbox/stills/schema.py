@@ -35,7 +35,8 @@ EXPORTS = ("png", "jpg", "webp", "ora", "svg", "pdf")
 MAX_LAYERS = 64
 MAX_DEPTH = 8
 
-DOC_KEYS = {"version", "name", "canvas", "project", "casual", "copy", "brand", "seed", "layers", "post", "export"}
+DOC_KEYS = {"version", "name", "canvas", "project", "casual", "copy", "brand", "seed", "layers", "post", "export",
+            "motion"}
 COMMON = {"id", "type", "blend", "opacity", "mask", "adjust", "filters", "visible", "clip", "resize"}
 RESIZE_RULES = ("fill", "fit", "top", "bottom", "left", "right", "top-left", "top-right", "bottom-left", "bottom-right")
 TYPE_KEYS: dict[str, set[str]] = {
@@ -503,6 +504,9 @@ def check(doc: Any) -> list[str]:
             errs.append(f"export.formats: a non-empty list of {list(EXPORTS)}")
         if "jpg_quality" in ex and not (isinstance(ex["jpg_quality"], int) and 30 <= ex["jpg_quality"] <= 100):
             errs.append("export.jpg_quality: 30..100")
+    if "motion" in doc and not errs:
+        from .motion import check as check_motion
+        errs += check_motion(doc)
     return errs
 
 

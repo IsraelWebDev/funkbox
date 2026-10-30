@@ -147,14 +147,36 @@ def raster_shader(lay: dict, ctx: RCtx, gl: glmod.GL, index: int, doc_seed: int)
 # the layer tree
 # --------------------------------------------------------------------------- #
 class _Run:
-    def __init__(self, doc: Doc, ctx: RCtx, gl: glmod.GL):
+    def __init__(self, doc: Doc, ctx: RCtx, gl: glmod.GL, cache: dict | None = None):
         self.doc, self.ctx, self.gl = doc, ctx, gl
+        self.cache = cache
         self.resolved_layers: dict[str, dict] = {}
         self.audit: list[dict] = []
         self._deck = None
 
     def layer_rgba(self, lay: dict, index: int, backdrop) -> np.ndarray:
         """Raster -> fx -> mask for one layer (``backdrop()`` reads the composite so far, for colour matching)."""
+        key = None
+        if self.cache is not None and not (lay["type"] == "product" and lay.get("match_color", 0) > 0):
+            key = json.dumps({k: v for k, v in lay.items() if k not in ("opacity", "blend", "visible")},
+                             sort_keys=True, default=str) + f"|{index}|{self.ctx.w}x{self.ctx.h}"
+            hit = self.cache.get(key)
+            if hit is not None:
+                rgba, res, entry = hit
+                if entry is not None:
+                    self.audit.append(copy.deepcopy(entry))
+                self.resolved_layers[lay["id"]] = res
+                return rgba
+        n_audit = len(self.audit)
+        rgba = self._layer_rgba(lay, index, backdrop)
+        if key is not None:
+            if len(self.cache) > 96:                     # animations: keep the layers that stay still
+                self.cache.clear()
+            entry = self.audit[-1] if len(self.audit) > n_audit and lay["type"] == "text" else None
+            self.cache[key] = (rgba, self.resolved_layers[lay["id"]], entry)
+        return rgba
+
+    def _layer_rgba(self, lay: dict, index: int, backdrop) -> np.ndarray:
         ctx, gl = self.ctx, self.gl
         t = lay["type"]
         res = {k: copy.deepcopy(v) for k, v in lay.items()}
@@ -226,13 +248,15 @@ def _bg(doc: Doc, ctx: RCtx) -> tuple[int, int, int, int]:
     return raster.rgba_of(doc.background, ctx.brand)[:3] + (255,)
 
 
-def render_document(doc_in: Any, base_dir: str | Path | None = None, scale: float = 1.0) -> Rendered:
-    """Render a poster document (dict, JSON text or a parsed Doc). ``scale`` < 1 renders a faster preview."""
+def render_document(doc_in: Any, base_dir: str | Path | None = None, scale: float = 1.0,
+                    cache: dict | None = None) -> Rendered:
+    """Render a poster document (dict, JSON text or a parsed Doc). ``scale`` < 1 renders a faster preview.
+    ``cache`` (a dict kept across calls) reuses layers whose settings did not change: animation frames."""
     doc = doc_in if isinstance(doc_in, Doc) else schema.parse(doc_in)
     w, h = scaled_size(doc, scale)
     ctx = make_context(doc, base_dir, w, h, w / doc.width)
     gl = glmod.get_gl(w, h)
-    run = _Run(doc, ctx, gl)
+    run = _Run(doc, ctx, gl, cache)
     run._deck = text.preflight(doc, ctx)             # copy rules first: nothing is drawn if they fail
     bg = _bg(doc, ctx)
     base = np.empty((gl.h, gl.w, 4), np.uint8)

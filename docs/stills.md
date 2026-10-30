@@ -29,6 +29,7 @@ python -m funkbox poster export-ora examples/stills/glowmop_poster.poster.json  
 | `poster_export_ora(poster, name)` | the poster as a layered OpenRaster file plus the PNG |
 | `poster_sizes(poster, sizes, name, fit_to, formats)` | the same poster for other canvases (`story`, `landscape`, ... or `{name, width, height, set}`), each with its own text audit, plus a sheet |
 | `image_trace(path, name, colors, palette, smooth, tolerance)` | a picture traced into a vector SVG of flat colours (`out/traces/<name>.svg`), with a fidelity score; place it as an `svg` layer |
+| `poster_animate(poster, name, scale, gif)` | the poster's `motion` block as `<name>.mp4` (+ GIF), the last frame (the poster) as PNG, six frames on a strip and a per-frame text audit |
 | `poster_compare(candidate, reference, name, fit)` | scores a render (picture or poster) against a reference picture: overall, structure, colour, layout (0..100), the most different regions of a 4x4 grid, unmatched reference colours, and a candidate / reference / heat-map sheet |
 
 `poster` is a JSON object or a path to a `.poster.json` inside `FUNK_HOME`, `FUNK_OUT`, `FUNK_INPUTS` or the projects
@@ -140,6 +141,28 @@ turned into pixels are embedded as pictures in place, and the render's warnings 
 `mix-blend-mode` in SVG and PDF blend modes (`add` has no PDF equivalent); poster-level `post` passes are pixel-only.
 The PDF page is the canvas at 96 dpi (a 1080 px poster is 11.25 in wide). From Python:
 `funkbox.stills.vector.export(rendered, "poster.pdf")` returns which layers are vectors and which are pictures.
+
+## Animated posters
+
+A `motion` block makes the poster move; `poster_animate` (CLI: `funkbox poster animate X.poster.json`) renders it.
+Animations run towards the document's values, so the last frame is the poster and `poster_render` still gives the
+still.
+
+```json
+"motion": {"seconds": 6, "fps": 30,
+  "enter": [{"layer": "title", "effect": "rise", "at": 0.3, "dur": 0.8}, {"layer": "logo", "effect": "pop", "at": 1}],
+  "tracks": {"layers.title.letter_spacing": [[0, 0.4], [1.5, 0.05, "out"]],
+             "layers.halo.opacity": [[0, 0.2], [3, 0.8, "inout"], [6, 0.2, "inout"]]},
+  "loop_shaders": true}
+```
+
+`enter` effects: `fade`, `rise`, `drop`, `slide-left`, `slide-right`, `pop` (backgrounds can only fade). `tracks` keyframe
+any property the variations keys reach, plus `dx`, `dy` (move, canvas fractions) and `scale` (about the layer's centre)
+for text, shape, svg, product, image and group layers. Keyframes are `[seconds, value]` or `[seconds, value, ease]`
+(`linear`, `in`, `out`, `inout`); numbers, lists of numbers and `#rrggbb` colours interpolate. Shader layers run
+one full loop over the video (`loop_shaders`). Layers that do not change between frames are drawn once and reused.
+Text is never typed out letter by letter: every frame draws the whole approved text and is audited
+(`<name>.motion_audit.json`). Use `scale: 0.5` for a fast draft.
 
 ## One poster, many sizes
 

@@ -8,6 +8,7 @@
     funkbox poster ora-check FILE.ora
     funkbox poster render X.poster.json --formats png,svg,pdf                      (vector files, text as outlines)
     funkbox poster sizes X.poster.json --sizes story,landscape,square [--fit-to content] [--formats png,pdf]
+    funkbox poster animate X.poster.json [--scale 0.5] [--gif] [--seconds 6] [--fps 30] [--name N] [--out DIR]
     funkbox poster compare CANDIDATE.png|X.poster.json REFERENCE.png [--fit cover|stretch] [--name N] [--out DIR]
     funkbox image trace logo.png [--colors 6 | --palette "#1b224b,#fdd94e"] [--smooth 1] [--tolerance 0.8] [--name N]
     funkbox image edit photo.jpg --ops '[{"op":"crop","aspect":"1:1"}]' [--name N] [--casual] [--project P]
@@ -128,6 +129,15 @@ def cmd_poster_sizes(a) -> int:
     return 1 if res.errors else 0
 
 
+def cmd_poster_animate(a) -> int:
+    from funkbox.stills import motion
+    doc, base = _doc(a)
+    res = motion.animate(doc, _outdir(a, doc), a.name or "", base, a.scale, a.gif, a.seconds, a.fps)
+    print(f"{res.frames} frames, {res.seconds:g}s at {res.fps} fps; text exact in every frame: {res.all_exact}")
+    _print_paths(res.paths)
+    return 0 if res.all_exact else 1
+
+
 def cmd_poster_compare(a) -> int:
     from funkbox.stills import api, compare, render
     cand = a.candidate
@@ -160,7 +170,7 @@ def cmd_poster_ora_check(a) -> int:
 def add_cli(sub) -> None:
     from funkbox.studio.images import image_group
     ap = sub.add_parser("poster", help="layered posters: presets, preview, render, vary, export-ora")
-    psub = ap.add_subparsers(dest="verb", required=True, metavar="{presets,preview,render,vary,sizes,export-ora,compare,ora-check}")
+    psub = ap.add_subparsers(dest="verb", required=True, metavar="{presets,preview,render,vary,sizes,animate,export-ora,compare,ora-check}")
     psub.add_parser("presets", help="canvas sizes, layer types, blend modes, filters").set_defaults(fn=cmd_poster_presets)
     p = psub.add_parser("preview", help="a small PNG of the poster")
     p.add_argument("poster"); p.add_argument("-o", "--output"); p.add_argument("--max-side", type=int, default=720)
@@ -177,6 +187,11 @@ def add_cli(sub) -> None:
     p.add_argument("--fit-to", default="canvas", choices=("canvas", "content")); p.add_argument("--formats")
     p.add_argument("--out"); p.add_argument("--name"); p.add_argument("--project")
     p.set_defaults(fn=cmd_poster_sizes)
+    p = psub.add_parser("animate", help="render the poster's motion block as an MP4 (and GIF)")
+    p.add_argument("poster"); p.add_argument("--scale", type=float, default=1.0); p.add_argument("--gif", action="store_true")
+    p.add_argument("--seconds", type=float); p.add_argument("--fps", type=int)
+    p.add_argument("--out"); p.add_argument("--name"); p.add_argument("--project")
+    p.set_defaults(fn=cmd_poster_animate)
     p = psub.add_parser("compare", help="score a render against a reference picture and show where they differ")
     p.add_argument("candidate"); p.add_argument("reference"); p.add_argument("--fit", default="cover")
     p.add_argument("--name", default="compare"); p.add_argument("--out")

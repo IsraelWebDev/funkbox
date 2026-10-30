@@ -128,6 +128,8 @@ Describe → generate variations → pick → poster or edit → export.
   text stays exact), `on_path` to set a line along any curve or circle. Prefer these over splitting text into layers.
 - **Logo as vectors:** `image_trace(logo, palette=[brand colours])` gives an SVG for an `svg` layer; check the fidelity
   score and the side-by-side, raise `detail` or lower `tolerance` for small lettering.
+- **Motion:** add a `motion` block (entrances, keyframed tracks) and `poster_animate(poster, scale=0.5)` for a draft,
+  then full size. The last frame is the poster; read the per-frame audit.
 - **Other sizes:** `poster_sizes(poster, ["story","landscape","square"])` makes the set from one design; pin bands with
   `"resize": "bottom"`, use `fit_to="content"` for banners, and fix one size with its `set` patch, never by hand.
 - **Match a reference:** when the user wants it "like this picture", `poster_compare(poster, reference)` after each
