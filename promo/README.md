@@ -31,6 +31,7 @@ takes a video by URL. Private works too, and X then gets a link to the Short.
 | `review.py` | writes the verdict, bound to the sha256 of the exact video and caption |
 | `post.py` | posts. Refuses without a matching PASS; each promo once per platform and at most once per platform per day; X only after the Short is up; dry-runs a platform without credentials |
 | `pending.py` | saves the reviewed video before posting; the next run's `catchup` finishes what a failed run left (a missed upload, or an X post whose Short is up), for up to 2 days |
+| `enqueue.py` | a queue of finished promos: `add` one, and the next run posts it (after the usual lint and review) instead of making a new video |
 | `state.py` | clones or pulls the state repo and commits to it |
 | `auth_youtube.py` | one-time YouTube sign-in that prints the refresh token |
 

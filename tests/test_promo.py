@@ -213,7 +213,7 @@ def test_code_cards_show_real_lines(tmp_path):
 def test_playbook_and_review_reference_real_commands():
     pb = (ROOT / "promo" / "PLAYBOOK.md").read_text()
     for needle in ("promo/assets.py", "promo/post.py", "promo/REVIEW.md", "SEPARATE agent", "promo/state.py", "$STATE/days", "promo/lint.py", "promo/measure.py",
-                   "feedback.json", "novelty",
+                   "feedback.json", "novelty", "promo/enqueue.py",
                    "promo/PAUSED", "FACTS.md"):
         assert needle in pb, needle
     tpl = json.loads((ROOT / "promo" / "templates" / "promo.reel.json").read_text())
@@ -395,3 +395,25 @@ def test_measured_facts_are_written_with_plain_sentences(tmp_path, monkeypatch):
     assert f["M-render"]["say"] == "this video rendered in 87 seconds on a 2-core CPU with no GPU (software OpenGL)"
     assert f["M-audit"]["value"] == {"strings": 9, "ok": True} and "M-video" not in f      # no video, no claim
     assert json.loads((day / "measured.json").read_text())["facts"]["M-tools"]["value"] == 37
+
+
+def test_queue_add_and_take(tmp_path, monkeypatch):
+    import enqueue as pq
+    import state
+    monkeypatch.setattr(state, "STATE_DIR", tmp_path / "state")
+    src = tmp_path / "ready"
+    src.mkdir()
+    for f in pq.FILES:
+        (src / f).write_text("{}" if f.endswith(".json") else "video")
+    (src / "brief.json").write_text(json.dumps({"format": "use-case"}))
+    with pytest.raises(SystemExit, match="caption.json is missing"):
+        (src / "caption.json").unlink()
+        pq.add(src, "x", commit=False)
+    (src / "caption.json").write_text("{}")
+    first = pq.add(src, "Hebrew Emblem!", commit=False)
+    assert first.name.endswith("-hebrew-emblem") and pq.items() == [first]
+    day = tmp_path / "state" / "days" / "2026-10-31"
+    assert pq.take(day, commit=False) == first and not first.exists() and pq.items() == []
+    b = json.loads((day / "brief.json").read_text())
+    assert b["queued_as"] == first.name and b["date"] == "2026-10-31" and (day / "final.mp4").read_text() == "video"
+    assert pq.take(tmp_path / "state" / "days" / "2026-11-01", commit=False) is None          # empty queue

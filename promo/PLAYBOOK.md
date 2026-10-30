@@ -22,6 +22,14 @@ the funkbox checkout.
   `python promo/state.py commit "catch up" posts.jsonl`. If it posted to YouTube today, today's
   slot is used: skip to step 5 and report the catch-up.
 
+## Queue first
+`python promo/enqueue.py take $DAY`. If it prints `took <item>`, the owner queued a finished promo: today's folder now
+holds its video, copy, shot list, caption, brief and feedback. Skip steps 1 and 2 and do NOT change its video or
+on-screen copy. Run `python promo/measure.py facts $DAY`, then `python promo/lint.py $DAY`: you may fix brief.json
+and feedback.json fields lint names, and caption.json if the review asks; if lint names anything in the video
+itself, stop, post nothing and report it. Then continue at step 3 (review) as usual. If it prints `queue empty`,
+carry on with step 1.
+
 ## 1. Pick today's idea (15 minutes, not more)
 The point is a promo a follower of the account has NOT seen yet. Gather candidates from three places, then choose.
 - **What's new in AI video** (last 48 hours): 3-5 web searches across model releases, creator workflows, ad and
