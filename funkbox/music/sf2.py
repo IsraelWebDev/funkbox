@@ -247,7 +247,7 @@ def load(path: str) -> SoundFont:
 def write_sf2(path: str | Path, instruments: list[dict], rate: int = 44100) -> None:
     """Write a minimal SoundFont. Each instrument: {"name", "program", "bank", "zones": [{"wave" (float array),
     "root" (MIDI key), "keys": (lo, hi), "loop": (start, end) or None, "gens": {generator id: value}}]}; a single
-    zone may be given inline (wave/root/loop/gens on the instrument). Used for the built-in bank and tests."""
+    zone may be given inline (wave, root, loop and gens on the instrument). Used for the built-in bank and tests."""
     smpl = bytearray()
     shdr, inst, ibag, igen, phdr, pbag, pgen = [], [], [], [], [], [], []
     for n, ins in enumerate(instruments):
