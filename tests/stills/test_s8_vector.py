@@ -84,7 +84,7 @@ def test_gradient_border_clip_and_blend_are_vectors(tmp_path):
 def test_pdf_has_the_poster_size_and_matches_the_render(tmp_path):
     r = render.render_document(doc(FLAT), base_dir=ROOT)
     vector.export(r, tmp_path / "p.pdf")
-    from pypdf import PdfReader
+    PdfReader = pytest.importorskip("pypdf").PdfReader
     page = PdfReader(str(tmp_path / "p.pdf")).pages[0]
     assert [round(float(v)) for v in page.mediabox[2:]] == [450, 300]        # 600x400 px at 96 dpi
     if not shutil.which("pdftoppm"):
