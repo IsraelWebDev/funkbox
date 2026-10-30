@@ -10,10 +10,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: System libraries (software OpenGL, ffmpeg)
-        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1-mesa-dri ffmpeg
+      - name: System libraries (software OpenGL, ffmpeg, pdftoppm for the PDF export test)
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1-mesa-dri ffmpeg poppler-utils
       - name: Python dependencies
-        run: pip install -r requirements.txt pytest
+        run: pip install -r requirements.txt pytest pypdf
       - name: Tests
         env:
           FUNK_GL_BACKEND: egl
