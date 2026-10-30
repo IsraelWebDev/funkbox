@@ -27,6 +27,7 @@ python -m funkbox poster export-ora examples/stills/glowmop_poster.poster.json  
 | `image_edit(path, ops, name)` | non-destructive edit of a copy; writes `out/edits/<stem>-<n>.png`, a sidecar and a before/after sheet |
 | `loop_still(recipe_or_shader, t, preset)` | one frame of a loop recipe or shader as a poster background |
 | `poster_export_ora(poster, name)` | the poster as a layered OpenRaster file plus the PNG |
+| `poster_compare(candidate, reference, name, fit)` | scores a render (picture or poster) against a reference picture: overall, structure, colour, layout (0..100), the most different regions of a 4x4 grid, unmatched reference colours, and a candidate / reference / heat-map sheet |
 
 `poster` is a JSON object or a path to a `.poster.json` inside `FUNK_HOME`, `FUNK_OUT`, `FUNK_INPUTS` or the projects
 folder. Errors come back as `ERROR: ...` text listing every problem found.
@@ -119,6 +120,15 @@ turned into pixels are embedded as pictures in place, and the render's warnings 
 `mix-blend-mode` in SVG and PDF blend modes (`add` has no PDF equivalent); poster-level `post` passes are pixel-only.
 The PDF page is the canvas at 96 dpi (a 1080 px poster is 11.25 in wide). From Python:
 `funkbox.stills.vector.export(rendered, "poster.pdf")` returns which layers are vectors and which are pictures.
+
+## Matching a reference
+
+`poster_compare` (CLI: `funkbox poster compare CANDIDATE REFERENCE`) measures instead of guessing. The reference is
+fitted to the candidate's frame (`cover` crops, `stretch` squeezes). Structure is SSIM of the grey pictures, colour is the
+CIE76 delta E of slightly blurred pictures (big colour areas, not texture), layout compares where the edges are (an edge
+within 2 px counts). Each of the 16 regions says whether it differs mostly in colour or in shape, and the reference's
+main colours (k-means in Lab) are listed with the nearest colour the candidate has over a similar area. Loop: render,
+compare, fix the worst region, compare again; the numbers are deterministic.
 
 ## Generating pictures first
 

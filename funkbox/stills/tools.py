@@ -56,15 +56,19 @@ def poster_preview(poster: dict | str, project: str = "", max_side: int = 720) -
 
 
 @safe
-def poster_render(poster: dict | str, name: str = "", project: str = "") -> list:
+def poster_render(poster: dict | str, name: str = "", project: str = "", formats: list | None = None) -> list:
     """Render the poster at full size to <out>/posters/<name>.png (a project poster goes to the project's out/).
     Also writes <name>.poster.json (the reproducible sidecar) and <name>.text_audit.json (what text was drawn and that it
-    equals its source). The poster's export list picks png/jpg/webp/ora."""
+    equals its source). The poster's export list picks png/jpg/webp/ora/svg/pdf; ``formats`` overrides it
+    (svg and pdf are vector files with text as outlines, sharp at any size)."""
     doc, base = api.load_poster(poster, project)
+    bad = [f for f in formats or [] if f not in schema.EXPORTS]
+    if bad:
+        raise ValueError(f"unknown formats {bad}; have {list(schema.EXPORTS)}")
 
     def go():
         r = render.render_document(doc, base)
-        return r, render.write_outputs(r, _out_dir(doc), name or r.doc.name)
+        return r, render.write_outputs(r, _out_dir(doc), name or r.doc.name, formats or None)
     r, paths = on_gl(go)
     return _result(r, paths)
 
@@ -106,7 +110,26 @@ def poster_export_ora(poster: dict | str, name: str = "", project: str = "") -> 
     return _result(r, paths, api.ora_report(paths["ora"]))
 
 
-TOOLS = [poster_presets, poster_preview, poster_render, poster_variations, poster_export_ora, image_edit]
+@safe
+def poster_compare(candidate: dict | str, reference: str, name: str = "compare", fit: str = "cover",
+                   project: str = "") -> list:
+    """How close is a render to a reference picture, and where does it differ? ``candidate`` is a picture path or a
+    poster (JSON object or .poster.json, rendered first); ``reference`` is a picture path. Returns scores 0..100
+    (overall, structure, colour, layout), the most different regions of a 4x4 grid, the reference's main colours with
+    the nearest candidate colour, and a sheet: candidate | reference | heat map. ``fit``: cover (crop) or stretch.
+    Writes <name>.compare.png and .compare.json to <out>/posters/. Use it to measure each fix, not to guess."""
+    from funkbox.stills import compare as cmp
+    if isinstance(candidate, dict) or str(candidate).endswith(".json"):
+        doc, base = api.load_poster(candidate, project)
+        cand = on_gl(lambda: render.render_document(doc, base)).pil
+    else:
+        cand = candidate
+    res = cmp.compare(cand, reference, fit)
+    paths = cmp.write(res, api.posters_dir(), name)
+    return [res.summary() + "\n" + "\n".join(f"{k}: {v}" for k, v in paths.items()), _png(res.sheet, 1440)]
+
+
+TOOLS = [poster_presets, poster_preview, poster_render, poster_variations, poster_export_ora, poster_compare, image_edit]
 
 
 def register(server) -> None:

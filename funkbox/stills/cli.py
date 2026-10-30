@@ -6,6 +6,8 @@
     funkbox poster vary X.poster.json --vary '{"seed":[1,2,3]}' [--out DIR] [--name N]
     funkbox poster export-ora X.poster.json [--out DIR] [--name N]
     funkbox poster ora-check FILE.ora
+    funkbox poster render X.poster.json --formats png,svg,pdf                      (vector files, text as outlines)
+    funkbox poster compare CANDIDATE.png|X.poster.json REFERENCE.png [--fit cover|stretch] [--name N] [--out DIR]
     funkbox image edit photo.jpg --ops '[{"op":"crop","aspect":"1:1"}]' [--name N] [--casual] [--project P]
 
 ``--ops`` / ``--vary`` take JSON text or the path of a JSON file.
@@ -75,6 +77,8 @@ def cmd_poster_render(a, formats=None) -> int:
     from funkbox.stills import api, render
     doc, base = _doc(a)
     r = render.render_document(doc, base)
+    if formats is None and getattr(a, "formats", None):
+        formats = [f.strip() for f in a.formats.split(",") if f.strip()]
     paths = render.write_outputs(r, _outdir(a, doc), a.name or r.doc.name, formats)
     print(api.describe(r))
     _print_paths(paths)
@@ -104,6 +108,20 @@ def cmd_image_edit(a) -> int:
     return 0
 
 
+def cmd_poster_compare(a) -> int:
+    from funkbox.stills import api, compare, render
+    cand = a.candidate
+    if cand.endswith(".json"):
+        doc, base = api.load_poster(_abs(cand), "")
+        cand = render.render_document(doc, base).pil
+    else:
+        cand = _abs(cand)
+    res = compare.compare(cand, _abs(a.reference), a.fit)
+    print(res.summary())
+    _print_paths(compare.write(res, a.out or api.posters_dir(), a.name))
+    return 0
+
+
 def cmd_poster_ora_check(a) -> int:
     from funkbox.stills import api
     print(api.ora_report(a.file))
@@ -113,7 +131,7 @@ def cmd_poster_ora_check(a) -> int:
 def add_cli(sub) -> None:
     from funkbox.studio.images import image_group
     ap = sub.add_parser("poster", help="layered posters: presets, preview, render, vary, export-ora")
-    psub = ap.add_subparsers(dest="verb", required=True, metavar="{presets,preview,render,vary,export-ora,ora-check}")
+    psub = ap.add_subparsers(dest="verb", required=True, metavar="{presets,preview,render,vary,export-ora,compare,ora-check}")
     psub.add_parser("presets", help="canvas sizes, layer types, blend modes, filters").set_defaults(fn=cmd_poster_presets)
     p = psub.add_parser("preview", help="a small PNG of the poster")
     p.add_argument("poster"); p.add_argument("-o", "--output"); p.add_argument("--max-side", type=int, default=720)
@@ -122,7 +140,13 @@ def add_cli(sub) -> None:
     for name, fn in (("render", cmd_poster_render), ("export-ora", cmd_poster_export_ora)):
         p = psub.add_parser(name, help="full-size PNG" + (" and layered .ora" if name == "export-ora" else ""))
         p.add_argument("poster"); p.add_argument("--out"); p.add_argument("--name"); p.add_argument("--project")
+        if name == "render":
+            p.add_argument("--formats", help="comma list overriding the poster's export list, e.g. png,svg,pdf")
         p.set_defaults(fn=fn)
+    p = psub.add_parser("compare", help="score a render against a reference picture and show where they differ")
+    p.add_argument("candidate"); p.add_argument("reference"); p.add_argument("--fit", default="cover")
+    p.add_argument("--name", default="compare"); p.add_argument("--out")
+    p.set_defaults(fn=cmd_poster_compare)
     p = psub.add_parser("vary", help="variations of a poster (a sheet plus one file each)")
     p.add_argument("poster"); p.add_argument("--vary", required=True); p.add_argument("--out")
     p.add_argument("--name", default="var"); p.add_argument("--project")

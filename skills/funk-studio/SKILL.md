@@ -122,7 +122,10 @@ Describe → generate variations → pick → poster or edit → export.
   only in a poster marked `"casual": true`. The product photo is composited, never generated. Read the text audit.
 - **Edit a photo:** `image_edit(path, ops)` (crop, resize, adjust, filter, remove_background, overlay, text, border)
   writes a new file and a before/after sheet; the original is never touched.
-- **Export:** `poster_render` gives PNG/JPG; offer `poster_export_ora` so the user can keep editing the layers in GIMP.
+- **Export:** `poster_render` gives PNG/JPG; `formats=["svg","pdf"]` adds vector files (text as outlines, sharp at any
+  size, for print). Offer `poster_export_ora` so the user can keep editing the layers in GIMP.
+- **Match a reference:** when the user wants it "like this picture", `poster_compare(poster, reference)` after each
+  change; fix the worst regions it names and stop when the score stops rising.
   `loop_still` turns a shader or recipe into a poster background.
 
 ## Troubleshooting
