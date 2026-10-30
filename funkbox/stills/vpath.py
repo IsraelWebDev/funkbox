@@ -156,6 +156,67 @@ def parse(d: str, tol: float = 0.5) -> list[tuple[list[tuple[float, float]], boo
     return subs
 
 
+def transform_d(d: str, sx: float, sy: float, tx: float = 0.0, ty: float = 0.0) -> str:
+    """The same path scaled by (sx, sy) and moved by (tx, ty), written with absolute commands. Curves stay curves;
+    an arc's radii scale with the axes (exact when its rotation is 0 or the scale is uniform)."""
+    toks = _TOKEN.findall(d or "")
+    if not toks or toks[0] not in "Mm":
+        raise PathError("path data must start with M (moveto)")
+    out: list[str] = []
+    pos = start = (0.0, 0.0)
+    i, cmd = 0, ""
+    X = lambda x: x * sx + tx
+    Y = lambda y: y * sy + ty
+    f = lambda v: f"{v:.6g}"
+
+    def num() -> float:
+        nonlocal i
+        if i >= len(toks) or toks[i].isalpha():
+            raise PathError(f"path data: command {cmd!r} is missing numbers")
+        i += 1
+        return float(toks[i - 1])
+
+    def pt():
+        ox, oy = pos if cmd.islower() else (0.0, 0.0)
+        return ox + num(), oy + num()
+
+    while i < len(toks):
+        if toks[i].isalpha():
+            cmd = toks[i]
+            i += 1
+        elif not cmd:
+            raise PathError("path data: numbers before any command")
+        up = cmd.upper()
+        if up not in _ARGS:
+            raise PathError(f"path data: unknown command {cmd!r}")
+        if up == "Z":
+            out.append("Z")
+            pos = start
+            continue
+        if up in "ML":
+            pos = pt()
+            out.append(f"{up}{f(X(pos[0]))},{f(Y(pos[1]))}")
+            if up == "M":
+                start = pos
+                cmd = "l" if cmd.islower() else "L"
+        elif up == "H":
+            pos = ((pos[0] if cmd.islower() else 0.0) + num(), pos[1])
+            out.append(f"H{f(X(pos[0]))}")
+        elif up == "V":
+            pos = (pos[0], (pos[1] if cmd.islower() else 0.0) + num())
+            out.append(f"V{f(Y(pos[1]))}")
+        elif up == "A":
+            rx, ry, phi, large, sweep = num(), num(), num(), num(), num()
+            pos = pt()
+            out.append(f"A{f(abs(rx * sx))},{f(abs(ry * sy))} {f(phi)} {int(large)} "
+                       f"{int(sweep) ^ int(sx * sy < 0)} {f(X(pos[0]))},{f(Y(pos[1]))}")
+        else:
+            pts = [pt() for _ in range(_ARGS[up] // 2)]
+            pos = pts[-1]
+            out.append(up + " ".join(f"{f(X(x))},{f(Y(y))}" for x, y in pts))
+    return " ".join(out)
+
+
 # --------------------------------------------------------------------------- SVG files
 _NAMED = {"black": "#000000", "white": "#ffffff", "red": "#ff0000", "green": "#008000", "blue": "#0000ff",
           "yellow": "#ffff00", "gray": "#808080", "grey": "#808080", "orange": "#ffa500", "purple": "#800080",

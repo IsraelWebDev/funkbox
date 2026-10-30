@@ -7,6 +7,7 @@
     funkbox poster export-ora X.poster.json [--out DIR] [--name N]
     funkbox poster ora-check FILE.ora
     funkbox poster render X.poster.json --formats png,svg,pdf                      (vector files, text as outlines)
+    funkbox poster sizes X.poster.json --sizes story,landscape,square [--fit-to content] [--formats png,pdf]
     funkbox poster compare CANDIDATE.png|X.poster.json REFERENCE.png [--fit cover|stretch] [--name N] [--out DIR]
     funkbox image edit photo.jpg --ops '[{"op":"crop","aspect":"1:1"}]' [--name N] [--casual] [--project P]
 
@@ -108,6 +109,24 @@ def cmd_image_edit(a) -> int:
     return 0
 
 
+def cmd_poster_sizes(a) -> int:
+    from funkbox.stills import resize
+    doc, base = _doc(a)
+    sizes = _json_arg(a.sizes) if a.sizes.strip()[:1] in "[{" or a.sizes.endswith(".json") else \
+        [x.strip() for x in a.sizes.split(",") if x.strip()]
+    formats = [f.strip() for f in a.formats.split(",")] if a.formats else None
+    res = resize.poster_sizes(doc, sizes, _outdir(a, doc), a.name or "", base, formats, fit_to=a.fit_to)
+    for k, files in res.files.items():
+        print(f"{k}: {files['png']}")
+    for k, v in res.errors.items():
+        print(f"{k}: FAILED - {v}")
+    for n in res.notes:
+        print(n)
+    if res.sheet:
+        print(f"sheet: {res.sheet}")
+    return 1 if res.errors else 0
+
+
 def cmd_poster_compare(a) -> int:
     from funkbox.stills import api, compare, render
     cand = a.candidate
@@ -131,7 +150,7 @@ def cmd_poster_ora_check(a) -> int:
 def add_cli(sub) -> None:
     from funkbox.studio.images import image_group
     ap = sub.add_parser("poster", help="layered posters: presets, preview, render, vary, export-ora")
-    psub = ap.add_subparsers(dest="verb", required=True, metavar="{presets,preview,render,vary,export-ora,compare,ora-check}")
+    psub = ap.add_subparsers(dest="verb", required=True, metavar="{presets,preview,render,vary,sizes,export-ora,compare,ora-check}")
     psub.add_parser("presets", help="canvas sizes, layer types, blend modes, filters").set_defaults(fn=cmd_poster_presets)
     p = psub.add_parser("preview", help="a small PNG of the poster")
     p.add_argument("poster"); p.add_argument("-o", "--output"); p.add_argument("--max-side", type=int, default=720)
@@ -143,6 +162,11 @@ def add_cli(sub) -> None:
         if name == "render":
             p.add_argument("--formats", help="comma list overriding the poster's export list, e.g. png,svg,pdf")
         p.set_defaults(fn=fn)
+    p = psub.add_parser("sizes", help="the same poster for other canvases (story, landscape, ...) and a sheet")
+    p.add_argument("poster"); p.add_argument("--sizes", required=True, help="comma list of presets, or JSON")
+    p.add_argument("--fit-to", default="canvas", choices=("canvas", "content")); p.add_argument("--formats")
+    p.add_argument("--out"); p.add_argument("--name"); p.add_argument("--project")
+    p.set_defaults(fn=cmd_poster_sizes)
     p = psub.add_parser("compare", help="score a render against a reference picture and show where they differ")
     p.add_argument("candidate"); p.add_argument("reference"); p.add_argument("--fit", default="cover")
     p.add_argument("--name", default="compare"); p.add_argument("--out")

@@ -27,6 +27,7 @@ python -m funkbox poster export-ora examples/stills/glowmop_poster.poster.json  
 | `image_edit(path, ops, name)` | non-destructive edit of a copy; writes `out/edits/<stem>-<n>.png`, a sidecar and a before/after sheet |
 | `loop_still(recipe_or_shader, t, preset)` | one frame of a loop recipe or shader as a poster background |
 | `poster_export_ora(poster, name)` | the poster as a layered OpenRaster file plus the PNG |
+| `poster_sizes(poster, sizes, name, fit_to, formats)` | the same poster for other canvases (`story`, `landscape`, ... or `{name, width, height, set}`), each with its own text audit, plus a sheet |
 | `poster_compare(candidate, reference, name, fit)` | scores a render (picture or poster) against a reference picture: overall, structure, colour, layout (0..100), the most different regions of a 4x4 grid, unmatched reference colours, and a candidate / reference / heat-map sheet |
 
 `poster` is a JSON object or a path to a `.poster.json` inside `FUNK_HOME`, `FUNK_OUT`, `FUNK_INPUTS` or the projects
@@ -120,6 +121,18 @@ turned into pixels are embedded as pictures in place, and the render's warnings 
 `mix-blend-mode` in SVG and PDF blend modes (`add` has no PDF equivalent); poster-level `post` passes are pixel-only.
 The PDF page is the canvas at 96 dpi (a 1080 px poster is 11.25 in wide). From Python:
 `funkbox.stills.vector.export(rendered, "poster.pdf")` returns which layers are vectors and which are pictures.
+
+## One poster, many sizes
+
+`poster_sizes` (CLI: `funkbox poster sizes X.poster.json --sizes story,landscape,square`) redraws a poster for other
+canvases without distorting it. Backgrounds (`solid`, `gradient`, `shader`, `border`, `image`) stretch to the new
+canvas; text, shapes, SVGs and products keep their proportions: the design is scaled to fit and centred, so circles
+stay round and text keeps its size relative to the design. A layer's `"resize"` overrides that: `fill`, `fit`, or pinned
+to an edge or corner (`top`, `bottom`, `left`, `right`, `top-left`, ...), so a footer band stays at the bottom of a
+story. `fit_to: "content"` fits only the drawn foreground (plus a margin) so a wide banner or a tall story uses its
+space. A size can carry its own fixes in the variations' keys, in the new canvas's fractions:
+`{"name": "story", "width": 1080, "height": 1920, "set": {"layers.title.y": 0.12}}`. Every size is checked and
+audited on its own; one whose text would not fit is reported while the rest render.
 
 ## Matching a reference
 

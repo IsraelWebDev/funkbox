@@ -129,7 +129,30 @@ def poster_compare(candidate: dict | str, reference: str, name: str = "compare",
     return [res.summary() + "\n" + "\n".join(f"{k}: {v}" for k, v in paths.items()), _png(res.sheet, 1440)]
 
 
-TOOLS = [poster_presets, poster_preview, poster_render, poster_variations, poster_export_ora, poster_compare, image_edit]
+@safe
+def poster_sizes(poster: dict | str, sizes: list, name: str = "", fit_to: str = "canvas", formats: list | None = None,
+                 project: str = "") -> list:
+    """One poster in many sizes. ``sizes``: preset names (story, landscape, square, insta-portrait, twitter, a4-150dpi)
+    or {"name", "width", "height", "set": {"layers.<id>.<prop>": value}} with per-size fixes. Backgrounds stretch to
+    the new canvas; text, shapes, SVGs and products keep their proportions (a layer's "resize": fill|fit|top|bottom|
+    left|right|top-left|... chooses). fit_to="content" fits just the drawn foreground so wide or tall sizes use their
+    space. Every size gets its own exact-text audit; one that cannot be drawn is reported and the rest still render.
+    Writes <name>-<size>.png (+ formats such as svg/pdf) and <name>-sizes.png, a sheet."""
+    from funkbox.stills import resize
+    doc, base = api.load_poster(poster, project)
+    res = on_gl(resize.poster_sizes, doc, sizes, _out_dir(doc), name, base, formats, 1.0, True, fit_to)
+    lines = [f"{len(res.files)} of {len(res.names)} sizes rendered"]
+    for k, files in res.files.items():
+        exact = all(a["text_exact"] for a in res.audits.get(k, []))
+        lines.append(f"  {k}: {files['png']}" + ("" if exact else "  (TEXT NOT EXACT - read the audit)"))
+    lines += [f"  {k}: FAILED - {v}" for k, v in res.errors.items()] + res.notes
+    if res.sheet:
+        lines.append(f"sheet: {res.sheet}")
+    return ["\n".join(lines)] + ([_png(res.sheet_image, 1400)] if res.sheet_image else [])
+
+
+TOOLS = [poster_presets, poster_preview, poster_render, poster_variations, poster_export_ora, poster_compare,
+         poster_sizes, image_edit]
 
 
 def register(server) -> None:

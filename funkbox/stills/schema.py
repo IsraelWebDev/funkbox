@@ -36,7 +36,8 @@ MAX_LAYERS = 64
 MAX_DEPTH = 8
 
 DOC_KEYS = {"version", "name", "canvas", "project", "casual", "copy", "brand", "seed", "layers", "post", "export"}
-COMMON = {"id", "type", "blend", "opacity", "mask", "adjust", "filters", "visible", "clip"}
+COMMON = {"id", "type", "blend", "opacity", "mask", "adjust", "filters", "visible", "clip", "resize"}
+RESIZE_RULES = ("fill", "fit", "top", "bottom", "left", "right", "top-left", "top-right", "bottom-left", "bottom-right")
 TYPE_KEYS: dict[str, set[str]] = {
     "image": {"path", "fit", "x", "y", "scale", "rotate_deg", "pre"},
     "solid": {"color"},
@@ -266,6 +267,8 @@ def _check_layers(layers: Any, where: str, errs: list[str], seen: set[str], dept
             errs.append(f"{w}: opacity must be 0..1")
         if "visible" in lay and not isinstance(lay["visible"], bool):
             errs.append(f"{w}: visible must be true or false")
+        if "resize" in lay and lay["resize"] not in RESIZE_RULES:
+            errs.append(f"{w}: resize must be one of {', '.join(RESIZE_RULES)}")
         _check_mask(lay.get("mask"), w, errs)
         _check_adjust(lay.get("adjust"), w, errs)
         _check_filters(lay.get("filters"), w, errs)
