@@ -179,17 +179,32 @@ class _Run:
         elif t == "shape":
             from .shapes import raster_shape
             rgba = raster_shape(lay, ctx)
+        elif t == "svg":
+            from .shapes import raster_svg
+            rgba = raster_svg(lay, ctx)
         elif t == "group":
             rgba = self.group(lay)
         else:                                            # pragma: no cover - schema rejects it
             raise RenderError(f"unknown layer type {t!r}")
         rgba = gl.apply(rgba, fx.steps(lay.get("adjust"), lay.get("filters"), ctx.scale))
         rgba = raster.apply_mask(rgba, raster.mask_alpha(lay.get("mask"), ctx))
+        if lay.get("clip"):                              # show this layer only where the named shape is
+            rgba = raster.apply_mask(rgba, self.clip_alpha(lay["clip"]))
         self.resolved_layers[lay["id"]] = res
         return rgba
 
     def deck(self):
         return self._deck
+
+    def clip_alpha(self, layer_id: str) -> np.ndarray:
+        """Coverage (0..1) of a shape or svg layer, used as a clip; cached per id."""
+        cache = self.__dict__.setdefault("_clips", {})
+        if layer_id not in cache:
+            from .shapes import raster_shape, raster_svg
+            tgt = next(l for l in schema.all_layers(self.doc.layers) if l.get("id") == layer_id)
+            rgba = (raster_shape if tgt["type"] == "shape" else raster_svg)(tgt, self.ctx)
+            cache[layer_id] = rgba[..., 3].astype(np.float32) / 255.0
+        return cache[layer_id]
 
     def group(self, lay: dict) -> np.ndarray:
         comp = self.gl.composite(None)

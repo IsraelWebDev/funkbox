@@ -29,14 +29,14 @@ HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$")
 BRAND_RE = re.compile(r"^brand\.(primary|secondary|text)$")
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 
-LAYER_TYPES = ("image", "solid", "gradient", "shader", "product", "text", "group", "border", "shape")
+LAYER_TYPES = ("image", "solid", "gradient", "shader", "product", "text", "group", "border", "shape", "svg")
 FITS = ("cover", "contain", "stretch")
 EXPORTS = ("png", "jpg", "webp", "ora")
 MAX_LAYERS = 64
 MAX_DEPTH = 8
 
 DOC_KEYS = {"version", "name", "canvas", "project", "casual", "copy", "brand", "seed", "layers", "post", "export"}
-COMMON = {"id", "type", "blend", "opacity", "mask", "adjust", "filters", "visible"}
+COMMON = {"id", "type", "blend", "opacity", "mask", "adjust", "filters", "visible", "clip"}
 TYPE_KEYS: dict[str, set[str]] = {
     "image": {"path", "fit", "x", "y", "scale", "rotate_deg", "pre"},
     "solid": {"color"},
@@ -47,7 +47,8 @@ TYPE_KEYS: dict[str, set[str]] = {
              "arc", "rotate_deg", "skew_x", "skew_y", "wrap"},
     "group": {"layers"},
     "border": {"px", "color"},
-    "shape": {"kind", "points", "fill", "stroke", "stroke_px", "width", "cap"},
+    "shape": {"kind", "points", "fill", "stroke", "stroke_px", "width", "cap", "d", "fill_rule", "units"},
+    "svg": {"path", "x", "y", "width", "height"},
 }
 ADJUST_KEYS = {"brightness", "contrast", "saturation", "hue", "levels", "temperature", "invert"}
 FILTER_KEYS = ("blur", "sharpen", "posterize", "halftone", "duotone", "pixelate", "chroma", "vignette")
@@ -348,6 +349,12 @@ def _check_type(t: str, lay: dict, w: str, errs: list[str], seen: set[str], dept
     elif t == "shape":
         from .shapes import check_shape
         check_shape(lay, w, errs, is_color, _num)
+    elif t == "svg":
+        if not isinstance(lay.get("path"), str) or not lay["path"].lower().endswith(".svg"):
+            errs.append(f"{w}: svg layer needs `path` to an .svg file")
+        for k, lo, hi in (("x", -2, 3), ("y", -2, 3), ("width", 0.01, 4), ("height", 0.01, 4)):
+            if k in lay and not _num(lay[k], lo, hi):
+                errs.append(f"{w}: {k} must be a number in {lo}..{hi}")
     elif t == "group":
         _check_layers(lay.get("layers"), f"{w}.layers", errs, seen, depth + 1)
     elif t == "border":
@@ -355,6 +362,35 @@ def _check_type(t: str, lay: dict, w: str, errs: list[str], seen: set[str], dept
             errs.append(f"{w}: border needs `px` (1..400)")
         if not is_color(lay.get("color", "#000000"), alpha=False):
             errs.append(f"{w}: color must be #rrggbb")
+
+
+def _layer_list(layers: Any) -> list[dict]:
+    """Every layer dict of an unvalidated tree, groups included, in drawing order."""
+    out: list[dict] = []
+    for lay in layers if isinstance(layers, list) else []:
+        if isinstance(lay, dict):
+            out.append(lay)
+            if lay.get("type") == "group":
+                out += _layer_list(lay.get("layers"))
+    return out
+
+
+def _check_clips(layers: Any, errs: list[str]) -> None:
+    by_id = {l.get("id"): l for l in _layer_list(layers) if l.get("id")}
+    for lay in _layer_list(layers):
+        c = lay.get("clip")
+        if c is None:
+            continue
+        w = f"layer {lay.get('id') or lay.get('type')!r}"
+        tgt = by_id.get(c)
+        if tgt is None:
+            errs.append(f"{w}: clip {c!r} is not a layer id")
+        elif tgt is lay:
+            errs.append(f"{w}: a layer cannot clip to itself")
+        elif tgt.get("type") not in ("shape", "svg"):
+            errs.append(f"{w}: clip must name a shape or svg layer (got a {tgt.get('type')} layer)")
+        elif tgt.get("clip"):
+            errs.append(f"{w}: clip {c!r} is itself clipped; clip to a plain shape")
 
 
 def check(doc: Any) -> list[str]:
@@ -401,6 +437,7 @@ def check(doc: Any) -> list[str]:
                     errs.append(f"brand.{k}: must be #rrggbb")
     seen: set[str] = set()
     _check_layers(doc.get("layers"), "layers", errs, seen, 1)
+    _check_clips(doc.get("layers"), errs)
     if isinstance(doc.get("layers"), list) and _count(doc["layers"]) > MAX_LAYERS:
         errs.append(f"too many layers (limit {MAX_LAYERS})")
     post = doc.get("post", [])

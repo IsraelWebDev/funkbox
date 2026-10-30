@@ -50,7 +50,8 @@ Canvas: a preset (`square` 1080x1080, `insta-portrait` 1080x1350, `story` 1080x1
 1600x900, `a4-150dpi` 1240x1754) or `width`/`height` (64..4096, rounded to even). `background` is a colour or
 `"transparent"` (PNG/WebP keep the alpha, JPG goes over white).
 
-Layers (bottom first; every layer takes `blend`, `opacity`, `mask`, `adjust`, `filters`, `visible`):
+Layers (bottom first; every layer takes `blend`, `opacity`, `mask`, `adjust`, `filters`, `visible`, and `clip`: the id
+of a shape or svg layer to show this layer only inside, often an invisible one used just as the outline):
 
 | type | keys |
 |---|---|
@@ -60,7 +61,8 @@ Layers (bottom first; every layer takes `blend`, `opacity`, `mask`, `adjust`, `f
 | `shader` | one of `shader` (.frag path), `source` (GLSL), `recipe` (loop recipe or path); `t` (0..1), `palette`, `cycles`, `params`, `seed`. A recipe that draws its own text is refused |
 | `product` | `image` (PNG with alpha), `x`, `y` (bottom centre), `height`, `shadow`, `match_color`, `effects`. Same compositor as the reel: the product's pixels are composited, never regenerated |
 | `text` | `copy_id` or `text`, `style` display/caption, `size`, `x`, `y`, `max_width`, `color`, `align`, `line_height`, `effects` (shadow, stroke, glow); `wrap: false` (one line, shrunk to fit `max_width`); geometry: `arc` (bend along a circle: radius in canvas widths, + a smile, - a frown), `skew_x`, `skew_y` (slant, degrees), `rotate_deg` |
-| `shape` | `kind` polygon/rect/ellipse/polyline, `points` (`[x, y]` canvas fractions; rect and ellipse take two corners), `fill`, `stroke` + `stroke_px` (an outline outside the shape), and for a polyline `width` (fraction of the canvas width) and `cap` square/butt: a thick bar with mitred corners, for ribbons and block lettering |
+| `shape` | `kind` polygon/rect/ellipse/polyline/path, `points` (`[x, y]` canvas fractions; rect and ellipse take two corners), `fill`, `stroke` + `stroke_px` (an outline outside the shape), and for a polyline `width` (fraction of the canvas width) and `cap` square/butt: a thick bar with mitred corners, for ribbons and block lettering. `kind: path` takes `d`, SVG path data (M L H V C S Q T A Z, curves and arcs), in canvas fractions or with `units: px` in canvas pixels, and `fill_rule` nonzero (default) or evenodd |
+| `svg` | `path` to an .svg file, `x`, `y` (top-left), `width` (canvas fractions; `height` follows its viewBox unless given). Paths, rects, circles, ellipses, lines, polygons, groups with transforms, fill/stroke/opacity; a gradient fills with its first colour; `<text>` is skipped with a warning (convert text to outlines first) |
 | `group` | `layers` (flattened, then blended as one layer; nesting up to 8) |
 | `border` | `px`, `color` |
 

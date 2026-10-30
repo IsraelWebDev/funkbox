@@ -8,6 +8,13 @@ Shape layer (all coordinates are fractions of the canvas: x of the width, y of t
     {"type": "shape", "kind": "polyline", "points": [...], "width": 0.04, "fill": ..., "stroke": ..., "stroke_px": 4,
      "cap": "square"|"butt"}
 
+    {"type": "shape", "kind": "path", "d": "M0.2,0.2 C0.4,0.0 0.6,0.4 0.8,0.2 L0.8,0.8 Z", "fill": ..., "fill_rule": "nonzero"}
+
+A path takes SVG path data (M L H V C S Q T A Z, absolute or relative), in canvas fractions, or in canvas pixels
+with "units": "px" (so arcs stay round on a non-square canvas). An svg layer places a whole SVG file:
+
+    {"type": "svg", "path": "logo.svg", "x": 0.1, "y": 0.1, "width": 0.5}      # height follows its viewBox
+
 A polyline is a thick stroke ``width`` (a fraction of the canvas width) with mitred corners, so straight-bar lettering
 and ribbons can be drawn; its ``stroke`` outlines the whole bar. Shapes are drawn supersampled, so edges are smooth.
 """
@@ -20,7 +27,7 @@ from PIL import Image, ImageDraw
 
 from .raster import RCtx, rgba_of, transparent
 
-KINDS = ("polygon", "rect", "ellipse", "polyline")
+KINDS = ("polygon", "rect", "ellipse", "polyline", "path")
 SS_MAX = 8192                     # largest supersampled side
 
 
@@ -76,6 +83,15 @@ def _mask(ctx: RCtx, draw_fn) -> np.ndarray:
 def _geometry(lay: dict, ctx: RCtx, grow: float):
     """Draw function for the shape grown by ``grow`` canvas pixels (the outline is the shape grown by the stroke)."""
     kind = lay["kind"]
+    if kind == "path":
+        subs = path_px(lay, ctx)
+
+        def draw_path(d: ImageDraw.ImageDraw, s: int) -> None:          # outline: a bar along every subpath
+            for pts, closed in subs:
+                S = [(x * s, y * s) for x, y in pts]
+                for poly in bar_polygons(S + ([S[0], S[1]] if closed and len(S) > 2 else []), grow * s, "butt"):
+                    d.polygon(poly, fill=255)
+        return draw_path
     P = [(float(x) * ctx.w, float(y) * ctx.h) for x, y in lay["points"]]
 
     def draw(d: ImageDraw.ImageDraw, s: int) -> None:
@@ -97,32 +113,126 @@ def _geometry(lay: dict, ctx: RCtx, grow: float):
     return draw
 
 
+def path_px(lay: dict, ctx: RCtx) -> list[tuple[list[tuple[float, float]], bool]]:
+    """A path layer's subpaths in render pixels."""
+    from .vpath import parse
+    px = lay.get("units", "fraction") == "px"
+    sx, sy = (ctx.scale, ctx.scale) if px else (ctx.w, ctx.h)
+    tol = 0.5 / max(sx, sy) if not px else 0.5 / max(ctx.scale, 1e-6)
+    return [([(x * sx, y * sy) for x, y in pts], c) for pts, c in parse(lay["d"], tol)]
+
+
+def fill_mask(subs, ctx: RCtx, rule: str = "nonzero") -> np.ndarray:
+    """Coverage of filled subpaths. nonzero: each subpath adds its winding (+1 or -1); evenodd: overlaps cancel."""
+    s = _ss(ctx)
+    acc = np.zeros((ctx.h * s, ctx.w * s), np.int16)
+    for pts, _ in subs:
+        if len(pts) < 3:
+            continue
+        im = Image.new("L", (ctx.w * s, ctx.h * s), 0)
+        ImageDraw.Draw(im).polygon([(x * s, y * s) for x, y in pts], fill=1)
+        m = np.asarray(im, np.int16)
+        area = sum(pts[i - 1][0] * pts[i][1] - pts[i][0] * pts[i - 1][1] for i in range(len(pts)))
+        acc += m if (rule == "evenodd" or area >= 0) else -m
+    cov = ((acc % 2) != 0) if rule == "evenodd" else (acc != 0)
+    im = Image.fromarray((cov * 255).astype(np.uint8))
+    if s > 1:
+        im = im.resize((ctx.w, ctx.h), Image.BOX)
+    return np.asarray(im, np.float32) / 255.0
+
+
+def stroke_mask(subs, half: float, ctx: RCtx) -> np.ndarray:
+    def draw(d: ImageDraw.ImageDraw, s: int) -> None:
+        for pts, closed in subs:
+            S = [(x * s, y * s) for x, y in pts]
+            for poly in bar_polygons(S + ([S[0], S[1]] if closed and len(S) > 2 else []), half * s, "butt"):
+                d.polygon(poly, fill=255)
+    return _mask(ctx, draw)
+
+
+class _Paint:
+    """Premultiplied 'over' compositing of coloured coverage masks."""
+
+    def __init__(self, ctx: RCtx):
+        self.P = np.zeros((ctx.h, ctx.w, 3), np.float32)
+        self.A = np.zeros((ctx.h, ctx.w), np.float32)
+
+    def over(self, mask: np.ndarray, rgba: tuple[int, int, int, int], opacity: float = 1.0) -> None:
+        a = mask * (rgba[3] / 255.0) * opacity
+        self.P = self.P * (1 - a[..., None]) + np.array(rgba[:3], np.float32) * a[..., None]
+        self.A = self.A * (1 - a) + a
+
+    def rgba(self, ctx: RCtx) -> np.ndarray:
+        out = transparent(ctx.w, ctx.h)
+        A = self.A[..., None]
+        out[..., :3] = np.clip(np.where(A > 0, self.P / np.maximum(A, 1e-9), 0) + 0.5, 0, 255).astype(np.uint8)
+        out[..., 3] = np.clip(self.A * 255 + 0.5, 0, 255).astype(np.uint8)
+        return out
+
+
 def raster_shape(lay: dict, ctx: RCtx) -> np.ndarray:
-    out = transparent(ctx.w, ctx.h)
     sw = ctx.px(float(lay.get("stroke_px", 0))) if lay.get("stroke") else 0.0
-    fill = lay.get("fill")
-    P = np.zeros((ctx.h, ctx.w, 3), np.float32)
-    A = np.zeros((ctx.h, ctx.w), np.float32)
+    paint = _Paint(ctx)
     if sw > 0:
-        m = _mask(ctx, _geometry(lay, ctx, sw))
-        c = rgba_of(lay["stroke"], ctx.brand)
-        P += np.array(c[:3], np.float32) * (m * c[3] / 255.0)[..., None]
-        A += m * c[3] / 255.0
-    if fill:
-        m = _mask(ctx, _geometry(lay, ctx, 0.0))
-        c = rgba_of(fill, ctx.brand)
-        a = m * c[3] / 255.0
-        P = P * (1 - a[..., None]) + np.array(c[:3], np.float32) * a[..., None]
-        A = A * (1 - a) + a
-    out[..., :3] = np.clip(np.where(A[..., None] > 0, P / np.maximum(A[..., None], 1e-9), 0) + 0.5, 0, 255).astype(np.uint8)
-    out[..., 3] = np.clip(A * 255 + 0.5, 0, 255).astype(np.uint8)
-    return out
+        paint.over(_mask(ctx, _geometry(lay, ctx, sw)) if lay["kind"] != "path"
+                   else np.maximum(stroke_mask(path_px(lay, ctx), sw, ctx),
+                                   fill_mask(path_px(lay, ctx), ctx, lay.get("fill_rule", "nonzero"))),
+                   rgba_of(lay["stroke"], ctx.brand))
+    if lay.get("fill"):
+        m = (fill_mask(path_px(lay, ctx), ctx, lay.get("fill_rule", "nonzero")) if lay["kind"] == "path"
+             else _mask(ctx, _geometry(lay, ctx, 0.0)))
+        paint.over(m, rgba_of(lay["fill"], ctx.brand))
+    return paint.rgba(ctx)
+
+
+def raster_svg(lay: dict, ctx: RCtx) -> np.ndarray:
+    """Place an SVG file: x, y (top-left) and width as canvas fractions; height from its viewBox unless given."""
+    from ..config import resolve_path
+    from .vpath import svg_items
+    path = resolve_path(lay["path"], ctx.base_dir)
+    items, (vx, vy, vw, vh), warns = svg_items(path, tol=0.25)
+    ctx.warnings += [f"svg {lay['id']!r}: {w}" for w in warns]
+    tw = float(lay.get("width", 0.5)) * ctx.w
+    th = float(lay["height"]) * ctx.h if "height" in lay else tw * vh / vw
+    tx, ty = float(lay.get("x", 0.0)) * ctx.w, float(lay.get("y", 0.0)) * ctx.h
+    k = (tw / vw, th / vh)
+    paint = _Paint(ctx)
+    for it in items:
+        subs = [([(tx + (x - vx) * k[0], ty + (y - vy) * k[1]) for x, y in pts], c) for pts, c in it["subpaths"]]
+        if it["fill"]:
+            paint.over(fill_mask(subs, ctx, "evenodd" if it["evenodd"] else "nonzero"),
+                       rgba_of(it["fill"], ctx.brand), it["opacity"])
+        if it["stroke"] and it["stroke_width"] > 0:
+            paint.over(stroke_mask(subs, it["stroke_width"] * (k[0] + k[1]) / 4, ctx), rgba_of(it["stroke"], ctx.brand),
+                       it["opacity"])
+    return paint.rgba(ctx)
 
 
 def check_shape(lay: dict, w: str, errs: list[str], is_color, num) -> None:
     kind = lay.get("kind")
     if kind not in KINDS:
         errs.append(f"{w}: shape needs `kind`: one of {list(KINDS)}")
+        return
+    if kind == "path":
+        from .vpath import PathError, parse
+        try:
+            parse(lay.get("d") or "")
+        except PathError as e:
+            errs.append(f"{w}: {e}")
+        if lay.get("fill_rule", "nonzero") not in ("nonzero", "evenodd"):
+            errs.append(f"{w}: fill_rule must be nonzero or evenodd")
+        if lay.get("units", "fraction") not in ("fraction", "px"):
+            errs.append(f"{w}: units must be fraction or px")
+        if "points" in lay:
+            errs.append(f"{w}: a path takes `d` (SVG path data), not `points`")
+        lay = {k: v for k, v in lay.items() if k != "kind"}
+        for k in ("fill", "stroke"):
+            if k in lay and not is_color(lay[k], alpha=True):
+                errs.append(f"{w}: {k} must be #rrggbb[aa] or brand.primary|secondary|text")
+        if not lay.get("fill") and not lay.get("stroke"):
+            errs.append(f"{w}: a shape needs `fill`, `stroke` or both")
+        if lay.get("stroke") and not num(lay.get("stroke_px", 0), 0.01, 200):
+            errs.append(f"{w}: a stroke needs `stroke_px` (0.01..200)")
         return
     pts = lay.get("points")
     ok = isinstance(pts, list) and all(isinstance(p, (list, tuple)) and len(p) == 2 and all(num(v, -2, 3) for v in p)
