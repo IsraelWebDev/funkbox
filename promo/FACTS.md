@@ -23,6 +23,9 @@ closely; rounding a number down is fine, rounding it up is not.
 ## What it makes
 - F6. Seamless looping videos from GPU shaders, with a machine check that the last frame flows into the first.
 - F7. Posters and photo edits whose text is exact, with layered export for GIMP.
+- F20. Text in any script its font covers, Hebrew included (right to left); fonts can be picked by Google Fonts name
+  ("Rubik:800") and are fetched once. A character the font cannot draw stops the render and is named; it is never
+  drawn as an empty box.
 - F8. Images from a description with FastSD (SD-Turbo); about a few seconds per 512x512 image on an Intel iGPU once warm.
 - F9. Short product and app video ads: 9:16, 16:9 (and 1:1, 4:5) from one edit.
 - F10. Ads use stills (parallax, Ken Burns), clips and screen recordings with push-ins and speed ramps.

@@ -205,8 +205,10 @@ def brand_from_assets(slug: str) -> dict:
 
 
 def set_brand(slug: str, primary: str | None = None, secondary: str | None = None, text: str | None = None,
-              font_caption: str | None = None, font_display: str | None = None) -> dict:
-    """Override any brand value. Colours are #rrggbb; fonts are paths inside the project or bundled fonts/."""
+              font_caption: str | None = None, font_display: str | None = None,
+              font_fallback: str | None = None) -> dict:
+    """Override any brand value. Colours are #rrggbb; fonts are .ttf/.otf paths inside the project or bundled fonts/,
+    or Google Fonts names like 'Rubik:800' (fetched once, see funkbox.fonts)."""
     d = P.project_dir(slug)
     meta = P.load_meta(slug)
     brand = dict(meta.get("brand") or {})
@@ -220,15 +222,15 @@ def set_brand(slug: str, primary: str | None = None, secondary: str | None = Non
             if not isinstance(v, str) or not HEX_RE.match(v):
                 raise P.ProjectError(f"{k} must be a #rrggbb colour, got {v!r}")
             brand[k] = v.lower()
-    from funkbox.config import resolve_path
-    for k, v in (("font_caption", font_caption), ("font_display", font_display)):
+    from funkbox import fonts as fontsmod
+    for k, v in (("font_caption", font_caption), ("font_display", font_display), ("font_fallback", font_fallback)):
         if v is not None:
+            if not fontsmod.is_name(v) and Path(v).suffix.lower() not in (".ttf", ".otf"):
+                raise P.ProjectError(f"{k} must be a .ttf or .otf file, or a font name like 'Rubik:800'")
             try:
-                resolve_path(v, d)
-            except (ValueError, FileNotFoundError) as e:
+                fontsmod.resolve(v, d)
+            except (ValueError, FileNotFoundError, OSError) as e:
                 raise P.ProjectError(f"{k}: {e}") from None
-            if Path(v).suffix.lower() not in (".ttf", ".otf"):
-                raise P.ProjectError(f"{k} must be a .ttf or .otf file")
             brand[k] = v.replace("\\", "/")
     brand["contrast"] = round(contrast(brand["text"], brand["primary"]), 2)
     brand["source"] = "manual" if brand.get("source") != "auto" else "auto+manual"

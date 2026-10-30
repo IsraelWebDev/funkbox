@@ -303,7 +303,7 @@ class Renderer:
     def fonts(self) -> captions_mod.Fonts:
         if self._fonts is None:
             b = self.reel.brand
-            self._fonts = captions_mod.Fonts(self._res(b.font_caption), self._res(b.font_display))
+            self._fonts = captions_mod.fonts_for(b, self.reel.base_dir)
         return self._fonts
 
     def caption_layout(self, span: ShotSpan) -> captions_mod.Layout | None:

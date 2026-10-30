@@ -16,7 +16,6 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from funkbox.config import resolve_path
 from funkbox.media import require_ffmpeg
 
 from . import audio, brand as brandmod, captions, collision, copydeck, depth
@@ -225,7 +224,7 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
     T = float(length_s) - end_total
 
     # ---- fonts / VO, then how long every copy line needs (caption reveal and voice-over)
-    fonts = captions.Fonts(resolve_path(br["font_caption"], d), resolve_path(br["font_display"], d))
+    fonts = captions.fonts_for(br, d)
     bobj = Brand(primary=br["primary"], secondary=br["secondary"], text=br["text"])
     vo_on = audio.tts_mode() != "none" and len(deck.lines) > 0
     if not vo_on:

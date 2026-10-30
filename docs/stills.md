@@ -40,6 +40,12 @@ folder. Errors come back as `ERROR: ...` text listing every problem found.
   "export": {"formats": ["png", "ora"], "jpg_quality": 92} }
 ```
 
+`brand` may also set `font_caption`, `font_display` and `font_fallback`, each a .ttf/.otf path or a Google Fonts name
+such as `"Rubik:800"` (fetched once, then offline). Text in any script works when its font has the glyphs: a missing
+glyph is an error naming the character, and the fallback (default: the bundled Rubik Bold, with Hebrew and
+Cyrillic) draws a text layer the main font cannot. Hebrew and other right-to-left text is laid out right to left; use
+`"align": "right"` for right-aligned blocks. See "Fonts by name" in docs/reel.md.
+
 Canvas: a preset (`square` 1080x1080, `insta-portrait` 1080x1350, `story` 1080x1920, `landscape` 1920x1080, `twitter`
 1600x900, `a4-150dpi` 1240x1754) or `width`/`height` (64..4096, rounded to even). `background` is a colour or
 `"transparent"` (PNG/WebP keep the alpha, JPG goes over white).

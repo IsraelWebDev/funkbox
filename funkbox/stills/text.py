@@ -103,7 +103,7 @@ def preflight(doc: Doc, ctx: RCtx) -> CopyDeck | None:
 # --------------------------------------------------------------------------- #
 def _fonts(ctx: RCtx) -> captions.Fonts:
     b = ctx.brand
-    return captions.Fonts(resolve_path(b.font_caption, ctx.base_dir), resolve_path(b.font_display, ctx.base_dir))
+    return captions.fonts_for(b, ctx.base_dir)
 
 
 def layout_text(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> tuple[captions.Layout, int, int]:
@@ -123,7 +123,10 @@ def layout_text(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> tuple
     px = max(min_px, want)
     label = f"text layer {lay['id']!r}" + (f" (copy {lay['copy_id']!r})" if "copy_id" in lay else "")
     while True:
-        font = fonts.get(which, px)
+        try:
+            font = fonts.get(which, px, text)
+        except captions.GlyphError as e:
+            raise PosterError([f"{label}: {e}"]) from e
         lines, fits = captions.wrap(text, font, frame_w)
         line_h = int(round(px * line_height))
         block_h = len(lines) * line_h

@@ -60,6 +60,7 @@ class Brand:
     font_caption: str = "fonts/Oswald-SemiBold.ttf"
     font_display: str = "fonts/DMSerifDisplay-Regular.ttf"
     logo: str | None = None
+    font_fallback: str | None = "fonts/Rubik-Bold.ttf"   # draws text the caption/display font cannot (Hebrew, Cyrillic)
 
 
 @dataclass
@@ -508,7 +509,7 @@ def parse_reel(d: Any, base_dir: str | None = None) -> Reel:
                        text=b.s("text", "#ffffff", pattern=HEX_RE) or "#ffffff",
                        font_caption=b.s("font_caption", "fonts/Oswald-SemiBold.ttf") or "",
                        font_display=b.s("font_display", "fonts/DMSerifDisplay-Regular.ttf") or "",
-                       logo=b.s("logo", None))
+                       logo=b.s("logo", None), font_fallback=b.s("font_fallback", "fonts/Rubik-Bold.ttf"))
     b.finish()
     reel.copy = r.s("copy", "", required=True) or ""
     a = r.sub("audio")

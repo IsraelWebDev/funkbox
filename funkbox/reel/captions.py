@@ -93,13 +93,51 @@ def load_style(name: str) -> Style:
 
 
 # --------------------------------------------------------------------------- #
+class GlyphError(ValueError):
+    """The text has characters neither the chosen font nor the fallback can draw."""
+
+
 @dataclass
 class Fonts:
     caption: Path
     display: Path
+    fallback: Path | None = None
 
-    def get(self, which: str, px: int) -> ImageFont.FreeTypeFont:
-        return _font(str(self.caption if which == "caption" else self.display), px)
+    def path_for(self, which: str, text: str | None = None) -> Path:
+        """The font that draws ``text`` in slot ``which``: the slot's font if it has every glyph, else the fallback
+        if IT has every glyph. Anything else raises GlyphError naming the characters, so text is never drawn as
+        empty boxes. (The choice is per text block: a block is drawn in one font.)"""
+        from .. import fonts as fontsmod
+        main = self.caption if which == "caption" else self.display
+        if text is None:
+            return main
+        miss = fontsmod.missing(main, text)
+        if not miss:
+            return main
+        if self.fallback is not None:
+            if not fontsmod.missing(self.fallback, text):
+                return self.fallback
+            miss = [c for c in miss if c in fontsmod.missing(self.fallback, text)]
+            raise GlyphError(f"neither the {which} font ({main.name}) nor the fallback ({self.fallback.name}) has "
+                             f"{fontsmod.describe(miss)}; pick a font that covers them")
+        raise GlyphError(f"the {which} font ({main.name}) has no glyph for {fontsmod.describe(miss)}; set "
+                         f"brand.font_fallback (e.g. 'Rubik:700' for Hebrew) or use a font that covers them")
+
+    def get(self, which: str, px: int, text: str | None = None) -> ImageFont.FreeTypeFont:
+        return _font(str(self.path_for(which, text)), px)
+
+
+DEFAULT_FALLBACK = "fonts/Rubik-Bold.ttf"     # bundled: Latin, Hebrew, Cyrillic
+
+
+def fonts_for(brand, base_dir) -> Fonts:
+    """A brand's fonts: paths or names (funkbox.fonts), plus the optional fallback."""
+    from .. import fonts as fontsmod
+    fb = (getattr(brand, "font_fallback", DEFAULT_FALLBACK) if not isinstance(brand, dict)
+          else brand.get("font_fallback", DEFAULT_FALLBACK))
+    get = (lambda k: brand[k]) if isinstance(brand, dict) else (lambda k: getattr(brand, k))
+    return Fonts(fontsmod.resolve(get("font_caption"), base_dir), fontsmod.resolve(get("font_display"), base_dir),
+                 fontsmod.resolve(fb, base_dir) if fb else None)
 
 
 @lru_cache(maxsize=64)
@@ -140,7 +178,7 @@ class Layout:
 
     @property
     def font(self) -> ImageFont.FreeTypeFont:
-        return self.fonts.get(self.style.font, self.px)
+        return self.fonts.get(self.style.font, self.px, self.text)
 
     @property
     def text_w(self) -> float:
@@ -205,7 +243,7 @@ def layout_block(copy_id: str, text: str, style: Style, fonts: Fonts, brand: Bra
     else:
         top, bot = 0.04 * H, H - 0.04 * H
     while True:
-        font = fonts.get(style.font, px)
+        font = fonts.get(style.font, px, text)
         pad = int(round(style.padding * px))
         avail = style.max_width * W - 2 * pad
         lines, fits = wrap(text, font, avail)
@@ -411,6 +449,6 @@ def check_caption(copy_id: str, text: str, style_name: str, anchor: str, fonts: 
     """Validator hook: returns an error string (naming the copy id) or None."""
     try:
         layout_block(copy_id, text, load_style(style_name), fonts, brand, W, H, anchor=anchor, safe_area=safe_area)
-    except (CaptionFitError, ValueError) as e:
-        return str(e)
+    except (CaptionFitError, ValueError) as e:            # GlyphError is a ValueError
+        return f"copy {copy_id!r}: {e}" if isinstance(e, GlyphError) else str(e)
     return None

@@ -40,7 +40,6 @@ class ApprovalError(P.ProjectError):
 # --------------------------------------------------------------------------- #
 def _fit_context(slug: str):
     """Fonts + Brand of the project (defaults when there is no brand yet) for the caption fit check."""
-    from funkbox.config import resolve_path
 
     from . import captions
     d = P.project_dir(slug)
@@ -48,7 +47,7 @@ def _fit_context(slug: str):
     brand = Brand(primary=b.get("primary", "#c8102e"), secondary=b.get("secondary", "#1a1a1a"),
                   text=b.get("text", "#ffffff"), font_caption=b.get("font_caption", "fonts/Oswald-SemiBold.ttf"),
                   font_display=b.get("font_display", "fonts/DMSerifDisplay-Regular.ttf"))
-    fonts = captions.Fonts(resolve_path(brand.font_caption, d), resolve_path(brand.font_display, d))
+    fonts = captions.fonts_for(brand, d)
     return fonts, brand
 
 

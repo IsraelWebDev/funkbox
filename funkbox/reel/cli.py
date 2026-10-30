@@ -213,7 +213,7 @@ def cmd_project_brand(a) -> int:
 
 def cmd_project_set_brand(a) -> int:
     from funkbox.reel import brand
-    print(brand.brand_text(brand.set_brand(a.project, a.primary, a.secondary, a.text, a.font_caption, a.font_display)))
+    print(brand.brand_text(brand.set_brand(a.project, a.primary, a.secondary, a.text, a.font_caption, a.font_display, a.font_fallback)))
     return 0
 
 
@@ -352,8 +352,8 @@ def add_cli(sub) -> None:
     p.set_defaults(fn=cmd_project_brand)
     p = psub.add_parser("set-brand", help="override brand values")
     p.add_argument("project")
-    for k in ("primary", "secondary", "text", "font-caption", "font-display"):
-        p.add_argument("--" + k)
+    for k in ("primary", "secondary", "text", "font-caption", "font-display", "font-fallback"):
+        p.add_argument("--" + k, help="a .ttf/.otf path or a font name like 'Rubik:800'" if k.startswith("font") else None)
     p.set_defaults(fn=cmd_project_set_brand)
     p = psub.add_parser("propose-copy", help="write a DRAFT of the copy from a JSON file (not approved)")
     p.add_argument("project")

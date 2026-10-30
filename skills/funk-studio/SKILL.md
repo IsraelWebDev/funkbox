@@ -68,6 +68,10 @@ Rules:
   "improve" it.
 - If a caption would cover the product, the validator flags it. Fix it by moving the anchor
   or shrinking the product.
+- Fonts: any brand font may be a Google Fonts name instead of a file (`"Rubik:800"`, `"Secular One"`); it is fetched
+  once. Text in Hebrew, Cyrillic or any script works when the font has the glyphs; a missing glyph is an error that
+  names the character (switch to a font that covers it, or set `font_fallback`). The default fallback, Rubik Bold,
+  covers Hebrew. Never work around this by drawing text outside funkbox.
 - Licences: the bundled models, voice and fonts are commercially usable. Remind the user
   that their own music and photos must be licensed for ads.
 

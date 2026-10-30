@@ -319,9 +319,13 @@ def project_brand(project: str) -> list:
 
 @safe
 def project_set_brand(project: str, primary: str | None = None, secondary: str | None = None, text: str | None = None,
-              font_caption: str | None = None, font_display: str | None = None) -> list:
-    """Override brand values: colours as #rrggbb, fonts as paths to .ttf/.otf inside the project or the bundled fonts/."""
-    b = brandmod.set_brand(project, primary, secondary, text, font_caption, font_display)
+              font_caption: str | None = None, font_display: str | None = None,
+              font_fallback: str | None = None) -> list:
+    """Override brand values: colours as #rrggbb; fonts as paths to .ttf/.otf inside the project or the bundled fonts/,
+    or as Google Fonts names ('Rubik:800', 'Secular One', 'Exo 2:700:italic'), fetched once and cached.
+    font_fallback draws any caption the main fonts have no glyphs for (default: bundled Rubik Bold, which covers
+    Latin, Hebrew and Cyrillic). Text a font cannot draw is an error naming the characters, never empty boxes."""
+    b = brandmod.set_brand(project, primary, secondary, text, font_caption, font_display, font_fallback)
     return [brandmod.brand_text(b), _png(PILImage.open(b["swatch"]), 900)]
 
 

@@ -8,6 +8,8 @@ file is in this repository; "downloaded" means fetched on request; "optional" me
 | ashima/webgl-noise (simplex noise GLSL) | MIT | bundled, vendored in `funkbox/gl/noise.glsl` |
 | Oswald (font) | SIL OFL 1.1 | bundled in `fonts/`, licence file `fonts/OFL-oswald.txt` |
 | DM Serif Display (font) | SIL OFL 1.1 | bundled in `fonts/`, licence file `fonts/OFL-dmserifdisplay.txt` |
+| Rubik Bold (font; Latin, Hebrew, Cyrillic; the default fallback) | SIL OFL 1.1 | bundled in `fonts/` (the 700 weight of the variable font), licence file `fonts/OFL-rubik.txt` |
+| Fonts fetched by name (`"Rubik:800"`) | each font's own: SIL OFL 1.1, Apache 2.0 or Ubuntu Font Licence (only those Google Fonts folders are used) | downloaded on first use into `FUNK_HOME/fonts-cache/`, with the licence file next to each font |
 | Depth-Anything-V2-Small (ONNX) | Apache-2.0 | downloaded by `funkbox reel setup-models` into `models/` |
 | Piper voice `en_US-ljspeech-medium` | public-domain training data (LJ Speech); model released under MIT | downloaded by `funkbox reel setup-models` into `models/` |
 | piper-tts | GPL-3.0 | optional Python package (`requirements-reel.txt`), installed on request, not bundled |

@@ -379,8 +379,10 @@ def check(doc: Any) -> list[str]:
         errs.append("name: must match " + ID_RE.pattern)
     br = doc.get("brand")
     if br is not None:
-        if not isinstance(br, dict) or set(br) - {"primary", "secondary", "text", "font_caption", "font_display"}:
-            errs.append("brand: only primary, secondary, text (colours) and font_caption, font_display (paths)")
+        if not isinstance(br, dict) or set(br) - {"primary", "secondary", "text", "font_caption", "font_display",
+                                                  "font_fallback"}:
+            errs.append("brand: only primary, secondary, text (colours) and font_caption, font_display, "
+                        "font_fallback (font file paths or names like 'Rubik:700')")
         else:
             for k in ("primary", "secondary", "text"):
                 if k in br and not (isinstance(br[k], str) and HEX_RE.match(br[k]) and len(br[k]) == 7):

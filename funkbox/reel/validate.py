@@ -131,8 +131,18 @@ def _check_files(reel: Reel, rep: Report) -> None:
         except (ValueError, FileNotFoundError) as e:
             rep.errors.append(f"{what}: {e}")
 
-    need("brand.font_caption", reel.brand.font_caption)
-    need("brand.font_display", reel.brand.font_display)
+    def need_font(what: str, spec: str | None) -> None:
+        if not spec:
+            return
+        from .. import fonts as fontsmod
+        try:
+            fontsmod.resolve(spec, reel.base_dir)
+        except (ValueError, FileNotFoundError, OSError) as e:       # FontError is a ValueError
+            rep.errors.append(f"{what}: {e}")
+
+    need_font("brand.font_caption", reel.brand.font_caption)
+    need_font("brand.font_display", reel.brand.font_display)
+    need_font("brand.font_fallback", reel.brand.font_fallback)
     need("brand.logo", reel.brand.logo)
     need("audio.music", reel.audio.music)
     for i, sh in enumerate(reel.shots):
@@ -164,7 +174,7 @@ def _check_templates_and_fit(reel: Reel, rep: Report) -> None:
     from . import captions, endcard
     errs_before = len(rep.errors)
     try:
-        fonts = captions.Fonts(_res(reel.brand.font_caption, reel), _res(reel.brand.font_display, reel))
+        fonts = captions.fonts_for(reel.brand, reel.base_dir)
     except (ValueError, FileNotFoundError):
         return                      # already reported by _check_files
     W, H = reel.settings.width, reel.settings.height
@@ -270,7 +280,7 @@ def _check_reveal_timing(reel: Reel, rep: Report) -> None:
     from . import captions
     assert rep.deck is not None
     try:
-        fonts = captions.Fonts(_res(reel.brand.font_caption, reel), _res(reel.brand.font_display, reel))
+        fonts = captions.fonts_for(reel.brand, reel.base_dir)
     except (ValueError, FileNotFoundError):
         return
     for sp in rep.spans:

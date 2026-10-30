@@ -25,7 +25,17 @@ The MCP tools are `reel_copy_lines`, `reel_templates`, `reel_validate`, `reel_st
 (registered with everything else by `python install.py --register ...`). On Linux without a
 display set `FUNK_GL_BACKEND=egl`. Without the depth model `parallax` degrades to Ken Burns; without a Piper
 voice `voiceover: true` is an error (the sine-burst stub exists for tests only: `REEL_TTS=stub`).
-Fonts in `fonts/` are SIL OFL (Oswald, DM Serif Display); licence texts alongside.
+Fonts in `fonts/` are SIL OFL (Oswald, DM Serif Display, and Rubik Bold, which covers Hebrew and Cyrillic); licence
+texts alongside.
+
+**Fonts by name, and exact glyphs.** Any font setting (`brand.font_caption`, `font_display`, `font_fallback`, in reels
+and posters) takes a file path or a Google Fonts name: `"Rubik:800"`, `"Secular One"`, `"Exo 2:700:italic"`. A name
+is downloaded once into `FUNK_HOME/fonts-cache/` (only OFL, Apache and UFL fonts; the licence file is saved next to
+it) and works offline afterwards; a variable font is cut to the weight asked for. Every caption and text layer is
+checked against the font that draws it: a character the font has no glyph for is an error that names it (for
+example `'צ' (U+05E6 Hebrew Letter Tsadi)`), never an empty box that the text audit would miss. `brand.font_fallback`
+(default: the bundled Rubik Bold) draws any text block the main font cannot, so a Hebrew line in an English design
+just works; a block neither font covers is an error. Right-to-left text is laid out right to left.
 
 ## Projects: drop files in, get an ad
 
