@@ -203,7 +203,10 @@ class SoundFont:
         idx = np.clip(rel, start, end - 2)
         i0 = idx.astype(np.int64)
         fr = (idx - i0).astype(np.float32)
-        x = self.data[i0] * (1 - fr) + self.data[np.minimum(i0 + 1, len(self.data) - 1)] * fr
+        i1 = np.minimum(i0 + 1, len(self.data) - 1)
+        if looped:                                        # across the loop point the next sample is the loop start
+            i1 = np.where((i1 >= le) & (i0 < le), ls, i1)
+        x = self.data[i0] * (1 - fr) + self.data[i1] * fr
         x[rel >= end - 1] = 0.0
         t = np.arange(n) / sr
         sus = 10.0 ** (-max(0, min(1440, g[G_SUSTAIN])) / 200.0)
