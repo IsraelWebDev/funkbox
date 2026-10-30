@@ -122,13 +122,46 @@ def _kokoro():
     return _KOKORO
 
 
-def _kokoro_wav(text: str, voice_id: str, speed: float, path: Path) -> None:
+SENTENCE_PAUSE = 0.32       # seconds of silence after a sentence inside one line (". ", "! ", "? ")
+_SENTENCE_END = re.compile(r"[.!?\u2026][\"'\u201d)\]]*(?=\s)")
+_NOT_AN_END = re.compile(r"(\b[A-Za-z]\.)+$|\b(Mr|Mrs|Ms|Dr|St|vs|etc|No|Jr|Sr)\.$")
+
+
+def sentences(text: str) -> list[str]:
+    """``text`` split after each sentence end ("Wemby. Clark. Rose." -> three), so each gets a real pause.
+    Initials (G.L.O.W.) and common abbreviations (Mr., Dr., vs.) are not sentence ends."""
+    text = text.strip()
+    out, start = [], 0
+    for m in _SENTENCE_END.finditer(text):
+        if m.group()[0] == "." and _NOT_AN_END.search(text[start:m.start() + 1]):
+            continue
+        out.append(text[start:m.end()].strip())
+        start = m.end()
+    out.append(text[start:].strip())
+    return [p for p in out if p]
+
+
+def _trim(y: np.ndarray, sr: int, floor: float = 0.01) -> np.ndarray:
+    """Cut the model's own leading/trailing near-silence so the pauses we add are the pauses heard."""
+    loud = np.nonzero(np.abs(y) > floor)[0]
+    if not loud.size:
+        return y
+    pad = int(0.03 * sr)
+    return y[max(0, loud[0] - pad): loud[-1] + pad]
+
+
+def _kokoro_wav(text: str, voice_id: str, speed: float, path: Path, pause: float = SENTENCE_PAUSE) -> None:
     lang = "en-gb" if voice_id.startswith("b") else "en-us"
     k = _kokoro()
     if voice_id not in k.get_voices():
         raise RuntimeError(f"Kokoro has no voice {voice_id!r}; try {', '.join(v.split(':')[1] for v in APPROVED_VOICES)}")
-    y, sr = k.create(text, voice=voice_id, speed=speed, lang=lang)
-    y = np.asarray(y, np.float64)
+    parts, sr = [], 24000
+    for i, sent in enumerate(sentences(text) or [text]):
+        a, sr = k.create(sent, voice=voice_id, speed=speed, lang=lang)
+        if i:
+            parts.append(np.zeros(int(pause / max(speed, 0.1) * sr)))
+        parts.append(_trim(np.asarray(a, np.float64), int(sr)))
+    y = np.concatenate(parts)
     peak = float(np.abs(y).max()) if y.size else 0.0
     if peak > 0.98:
         y = y * (0.98 / peak)
@@ -170,7 +203,7 @@ def synthesize(deck: CopyDeck, copy_id: str, voice: str | None = None, speed: fl
     text = deck.say(copy_id)
     onnx, _ = voice_files()
     ident = {"piper": f"piper:{onnx.name}", "stub": "stub",
-             "kokoro": f"{resolve_voice(voice)}@{speed:g}:{kokoro_files()[0].name}"}[mode]
+             "kokoro": f"{resolve_voice(voice)}@{speed:g}:p{SENTENCE_PAUSE:g}:{kokoro_files()[0].name}"}[mode]
     key = hashlib.sha1((ident + "\n" + text).encode("utf-8")).hexdigest()
     out = funk_out() / "cache" / "tts" / f"{key}.wav"
     if out.exists():

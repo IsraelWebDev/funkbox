@@ -46,3 +46,31 @@ def test_cache_key_differs_per_voice(monkeypatch, tmp_path):
     monkeypatch.setenv("REEL_TTS", "stub")
     deck = parse_copy({"lines": {"a": {"text": "Hello"}}})
     assert audio.synthesize(deck, "a", "kokoro:af_heart").exists()
+
+
+def test_lines_split_into_sentences_for_pauses():
+    assert audio.sentences("Wemby. Clark. Rose.") == ["Wemby.", "Clark.", "Rose."]
+    assert audio.sentences("Every dunk. Every dagger!") == ["Every dunk.", "Every dagger!"]
+    assert audio.sentences("Meet G.L.O.W. today") == ["Meet G.L.O.W. today"]          # no space: not a sentence end
+    assert audio.sentences("Faster, sharper, louder") == ["Faster, sharper, louder"]
+    assert audio.sentences('He said "go." Then left.') == ['He said "go."', "Then left."]
+
+
+def test_kokoro_line_has_a_pause_between_sentences(monkeypatch, tmp_path):
+    import wave
+    import numpy as np
+
+    class Fake:
+        def get_voices(self):
+            return ["am_michael"]
+
+        def create(self, text, voice, speed, lang):
+            return np.full(2400, 0.5), 24000                    # 0.1 s of "speech" per sentence
+    monkeypatch.setattr(audio, "_kokoro", lambda: Fake())
+    out = tmp_path / "v.wav"
+    audio._kokoro_wav("Wemby. Clark. Rose.", "am_michael", 1.0, out)
+    with wave.open(str(out)) as w:
+        y = np.frombuffer(w.readframes(w.getnframes()), "<i2")
+    quiet = np.abs(y) < 10
+    assert len(y) / 24000 == pytest.approx(3 * 0.1 + 2 * audio.SENTENCE_PAUSE, abs=0.01)
+    assert quiet[2400 + 100: 2400 + int(audio.SENTENCE_PAUSE * 24000) - 100].all()
