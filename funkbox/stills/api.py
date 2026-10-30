@@ -19,6 +19,10 @@ def posters_dir() -> Path:
     return funk_out() / "posters"
 
 
+def traces_dir() -> Path:
+    return funk_out() / "traces"
+
+
 def stills_dir() -> Path:
     return funk_out() / "stills"
 

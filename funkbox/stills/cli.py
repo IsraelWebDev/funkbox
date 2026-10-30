@@ -9,6 +9,7 @@
     funkbox poster render X.poster.json --formats png,svg,pdf                      (vector files, text as outlines)
     funkbox poster sizes X.poster.json --sizes story,landscape,square [--fit-to content] [--formats png,pdf]
     funkbox poster compare CANDIDATE.png|X.poster.json REFERENCE.png [--fit cover|stretch] [--name N] [--out DIR]
+    funkbox image trace logo.png [--colors 6 | --palette "#1b224b,#fdd94e"] [--smooth 1] [--tolerance 0.8] [--name N]
     funkbox image edit photo.jpg --ops '[{"op":"crop","aspect":"1:1"}]' [--name N] [--casual] [--project P]
 
 ``--ops`` / ``--vary`` take JSON text or the path of a JSON file.
@@ -141,6 +142,15 @@ def cmd_poster_compare(a) -> int:
     return 0
 
 
+def cmd_image_trace(a) -> int:
+    from funkbox.stills import api, trace
+    pal = [c.strip() for c in a.palette.split(",")] if a.palette else None
+    res = trace.trace(_abs(a.image), a.colors, pal, a.detail, a.smooth, a.tolerance)
+    print(f"{res.loops} shapes in {len(res.palette)} colours; fidelity {res.fidelity}/100")
+    _print_paths(trace.write(res, a.out or api.traces_dir(), a.name or Path(a.image).stem[:40] or "trace"))
+    return 0
+
+
 def cmd_poster_ora_check(a) -> int:
     from funkbox.stills import api
     print(api.ora_report(a.file))
@@ -179,6 +189,11 @@ def add_cli(sub) -> None:
     p.add_argument("file")
     p.set_defaults(fn=cmd_poster_ora_check)
 
+    p = image_group(sub).add_parser("trace", help="trace a picture into a vector SVG of flat colours")
+    p.add_argument("image"); p.add_argument("--colors", type=int, default=6); p.add_argument("--palette")
+    p.add_argument("--detail", type=int, default=1024); p.add_argument("--smooth", type=float, default=1.0)
+    p.add_argument("--tolerance", type=float, default=0.8); p.add_argument("--name"); p.add_argument("--out")
+    p.set_defaults(fn=cmd_image_trace)
     p = image_group(sub).add_parser("edit", help="non-AI photo edits: crop, flip, adjust, text, filters ...")
     p.add_argument("image"); p.add_argument("--ops", required=True); p.add_argument("--name"); p.add_argument("--out")
     p.add_argument("--project"); p.add_argument("--copy"); p.add_argument("--casual", action="store_true")

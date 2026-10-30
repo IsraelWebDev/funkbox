@@ -28,6 +28,7 @@ python -m funkbox poster export-ora examples/stills/glowmop_poster.poster.json  
 | `loop_still(recipe_or_shader, t, preset)` | one frame of a loop recipe or shader as a poster background |
 | `poster_export_ora(poster, name)` | the poster as a layered OpenRaster file plus the PNG |
 | `poster_sizes(poster, sizes, name, fit_to, formats)` | the same poster for other canvases (`story`, `landscape`, ... or `{name, width, height, set}`), each with its own text audit, plus a sheet |
+| `image_trace(path, name, colors, palette, smooth, tolerance)` | a picture traced into a vector SVG of flat colours (`out/traces/<name>.svg`), with a fidelity score; place it as an `svg` layer |
 | `poster_compare(candidate, reference, name, fit)` | scores a render (picture or poster) against a reference picture: overall, structure, colour, layout (0..100), the most different regions of a 4x4 grid, unmatched reference colours, and a candidate / reference / heat-map sheet |
 
 `poster` is a JSON object or a path to a `.poster.json` inside `FUNK_HOME`, `FUNK_OUT`, `FUNK_INPUTS` or the projects
@@ -151,6 +152,16 @@ story. `fit_to: "content"` fits only the drawn foreground (plus a margin) so a w
 space. A size can carry its own fixes in the variations' keys, in the new canvas's fractions:
 `{"name": "story", "width": 1080, "height": 1920, "set": {"layers.title.y": 0.12}}`. Every size is checked and
 audited on its own; one whose text would not fit is reported while the rest render.
+
+## Tracing a picture into vectors
+
+`image_trace` (CLI: `funkbox image trace logo.png`) turns a logo, emblem or flat illustration into an SVG of a few flat
+colours that stays sharp at any size, can be recoloured by editing the file, and drops into a poster as an `svg` layer
+(or a `clip`). The picture is reduced to its main colours (k-means in Lab, or exactly the `palette` you give, which is
+best when you know the brand colours), specks are smoothed away, every colour region is traced along its pixel edges
+(holes included), simplified to `tolerance` pixels and, with `smooth`, curved between its corners; long straight
+edges stay straight. Colours are stacked largest first, each extended under the ones drawn over it, so no hairline gaps
+show. The fidelity score is `poster_compare` of the trace against the original. Photos trace into posterised art.
 
 ## Matching a reference
 

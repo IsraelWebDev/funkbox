@@ -210,7 +210,7 @@ def image_group(sub):
     cache = getattr(sub, "_funkbox_image", None)
     if cache is None:
         ap = sub.add_parser("image", help="images: generate, restyle, upscale (FastSD) and edit (no AI)")
-        cache = ap.add_subparsers(dest="verb", required=True, metavar="{generate,restyle,upscale,edit}")
+        cache = ap.add_subparsers(dest="verb", required=True, metavar="{generate,restyle,upscale,edit,trace}")
         sub._funkbox_image = cache
     return cache
 

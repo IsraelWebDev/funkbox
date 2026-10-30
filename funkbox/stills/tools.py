@@ -151,8 +151,30 @@ def poster_sizes(poster: dict | str, sizes: list, name: str = "", fit_to: str = 
     return ["\n".join(lines)] + ([_png(res.sheet_image, 1400)] if res.sheet_image else [])
 
 
+@safe
+def image_trace(path: str, name: str = "", colors: int = 6, palette: list | None = None, detail: int = 1024,
+                smooth: float = 1.0, tolerance: float = 0.8) -> list:
+    """Trace a picture (logo, emblem, flat art) into a vector SVG of a few flat colours, sharp at any size; use it as
+    an `svg` layer. ``palette`` (["#rrggbb", ...]) fixes the colours, else ``colors`` main colours are found.
+    ``smooth`` 0 = straight segments, 1 = curves; ``tolerance`` (px) trades detail for fewer points; ``detail`` is the
+    longest side traced. Reports a fidelity score (poster_compare of the trace against the original) and shows
+    original | trace. Writes <out>/traces/<name>.svg and <name>.trace.png."""
+    from funkbox.stills import trace as tr
+    res = tr.trace(path, colors, palette, detail, smooth, tolerance)
+    paths = tr.write(res, api.traces_dir(), name or Path(path).stem[:40].replace(" ", "-") or "trace")
+    from funkbox.config import resolve_path
+    orig = tr._over_white(PILImage.open(resolve_path(path)))
+    side = PILImage.new("RGB", (orig.width * 2 + 8, orig.height), (24, 24, 28))
+    side.paste(orig, (0, 0))
+    side.paste(res.preview, (orig.width + 8, 0))
+    lines = [f"{res.loops} shapes in {len(res.palette)} colours; fidelity {res.fidelity}/100",
+             "colours: " + ", ".join(f"{p['color']} {p['share']:.0%}" for p in res.palette)]
+    lines += [f"{k}: {v}" for k, v in paths.items()]
+    return ["\n".join(lines), _png(side, 1400)]
+
+
 TOOLS = [poster_presets, poster_preview, poster_render, poster_variations, poster_export_ora, poster_compare,
-         poster_sizes, image_edit]
+         poster_sizes, image_edit, image_trace]
 
 
 def register(server) -> None:
