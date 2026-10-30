@@ -297,7 +297,15 @@ def _gradient_item(lay: dict, ctx) -> PathItem:
 def _text_items(lay: dict, ctx, text: str) -> list[PathItem]:
     from funkbox.reel import captions
     from .text import _fx, _line_x, layout_text
+    from .typeset import is_advanced, typeset
     fonts = captions.fonts_for(ctx.brand, ctx.base_dir)
+    if is_advanced(lay):
+        ts = typeset(lay, text, ctx, fonts)
+        base = _rgba(lay.get("color", "brand.text"), ctx.brand)
+        st = _fx(lay, "stroke", ctx, ts.px, base[:3], {"width": 0.0, "opacity": 1.0, "color": "#000000"})
+        stroke = (*st["rgb"], int(round(255 * st.get("opacity", 1.0)))) if st else None
+        sw = 2 * round(st["width"] * ts.px) if st else 0.0
+        return [PathItem(c, fill=col, stroke=stroke, stroke_w=sw, join="round", cap="round") for col, c in ts.by_color]
     lo, frame_w, _ = layout_text(lay, text, ctx, fonts)
     shaper = Shaper.get(fonts.path_for(lay.get("style", "caption"), text))
     cmds: list[Cmd] = []

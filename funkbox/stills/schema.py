@@ -45,7 +45,8 @@ TYPE_KEYS: dict[str, set[str]] = {
     "shader": {"shader", "source", "source_sha256", "recipe", "t", "palette", "cycles", "params", "seed"},
     "product": {"image", "x", "y", "height", "shadow", "match_color", "effects"},
     "text": {"copy_id", "text", "style", "size", "x", "y", "max_width", "color", "align", "line_height", "effects",
-             "arc", "rotate_deg", "skew_x", "skew_y", "wrap"},
+             "arc", "rotate_deg", "skew_x", "skew_y", "wrap", "letter_spacing", "runs", "on_path", "path_units",
+             "path_offset", "path_shift"},
     "group": {"layers"},
     "border": {"px", "color"},
     "shape": {"kind", "points", "fill", "stroke", "stroke_px", "width", "cap", "d", "fill_rule", "units"},
@@ -275,6 +276,52 @@ def _check_layers(layers: Any, where: str, errs: list[str], seen: set[str], dept
         _check_type(t, lay, w, errs, seen, depth)
 
 
+RUN_KEYS = {"match", "font", "color", "scale", "all"}
+
+
+def _check_typography(lay: dict, w: str, errs: list[str]) -> None:
+    if "letter_spacing" in lay and not _num(lay["letter_spacing"], -0.2, 1):
+        errs.append(f"{w}: letter_spacing is extra space per letter in ems: -0.2..1")
+    runs = lay.get("runs")
+    if runs is not None:
+        if not isinstance(runs, list) or not 1 <= len(runs) <= 32:
+            errs.append(f"{w}: runs must be a list of 1..32 objects")
+        else:
+            for i, r in enumerate(runs):
+                if not isinstance(r, dict) or not isinstance(r.get("match"), str) or not r.get("match"):
+                    errs.append(f"{w}: runs[{i}] needs `match`, the exact words to style")
+                    continue
+                bad = set(r) - RUN_KEYS
+                if bad:
+                    errs.append(f"{w}: runs[{i}]: unknown keys {sorted(bad)}; have {sorted(RUN_KEYS)}")
+                if "color" in r and not is_color(r["color"]):
+                    errs.append(f"{w}: runs[{i}].color must be #rrggbb[aa] or brand.primary|secondary|text")
+                if "scale" in r and not _num(r["scale"], 0.3, 3):
+                    errs.append(f"{w}: runs[{i}].scale must be 0.3..3")
+                if "font" in r and not (isinstance(r["font"], str) and r["font"]):
+                    errs.append(f"{w}: runs[{i}].font is display, caption, a font name or a font file")
+                if "all" in r and not isinstance(r["all"], bool):
+                    errs.append(f"{w}: runs[{i}].all must be true or false")
+    if "on_path" in lay:
+        from .vpath import PathError, parse
+        try:
+            if not isinstance(lay["on_path"], str):
+                raise PathError("must be SVG path data (text)")
+            parse(lay["on_path"])
+        except PathError as e:
+            errs.append(f"{w}: on_path: {e}")
+        if lay.get("arc"):
+            errs.append(f"{w}: use on_path or arc, not both")
+        if "\n" in str(lay.get("text", "")):
+            errs.append(f"{w}: text on a path is one line (no line breaks)")
+    if lay.get("path_units", "fraction") not in ("fraction", "px"):
+        errs.append(f"{w}: path_units is fraction or px")
+    if "path_offset" in lay and not _num(lay["path_offset"], 0, 0.95):
+        errs.append(f"{w}: path_offset must be 0..0.95 (a fraction of the path's length)")
+    if "path_shift" in lay and not _num(lay["path_shift"], -3, 3):
+        errs.append(f"{w}: path_shift must be -3..3 (ems)")
+
+
 def _check_type(t: str, lay: dict, w: str, errs: list[str], seen: set[str], depth: int) -> None:
     if t == "image":
         if not isinstance(lay.get("path"), str) or not lay["path"]:
@@ -348,6 +395,7 @@ def _check_type(t: str, lay: dict, w: str, errs: list[str], seen: set[str], dept
         if "arc" in lay and not (_num(lay["arc"], -20, 20) and abs(float(lay["arc"])) >= 0.05):
             errs.append(f"{w}: arc is the radius of the bend in canvas widths: -20..-0.05 (a frown) or 0.05..20 "
                         "(a smile)")
+        _check_typography(lay, w, errs)
         _check_effects(lay.get("effects"), w, errs)
     elif t == "shape":
         from .shapes import check_shape

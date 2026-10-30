@@ -124,6 +124,8 @@ Describe → generate variations → pick → poster or edit → export.
   writes a new file and a before/after sheet; the original is never touched.
 - **Export:** `poster_render` gives PNG/JPG; `formats=["svg","pdf"]` adds vector files (text as outlines, sharp at any
   size, for print). Offer `poster_export_ora` so the user can keep editing the layers in GIMP.
+- **Typography:** `letter_spacing` for tracking, `runs` to colour or change the font of some words in a block (the
+  text stays exact), `on_path` to set a line along any curve or circle. Prefer these over splitting text into layers.
 - **Other sizes:** `poster_sizes(poster, ["story","landscape","square"])` makes the set from one design; pin bands with
   `"resize": "bottom"`, use `fit_to="content"` for banners, and fix one size with its `set` patch, never by hand.
 - **Match a reference:** when the user wants it "like this picture", `poster_compare(poster, reference)` after each

@@ -250,6 +250,20 @@ def raster_text(lay: dict, ctx: RCtx, doc: Doc, deck: CopyDeck | None) -> tuple[
             raise PosterError([f"text layer {lay['id']!r}: literal text is not allowed here"])
         source, text = "literal", lay["text"]
     fonts = _fonts(ctx)
+    from . import typeset
+    if typeset.is_advanced(lay):
+        ts = typeset.typeset(lay, text, ctx, fonts)
+        rgba = draw_set(lay, ts, ctx)
+        rebuilt = ts.reconstruct()
+        entry = {"layer": lay["id"], "source": source, "copy_id": lay.get("copy_id"), "text": rebuilt,
+                 "text_exact": rebuilt == text, "drawn_lines": ts.drawn, "font": lay.get("style", "caption"),
+                 "px": ts.px, "box": list(ts.box),
+                 "typography": {k: lay[k] for k in ("letter_spacing", "on_path") if lay.get(k)}
+                 | ({"runs": [r["match"] for r in lay["runs"]]} if lay.get("runs") else {})}
+        geo = {k: lay[k] for k in ("arc", "rotate_deg", "skew_x", "skew_y") if lay.get(k)}
+        if geo:
+            entry["geometry"] = geo
+        return rgba, entry
     lo, frame_w, _ = layout_text(lay, text, ctx, fonts)
     full, drawn = draw_text(lay, lo, frame_w, ctx)
     geo = {k: float(lay[k]) for k in ("rotate_deg", "skew_x", "skew_y") if lay.get(k)}
@@ -267,6 +281,49 @@ def raster_text(lay: dict, ctx: RCtx, doc: Doc, deck: CopyDeck | None) -> tuple[
     if ctx.scale != 1.0 or (ctx.w, ctx.h) != ctx.full:
         full = _downscale(full, ctx.w, ctx.h)
     return full, entry
+
+
+def draw_set(lay: dict, ts, ctx: RCtx) -> np.ndarray:
+    """A typeset layer (typeset.Set) drawn at the render size with its effects: glow, shadow, stroke, then the fills."""
+    from .typeset import coverage
+    k = ctx.w / ctx.full[0]
+    px = ts.px * k
+    fills = [(col, coverage(cmds, ctx.w, ctx.h, k)) for col, cmds in ts.by_color]
+    base = rgba_of(lay.get("color", "brand.text"), ctx.brand)
+    shadow = _fx(lay, "shadow", ctx, ts.px, base[:3], {"opacity": 0.5, "dx": 0.04, "dy": 0.06, "blur": 0.05,
+                                                     "color": "#000000"})
+    stroke = _fx(lay, "stroke", ctx, ts.px, base[:3], {"width": 0.0, "opacity": 1.0, "color": "#000000"})
+    glow = _fx(lay, "glow", ctx, ts.px, base[:3], {"opacity": 0.5, "radius": 0.25, "color": None})
+    sil = np.zeros((ctx.h, ctx.w), np.float32)
+    for _, m in fills:
+        sil = np.maximum(sil, m)
+    outer = sil
+    if stroke:
+        r = int(round(stroke["width"] * px))
+        im = Image.fromarray((sil * 255).astype(np.uint8))
+        for _ in range(r):
+            im = im.filter(ImageFilter.MaxFilter(3))
+        outer = np.asarray(im, np.float32) / 255.0
+    P = np.zeros((ctx.h, ctx.w, 3), np.float32)
+    A = np.zeros((ctx.h, ctx.w), np.float32)
+    o8 = Image.fromarray((outer * 255).astype(np.uint8))
+    if glow:
+        m = np.asarray(o8.filter(ImageFilter.GaussianBlur(max(1.0, glow["radius"] * px))), np.float32) / 255.0
+        _over(P, A, np.array(glow["rgb"], np.float32), np.clip(m * 2.0, 0, 1) * glow["opacity"], 0, 0)
+    if shadow:
+        m = outer
+        if shadow["blur"] * px > 0.3:
+            m = np.asarray(o8.filter(ImageFilter.GaussianBlur(shadow["blur"] * px)), np.float32) / 255.0
+        dx, dy = int(round(shadow["dx"] * px)), int(round(shadow["dy"] * px))
+        _over(P, A, np.array(shadow["rgb"], np.float32), np.roll(np.roll(m, dy, 0), dx, 1) * shadow["opacity"], 0, 0)
+    if stroke:
+        _over(P, A, np.array(stroke["rgb"], np.float32), outer * stroke.get("opacity", 1.0), 0, 0)
+    for col, m in fills:
+        _over(P, A, np.array(col[:3], np.float32), m * (col[3] / 255.0), 0, 0)
+    out = np.zeros((ctx.h, ctx.w, 4), np.uint8)
+    out[..., :3] = np.clip(np.floor(np.where(A[..., None] > 0, P / np.maximum(A[..., None], 1e-9), 0) + 0.5), 0, 255)
+    out[..., 3] = np.clip(np.floor(A * 255.0 + 0.5), 0, 255)
+    return out
 
 
 def _downscale(rgba: np.ndarray, w: int, h: int) -> np.ndarray:

@@ -98,6 +98,10 @@ def _adapt_layer(lay: dict, W0: int, H0: int, W1: int, H1: int, warn: list[str],
         lay["size"] = float(lay.get("size", TEXT_SIZE)) * f.sy
         if lay.get("arc"):
             lay["arc"] = float(lay["arc"]) * f.sx
+        if lay.get("on_path"):
+            lay["on_path"] = (transform_d(lay["on_path"], f.s, f.s, f.ox * W1, f.oy * H1)
+                              if lay.get("path_units", "fraction") == "px"
+                              else transform_d(lay["on_path"], f.sx, f.sy, f.ox, f.oy))
     elif t == "shape":
         if lay["kind"] == "path":
             if lay.get("units", "fraction") == "px":

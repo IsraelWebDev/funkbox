@@ -110,6 +110,24 @@ adjustments, filters, effects and masks; blend modes map to `svg:src-over`, `svg
 passes cannot be layers, so they appear only in the PNG/JPG, not in the `.ora` (`mergedimage.png` is the stack
 without them). `funkbox poster ora-check FILE` validates a file.
 
+## Typography
+
+Text layers take three more keys, and keep the exactness guarantee (the words themselves never change; the audit
+records them and the typography used):
+
+- `letter_spacing` (ems, -0.2..1): extra space after every letter but the last, for tracked-out headings.
+- `runs`: style some words inside one block: `[{"match": "Hashem", "font": "display", "color": "#d4202c",
+  "scale": 1.2}]`. `font` is `display`, `caption`, a font name (`"Frank Ruhl Libre:700"`, fetched like brand fonts) or
+  a file; every occurrence is styled unless `"all": false`. A run that matches nothing, or whose font lacks a letter,
+  is an error naming it.
+- `on_path`: set one line along SVG path data (canvas fractions, or `"path_units": "px"`): a curve, a wave, a circle
+  (`M cx,cy+R a R,R 0 1,1 0.1,0`). Letters stand on the left of the direction of travel, so a clockwise circle reads
+  around its outside. `align` places the line on the path, `path_offset` (0..0.95) moves its start, `path_shift` (ems)
+  lifts the baseline. Too long for the path, it shrinks like any other text.
+
+These are drawn from HarfBuzz-shaped glyph outlines (the same geometry the SVG/PDF export writes). Inside one line,
+mixed right-to-left and left-to-right pieces follow the paragraph's direction; keep such a line in one run.
+
 ## SVG and PDF
 
 Add `"svg"` and/or `"pdf"` to `export.formats` for files that stay sharp at any size (print, signage, a cutter).
