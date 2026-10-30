@@ -127,7 +127,10 @@ def layout_text(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> tuple
             font = fonts.get(which, px, text)
         except captions.GlyphError as e:
             raise PosterError([f"{label}: {e}"]) from e
-        lines, fits = captions.wrap(text, font, frame_w)
+        if lay.get("wrap", True):
+            lines, fits = captions.wrap(text, font, frame_w)
+        else:                                  # one line: shrink until it fits the width
+            lines, fits = [(0, len(text))], font.getlength(text) <= frame_w
         line_h = int(round(px * line_height))
         block_h = len(lines) * line_h
         widths = [font.getlength(text[s:e]) for s, e in lines]
@@ -249,10 +252,18 @@ def raster_text(lay: dict, ctx: RCtx, doc: Doc, deck: CopyDeck | None) -> tuple[
     fonts = _fonts(ctx)
     lo, frame_w, _ = layout_text(lay, text, ctx, fonts)
     full, drawn = draw_text(lay, lo, frame_w, ctx)
+    geo = {k: float(lay[k]) for k in ("rotate_deg", "skew_x", "skew_y") if lay.get(k)}
+    if lay.get("arc"):
+        geo["arc"] = float(lay["arc"]) * ctx.full[0]
+    if geo:                                    # bend/slant/rotate the shaped text about its box centre
+        from .shapes import warp_text
+        full = warp_text(full, (lo.x0 + frame_w / 2, lo.y0 + lo.box_h / 2), **geo)
     rebuilt = lo.reconstruct(drawn)
     entry = {"layer": lay["id"], "source": source, "copy_id": lay.get("copy_id"), "text": rebuilt,
              "text_exact": rebuilt == text, "drawn_lines": drawn, "font": lay.get("style", "caption"),
-             "px": lo.px, "box": [lo.x0, lo.y0, frame_w, lo.box_h]}
+             "px": lo.px, "box": [lo.x0, lo.y0, frame_w, lo.box_h],
+             **({"geometry": {k: lay[k] for k in ("arc", "rotate_deg", "skew_x", "skew_y") if lay.get(k)}}
+                if any(lay.get(k) for k in ("arc", "rotate_deg", "skew_x", "skew_y")) else {})}
     if ctx.scale != 1.0 or (ctx.w, ctx.h) != ctx.full:
         full = _downscale(full, ctx.w, ctx.h)
     return full, entry

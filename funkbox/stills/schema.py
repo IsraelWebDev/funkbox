@@ -29,7 +29,7 @@ HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$")
 BRAND_RE = re.compile(r"^brand\.(primary|secondary|text)$")
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 
-LAYER_TYPES = ("image", "solid", "gradient", "shader", "product", "text", "group", "border")
+LAYER_TYPES = ("image", "solid", "gradient", "shader", "product", "text", "group", "border", "shape")
 FITS = ("cover", "contain", "stretch")
 EXPORTS = ("png", "jpg", "webp", "ora")
 MAX_LAYERS = 64
@@ -43,9 +43,11 @@ TYPE_KEYS: dict[str, set[str]] = {
     "gradient": {"stops", "kind", "angle", "cx", "cy", "radius", "dither"},
     "shader": {"shader", "source", "source_sha256", "recipe", "t", "palette", "cycles", "params", "seed"},
     "product": {"image", "x", "y", "height", "shadow", "match_color", "effects"},
-    "text": {"copy_id", "text", "style", "size", "x", "y", "max_width", "color", "align", "line_height", "effects"},
+    "text": {"copy_id", "text", "style", "size", "x", "y", "max_width", "color", "align", "line_height", "effects",
+             "arc", "rotate_deg", "skew_x", "skew_y", "wrap"},
     "group": {"layers"},
     "border": {"px", "color"},
+    "shape": {"kind", "points", "fill", "stroke", "stroke_px", "width", "cap"},
 }
 ADJUST_KEYS = {"brightness", "contrast", "saturation", "hue", "levels", "temperature", "invert"}
 FILTER_KEYS = ("blur", "sharpen", "posterize", "halftone", "duotone", "pixelate", "chroma", "vignette")
@@ -332,10 +334,20 @@ def _check_type(t: str, lay: dict, w: str, errs: list[str], seen: set[str], dept
         if "color" in lay and not is_color(lay["color"], alpha=False):
             errs.append(f"{w}: color must be #rrggbb or brand.primary|secondary|text")
         for k, lo, hi in (("size", 0.01, 0.5), ("x", -1, 2), ("y", -1, 2), ("max_width", 0.05, 2),
-                          ("line_height", 0.7, 3)):
+                          ("line_height", 0.7, 3), ("rotate_deg", -360, 360), ("skew_x", -60, 60), ("skew_y", -60, 60)):
             if k in lay and not _num(lay[k], lo, hi):
                 errs.append(f"{w}: {k} must be a number in {lo}..{hi}")
+        if "wrap" in lay and not isinstance(lay["wrap"], bool):
+            errs.append(f"{w}: wrap must be true or false (false: one line, shrunk to fit max_width)")
+        if "wrap" in lay and lay["wrap"] is False and "\n" in str(lay.get("text", "")):
+            errs.append(f"{w}: wrap false needs text without line breaks")
+        if "arc" in lay and not (_num(lay["arc"], -20, 20) and abs(float(lay["arc"])) >= 0.05):
+            errs.append(f"{w}: arc is the radius of the bend in canvas widths: -20..-0.05 (a frown) or 0.05..20 "
+                        "(a smile)")
         _check_effects(lay.get("effects"), w, errs)
+    elif t == "shape":
+        from .shapes import check_shape
+        check_shape(lay, w, errs, is_color, _num)
     elif t == "group":
         _check_layers(lay.get("layers"), f"{w}.layers", errs, seen, depth + 1)
     elif t == "border":

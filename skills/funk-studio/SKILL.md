@@ -72,6 +72,9 @@ Rules:
   once. Text in Hebrew, Cyrillic or any script works when the font has the glyphs; a missing glyph is an error that
   names the character (switch to a font that covers it, or set `font_fallback`). The default fallback, Rubik Bold,
   covers Hebrew. Never work around this by drawing text outside funkbox.
+- Emblems, badges and logos: build them as posters. `shape` layers draw polygons, ellipses and thick mitred strokes
+  (block lettering, ribbons); text layers take `arc` (text along a ribbon), `skew_x`/`skew_y` (slanted bands),
+  `rotate_deg` and `wrap: false`. Example: examples/stills/badge.poster.json.
 - Licences: the bundled models, voice and fonts are commercially usable. Remind the user
   that their own music and photos must be licensed for ads.
 

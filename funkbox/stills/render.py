@@ -176,6 +176,9 @@ class _Run:
         elif t == "text":
             rgba, entry = text.raster_text(lay, ctx, self.doc, self.deck())
             self.audit.append(entry)
+        elif t == "shape":
+            from .shapes import raster_shape
+            rgba = raster_shape(lay, ctx)
         elif t == "group":
             rgba = self.group(lay)
         else:                                            # pragma: no cover - schema rejects it
