@@ -36,7 +36,7 @@ MAX_LAYERS = 64
 MAX_DEPTH = 8
 
 DOC_KEYS = {"version", "name", "canvas", "project", "casual", "copy", "brand", "seed", "layers", "post", "export",
-            "motion"}
+            "motion", "glyphs"}
 COMMON = {"id", "type", "blend", "opacity", "mask", "adjust", "filters", "visible", "clip", "resize"}
 RESIZE_RULES = ("fill", "fit", "top", "bottom", "left", "right", "top-left", "top-right", "bottom-left", "bottom-right")
 TYPE_KEYS: dict[str, set[str]] = {
@@ -47,7 +47,7 @@ TYPE_KEYS: dict[str, set[str]] = {
     "product": {"image", "x", "y", "height", "shadow", "match_color", "effects"},
     "text": {"copy_id", "text", "style", "size", "x", "y", "max_width", "color", "align", "line_height", "effects",
              "arc", "rotate_deg", "skew_x", "skew_y", "wrap", "letter_spacing", "runs", "on_path", "path_units",
-             "path_offset", "path_shift"},
+             "path_offset", "path_shift", "font"},
     "group": {"layers"},
     "border": {"px", "color"},
     "shape": {"kind", "points", "fill", "stroke", "stroke_px", "width", "cap", "d", "fill_rule", "units"},
@@ -504,6 +504,24 @@ def check(doc: Any) -> list[str]:
             errs.append(f"export.formats: a non-empty list of {list(EXPORTS)}")
         if "jpg_quality" in ex and not (isinstance(ex["jpg_quality"], int) and 30 <= ex["jpg_quality"] <= 100):
             errs.append("export.jpg_quality: 30..100")
+    gl = doc.get("glyphs")
+    if gl is not None:
+        from funkbox.lettering import check_glyphset
+        if not isinstance(gl, dict) or not gl:
+            errs.append("glyphs: an object {name: {base, weight, chars}}")
+        else:
+            for name, spec in gl.items():
+                check_glyphset(name, spec, errs)
+    names = set(gl) if isinstance(gl, dict) else set()
+    for lay in (all_layers(doc.get("layers") or []) if not errs and isinstance(doc.get("layers"), list) else []):
+        if not isinstance(lay, dict):
+            continue
+        fonts = [lay.get("font")] + [r.get("font") for r in lay.get("runs") or [] if isinstance(r, dict)]
+        for f in fonts:
+            if isinstance(f, str) and f.startswith("glyphs:") and f[7:] not in names:
+                errs.append(f"layer {lay.get('id')!r}: font {f!r} names no entry in `glyphs` (have {sorted(names)})")
+        if "font" in lay and not (isinstance(lay["font"], str) and lay["font"].strip()):
+            errs.append(f"layer {lay.get('id')!r}: font is a font name, a font file or \"glyphs:<name>\"")
     if "motion" in doc and not errs:
         from .motion import check as check_motion
         errs += check_motion(doc)

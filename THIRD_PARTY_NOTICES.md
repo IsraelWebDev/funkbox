@@ -22,6 +22,7 @@ file is in this repository; "downloaded" means fetched on request; "optional" me
 | GeneralUser GS (General MIDI SoundFont) | GeneralUser GS License v2.0: free use in music, private or commercial, and in software | downloaded on first `music_render` from its GitHub repository into `FUNK_HOME/soundfonts/`, with its licence file; not bundled |
 | HarfBuzz via uharfbuzz | MIT (HarfBuzz) / Apache-2.0 (uharfbuzz) | Python package from PyPI: text shaping for outlines (SVG/PDF export, typography) |
 | fontTools | MIT | Python package from PyPI: font names, glyph checks, outlines |
+| skia-pathops | BSD-3-Clause | Python package from PyPI: merges lettering outlines |
 | ReportLab | BSD | Python package from PyPI: PDF export |
 
 Python dependencies (numpy, Pillow, imageio-ffmpeg, mcp, moderngl, fonttools, uharfbuzz, reportlab, onnxruntime) are installed from PyPI under their

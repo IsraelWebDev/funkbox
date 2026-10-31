@@ -107,7 +107,8 @@ def _attrs(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts, label: str):
             elif f in ("display", "caption"):
                 path = fonts.path_for(f, m)
             else:
-                path = fontsmod.resolve(f, ctx.base_dir)
+                from .text import resolve_font
+                path = resolve_font(f, ctx)
                 miss = fontsmod.missing(path, m)
                 if miss:
                     raise captions.GlyphError(f"runs[{n}] font {f!r} has no glyph for {fontsmod.describe(miss)}")
@@ -284,7 +285,7 @@ def typeset(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> Set:
                                f"({captions.MIN_SIZE} x canvas height = {min_px}px): {why}"])
         px = max(min_px, int(px * 0.94))
     bb = ImageFont.truetype(str(base), px).getbbox("H", anchor="ls")
-    cap_h = -bb[1]
+    cap_h = -bb[1] or round(0.7 * px)                  # lettering fonts may have no "H": use their cap height
     out = Set(lines=lines, drawn=[text[s:e] for s, e in lines], px=px, text=text,
               box=(x0, y0, frame_w, block_h))
     cmds_by: dict[tuple, list] = {}

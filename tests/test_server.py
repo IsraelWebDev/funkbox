@@ -24,7 +24,7 @@ REEL = {"reel_validate", "reel_storyboard", "reel_still", "reel_render", "reel_t
 PROJECT = {"project_new", "project_list", "project_ingest", "project_set_product", "project_brand",
            "project_set_brand", "project_propose_copy", "project_approve_copy", "project_copy_diff",
            "project_auto_reel", "project_render"}
-POSTER = {"poster_presets", "poster_preview", "poster_render", "poster_variations", "poster_export_ora", "poster_compare", "poster_sizes", "poster_animate"}
+POSTER = {"poster_presets", "poster_preview", "poster_render", "poster_variations", "poster_export_ora", "poster_compare", "poster_sizes", "poster_animate", "poster_fit"}
 IMAGE = {"image_generate", "image_restyle", "image_upscale", "image_edit", "image_trace"}
 APPS = {"apps_status", "apps_start", "apps_stop"}
 MUSIC = {"music_render"}
@@ -78,7 +78,7 @@ def test_tool_list_equals_the_plan_and_every_old_tool_is_mapped(gl, tmp_path):
     async def go(s, init):
         return {t.name: t for t in (await s.list_tools()).tools}
     tools = asyncio.run(session(tmp_path / "h", go))
-    assert set(tools) == PLANNED and len(tools) == 47
+    assert set(tools) == PLANNED and len(tools) == 48
     assert all(re.match(r"^(loop|reel|project|poster|image|apps|music|video)_", n) for n in tools)
     assert set(v for v in OLD_TOOLS.values() if v) <= PLANNED
     assert len(set(v for v in OLD_TOOLS.values() if v)) == len([v for v in OLD_TOOLS.values() if v])   # one-to-one

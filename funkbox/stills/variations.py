@@ -64,10 +64,50 @@ def set_path(doc: dict, key: str, value: Any) -> None:
     else:
         raise VaryError(f"vary key {key!r}: use 'seed', 'layers.<id>.<property>', 'canvas.<key>' or 'post.<n>.<key>'")
     for p in path[:-1]:
+        if isinstance(node, list):                       # list items by index: layers.band.points.3.1
+            node = _item(node, p, key)
+            continue
         node = node.setdefault(p, {})
-        if not isinstance(node, dict):
-            raise VaryError(f"vary key {key!r}: {p!r} is not an object")
-    node[path[-1]] = value
+        if not isinstance(node, (dict, list)):
+            raise VaryError(f"vary key {key!r}: {p!r} is not an object or a list")
+    if isinstance(node, list):
+        i = _index(node, path[-1], key)
+        node[i] = value
+    else:
+        node[path[-1]] = value
+
+
+def get_path(doc: dict, key: str) -> Any:
+    """The value at a set_path key (None when it is not set)."""
+    probe = copy.deepcopy(doc)
+    marker = object()
+    try:
+        set_path(probe, key, marker)
+    except VaryError:
+        raise
+    parts = key.split(".")
+    node = _find_layer(doc.get("layers", []), parts[1]) if parts[0] == "layers" else doc
+    rest = parts[2:] if parts[0] == "layers" else parts
+    for p in rest:
+        if isinstance(node, list):
+            node = node[int(p)]
+        elif isinstance(node, dict):
+            node = node.get(p)
+        else:
+            return None
+        if node is None:
+            return None
+    return node
+
+
+def _index(node: list, p: str, key: str) -> int:
+    if not _IDX.match(p) or int(p) >= len(node):
+        raise VaryError(f"vary key {key!r}: {p!r} is not an index of a list of {len(node)}")
+    return int(p)
+
+
+def _item(node: list, p: str, key: str):
+    return node[_index(node, p, key)]
 
 
 def expand(doc: dict, vary: dict) -> tuple[list[dict], list[str]]:

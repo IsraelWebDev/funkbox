@@ -138,6 +138,19 @@ def cmd_poster_animate(a) -> int:
     return 0 if res.all_exact else 1
 
 
+def cmd_poster_fit(a) -> int:
+    from funkbox.stills import fit
+    doc, base = _doc(a)
+    res = fit.fit(doc, _abs(a.reference), _json_arg(a.params), a.rounds, None, base)
+    out = Path(a.output or (Path(a.poster).with_suffix("").with_suffix("").name + ".fit.poster.json"))
+    out.write_text(json.dumps(res.doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"overall {res.start['overall']} -> {res.score['overall']} after {res.evaluations} previews")
+    for k, (x, y) in res.changed.items():
+        print(f"  {k}: {x} -> {y}")
+    print(f"poster: {out}")
+    return 0
+
+
 def cmd_poster_compare(a) -> int:
     from funkbox.stills import api, compare, render
     cand = a.candidate
@@ -170,7 +183,7 @@ def cmd_poster_ora_check(a) -> int:
 def add_cli(sub) -> None:
     from funkbox.studio.images import image_group
     ap = sub.add_parser("poster", help="layered posters: presets, preview, render, vary, export-ora")
-    psub = ap.add_subparsers(dest="verb", required=True, metavar="{presets,preview,render,vary,sizes,animate,export-ora,compare,ora-check}")
+    psub = ap.add_subparsers(dest="verb", required=True, metavar="{presets,preview,render,vary,sizes,animate,fit,export-ora,compare,ora-check}")
     psub.add_parser("presets", help="canvas sizes, layer types, blend modes, filters").set_defaults(fn=cmd_poster_presets)
     p = psub.add_parser("preview", help="a small PNG of the poster")
     p.add_argument("poster"); p.add_argument("-o", "--output"); p.add_argument("--max-side", type=int, default=720)
@@ -192,6 +205,11 @@ def add_cli(sub) -> None:
     p.add_argument("--seconds", type=float); p.add_argument("--fps", type=int)
     p.add_argument("--out"); p.add_argument("--name"); p.add_argument("--project")
     p.set_defaults(fn=cmd_poster_animate)
+    p = psub.add_parser("fit", help="tune a poster's numbers to match a reference picture")
+    p.add_argument("poster"); p.add_argument("reference"); p.add_argument("--params", required=True,
+                                                                           help='JSON: {"layers.band.points.2.1": 0.01}')
+    p.add_argument("--rounds", type=int, default=4); p.add_argument("-o", "--output"); p.add_argument("--project")
+    p.set_defaults(fn=cmd_poster_fit)
     p = psub.add_parser("compare", help="score a render against a reference picture and show where they differ")
     p.add_argument("candidate"); p.add_argument("reference"); p.add_argument("--fit", default="cover")
     p.add_argument("--name", default="compare"); p.add_argument("--out")

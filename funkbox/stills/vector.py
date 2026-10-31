@@ -298,7 +298,8 @@ def _text_items(lay: dict, ctx, text: str) -> list[PathItem]:
     from funkbox.reel import captions
     from .text import _fx, _line_x, layout_text
     from .typeset import typeset, use_outlines
-    fonts = captions.fonts_for(ctx.brand, ctx.base_dir)
+    from .text import layer_fonts
+    fonts = layer_fonts(lay, ctx)
     if use_outlines(lay):
         ts = typeset(lay, text, ctx, fonts)
         base = _rgba(lay.get("color", "brand.text"), ctx.brand)

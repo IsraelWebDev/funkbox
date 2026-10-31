@@ -137,8 +137,12 @@ Describe → generate variations → pick → poster or edit → export.
   `kokoro:bm_george` (the approved ad voices) and `voice_speed` for pacing.
 - **Other sizes:** `poster_sizes(poster, ["story","landscape","square"])` makes the set from one design; pin bands with
   `"resize": "bottom"`, use `fit_to="content"` for banners, and fix one size with its `set` patch, never by hand.
+- **Drawn lettering:** when letters in a reference are drawn, not a font (emblems, block monograms), use
+  `"font": "Funkbox Block:800"` or draw the letters as poster `glyphs` (strokes or path data) and set them with
+  `"font": "glyphs:<name>"`: the words stay typed and audited. Fonts that only resemble the shapes look wrong.
 - **Match a reference:** when the user wants it "like this picture", `poster_compare(poster, reference)` after each
-  change; fix the worst regions it names and stop when the score stops rising.
+  change; fix the worst regions it names, then `poster_fit` the positions and sizes; stop when the score stops
+  rising.
   `loop_still` turns a shader or recipe into a poster background.
 
 ## Troubleshooting

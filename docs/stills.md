@@ -30,6 +30,7 @@ python -m funkbox poster export-ora examples/stills/glowmop_poster.poster.json  
 | `poster_sizes(poster, sizes, name, fit_to, formats)` | the same poster for other canvases (`story`, `landscape`, ... or `{name, width, height, set}`), each with its own text audit, plus a sheet |
 | `image_trace(path, name, colors, palette, smooth, tolerance)` | a picture traced into a vector SVG of flat colours (`out/traces/<name>.svg`), with a fidelity score; place it as an `svg` layer |
 | `poster_animate(poster, name, scale, gif)` | the poster's `motion` block as `<name>.mp4` (+ GIF), the last frame (the poster) as PNG, six frames on a strip and a per-frame text audit |
+| `poster_fit(poster, reference, params)` | tunes the poster's numbers (positions, sizes, points) to raise its `poster_compare` score against a reference |
 | `poster_compare(candidate, reference, name, fit)` | scores a render (picture or poster) against a reference picture: overall, structure, colour, layout (0..100), the most different regions of a 4x4 grid, unmatched reference colours, and a candidate / reference / heat-map sheet |
 
 `poster` is a JSON object or a path to a `.poster.json` inside `FUNK_HOME`, `FUNK_OUT`, `FUNK_INPUTS` or the projects
@@ -129,6 +130,39 @@ records them and the typography used):
 
 These are drawn from HarfBuzz-shaped glyph outlines (the same geometry the SVG/PDF export writes). Inside one line,
 mixed right-to-left and left-to-right pieces follow the paragraph's direction; keep such a line in one run.
+
+## Lettering
+
+Some lettering is drawn rather than set in a font: block letters made of bars, emblem monograms. funkbox builds such
+letters into a real font file, so the words are still typed, shaped (Hebrew right to left), checked for missing
+letters and audited like any other text; only the shapes are drawn.
+
+- `"font": "Funkbox Block:800"` on a text layer (or in a run, or as a brand font) uses the built-in geometric block
+  face: every Hebrew letter and final form, geresh and gershayim, Latin capitals (lowercase is drawn as capitals),
+  digits and common punctuation. The weight (100..900) sets the bar thickness.
+- A poster can draw its own letters in `"glyphs"` and use them with `"font": "glyphs:<name>"`:
+
+```json
+"glyphs": {"emblem": {"base": "block", "weight": 800, "chars": {
+  "צ": {"width": 0.9, "strokes": [[[0.1, 0.1], [0.1, 0.46], [0.8, 0.9]], [[0.8, 0.1], [0.8, 0.34], [0.5, 0.58]]]},
+  "ה": {"width": 0.85, "d": "M0,0 L0.85,0 L0.85,1 L0.67,1 L0.67,0.18 L0,0.18 Z M0,0.42 L0.18,0.42 L0.18,1 L0,1 Z"}}}}
+```
+
+  Coordinates are in a box one cap height tall: x from 0 to `width`, y from 0 (top of capitals) to 1 (baseline),
+  past 1 for descenders and below 0 for ascenders; a glyph may reach outside its box (overlapping letters, a long
+  foot). `strokes` are centrelines drawn as bars `weight` thick with square ends and mitred corners (repeat the first
+  point to close one); `d` is filled SVG path data. With `"base": "block"` the set starts from the block face and
+  redraws only the letters given. Combine with `skew_y`, `effects.stroke` and `runs` for slanted, outlined emblem
+  lettering. A letter the font lacks is an error, never an empty box.
+
+## Fitting to a reference
+
+`poster_fit(poster, reference, params)` (CLI: `funkbox poster fit X.poster.json ref.png --params '{...}'`) tunes the
+numbers you name until `poster_compare`'s overall score stops rising. Keys are variations keys and can reach into
+lists (`"layers.band.points.2.1": 0.01` moves the third point's y); give a step or a `[low, high]` range. The search is
+coordinate descent with a shrinking step on small previews (layers a candidate did not change are reused); every
+candidate is validated, and text, ids, files and path data are never parameters. It writes `<name>.fit.poster.json`.
+Get the design right first (shapes, lettering, colours); fitting closes the last few points.
 
 ## SVG and PDF
 

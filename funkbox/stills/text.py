@@ -106,6 +106,26 @@ def _fonts(ctx: RCtx) -> captions.Fonts:
     return captions.fonts_for(b, ctx.base_dir)
 
 
+def resolve_font(spec: str, ctx: RCtx):
+    """A font setting in a poster: a name, a file, or "glyphs:<name>" (the poster's own lettering)."""
+    if spec.startswith("glyphs:"):
+        from funkbox.lettering import glyphset_font
+        try:
+            return glyphset_font(ctx.glyphs[spec[7:]])
+        except KeyError:
+            raise PosterError([f"font {spec!r}: the poster has no glyphs named {spec[7:]!r}"]) from None
+    from funkbox import fonts as fontsmod
+    return fontsmod.resolve(spec, ctx.base_dir)
+
+
+def layer_fonts(lay: dict, ctx: RCtx) -> captions.Fonts:
+    """The fonts a text layer draws with: the brand's, or its own ``font`` (no fallback: every letter must be in it)."""
+    if not lay.get("font"):
+        return _fonts(ctx)
+    p = resolve_font(lay["font"], ctx)
+    return captions.Fonts(p, p, None)
+
+
 def layout_text(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> tuple[captions.Layout, int, int]:
     """Lay ``text`` out at full resolution. Returns (layout, frame width px, x of the frame). Raises PosterError."""
     W, H = ctx.full
@@ -148,6 +168,8 @@ def layout_text(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> tuple
                                f"({captions.MIN_SIZE} x canvas height = {min_px}px): {why}"])
         px = max(min_px, int(px * 0.94))
     bb = font.getbbox("H", anchor="ls")
+    if bb[1] == 0:                                     # no "H" in a lettering font: its cap height is 0.7 em
+        bb = (0, -round(0.7 * px), 0, 0)
     st = captions.Style(font=which, size=px / H, padding=0.0, max_width=max_w, line_height=line_height, box=None,
                         align="left")
     lo = captions.Layout(lay.get("copy_id", "literal"), text, st, fonts, ctx.brand, px, 0, line_h, lines, widths,
@@ -251,7 +273,7 @@ def raster_text(lay: dict, ctx: RCtx, doc: Doc, deck: CopyDeck | None) -> tuple[
         if doc.project or not doc.casual:
             raise PosterError([f"text layer {lay['id']!r}: literal text is not allowed here"])
         source, text = "literal", lay["text"]
-    fonts = _fonts(ctx)
+    fonts = layer_fonts(lay, ctx)
     from . import typeset
     if typeset.use_outlines(lay):
         ts = typeset.typeset(lay, text, ctx, fonts)

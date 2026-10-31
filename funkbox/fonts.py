@@ -145,8 +145,13 @@ def _instance(blob: bytes, out: Path, axes: dict) -> None:
 
 
 def resolve(spec: str, base_dir: str | Path | None = None) -> Path:
-    """A font setting to a font file: names are fetched/cached, paths resolved like every other recipe path."""
+    """A font setting to a font file: names are fetched/cached, paths resolved like every other recipe path.
+    "Funkbox Block[:weight]" is funkbox's own lettering face (built locally, see funkbox.lettering)."""
     if is_name(spec):
+        family, weight, _ = parse(spec)
+        if family.lower() == "funkbox block":
+            from .lettering import block_font
+            return block_font(weight)
         return fetch(spec)
     from . import config
     try:
