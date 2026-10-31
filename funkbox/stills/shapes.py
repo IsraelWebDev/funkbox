@@ -123,22 +123,36 @@ def path_px(lay: dict, ctx: RCtx) -> list[tuple[list[tuple[float, float]], bool]
 
 
 def fill_mask(subs, ctx: RCtx, rule: str = "nonzero") -> np.ndarray:
-    """Coverage of filled subpaths. nonzero: each subpath adds its winding (+1 or -1); evenodd: overlaps cancel."""
+    """Coverage of filled subpaths. nonzero: each subpath adds its winding (+1 or -1); evenodd: overlaps cancel.
+    Work happens only inside the shapes' bounding box (supersampled), so many small shapes stay fast."""
     s = _ss(ctx)
-    acc = np.zeros((ctx.h * s, ctx.w * s), np.int16)
-    for pts, _ in subs:
-        if len(pts) < 3:
+    out = np.zeros((ctx.h, ctx.w), np.float32)
+    polys = [np.asarray(pts, np.float64) for pts, _ in subs if len(pts) >= 3]
+    if not polys:
+        return out
+    allp = np.concatenate(polys)
+    bx0, by0 = max(0, int(np.floor(allp[:, 0].min())) - 1), max(0, int(np.floor(allp[:, 1].min())) - 1)
+    bx1, by1 = min(ctx.w, int(np.ceil(allp[:, 0].max())) + 2), min(ctx.h, int(np.ceil(allp[:, 1].max())) + 2)
+    if bx1 <= bx0 or by1 <= by0:
+        return out
+    bw, bh = (bx1 - bx0) * s, (by1 - by0) * s
+    acc = np.zeros((bh, bw), np.int16)
+    for P in polys:
+        q = (P - [bx0, by0]) * s
+        x0, y0 = max(0, int(q[:, 0].min())), max(0, int(q[:, 1].min()))
+        x1, y1 = min(bw, int(q[:, 0].max()) + 2), min(bh, int(q[:, 1].max()) + 2)
+        if x1 <= x0 or y1 <= y0:
             continue
-        im = Image.new("L", (ctx.w * s, ctx.h * s), 0)
-        ImageDraw.Draw(im).polygon([(x * s, y * s) for x, y in pts], fill=1)
+        im = Image.new("L", (x1 - x0, y1 - y0), 0)
+        ImageDraw.Draw(im).polygon([(x - x0, y - y0) for x, y in q], fill=1)
+        area = float(np.sum(P[:-1, 0] * P[1:, 1] - P[1:, 0] * P[:-1, 1]) + P[-1, 0] * P[0, 1] - P[0, 0] * P[-1, 1])
         m = np.asarray(im, np.int16)
-        area = sum(pts[i - 1][0] * pts[i][1] - pts[i][0] * pts[i - 1][1] for i in range(len(pts)))
-        acc += m if (rule == "evenodd" or area >= 0) else -m
+        acc[y0:y1, x0:x1] += m if (rule == "evenodd" or area >= 0) else -m
     cov = ((acc % 2) != 0) if rule == "evenodd" else (acc != 0)
-    im = Image.fromarray((cov * 255).astype(np.uint8))
     if s > 1:
-        im = im.resize((ctx.w, ctx.h), Image.BOX)
-    return np.asarray(im, np.float32) / 255.0
+        cov = cov.reshape(by1 - by0, s, bx1 - bx0, s).mean((1, 3))
+    out[by0:by1, bx0:bx1] = cov
+    return out
 
 
 def stroke_mask(subs, half: float, ctx: RCtx) -> np.ndarray:
