@@ -32,6 +32,10 @@ closely; rounding a number down is fine, rounding it up is not.
   so they stay sharp at any size.
 - F23. poster_compare scores a render against a reference picture (0-100 overall, from structure, colour and
   layout) and shows where they differ on a heat map.
+- F24. image_trace turns a picture (a logo, an emblem, flat art) into a vector SVG of flat colours. With lift_text it
+  takes the lettering out of the artwork and returns where each line was; the words go back on top as live text
+  layers, which the text audit checks exactly, and poster_fit nudges their position and size to raise
+  poster_compare's score against the original.
 - F8. Images from a description with FastSD (SD-Turbo); about a few seconds per 512x512 image on an Intel iGPU once warm.
 - F9. Short product and app video ads: 9:16, 16:9 (and 1:1, 4:5) from one edit.
 - F10. Ads use stills (parallax, Ken Burns), clips and screen recordings with push-ins and speed ramps.
