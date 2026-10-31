@@ -80,6 +80,8 @@ def build_parser() -> argparse.ArgumentParser:
     apps.add_cli(sub)
     from funkbox.music import tools as music_tools
     music_tools.add_cli(sub)
+    from funkbox.video import tools as video_tools
+    video_tools.add_cli(sub)
     sub.add_parser("doctor", help="GL info, ffmpeg, models, FastSD/GIMP paths, config").set_defaults(fn=cmd_doctor)
     sub.add_parser("serve", help="run the MCP server (stdio)").set_defaults(fn=cmd_serve)
     return ap

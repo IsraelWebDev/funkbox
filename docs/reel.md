@@ -75,6 +75,20 @@ The reel file is plain JSON you can edit by hand; copy still comes only from `co
 reel JSON (or write it from scratch) with these fields. Every one of them is optional, and none changes pixel content:
 framing only crops and scales.
 
+**Timeline.** `funkbox reel timeline X.reel.json` (or `reel_timeline(reel)`, which returns the URL) opens a page on
+this computer that shows the reel as a strip of shots, each as wide as its length, with a frame of each. Drag a shot to
+move it, drag its right edge to change its length (whole and half beats when the reel has a beat grid), click it to set
+a clip's in and out points against frames of the source, its speed and crop, its caption and voice line, or to
+duplicate or delete it; Undo and Revert work until you Save. Saving validates the whole reel first (an invalid reel is
+never written), keeps the previous file as `X.reel.json.bak` and appends what changed, in plain words, to
+`X.edits.jsonl`. Render preview makes a draft of the saved reel and plays it on the page.
+
+The reel file is the shared state between you and Claude: when Claude changes it, the page reloads within two seconds
+(or, if you have unsaved changes, asks which to keep) and the log records it as a change made outside the page.
+`reel_timeline(reel, action="changes")` gives Claude your edits ("moved 's1' from position 1 to 4", "'s3': duration
+beats:2 -> beats:4") before it touches the reel again. The page only listens on 127.0.0.1 and refuses requests from
+other sites.
+
 **Framing (`"motion": {"type": "frame"}`)** works on video and stills. Rectangles are `[x, y, w, h]` in fractions of the
 *source*; each frame shows the smallest window of the *output* aspect that contains the rectangle, so one rectangle
 gives the right crop in 9:16 and in 16:9.

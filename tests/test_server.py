@@ -19,7 +19,8 @@ ROOT = Path(__file__).resolve().parent.parent
 
 LOOP = {"loop_list", "loop_preview", "loop_sheet", "loop_render", "loop_write_shader", "loop_get_shader",
         "loop_gl_info", "loop_still"}
-REEL = {"reel_validate", "reel_storyboard", "reel_still", "reel_render", "reel_templates", "reel_copy_lines"}
+REEL = {"reel_validate", "reel_storyboard", "reel_still", "reel_render", "reel_templates", "reel_copy_lines",
+        "reel_timeline"}
 PROJECT = {"project_new", "project_list", "project_ingest", "project_set_product", "project_brand",
            "project_set_brand", "project_propose_copy", "project_approve_copy", "project_copy_diff",
            "project_auto_reel", "project_render"}
@@ -27,7 +28,8 @@ POSTER = {"poster_presets", "poster_preview", "poster_render", "poster_variation
 IMAGE = {"image_generate", "image_restyle", "image_upscale", "image_edit", "image_trace"}
 APPS = {"apps_status", "apps_start", "apps_stop"}
 MUSIC = {"music_render"}
-PLANNED = LOOP | REEL | PROJECT | POSTER | IMAGE | APPS | MUSIC
+VIDEO = {"video_info", "video_scenes", "video_trim", "video_subtitles"}
+PLANNED = LOOP | REEL | PROJECT | POSTER | IMAGE | APPS | MUSIC | VIDEO
 
 #: every tool of the five old servers -> its one new tool (also the table in docs/migration-v4.md)
 OLD_TOOLS = {
@@ -76,8 +78,8 @@ def test_tool_list_equals_the_plan_and_every_old_tool_is_mapped(gl, tmp_path):
     async def go(s, init):
         return {t.name: t for t in (await s.list_tools()).tools}
     tools = asyncio.run(session(tmp_path / "h", go))
-    assert set(tools) == PLANNED and len(tools) == 42
-    assert all(re.match(r"^(loop|reel|project|poster|image|apps|music)_", n) for n in tools)
+    assert set(tools) == PLANNED and len(tools) == 47
+    assert all(re.match(r"^(loop|reel|project|poster|image|apps|music|video)_", n) for n in tools)
     assert set(v for v in OLD_TOOLS.values() if v) <= PLANNED
     assert len(set(v for v in OLD_TOOLS.values() if v)) == len([v for v in OLD_TOOLS.values() if v])   # one-to-one
     doc = (ROOT / "docs" / "migration-v4.md").read_text()

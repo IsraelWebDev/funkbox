@@ -130,6 +130,9 @@ Describe → generate variations → pick → poster or edit → export.
   score and the side-by-side, raise `detail` or lower `tolerance` for small lettering.
 - **Motion:** add a `motion` block (entrances, keyframed tracks) and `poster_animate(poster, scale=0.5)` for a draft,
   then full size. The last frame is the poster; read the per-frame audit.
+- **Real footage:** `video_scenes(trailer)` finds the cuts and gives reel-ready trims; `video_trim` cuts a piece;
+  `video_subtitles` burns in exact captions. For hand edits, `reel_timeline(reel)` gives the user a drag-and-drop
+  page; call it with `action="changes"` and read their edits before you change that reel.
 - **Voice:** reels speak with Kokoro by default; offer `audio.voice` `kokoro:af_heart`, `kokoro:am_michael` or
   `kokoro:bm_george` (the approved ad voices) and `voice_speed` for pacing.
 - **Other sizes:** `poster_sizes(poster, ["story","landscape","square"])` makes the set from one design; pin bands with

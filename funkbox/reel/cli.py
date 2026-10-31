@@ -279,10 +279,29 @@ def cmd_project_shortcuts(a) -> int:
     return 0
 
 
+def cmd_timeline(a) -> int:
+    import webbrowser
+    from funkbox.reel import editor
+    ed = editor.open_editor(_reel_arg(a), port=a.port)
+    print(f"timeline: {ed.url}  (Ctrl+C to stop; edits log: {ed.log_path})")
+    if not a.no_browser:
+        webbrowser.open(ed.url)
+    try:
+        while True:
+            ed.pump.pump(0.2)                         # GL work (thumbnails, previews) runs on this thread
+    except KeyboardInterrupt:
+        ed.stop()
+    return 0
+
+
 def add_cli(sub) -> None:
     ap = sub.add_parser("reel", help="shot list -> vertical video ad: validate, storyboard, still, render, ...")
     rsub = ap.add_subparsers(dest="verb", required=True,
-                             metavar="{validate,storyboard,still,render,beats,cutout,setup-models}")
+                             metavar="{validate,storyboard,still,render,timeline,beats,cutout,setup-models}")
+    p = rsub.add_parser("timeline", help="drag-and-drop timeline page for a reel (shared with Claude)")
+    p.add_argument("reel", nargs="?"); p.add_argument("--project"); p.add_argument("--port", type=int, default=0)
+    p.add_argument("--no-browser", action="store_true")
+    p.set_defaults(fn=cmd_timeline)
     p = rsub.add_parser("validate", help="check a reel (copy ids, files, timing, caption fit)")
     p.add_argument("reel", nargs="?")
     p.add_argument("--project")

@@ -29,7 +29,7 @@ INSTRUCTIONS = (
 )
 
 AREAS = ("funkbox.loops.tools", "funkbox.reel.tools", "funkbox.stills.tools", "funkbox.studio.tools",
-         "funkbox.music.tools")
+         "funkbox.music.tools", "funkbox.video.tools")
 
 
 def build_server() -> Server:

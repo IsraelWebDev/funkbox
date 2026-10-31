@@ -368,8 +368,29 @@ def project_render(project: str, draft: bool = True, format: str = "") -> list:
     return _render_result(out, True)
 
 
+@safe
+def reel_timeline(reel: str = "", project: str = "", action: str = "open") -> str:
+    """A timeline page for a *.reel.json that the user and you both edit. action="open" starts it (if needed) and
+    returns the local URL to give the user: shots as blocks they drag to reorder, drag the edge to change length,
+    set in/out points, captions and voice lines, render a draft; saving validates first, keeps a .bak and logs the
+    edit. action="changes" returns that log in plain words (theirs and any made to the file outside the page), plus
+    the current shot order: read it before you change a reel the user has been editing. Your own edits to the
+    file show up on their page within seconds."""
+    from funkbox.reel import editor
+    src = _src(reel or None, project or None)
+    if not isinstance(src, str):
+        raise ValueError("the timeline edits a reel file: give its path (or project=<name>)")
+    if action == "changes":
+        return editor.changes_text(src)
+    if action != "open":
+        raise ValueError("action is open or changes")
+    ed = editor.open_editor(src, run_gl=on_gl)
+    return (f"timeline for {ed.path.name}: {ed.url}\n(open it on this computer; edits are saved to the reel file "
+            f"and logged in {ed.log_path.name})\n\n" + editor.changes_text(src, last=5))
+
+
 #: every tool of the two areas; the copy lock test checks this list: no tool but project_approve_copy writes copy.json
-TOOLS = [reel_copy_lines, reel_templates, reel_validate, reel_storyboard, reel_still, reel_render,
+TOOLS = [reel_copy_lines, reel_templates, reel_validate, reel_storyboard, reel_still, reel_render, reel_timeline,
          project_new, project_list, project_ingest, project_set_product, project_brand, project_set_brand,
          project_propose_copy, project_approve_copy, project_copy_diff, project_auto_reel, project_render]
 
