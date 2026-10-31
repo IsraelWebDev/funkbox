@@ -160,6 +160,7 @@ One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP ser
 - [AGENTS.md](AGENTS.md): installation for agents and humans
 - [promo/](promo/README.md): how funkbox promotes itself: a scheduled agent makes a daily Short with funkbox, a
   second agent reviews it, and it posts to YouTube and X
+- [docs/history/RELEASE-v4.2.md](docs/history/RELEASE-v4.2.md): what is new in 4.2
 - [docs/history/](docs/history/): plans, hand-offs and build reports of earlier versions
 - [PRIVACY.md](PRIVACY.md): what funkbox reads, writes and sends (nothing)
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md): licences of everything funkbox uses or downloads
