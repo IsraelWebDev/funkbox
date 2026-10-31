@@ -12,6 +12,8 @@
    HOOK_OVERLAP of its words with any of the last 14 hooks. Earlier days are the other folders next to this one.
 3. Product feedback: feedback.json exists and has the fields the owner reads (see PLAYBOOK.md).
 4. Claims: every claim in brief.json cites a fact id that exists in FACTS.md, or an M-key in measured.json.
+5. Owner approval: an owner_approval.json, if the day has one, is well formed (see enqueue.py and REVIEW.md
+   check 7). Lint does not judge what it approves; the reviewer does, and only for the content it names.
 """
 from __future__ import annotations
 
@@ -158,8 +160,15 @@ def claim_problems(day: Path, facts_md: Path = HERE / "FACTS.md") -> list[str]:
     return out
 
 
+def approval_problems(day: Path) -> list[str]:
+    sys.path.insert(0, str(HERE))
+    from enqueue import approval_problems as ap
+    return ap(day)
+
+
 def check(day: Path) -> list[str]:
-    return caption_problems(day) + variety_problems(day) + feedback_problems(day) + claim_problems(day)
+    return (caption_problems(day) + variety_problems(day) + feedback_problems(day) + claim_problems(day)
+            + approval_problems(day))
 
 
 def add_feedback(day: Path, log: Path | None = None) -> bool:

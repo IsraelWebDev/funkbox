@@ -6,7 +6,8 @@ Look at the artifacts yourself; do not take the maker's word for anything.
 Inputs, all in the day folder you were given (`$STATE/days/<date>/`, called DAY below):
 `brief.json` (format, selling point, trend, sources, angle, claims with fact ids), `copy.json`, `reel.json`,
 `caption.json`, `final.mp4`, `final.text_audit.json`, `measured.json` (numbers measured in this run),
-`feedback.json`, and frames you extract yourself. Also `promo/FACTS.md` and the last 14
+`feedback.json`, `owner_approval.json` if the owner signed off on specific content (check 7), and frames you
+extract yourself. Also `promo/FACTS.md` and the last 14
 entries of `$STATE/posts.jsonl` (the post log, next to the day folders; it may not exist yet).
 
 ## Look at it
@@ -31,6 +32,12 @@ entries of `$STATE/posts.jsonl` (the post log, next to the day folders; it may n
    (same "day") are this promo itself, for example its Short that is already up or an X post marked "replaced"
    by the owner, so they are not repeats.
 7. Nothing in the frames, captions or caption.json that you would not want under the owner's name.
+   **Owner sign-off.** DAY may hold `owner_approval.json` ({"by": "owner", "date", "approves", "scope": "this item
+   only"}), carried with a queued promo. Treat ONLY the content it names in `approves` as signed off for this check,
+   and only in this promo; anything else that needs the owner's sign-off still FAILs here. An approval changes no
+   other check: claims and facts (3), quality (1, 2), lint, spelling (5) and length are judged in full, and an
+   approval can never make a false or unsupported claim acceptable. If the file is malformed (lint names it), or
+   what it approves is vague or does not match what is on screen, treat it as absent.
 
 ## Verdict
 Run exactly one of:

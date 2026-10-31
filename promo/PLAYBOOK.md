@@ -29,6 +29,9 @@ on-screen copy. Run `python promo/measure.py facts $DAY`, then `python promo/lin
 and feedback.json fields lint names, and caption.json if the review asks; if lint names anything in the video
 itself, stop, post nothing and report it. Then continue at step 3 (review) as usual. If it prints `queue empty`,
 carry on with step 1.
+An item may carry `owner_approval.json` (`enqueue.py add` takes it along; `--extra` adds other files such as the
+posters behind its shots): the owner's sign-off on the specific content it names, for this item only. Never write
+or edit one yourself; only the owner gives it. The reviewer uses it for check 7 and nothing else (REVIEW.md).
 
 ## 1. Pick today's idea (15 minutes, not more)
 The point is a promo a follower of the account has NOT seen yet. Gather candidates from three places, then choose.

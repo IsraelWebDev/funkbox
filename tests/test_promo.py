@@ -403,7 +403,7 @@ def test_queue_add_and_take(tmp_path, monkeypatch):
     monkeypatch.setattr(state, "STATE_DIR", tmp_path / "state")
     src = tmp_path / "ready"
     src.mkdir()
-    for f in pq.FILES:
+    for f in pq.REQUIRED:
         (src / f).write_text("{}" if f.endswith(".json") else "video")
     (src / "brief.json").write_text(json.dumps({"format": "use-case"}))
     with pytest.raises(SystemExit, match="caption.json is missing"):
@@ -417,3 +417,90 @@ def test_queue_add_and_take(tmp_path, monkeypatch):
     b = json.loads((day / "brief.json").read_text())
     assert b["queued_as"] == first.name and b["date"] == "2026-10-31" and (day / "final.mp4").read_text() == "video"
     assert pq.take(tmp_path / "state" / "days" / "2026-11-01", commit=False) is None          # empty queue
+
+
+APPROVAL = {"by": "owner", "date": "2026-10-31", "approves": "the two mashup shots of the redrawn badge",
+            "scope": "this item only"}
+
+
+def _ready(tmp_path, monkeypatch):
+    import enqueue as pq
+    import state
+    monkeypatch.setattr(state, "STATE_DIR", tmp_path / "state")
+    src = tmp_path / "ready"
+    src.mkdir()
+    for f in pq.REQUIRED:
+        (src / f).write_text("{}" if f.endswith(".json") else "video")
+    return pq, src
+
+
+def test_queue_carries_the_owner_approval_and_extras(tmp_path, monkeypatch):
+    pq, src = _ready(tmp_path, monkeypatch)
+    assert "owner_approval.json" in pq.FILES and "owner_approval.json" not in pq.REQUIRED
+    (src / "owner_approval.json").write_text(json.dumps(APPROVAL))
+    (src / "posters" / "renders").mkdir(parents=True)
+    (src / "posters" / "badge.poster.json").write_text("{}")
+    (src / "posters" / "renders" / "badge.png").write_bytes(b"png")
+    item = pq.add(src, "badge", commit=False, extras=("posters",))
+    assert json.loads((item / "owner_approval.json").read_text()) == APPROVAL
+    assert (item / "posters" / "renders" / "badge.png").read_bytes() == b"png"
+    day = tmp_path / "state" / "days" / "2026-11-01"
+    assert pq.take(day, commit=False) == item
+    assert json.loads((day / "owner_approval.json").read_text()) == APPROVAL      # travels into the day folder
+    assert (day / "posters" / "badge.poster.json").is_file()
+
+
+def test_queue_without_an_approval_still_works(tmp_path, monkeypatch):
+    pq, src = _ready(tmp_path, monkeypatch)
+    item = pq.add(src, "plain", commit=False)
+    assert not (item / "owner_approval.json").exists()
+    day = tmp_path / "state" / "days" / "2026-11-01"
+    assert pq.take(day, commit=False) == item and not (day / "owner_approval.json").exists()
+
+
+@pytest.mark.parametrize("change, problem", [
+    ({"scope": "all future promos"}, "scope must be 'this item only'"),
+    ({"approves": "  "}, "non-empty 'approves'"),
+    ({"date": "31/10/2026"}, "YYYY-MM-DD"),
+    ({"by": None}, "non-empty 'by'"),
+])
+def test_a_malformed_approval_is_refused(tmp_path, monkeypatch, change, problem):
+    pq, src = _ready(tmp_path, monkeypatch)
+    (src / "owner_approval.json").write_text(json.dumps({**APPROVAL, **change}))
+    with pytest.raises(SystemExit, match="not queued: .*" + __import__("re").escape(problem)):
+        pq.add(src, "x", commit=False)
+    (src / "owner_approval.json").write_text("not json")
+    with pytest.raises(SystemExit, match="owner_approval.json is not valid JSON"):
+        pq.add(src, "x", commit=False)
+
+
+def test_extras_must_exist_inside_the_source(tmp_path, monkeypatch):
+    pq, src = _ready(tmp_path, monkeypatch)
+    with pytest.raises(SystemExit, match="extra nope is missing"):
+        pq.add(src, "x", commit=False, extras=("nope",))
+    (tmp_path / "outside.txt").write_text("x")
+    with pytest.raises(SystemExit, match="must be a file or folder inside"):
+        pq.add(src, "x", commit=False, extras=("../outside.txt",))
+
+
+def test_lint_checks_the_approval_and_review_limits_it():
+    import lint
+    rv = (ROOT / "promo" / "REVIEW.md").read_text()
+    seven = rv.split("7. ", 1)[1].split("## Verdict", 1)[0]
+    for needle in ("owner_approval.json", "ONLY the content it names", "only in this promo",
+                   "never make a false or unsupported claim acceptable", "judged in full"):
+        assert needle in seven, needle
+    for doc in ("PLAYBOOK.md", "README.md"):
+        assert "owner_approval.json" in (ROOT / "promo" / doc).read_text(), doc
+    assert "approval_problems" in lint.check.__code__.co_names
+
+
+def test_lint_names_a_malformed_approval(tmp_path):
+    import lint
+    day = tmp_path / "days" / "2026-11-01"
+    day.mkdir(parents=True)
+    assert lint.approval_problems(day) == []                                  # no approval: nothing to say
+    (day / "owner_approval.json").write_text(json.dumps({**APPROVAL, "scope": "forever"}))
+    assert any("scope" in p for p in lint.approval_problems(day))
+    (day / "owner_approval.json").write_text(json.dumps(APPROVAL))
+    assert lint.approval_problems(day) == []

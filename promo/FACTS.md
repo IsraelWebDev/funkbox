@@ -28,6 +28,10 @@ closely; rounding a number down is fine, rounding it up is not.
   drawn as an empty box.
 - F21. Posters can be emblems and badges: vector shapes (polygons, thick strokes with mitred corners) and text bent
   along an arc, slanted or rotated; the text audit still checks every string exactly.
+- F22. Posters export to SVG and PDF: shapes and text are written as vector paths (text as shaped glyph outlines),
+  so they stay sharp at any size.
+- F23. poster_compare scores a render against a reference picture (0-100 overall, from structure, colour and
+  layout) and shows where they differ on a heat map.
 - F8. Images from a description with FastSD (SD-Turbo); about a few seconds per 512x512 image on an Intel iGPU once warm.
 - F9. Short product and app video ads: 9:16, 16:9 (and 1:1, 4:5) from one edit.
 - F10. Ads use stills (parallax, Ken Burns), clips and screen recordings with push-ins and speed ramps.
