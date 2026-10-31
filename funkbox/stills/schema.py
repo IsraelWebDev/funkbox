@@ -36,7 +36,7 @@ MAX_LAYERS = 64
 MAX_DEPTH = 8
 
 DOC_KEYS = {"version", "name", "canvas", "project", "casual", "copy", "brand", "seed", "layers", "post", "export",
-            "motion", "glyphs"}
+            "motion", "glyphs", "min_text"}
 COMMON = {"id", "type", "blend", "opacity", "mask", "adjust", "filters", "visible", "clip", "resize"}
 RESIZE_RULES = ("fill", "fit", "top", "bottom", "left", "right", "top-left", "top-right", "bottom-left", "bottom-right")
 TYPE_KEYS: dict[str, set[str]] = {
@@ -504,6 +504,9 @@ def check(doc: Any) -> list[str]:
             errs.append(f"export.formats: a non-empty list of {list(EXPORTS)}")
         if "jpg_quality" in ex and not (isinstance(ex["jpg_quality"], int) and 30 <= ex["jpg_quality"] <= 100):
             errs.append("export.jpg_quality: 30..100")
+    mt = doc.get("min_text")
+    if mt is not None and not (isinstance(mt, (int, float)) and not isinstance(mt, bool) and 0.012 <= mt <= 0.032):
+        errs.append("min_text: 0.012..0.032 (the smallest text, x canvas height; 0.032 unless the poster says otherwise)")
     gl = doc.get("glyphs")
     if gl is not None:
         from funkbox.lettering import check_glyphset

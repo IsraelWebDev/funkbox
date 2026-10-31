@@ -168,9 +168,18 @@ def cmd_poster_compare(a) -> int:
 def cmd_image_trace(a) -> int:
     from funkbox.stills import api, trace
     pal = [c.strip() for c in a.palette.split(",")] if a.palette else None
-    res = trace.trace(_abs(a.image), a.colors, pal, a.detail, a.smooth, a.tolerance)
+    lift = None
+    if a.lift_text:
+        lift = "auto" if a.lift_text == "auto" else (json.loads(a.lift_text) if a.lift_text.lstrip().startswith("[")
+                                                     else [c.strip() for c in a.lift_text.split(",")])
+    res = trace.trace(_abs(a.image), a.colors, pal, a.detail, a.smooth, a.tolerance, lift_text=lift,
+                      max_letter=a.max_letter)
     print(f"{res.loops} shapes in {len(res.palette)} colours; fidelity {res.fidelity}/100")
-    _print_paths(trace.write(res, a.out or api.traces_dir(), a.name or Path(a.image).stem[:40] or "trace"))
+    for i, b in enumerate(res.text_boxes, 1):
+        print(f"text line {i}: {b['color']} box {b['box']} angle {b['angle']} ({b['letters']} letters)")
+    texts = json.loads(a.texts) if a.texts else None
+    _print_paths(trace.write(res, a.out or api.traces_dir(), a.name or Path(a.image).stem[:40] or "trace", texts,
+                             a.font))
     return 0
 
 
@@ -226,6 +235,10 @@ def add_cli(sub) -> None:
     p.add_argument("image"); p.add_argument("--colors", type=int, default=6); p.add_argument("--palette")
     p.add_argument("--detail", type=int, default=1024); p.add_argument("--smooth", type=float, default=1.0)
     p.add_argument("--tolerance", type=float, default=0.8); p.add_argument("--name"); p.add_argument("--out")
+    p.add_argument("--lift-text", help='text colours "#a,#b", a JSON list, or auto')
+    p.add_argument("--max-letter", type=float, default=0.12)
+    p.add_argument("--texts", help="JSON list of the words of each found line, top to bottom")
+    p.add_argument("--font", default="Rubik:700")
     p.set_defaults(fn=cmd_image_trace)
     p = image_group(sub).add_parser("edit", help="non-AI photo edits: crop, flip, adjust, text, filters ...")
     p.add_argument("image"); p.add_argument("--ops", required=True); p.add_argument("--name"); p.add_argument("--out")

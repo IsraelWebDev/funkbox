@@ -136,10 +136,10 @@ def layout_text(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> tuple
     line_height = float(lay.get("line_height", 1.1))
     frame_w = int(round(max_w * W))
     x0, y0 = int(round(x_frac * W)), int(round(y_frac * H))
-    min_px = max(8, math.ceil(captions.MIN_SIZE * H))
+    min_px = max(8, math.ceil(ctx.min_text * H))
     want = int(round(float(lay.get("size", TEXT_SIZE)) * H))
     if want < min_px:
-        ctx.warnings.append(f"text layer {lay['id']!r}: size raised to the minimum ({captions.MIN_SIZE} x height)")
+        ctx.warnings.append(f"text layer {lay['id']!r}: size raised to the minimum ({ctx.min_text} x height)")
     px = max(min_px, want)
     label = f"text layer {lay['id']!r}" + (f" (copy {lay['copy_id']!r})" if "copy_id" in lay else "")
     while True:
@@ -165,7 +165,7 @@ def layout_text(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> tuple
             why = ("a word is wider than the line" if not fits else
                    "the block runs outside the canvas; move x/y, widen max_width or shorten the text")
             raise PosterError([f"{label}: text does not fit at the minimum size "
-                               f"({captions.MIN_SIZE} x canvas height = {min_px}px): {why}"])
+                               f"({ctx.min_text} x canvas height = {min_px}px): {why}"])
         px = max(min_px, int(px * 0.94))
     bb = font.getbbox("H", anchor="ls")
     if bb[1] == 0:                                     # no "H" in a lettering font: its cap height is 0.7 em

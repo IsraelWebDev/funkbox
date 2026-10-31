@@ -128,6 +128,9 @@ Describe → generate variations → pick → poster or edit → export.
   text stays exact), `on_path` to set a line along any curve or circle. Prefer these over splitting text into layers.
 - **Logo as vectors:** `image_trace(logo, palette=[brand colours])` gives an SVG for an `svg` layer; check the fidelity
   score and the side-by-side, raise `detail` or lower `tolerance` for small lettering.
+- **Recreating an emblem or badge with its text:** `image_trace(img, lift_text=[text colours], texts=[each line, top to
+  bottom])` traces the artwork without its lettering and writes a starter poster with live text in the found boxes;
+  `poster_fit` its x/y/size (skew_y, arc) against the original. Expect mid-to-high 90s, and the words stay exact.
 - **Motion:** add a `motion` block (entrances, keyframed tracks) and `poster_animate(poster, scale=0.5)` for a draft,
   then full size. The last frame is the poster; read the per-frame audit.
 - **Real footage:** `video_scenes(trailer)` finds the cuts and gives reel-ready trims; `video_trim` cuts a piece;

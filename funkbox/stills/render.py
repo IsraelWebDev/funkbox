@@ -80,7 +80,8 @@ def make_context(doc: Doc, base_dir: str | Path | None, w: int, h: int, scale: f
     brand = Brand(**{k: v for k, v in bd.items() if k in ("primary", "secondary", "text", "font_caption", "font_display",
                                                        "font_fallback")})
     return RCtx(w=w, h=h, scale=scale, base_dir=base, brand=brand, seed=doc.seed, full=(doc.width, doc.height),
-                glyphs=dict(doc.raw.get("glyphs") or {}))
+                glyphs=dict(doc.raw.get("glyphs") or {}),
+                min_text=float(doc.raw.get("min_text", 0.032)))
 
 
 def scaled_size(doc: Doc, scale: float) -> tuple[int, int]:

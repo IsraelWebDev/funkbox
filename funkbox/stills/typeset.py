@@ -262,7 +262,7 @@ def typeset(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> Set:
         P, L = _polyline(lay, W, H)
         frame_w = int(L[-1] * (1.0 - float(lay.get("path_offset", 0.0))))
     lh = float(lay.get("line_height", 1.1))
-    min_px = max(8, math.ceil(captions.MIN_SIZE * H))
+    min_px = max(8, math.ceil(ctx.min_text * H))
     px = max(min_px, int(round(float(lay.get("size", TEXT_SIZE)) * H)))
     align = lay.get("align", "left")
     from PIL import ImageFont
@@ -282,7 +282,7 @@ def typeset(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> Set:
             why = ("it is longer than the path" if on_path else "a word is wider than the line" if not fits else
                    "the block runs outside the canvas; move x/y, widen max_width or shorten the text")
             raise PosterError([f"{label}: text does not fit at the minimum size "
-                               f"({captions.MIN_SIZE} x canvas height = {min_px}px): {why}"])
+                               f"({ctx.min_text} x canvas height = {min_px}px): {why}"])
         px = max(min_px, int(px * 0.94))
     bb = ImageFont.truetype(str(base), px).getbbox("H", anchor="ls")
     cap_h = -bb[1] or round(0.7 * px)                  # lettering fonts may have no "H": use their cap height

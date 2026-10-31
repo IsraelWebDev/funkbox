@@ -37,6 +37,7 @@ class RCtx:
     warnings: list[str] = field(default_factory=list)
     info: dict = field(default_factory=dict)       # extra facts for the result text (cut-out quality, ...)
     glyphs: dict = field(default_factory=dict)     # the poster's own lettering (funkbox.lettering), by name
+    min_text: float = 0.032                         # smallest text, x canvas height (doc "min_text" lowers it)
 
     def px(self, v: float) -> float:
         return float(v) * self.scale

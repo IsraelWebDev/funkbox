@@ -153,15 +153,24 @@ def poster_sizes(poster: dict | str, sizes: list, name: str = "", fit_to: str = 
 
 @safe
 def image_trace(path: str, name: str = "", colors: int = 6, palette: list | None = None, detail: int = 1024,
-                smooth: float = 1.0, tolerance: float = 0.8) -> list:
+                smooth: float = 1.0, tolerance: float = 0.8, lift_text: list | str | None = None,
+                max_letter: float = 0.12, texts: list | None = None, font: str = "Rubik:700") -> list:
     """Trace a picture (logo, emblem, flat art) into a vector SVG of a few flat colours, sharp at any size; use it as
     an `svg` layer. ``palette`` (["#rrggbb", ...]) fixes the colours, else ``colors`` main colours are found.
     ``smooth`` 0 = straight segments, 1 = curves; ``tolerance`` (px) trades detail for fewer points; ``detail`` is the
     longest side traced. Reports a fidelity score (poster_compare of the trace against the original) and shows
-    original | trace. Writes <out>/traces/<name>.svg and <name>.trace.png."""
+    original | trace. Writes <out>/traces/<name>.svg and <name>.trace.png.
+
+    Lettering: ``lift_text`` takes text out of the artwork so live, exact text can go on top. Give the text colours
+    (["#1b224b", ...], or {"color": "#hex", "within": [x, y, w, h]} to look only in that part of the picture, as
+    fractions), or "auto". Letter-sized shapes of those colours (no side over ``max_letter`` of the picture) are
+    painted over from their surroundings and their lines come back as boxes (colour, box, angle, letters), also
+    written as <name>.text.json. With ``texts`` (the words of each found line, top to bottom) it also writes a starter
+    poster <name>.poster.json: the artwork as an svg layer plus a text layer per line in ``font``; poster_fit its
+    x/y/size (and skew_y/arc) against the original to line the words up."""
     from funkbox.stills import trace as tr
-    res = tr.trace(path, colors, palette, detail, smooth, tolerance)
-    paths = tr.write(res, api.traces_dir(), name or Path(path).stem[:40].replace(" ", "-") or "trace")
+    res = tr.trace(path, colors, palette, detail, smooth, tolerance, lift_text=lift_text, max_letter=max_letter)
+    paths = tr.write(res, api.traces_dir(), name or Path(path).stem[:40].replace(" ", "-") or "trace", texts, font)
     from funkbox.config import resolve_path
     orig = tr._over_white(PILImage.open(resolve_path(path)))
     side = PILImage.new("RGB", (orig.width * 2 + 8, orig.height), (24, 24, 28))
@@ -169,6 +178,8 @@ def image_trace(path: str, name: str = "", colors: int = 6, palette: list | None
     side.paste(res.preview, (orig.width + 8, 0))
     lines = [f"{res.loops} shapes in {len(res.palette)} colours; fidelity {res.fidelity}/100",
              "colours: " + ", ".join(f"{p['color']} {p['share']:.0%}" for p in res.palette)]
+    for i, b in enumerate(res.text_boxes, 1):
+        lines.append(f"text line {i}: {b['color']} box {b['box']} angle {b['angle']} ({b['letters']} letters)")
     lines += [f"{k}: {v}" for k, v in paths.items()]
     return ["\n".join(lines), _png(side, 1400)]
 

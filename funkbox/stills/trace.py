@@ -15,6 +15,8 @@ curves. Photos trace into posterised art; for a clean logo use a clean, large so
 """
 from __future__ import annotations
 
+import json
+import re
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,6 +36,7 @@ class Traced:
     fidelity: float | None = None
     preview: Image.Image | None = None
     notes: list[str] = field(default_factory=list)
+    text_boxes: list[dict] = field(default_factory=list)   # lifted text lines: colour, box [x, y, w, h], angle
 
 
 # --------------------------------------------------------------------------- pixel edges -> loops
@@ -157,10 +160,27 @@ def _parse_hex(h: str) -> tuple[int, int, int]:
 
 
 def trace(src, colors: int = 6, palette: list[str] | None = None, detail: int = 1024, smooth: float = 1.0,
-          tolerance: float = 0.8, speckle: int = 3, min_area: float = 12.0, measure: bool = True) -> Traced:
+          tolerance: float = 0.8, speckle: int = 3, min_area: float = 12.0, measure: bool = True,
+          lift_text: list[str] | str | None = None, max_letter: float = 0.12) -> Traced:
     """See the module doc. ``detail`` is the longest side traced (the SVG keeps the picture's own size),
-    ``speckle`` the mode-filter size (0 = off), ``min_area`` drops loops smaller than that many traced pixels."""
+    ``speckle`` the mode-filter size (0 = off), ``min_area`` drops loops smaller than that many traced pixels.
+    ``lift_text`` (a list of text colours, or "auto" for every colour) takes lettering out of the artwork: small,
+    letter-sized shapes of those colours (no side longer than ``max_letter`` of the picture) are filled in from what
+    surrounds them before tracing, and their lines are returned in ``text_boxes`` so live text can go on top."""
     from .compare import _lab, kmeans_palette
+    if not 0.01 <= max_letter <= 0.5:
+        raise ValueError("max_letter: 0.01..0.5 of the picture's longest side")
+    if lift_text is not None and lift_text != "auto":
+        if not isinstance(lift_text, list) or not lift_text:
+            raise ValueError('lift_text: "auto" or a list of colours ("#rrggbb" or {"color", "within": [x, y, w, h]})')
+        for it in lift_text:
+            c = it if isinstance(it, str) else (it.get("color") if isinstance(it, dict) else None)
+            w = None if isinstance(it, str) else it.get("within")
+            if not isinstance(c, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", c):
+                raise ValueError(f"lift_text: {it!r} needs a #rrggbb colour")
+            if w is not None and not (isinstance(w, list) and len(w) == 4 and all(isinstance(v, (int, float)) for v in w)
+                                      and w[2] > 0 and w[3] > 0):
+                raise ValueError(f"lift_text: within is [x, y, w, h] as fractions of the picture, got {w!r}")
     if isinstance(src, Image.Image):
         im = src
     else:
@@ -185,6 +205,15 @@ def trace(src, colors: int = 6, palette: list[str] | None = None, detail: int = 
         size = speckle | 1
         label = np.asarray(Image.fromarray(label).filter(ImageFilter.ModeFilter(size)))
     label = np.where(solid, label, 255)
+    boxes: list[dict] = []
+    if lift_text:
+        hole, boxes = _lift(label, cols, lift_text, max_letter, W / work.width)
+        if hole.any():                                  # paint over the lettering smoothly, then re-colour just there
+            filled = _inpaint(rgb, hole)
+            ys, xs = np.nonzero(hole)
+            near = np.argmin(((_lab(filled[ys, xs][None].astype(np.uint8))[0][:, None, :] - lab_c[None]) ** 2).sum(-1), 1)
+            label = label.copy()
+            label[ys, xs] = np.where(solid[ys, xs], near, 255)
     counts = np.array([(label == i).sum() for i in range(len(cols))])
     order = [int(i) for i in np.argsort(-counts) if counts[i] > 0]
     sx, sy = W / work.width, H / work.height
@@ -204,12 +233,169 @@ def trace(src, colors: int = 6, palette: list[str] | None = None, detail: int = 
         pal.append({"color": _hex(cols[ci]), "share": round(float(counts[ci] / max(1, solid.sum())), 4)})
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">\n'
            + "\n".join(paths) + "\n</svg>\n")
-    res = Traced(svg, pal, (W, H), nloops)
+    res = Traced(svg, pal, (W, H), nloops, text_boxes=boxes)
     if measure:
         res.preview = render_svg(svg, (W, H))
         from .compare import compare
         res.fidelity = round(float(compare(res.preview, _over_white(im)).scores["overall"]), 1)
     return res
+
+
+# --------------------------------------------------------------------------- lifting text out of artwork
+def _components(mask: np.ndarray) -> tuple[np.ndarray, int]:
+    """8-connected components of a boolean mask: (labels, count). scipy when present, else flood fills."""
+    try:
+        from scipy import ndimage
+        lab, n = ndimage.label(mask, structure=np.ones((3, 3)))
+        return lab, int(n)
+    except ImportError:
+        lab = np.zeros(mask.shape, np.int32)
+        n = 0
+        ys, xs = np.nonzero(mask)
+        for y, x in zip(ys.tolist(), xs.tolist()):
+            if lab[y, x]:
+                continue
+            n += 1
+            stack = [(y, x)]
+            lab[y, x] = n
+            while stack:
+                cy, cx = stack.pop()
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        yy, xx = cy + dy, cx + dx
+                        if 0 <= yy < mask.shape[0] and 0 <= xx < mask.shape[1] and mask[yy, xx] and not lab[yy, xx]:
+                            lab[yy, xx] = n
+                            stack.append((yy, xx))
+        return lab, n
+
+
+def _lift(label: np.ndarray, cols: np.ndarray, which, max_letter: float, scale: float):
+    """(label map with the lettering filled in from its surroundings, the text lines found)."""
+    H, W = label.shape
+    jobs = []                                   # (palette entries, area allowed) per requested text colour
+    full = (slice(0, H), slice(0, W))
+    for item in (["auto"] if which == "auto" else which):
+        if item == "auto":
+            jobs.append((list(range(len(cols))), full))
+            continue
+        c, within = (item, None) if isinstance(item, str) else (item["color"], item.get("within"))
+        d = np.sqrt(((cols - np.array(_parse_hex(c), float)) ** 2).sum(1))
+        near = [int(i) for i in np.nonzero(d <= max(48.0, d.min() + 1))[0]]   # its shades, or at least the closest
+        area = full
+        if within:
+            x, y, w, h = within
+            area = (slice(int(y * H), int(np.ceil((y + h) * H))), slice(int(x * W), int(np.ceil((x + w) * W))))
+        jobs.append((near, area))
+    lim = max_letter * max(H, W)
+    text = np.zeros((H, W), bool)
+    sizes = []
+    for idx, area in jobs:
+        allowed = np.zeros((H, W), bool)
+        allowed[area] = True
+        lab, n = _components(np.isin(label, idx) & allowed)
+        if not n:
+            continue
+        sl = _objects(lab, n)
+        for j, (ys, xs) in enumerate(sl, start=1):
+            if ys.stop - ys.start > lim or xs.stop - xs.start > lim:
+                continue
+            if ys.start <= area[0].start or xs.start <= area[1].start or ys.stop >= area[0].stop or xs.stop >= area[1].stop:
+                continue
+            text[ys, xs] |= lab[ys, xs] == j
+            sizes.append(max(ys.stop - ys.start, xs.stop - xs.start))
+    if not sizes:
+        return label, []
+    # lines: letters closer than about half a letter merge into one box (a gap between lines is wider than that)
+    r = max(2, int(0.3 * float(np.median([z for z in sizes if z > 4] or sizes))))
+    try:
+        from scipy import ndimage
+        yy, xx = np.ogrid[-r:r + 1, -r:r + 1]
+        grown = ndimage.binary_dilation(text, structure=(xx * xx + yy * yy) <= r * r)
+    except ImportError:
+        grown = np.asarray(Image.fromarray((text * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(2 * r + 1))) > 0
+    lab, n = _components(grown)
+    boxes = []
+    for j, (ys, xs) in enumerate(_objects(lab, n), start=1):
+        part = text[ys, xs] & (lab[ys, xs] == j)
+        if part.sum() < 30:
+            continue
+        py, px = np.nonzero(part)
+        colour = np.bincount(label[ys, xs][part].ravel(), minlength=len(cols)).argmax()
+        ang = 0.0
+        cov = np.cov(np.stack([px, py]).astype(float)) if len(px) > 10 else np.eye(2)
+        ev, vec = np.linalg.eigh(cov)
+        if ev[-1] > 4 * max(ev[0], 1e-9):                       # a line has a direction; a lone letter has none
+            v = vec[:, -1]
+            ang = float(np.degrees(np.arctan2(v[1], v[0])))
+            ang = (ang + 90) % 180 - 90
+        boxes.append({"color": _hex(cols[colour]), "angle": round(ang, 1), "letters": int(_components(part)[1]),
+                      "box": [round((xs.start + px.min()) * scale), round((ys.start + py.min()) * scale),
+                              round((px.max() + 1 - px.min()) * scale), round((py.max() + 1 - py.min()) * scale)]})
+    boxes.sort(key=lambda b: (b["box"][1], b["box"][0]))
+    # the lettering and its anti-aliased fringe
+    hole = np.asarray(Image.fromarray((text * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(5))) > 0
+    return hole, boxes
+
+
+def _inpaint(rgb: np.ndarray, hole: np.ndarray) -> np.ndarray:
+    """Fill ``hole`` from the pixels around it, smoothly (gradients carry on through): a coarse-to-fine average."""
+    def fill(img, known):
+        h, w = known.shape
+        if known.all() or not known.any():
+            return img if known.any() else np.broadcast_to(img.mean((0, 1)), img.shape).copy()
+        if min(h, w) <= 4:
+            out = img.copy()
+            out[~known] = img[known].mean(0)
+            return out
+        H2, W2 = (h + 1) // 2, (w + 1) // 2
+        pad_i = np.zeros((H2 * 2, W2 * 2, 3))
+        pad_k = np.zeros((H2 * 2, W2 * 2))
+        pad_i[:h, :w] = img * known[..., None]
+        pad_k[:h, :w] = known
+        s_i = pad_i.reshape(H2, 2, W2, 2, 3).sum((1, 3))
+        s_k = pad_k.reshape(H2, 2, W2, 2).sum((1, 3))
+        small = fill(np.where(s_k[..., None] > 0, s_i / np.maximum(s_k, 1)[..., None], 0), s_k > 0)
+        up = small.repeat(2, 0).repeat(2, 1)[:h, :w]
+        out = np.where(known[..., None], img, up)
+        for _ in range(3):                              # smooth the filled part only
+            p = np.pad(out, ((1, 1), (1, 1), (0, 0)), mode="edge")
+            avg = sum(p[1 + dy:1 + dy + h, 1 + dx:1 + dx + w] for dy in (-1, 0, 1) for dx in (-1, 0, 1)) / 9
+            out = np.where(known[..., None], img, avg)
+        return out
+    return fill(rgb.astype(np.float64), ~hole)
+
+
+def _objects(lab: np.ndarray, n: int):
+    try:
+        from scipy import ndimage
+        return [s if s is not None else (slice(0, 0), slice(0, 0)) for s in ndimage.find_objects(lab, n)]
+    except ImportError:
+        out = []
+        for j in range(1, n + 1):
+            ys, xs = np.nonzero(lab == j)
+            out.append((slice(ys.min(), ys.max() + 1), slice(xs.min(), xs.max() + 1)))
+        return out
+
+
+def poster_with_text(res: Traced, art_path: str, texts: list[str], font: str = "Rubik:700") -> dict:
+    """A starter poster: the traced artwork as an svg layer and ``texts`` (in reading order: top to bottom) set in
+    the lifted text boxes, in their colours and angles. Fit it with poster_fit to line the words up."""
+    W, H = res.size
+    layers: list[dict] = [{"id": "art", "type": "svg", "path": art_path, "x": 0, "y": 0, "width": 1.0}]
+    for i, (t, b) in enumerate(zip(texts, res.text_boxes)):
+        x, y, w, h = b["box"]
+        lay = {"id": f"text{i + 1}", "type": "text", "text": t, "font": font, "color": b["color"],
+               "x": round(max(0.0, x / W - 0.01), 4), "y": round(y / H, 4), "max_width": round(min(1.0, w / W + 0.02), 4),
+               "size": round(min(0.5, max(0.012, h / H * (0.75 if abs(b["angle"]) < 8 else 0.45))), 4),
+               "align": "center", "wrap": False}
+        if abs(b["angle"]) >= 8:
+            lay["skew_y"] = b["angle"]
+        layers.append(lay)
+    doc = {"version": 1, "casual": True, "canvas": {"width": W, "height": H, "background": "#ffffff"}, "layers": layers}
+    small = min([l["size"] for l in layers[1:]] or [0.032])
+    if small < 0.032:                                   # emblems carry small print; keep it as small as the original
+        doc["min_text"] = round(max(0.012, small), 4)
+    return doc
 
 
 def _over_white(im: Image.Image) -> Image.Image:
@@ -239,7 +425,9 @@ def render_svg(svg: str, size: tuple[int, int]) -> Image.Image:
     return _over_white(Image.fromarray(paint.rgba(ctx), "RGBA"))
 
 
-def write(res: Traced, out_dir, name: str) -> dict[str, Path]:
+def write(res: Traced, out_dir, name: str, texts: list[str] | None = None, font: str = "Rubik:700") -> dict[str, Path]:
+    """Write <name>.svg and <name>.trace.png; with lifted text also <name>.text.json, and with ``texts`` (the words
+    of the lifted lines, top to bottom) a starter poster <name>.poster.json to fit with poster_fit."""
     from .render import NAME_RE, fence_out
     if not NAME_RE.match(name or ""):
         raise ValueError(f"bad output name {name!r}")
@@ -250,4 +438,14 @@ def write(res: Traced, out_dir, name: str) -> dict[str, Path]:
     if res.preview is not None:
         paths["preview"] = d / f"{name}.trace.png"
         res.preview.save(paths["preview"])
+    if res.text_boxes:
+        paths["text"] = d / f"{name}.text.json"
+        paths["text"].write_text(json.dumps({"size": list(res.size), "lines": res.text_boxes}, indent=1), encoding="utf-8")
+    if texts:
+        if len(texts) > len(res.text_boxes):
+            raise ValueError(f"texts: {len(texts)} given but {len(res.text_boxes)} text lines were found")
+        doc = poster_with_text(res, paths["svg"].name, texts, font)
+        doc["name"] = name
+        paths["poster"] = d / f"{name}.poster.json"
+        paths["poster"].write_text(json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")
     return paths

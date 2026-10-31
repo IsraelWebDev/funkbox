@@ -28,7 +28,7 @@ python -m funkbox poster export-ora examples/stills/glowmop_poster.poster.json  
 | `loop_still(recipe_or_shader, t, preset)` | one frame of a loop recipe or shader as a poster background |
 | `poster_export_ora(poster, name)` | the poster as a layered OpenRaster file plus the PNG |
 | `poster_sizes(poster, sizes, name, fit_to, formats)` | the same poster for other canvases (`story`, `landscape`, ... or `{name, width, height, set}`), each with its own text audit, plus a sheet |
-| `image_trace(path, name, colors, palette, smooth, tolerance)` | a picture traced into a vector SVG of flat colours (`out/traces/<name>.svg`), with a fidelity score; place it as an `svg` layer |
+| `image_trace(path, name, colors, palette, smooth, tolerance, lift_text, max_letter, texts, font)` | a picture traced into a vector SVG of flat colours (`out/traces/<name>.svg`), with a fidelity score; place it as an `svg` layer. `lift_text` takes the lettering out and returns its lines; with `texts` also a starter poster with live text |
 | `poster_animate(poster, name, scale, gif)` | the poster's `motion` block as `<name>.mp4` (+ GIF), the last frame (the poster) as PNG, six frames on a strip and a per-frame text audit |
 | `poster_fit(poster, reference, params)` | tunes the poster's numbers (positions, sizes, points) to raise its `poster_compare` score against a reference |
 | `poster_compare(candidate, reference, name, fit)` | scores a render (picture or poster) against a reference picture: overall, structure, colour, layout (0..100), the most different regions of a 4x4 grid, unmatched reference colours, and a candidate / reference / heat-map sheet |
@@ -219,6 +219,26 @@ best when you know the brand colours), specks are smoothed away, every colour re
 (holes included), simplified to `tolerance` pixels and, with `smooth`, curved between its corners; long straight
 edges stay straight. Colours are stacked largest first, each extended under the ones drawn over it, so no hairline gaps
 show. The fidelity score is `poster_compare` of the trace against the original. Photos trace into posterised art.
+
+### Lifting the lettering out (artwork + live text)
+
+Traced lettering is only pixels in vector form: it can't be edited, audited or set in another language. `lift_text`
+separates it. Give the text colours (`["#1b224b", "#3e61ad"]`; `{"color": "#d9ba6a", "within": [x, y, w, h]}` looks only
+in that part of the picture, as fractions, when the same colour also appears in the art; or `"auto"`). Letter-sized
+shapes of those colours (and their shades; no side over `max_letter`, default 0.12 of the picture) are painted over
+from their surroundings, so gradients carry on smoothly, and the artwork is traced without them. Their lines come back
+as boxes, top to bottom: colour, box `[x, y, w, h]` in picture pixels, angle (for slanted lines) and the number of
+letters, also written as `<name>.text.json`.
+
+With `texts` (the words of each line, top to bottom) a starter poster `<name>.poster.json` is written as well: the
+artwork as an `svg` layer and one text layer per line in `font`, placed in its box, in its colour, slanted to its
+angle. Then `poster_fit` its `x`, `y`, `size` (and `skew_y` or `arc`) against the original. The words are live and
+exact: the audit checks them like any poster text. Measured on three emblems (1400 px, artwork + three live lines):
+trace with lifting 5–7 s, fit about 110 s, scores 96–98 against the originals.
+
+Emblems carry small print. A poster's `min_text` (0.012..0.032, x canvas height) lowers the 0.032 readability floor
+for that poster; the starter poster sets it when the original's text is that small. Leave it unset for anything made
+to be read on a phone.
 
 ## Matching a reference
 
