@@ -74,7 +74,7 @@ def commit(paths: list[str], msg: str) -> bool:
         return False
     git(*([] if has_ident() else IDENT), "commit", "-q", "-m", msg)
     if _has_head():
-        git("pull", "-q", "--rebase", "origin", "main")
+        git("pull", "-q", "--rebase", "--autostash", "origin", "main")   # the day folder is usually mid-edit
     git("push", "-q", "origin", "HEAD:main")
     return True
 

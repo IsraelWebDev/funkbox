@@ -504,3 +504,42 @@ def test_lint_names_a_malformed_approval(tmp_path):
     assert any("scope" in p for p in lint.approval_problems(day))
     (day / "owner_approval.json").write_text(json.dumps(APPROVAL))
     assert lint.approval_problems(day) == []
+
+
+def test_committing_the_queue_take_works_with_the_day_folder_mid_edit(tmp_path, monkeypatch):
+    """take() commits only the queue move; day files edited in the same run must not stop the pull before the push."""
+    import subprocess
+    import enqueue as pq
+    import state
+
+    def g(cwd, *a):
+        subprocess.run(["git", "-C", str(cwd), "-c", "user.name=t", "-c", "user.email=t@e", *a], check=True,
+                       capture_output=True)
+    bare = tmp_path / "o.git"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
+    seed = tmp_path / "seed"
+    subprocess.run(["git", "clone", "-q", bare.as_uri(), str(seed)], check=True, capture_output=True)
+    monkeypatch.setattr(state, "STATE_URL", bare.as_uri())
+    monkeypatch.setattr(state, "STATE_DIR", tmp_path / "clone")
+    monkeypatch.setattr(state, "DAYS", tmp_path / "clone" / "days")
+    monkeypatch.setenv("GIT_AUTHOR_NAME", "t"); monkeypatch.setenv("GIT_COMMITTER_NAME", "t")
+    monkeypatch.setenv("GIT_AUTHOR_EMAIL", "t@e"); monkeypatch.setenv("GIT_COMMITTER_EMAIL", "t@e")
+    src = tmp_path / "ready"
+    src.mkdir()
+    for f in pq.REQUIRED:
+        (src / f).write_text(json.dumps({"format": "use-case"}) if f.endswith(".json") else "video")
+    (seed / "days" / "2026-11-01").mkdir(parents=True)
+    (seed / "days" / "2026-11-01" / "measured.json").write_text("{}")
+    (seed / "README.md").write_text("state")
+    g(seed, "add", "-A"); g(seed, "commit", "-qm", "seed"); g(seed, "push", "-q", "origin", "HEAD:main")
+    state.ensure()
+    pq.add(src, "x")
+    (seed / "README.md").write_text("someone else pushed")                 # the remote moves on, so the pull is real
+    g(seed, "pull", "-q", "origin", "main"); g(seed, "commit", "-qam", "other"); g(seed, "push", "-q", "origin", "HEAD:main")
+    day = state.STATE_DIR / "days" / "2026-11-01"
+    (day / "measured.json").write_text('{"edited": true}')                  # tracked, and edited mid-run
+    pq.take(day)                                                           # must commit AND push
+    check = tmp_path / "check"
+    subprocess.run(["git", "clone", "-q", bare.as_uri(), str(check)], check=True, capture_output=True)
+    assert not list((check / "queue").glob("*")) and (check / "README.md").read_text() == "someone else pushed"
+    assert (day / "measured.json").read_text() == '{"edited": true}'      # the edit survived
