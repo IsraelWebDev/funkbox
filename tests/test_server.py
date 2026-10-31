@@ -153,17 +153,22 @@ def test_one_call_per_area_over_stdio(gl, tmp_path):
 
 
 def test_server_starts_fast_without_extras(tmp_path):
-    """The initialize handshake answers in < 3 s on a clean process (lazy imports: no onnxruntime, no piper)."""
+    """The initialize handshake answers within 3 s of what the mcp package alone costs to import on this machine
+    (lazy imports: no onnxruntime, piper, kokoro, HarfBuzz, reportlab or fontTools at startup)."""
     async def go(s, init):
         return init
+    t0 = time.perf_counter()
+    subprocess.run([sys.executable, "-c", "import mcp"], check=True)
+    mcp_cost = time.perf_counter() - t0
     t0 = time.perf_counter()
     init = asyncio.run(session(tmp_path / "h", go))
     dt = time.perf_counter() - t0
     info = getattr(init, "server_info", None) or init.serverInfo     # mcp 2.x / 1.x
-    assert info.name == "funkbox" and dt < 3.0, dt
+    assert info.name == "funkbox" and dt < 3.0 + mcp_cost, (dt, mcp_cost)
     print(f"handshake in {dt:.2f}s")
     code = ("import sys; sys.path.insert(0, %r); from funkbox import server; server.build_server(); "
-            "print(sorted(m for m in ('onnxruntime', 'piper', 'scipy') if m in sys.modules))" % str(ROOT))
+            "print(sorted(m for m in ('onnxruntime', 'piper', 'scipy', 'kokoro_onnx', 'uharfbuzz', 'reportlab', "
+            "'fontTools') if m in sys.modules))" % str(ROOT))
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
                        env=server_env(tmp_path / "h"))
     assert r.returncode == 0 and r.stdout.strip() == "[]", r.stderr + r.stdout
