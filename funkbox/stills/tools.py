@@ -202,16 +202,18 @@ def poster_animate(poster: dict | str, name: str = "", scale: float = 1.0, gif: 
 
 @safe
 def poster_fit(poster: dict | str, reference: str, params: dict, name: str = "fit", rounds: int = 4,
-               project: str = "") -> list:
+               project: str = "", keep_inside: list | None = None) -> list:
     """Tune the numbers of a poster to match a reference picture: each key in ``params`` is a variations key
     (layers.<id>.<prop>[.<index>...], e.g. "layers.band.points.2.1") with a step (0.01) or a [low, high] range.
     Coordinate search on small previews, keeping only changes that raise poster_compare's overall score; text,
     ids, files and path data are never changed. Writes <out>/posters/<name>.fit.poster.json and shows the result's
-    compare sheet. Use it after the design is right (shapes, glyphs, colours) to close the last few points."""
+    compare sheet. Use it after the design is right (shapes, glyphs, colours) to close the last few points.
+    ``keep_inside`` (the specs of poster_fit_inside) rejects any candidate whose words leave their bar or plate, so
+    a fit to a reference with flaws cannot push the words out of the artwork."""
     import json as _json
     from funkbox.stills import compare as cmp, fit as fitmod
     doc, base = api.load_poster(poster, project)
-    res = on_gl(fitmod.fit, doc, reference, params, rounds, None, base)
+    res = on_gl(fitmod.fit, doc, reference, params, rounds, None, base, "cover", keep_inside)
     out = render.fence_out(_out_dir(doc)) / f"{name}.fit.poster.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(_json.dumps(res.doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -222,8 +224,29 @@ def poster_fit(poster: dict | str, reference: str, params: dict, name: str = "fi
     return ["\n".join(lines), _png(sheet, 1440)]
 
 
+@safe
+def poster_fit_inside(poster: dict | str, specs: list, name: str = "inside", equal_size: bool = True,
+                      project: str = "") -> list:
+    """Size and place text layers so their words fit inside a part of the artwork (a bar, a plate, a label) with a
+    margin, as large as fits. Each spec: {"layer": id, "at": [x, y] (a point on that part, fractions of the canvas),
+    "band": half-thickness of a strip along the layer's skew_y angle (fraction of height; cuts a bar out of a bigger
+    shape of the same colour), "margin": 0.003, "tolerance": 60}. The region is the artwork colour around the point,
+    from the layers below the text. ``equal_size`` gives the layers the smallest of their sizes. Sets only size, x
+    and y (and align left, no wrap); the words never change. Writes <out>/posters/<name>.inside.poster.json."""
+    import json as _json
+    from funkbox.stills import inside
+    doc, base = api.load_poster(poster, project)
+    res = on_gl(inside.fit_inside, doc, specs, base, equal_size)
+    out = render.fence_out(_out_dir(doc)) / f"{name}.inside.poster.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(_json.dumps(res.doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    lines = [f"{k}: size {v['size']}, x {v['x']}, y {v['y']}" for k, v in res.changed.items()] + res.notes
+    lines.append(f"poster: {out}")
+    return ["\n".join(lines)]
+
+
 TOOLS = [poster_presets, poster_preview, poster_render, poster_variations, poster_export_ora, poster_compare,
-         poster_sizes, poster_animate, poster_fit, image_edit, image_trace]
+         poster_sizes, poster_animate, poster_fit, poster_fit_inside, image_edit, image_trace]
 
 
 def register(server) -> None:

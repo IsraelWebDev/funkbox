@@ -141,12 +141,27 @@ def cmd_poster_animate(a) -> int:
 def cmd_poster_fit(a) -> int:
     from funkbox.stills import fit
     doc, base = _doc(a)
-    res = fit.fit(doc, _abs(a.reference), _json_arg(a.params), a.rounds, None, base)
+    res = fit.fit(doc, _abs(a.reference), _json_arg(a.params), a.rounds, None, base, "cover",
+                  _json_arg(a.keep_inside) if a.keep_inside else None)
     out = Path(a.output or (Path(a.poster).with_suffix("").with_suffix("").name + ".fit.poster.json"))
     out.write_text(json.dumps(res.doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"overall {res.start['overall']} -> {res.score['overall']} after {res.evaluations} previews")
     for k, (x, y) in res.changed.items():
         print(f"  {k}: {x} -> {y}")
+    print(f"poster: {out}")
+    return 0
+
+
+def cmd_poster_fit_inside(a) -> int:
+    from funkbox.stills import inside
+    doc, base = _doc(a)
+    res = inside.fit_inside(doc, _json_arg(a.specs), base, not a.no_equal_size)
+    out = Path(a.output or (Path(a.poster).with_suffix("").with_suffix("").name + ".inside.poster.json"))
+    out.write_text(json.dumps(res.doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    for k, v in res.changed.items():
+        print(f"{k}: size {v['size']}, x {v['x']}, y {v['y']}")
+    for n in res.notes:
+        print(n)
     print(f"poster: {out}")
     return 0
 
@@ -218,7 +233,13 @@ def add_cli(sub) -> None:
     p.add_argument("poster"); p.add_argument("reference"); p.add_argument("--params", required=True,
                                                                            help='JSON: {"layers.band.points.2.1": 0.01}')
     p.add_argument("--rounds", type=int, default=4); p.add_argument("-o", "--output"); p.add_argument("--project")
+    p.add_argument("--keep-inside", help="JSON specs (see fit-inside): reject candidates whose words leave their region")
     p.set_defaults(fn=cmd_poster_fit)
+    p = psub.add_parser("fit-inside", help="size and place text layers so their words fit inside part of the artwork")
+    p.add_argument("poster"); p.add_argument("--specs", required=True,
+                                             help='JSON: [{"layer": "eng", "at": [0.6, 0.6], "band": 0.05}]')
+    p.add_argument("--no-equal-size", action="store_true"); p.add_argument("-o", "--output"); p.add_argument("--project")
+    p.set_defaults(fn=cmd_poster_fit_inside)
     p = psub.add_parser("compare", help="score a render against a reference picture and show where they differ")
     p.add_argument("candidate"); p.add_argument("reference"); p.add_argument("--fit", default="cover")
     p.add_argument("--name", default="compare"); p.add_argument("--out")

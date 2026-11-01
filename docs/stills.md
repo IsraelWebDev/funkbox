@@ -30,7 +30,8 @@ python -m funkbox poster export-ora examples/stills/glowmop_poster.poster.json  
 | `poster_sizes(poster, sizes, name, fit_to, formats)` | the same poster for other canvases (`story`, `landscape`, ... or `{name, width, height, set}`), each with its own text audit, plus a sheet |
 | `image_trace(path, name, colors, palette, smooth, tolerance, lift_text, max_letter, texts, font)` | a picture traced into a vector SVG of flat colours (`out/traces/<name>.svg`), with a fidelity score; place it as an `svg` layer. `lift_text` takes the lettering out and returns its lines; with `texts` also a starter poster with live text |
 | `poster_animate(poster, name, scale, gif)` | the poster's `motion` block as `<name>.mp4` (+ GIF), the last frame (the poster) as PNG, six frames on a strip and a per-frame text audit |
-| `poster_fit(poster, reference, params)` | tunes the poster's numbers (positions, sizes, points) to raise its `poster_compare` score against a reference |
+| `poster_fit(poster, reference, params, keep_inside)` | tunes the poster's numbers (positions, sizes, points) to raise its `poster_compare` score against a reference; `keep_inside` keeps words inside their part of the artwork |
+| `poster_fit_inside(poster, specs)` | sizes and places text layers so their words fit inside a bar, plate or label of the artwork, as large as fits, with a margin |
 | `poster_compare(candidate, reference, name, fit)` | scores a render (picture or poster) against a reference picture: overall, structure, colour, layout (0..100), the most different regions of a 4x4 grid, unmatched reference colours, and a candidate / reference / heat-map sheet |
 
 `poster` is a JSON object or a path to a `.poster.json` inside `FUNK_HOME`, `FUNK_OUT`, `FUNK_INPUTS` or the projects
@@ -209,6 +210,22 @@ story. `fit_to: "content"` fits only the drawn foreground (plus a margin) so a w
 space. A size can carry its own fixes in the variations' keys, in the new canvas's fractions:
 `{"name": "story", "width": 1080, "height": 1920, "set": {"layers.title.y": 0.12}}`. Every size is checked and
 audited on its own; one whose text would not fit is reported while the rest render.
+
+### Words inside a bar or plate
+
+Fitting to a reference copies the reference's flaws: if its English runs past the end of its bar, so will the fit.
+`poster_fit_inside` (CLI: `funkbox poster fit-inside X.poster.json --specs '[...]'`) sizes and places text layers so
+the words stay inside a part of the artwork instead. A spec is `{"layer": "eng", "at": [x, y], "band": 0.05,
+"margin": 0.003}`: `at` is a point (fractions of the canvas) on the part the words belong in; the region is the
+connected area of that artwork colour around it, taken from the layers under the text (`tolerance` sets how close a
+colour counts, default 60). `band` cuts the region to a strip of that half-thickness (a fraction of the canvas
+height) along the layer's own `skew_y` angle, so a slanted bar that joins a bigger shape of the same colour stays a
+bar. The words come out as large as they fit, `margin` clear of the edge and centred (`equal_size`, the default,
+gives several layers the smallest of their sizes, for the two halves of one phrase). It sets only `size`, `x` and
+`y` (and align left, no wrap); the words are never touched, and bent text (`arc`, `on_path`) is refused. Pass the same
+specs to `poster_fit` as `keep_inside` and any candidate whose words leave their region is rejected, so the last
+points of a fit cannot push them out. On the emblem's two slanted bars, a condensed italic fitted this way came out
+about 40% larger than the regular italic placed by eye.
 
 ## Tracing a picture into vectors
 

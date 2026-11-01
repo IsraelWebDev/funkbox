@@ -131,6 +131,8 @@ Describe → generate variations → pick → poster or edit → export.
 - **Recreating an emblem or badge with its text:** `image_trace(img, lift_text=[text colours], texts=[each line, top to
   bottom])` traces the artwork without its lettering and writes a starter poster with live text in the found boxes;
   `poster_fit` its x/y/size (skew_y, arc) against the original. Expect mid-to-high 90s, and the words stay exact.
+  To keep words inside a bar or plate, `poster_fit_inside` (a point on the bar, its `band`) sizes them to fit, and
+  `poster_fit(keep_inside=...)` stops a fit from pushing them out again.
 - **Motion:** add a `motion` block (entrances, keyframed tracks) and `poster_animate(poster, scale=0.5)` for a draft,
   then full size. The last frame is the poster; read the per-frame audit.
 - **Real footage:** `video_scenes(trailer)` finds the cuts and gives reel-ready trims; `video_trim` cuts a piece;

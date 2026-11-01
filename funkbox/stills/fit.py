@@ -39,7 +39,7 @@ def _bad_key(key: str) -> bool:
 
 
 def fit(doc, reference, params: dict, rounds: int = 4, scale: float | None = None, base_dir=None,
-        fit_mode: str = "cover") -> Fit:
+        fit_mode: str = "cover", keep_inside: list | None = None) -> Fit:
     raw = copy.deepcopy(schema.parse(doc).raw if not isinstance(doc, schema.Doc) else doc.raw)
     if not params or len(params) > MAX_PARAMS:
         raise ValueError(f"params: 1..{MAX_PARAMS} keys, each with a step or a [low, high] range")
@@ -63,11 +63,21 @@ def fit(doc, reference, params: dict, rounds: int = 4, scale: float | None = Non
     s = scale or min(1.0, 420 / max(schema.parse(raw).width, schema.parse(raw).height))
     n = [0]
     cache: dict = {}                                   # layers a candidate did not change are drawn once
+    keep = []
+    if keep_inside:                                    # words must stay inside their part of the artwork (see inside.py)
+        from . import inside
+        for sp in inside.check_specs(raw, keep_inside):
+            keep.append((sp, inside.region(raw, sp, base_dir, s, cache)))
+            if keep[-1][1].sum() < 50:
+                raise ValueError(f"keep_inside {sp['layer']!r}: the region around {sp['at']} is empty")
 
     def score(d: dict) -> float | None:
         if schema.check(d):
             return None
         try:
+            for sp, mask in keep:
+                if inside.outside(d, sp, mask, base_dir, s) > 0.005:
+                    return None                        # a candidate that leaves its region is not a candidate
             r = render.render_document(d, base_dir, scale=s, cache=cache)
         except (schema.PosterError, ValueError):
             return None
@@ -76,7 +86,8 @@ def fit(doc, reference, params: dict, rounds: int = 4, scale: float | None = Non
 
     best = score(raw)
     if best is None:
-        raise ValueError("the poster does not render as it is; fix it before fitting")
+        raise ValueError("the poster does not render as it is" + (", or its words are not inside their regions"
+                         " (run fit_inside first)" if keep else "") + "; fix it before fitting")
     res = Fit(raw, {}, {}, [(0, round(best, 2))])
     steps = {k: v[2] for k, v in space.items()}
     for _ in range(rounds):
