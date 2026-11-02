@@ -61,7 +61,7 @@ class Config:
     fastsd_dir: Path
     gimp_mcp_dir: Path
     gimp_exe: str | None
-    gl_backend: str         # "egl" | "default" | "" (try the default backend, then EGL)
+    gl_backend: str         # "egl" | "default" | "software" | "" (default, EGL, then software)
     fastsd_port: int
     gimp_port: int
     idle_min: float

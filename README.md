@@ -144,7 +144,11 @@ One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP ser
 ## Hardware
 
 - **Graphics:** any machine with OpenGL 3.3 works, including Intel integrated graphics. Headless boxes can use
-  software rendering (Mesa llvmpipe, `FUNK_GL_BACKEND=egl`).
+  software rendering (Mesa llvmpipe). funkbox tries the GPU first and falls back to software OpenGL on its own
+  (one notice on stderr, slower renders); `FUNK_GL_BACKEND=egl|default|software` forces an order.
+- **No GL at all?** On Linux, `python -m funkbox doctor` probes each backend and prints the install command for
+  your distribution (apt, dnf, pacman, apk or zypper). Render and MCP errors carry the same hint. Software
+  OpenGL needs Mesa's EGL/GL libraries installed; funkbox cannot supply them.
 - **Depth estimation:** runs on the CPU (ONNX).
 - **FastSD:** runs on an Intel iGPU through OpenVINO, or on the CPU. About 4 GB of free RAM is enough.
 

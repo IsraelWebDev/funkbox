@@ -35,11 +35,20 @@ def cmd_doctor(args) -> int:
 
     print("\nCHECKS")
     try:
-        from funkbox.gl.context import gl_info
-        info = gl_info()
-        line(True, "OpenGL", f"{info['GL_RENDERER']} ({info['GL_VERSION']})")
+        from funkbox.gl import context as gl_context
+        from funkbox.gl import hints
+        probes = gl_context.probe()
+        working = [p for p in probes if p.ok]
+        for p in probes:                        # a failed variant is a diagnostic unless nothing works
+            line(True if p.ok else (False if not working else None), "GL " + p.label, p.detail)
+        if working:
+            line(True, "OpenGL", "software only: renders work but are slower"
+                 if working[0].software else "GPU")
+        else:
+            hint = hints.install_hint([p.detail for p in probes])
+            line(False, "OpenGL", hint or "could not create an OpenGL 3.3 context")
     except Exception as e:  # noqa: BLE001
-        line(False, "OpenGL", f"{type(e).__name__}: {e}  (headless Linux: FUNK_GL_BACKEND=egl)")
+        line(False, "OpenGL", f"{type(e).__name__}: {e}")
     try:
         from funkbox.media import ffmpeg_exe
         line(True, "ffmpeg", str(ffmpeg_exe()))
