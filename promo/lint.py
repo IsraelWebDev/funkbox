@@ -87,6 +87,10 @@ def caption_problems(day: Path) -> list[str]:
         rect = next((r for p, r in cards.items() if src.endswith(p)), None)
         if rect is None or sh.caption is None or sh.caption.copy_id not in copy:
             continue
+        if sh.caption.anchor == "auto":
+            out.append(f"shots[{i}] ({sh.id}): code card shots need an explicit caption anchor "
+                       f"(top/center/bottom); \"auto\" cannot be checked against the card's text_rect")
+            continue
         lay = captions.layout_block(sh.caption.copy_id, copy[sh.caption.copy_id]["text"],
                                     captions.load_style(sh.caption.style), fonts, reel.brand, W, H,
                                     anchor=sh.caption.anchor, safe_area=reel.settings.safe_area)

@@ -449,7 +449,8 @@ def _resolve_collision(sh: dict, deck: copydeck.CopyDeck, style: str, fonts, bra
         pb = collision.product_box(p["x"], p["y"], ph, asp, W, H)
         return collision.overlap_fraction(collision.caption_box(lay), pb)
 
-    order = [c["anchor"], "bottom" if c["anchor"] == "top" else "top"]
+    cur = c["anchor"]
+    order = ["bottom" if cur == "auto" else cur, "bottom" if cur in ("top", "auto") else "top"]
     for attempt in range(2):
         for anchor in order:
             if worst(anchor, p["height"]) <= collision.MAX_OVERLAP:

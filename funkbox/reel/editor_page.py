@@ -96,7 +96,7 @@ function inspector(){const box=$('inspector'),sh=(W.shots||[]).find(s=>s.id===se
   `<div class="frames"><div>in<img id="fr-in" alt=""></div><div>out<img id="fr-out" alt=""></div></div>`+field('speed',`<input id="f-speed" value="${esc(JSON.stringify(src.speed??1))}" title="2, or [1, 3] to ramp">`)}
  if(src.video||src.image)h+=field('focus x',`<input id="f-fx" type="range" min="0" max="1" step="0.01" value="${(src.focus||[0.5,0.5])[0]}">`);
  h+=field('caption',`<select id="f-cap">${opts(S.copy_ids,cap.copy_id,'(none)')}</select>`);
- if(cap.copy_id)h+=field('reveal',`<select id="f-rev">${opts(['none','typewriter','words','pop'],cap.reveal||'none')}</select>`)+field('anchor',`<select id="f-anc">${opts(['top','center','bottom'],cap.anchor||'bottom')}</select>`);
+ if(cap.copy_id)h+=field('reveal',`<select id="f-rev">${opts(['none','typewriter','words','pop'],cap.reveal||'none')}</select>`)+field('anchor',`<select id="f-anc">${opts(['top','center','bottom','auto'],cap.anchor||'bottom')}</select>`);
  h+=field('voice line',`<select id="f-vo">${opts(S.copy_ids,sh.vo,'(none)')}</select>`);
  h+=`<div class="row"><button id="b-dup">Duplicate</button><button id="b-del">Delete</button></div>`;box.innerHTML=h;
  const set=(fn)=>{push();fn();draw()};

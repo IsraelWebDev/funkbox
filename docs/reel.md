@@ -113,6 +113,10 @@ shot; `validate` warns when a clip runs out before its shot ends (its last frame
 **Caption styles.** Styles live in `templates/captions/` (`red-box`, `lower-third`, `bold-pop`, `auto-box`); `box` is
 `primary`/`secondary`/`text`/`#rrggbb`, or `"auto"` (only for `box`, as in `auto-box`): the box then takes a dominant
 colour from the shot's own frame (the text switches to dark when that reads better; contrast-checked), falling back to `brand.primary`.
+`size` and `cps` also accept `"auto"` (as `auto-box` does): the font size then follows the line's length (0.062 of frame
+height at 14 characters or fewer, 0.046 at 40 or more, linear between, never below the minimum), and a typewriter reveal
+with `cps: "auto"` finishes in about 55% of its shot (cps = characters / (0.55 x shot seconds), clamped to 14..40; 28 when
+no shot length is known). Every other style keeps its fixed numbers, so existing reels render exactly as before.
 
 **Beat grid.** `"audio": {"bpm": 110, "beat_offset": 0.0}` sets a fixed grid (one beat = 60 / 110 = 0.545 s) without
 analysing any music. `"duration": "beats:4"` (halves allowed: `beats:1.5`) and `snap_cuts_to_beats` use it. Without `bpm`

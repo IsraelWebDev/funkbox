@@ -192,8 +192,10 @@ def _check_templates_and_fit(reel: Reel, rep: Report) -> None:
         if c is None or sh.product is None or c.copy_id not in rep.deck.lines:
             continue
         try:
+            # no frame here: "auto" is checked as "bottom" (the render may pick another anchor from the frame)
+            anchor = "bottom" if c.anchor == "auto" else c.anchor
             lay = captions.layout_block(c.copy_id, rep.deck.text(c.copy_id), captions.load_style(c.style), fonts,
-                                        reel.brand, W, H, anchor=c.anchor, safe_area=reel.settings.safe_area)
+                                        reel.brand, W, H, anchor=anchor, safe_area=reel.settings.safe_area)
             asp = collision.image_aspect(_res(sh.product.image, reel))
         except (captions.CaptionFitError, ValueError, OSError):
             continue                                          # reported elsewhere
@@ -296,7 +298,7 @@ def _check_reveal_timing(reel: Reel, rep: Report) -> None:
                                         safe_area=reel.settings.safe_area)
         except (captions.CaptionFitError, ValueError):
             continue
-        need = captions.CAPTION_DELAY + captions.reveal_seconds(lay, c.reveal, sp.vo_dur)
+        need = captions.CAPTION_DELAY + captions.reveal_seconds(lay, c.reveal, sp.vo_dur, sp.duration)
         if need > sp.duration + 1e-6:
             rep.warnings.append(f"shot {sh.id}: caption {c.copy_id!r} needs {need:.2f}s to finish its "
                                 f"{c.reveal} reveal but the shot lasts {sp.duration:.2f}s")

@@ -25,7 +25,7 @@ from . import motion as motionmod
 from . import product as product_mod
 from .copydeck import CopyDeck
 from .schema import Reel, Shot
-from .timeline import ShotSpan
+from .timeline import ShotSpan, resolve_transitions
 
 DRAFT_WIDTH, DRAFT_FPS = 540, 24
 TRANSITION_SECONDS = {"flash": 0.0, "push": 0.25, "crossfade": 0.3, "zoom-punch": 0.2}
@@ -137,6 +137,7 @@ class Renderer:
         self.h -= self.h % 2
         self.depth_mode = depth_mode
         self.motion = motionmod.MotionGL(self.w, self.h)
+        self._transitions = resolve_transitions(reel.shots)      # "auto" resolved once, here, for every shot
         self._state: dict[int, _ShotState] = {}
         self._funk_engine = None
         self._last_frames: dict[int, np.ndarray] = {}
@@ -305,6 +306,12 @@ class Renderer:
             self._fonts = captions_mod.fonts_for(b, self.reel.base_dir)
         return self._fonts
 
+    def _caption_free_mid_frame(self, span: ShotSpan) -> np.ndarray:
+        """The shot's frame at its middle, WITHOUT the caption (same composition as shot_frame minus
+        _overlay_caption), so auto box colour / auto anchor can follow the shot itself."""
+        mid = (span.end_frame - span.start_frame) // 2
+        return self._overlay_product(self._source_frame(span, mid), span, mid)
+
     def caption_layout(self, span: ShotSpan) -> captions_mod.Layout | None:
         sh = self.reel.shots[span.index]
         if sh.caption is None:
@@ -314,18 +321,23 @@ class Renderer:
         if lay is None:
             c = sh.caption
             style = captions_mod.load_style(c.style)
+            fr = None
+            if style.box == "auto" or c.anchor == "auto":
+                fr = self._caption_free_mid_frame(span)
             if style.box == "auto":
-                # the shot's frame at its middle, WITHOUT the caption (same composition as shot_frame minus
-                # _overlay_caption), so the box can follow a colour of the shot itself
-                mid = (span.end_frame - span.start_frame) // 2
-                fr = self._overlay_product(self._source_frame(span, mid), span, mid)
                 text_c = captions_mod.colour(style.color, self.reel.brand) or (255, 255, 255)
                 box_rgb, text_rgb = captions_mod.auto_box(fr, self.reel.brand, text_c)
                 style = replace(style, box="#{:02x}{:02x}{:02x}".format(*box_rgb),
                                 color="#{:02x}{:02x}{:02x}".format(*text_rgb))
+            anchor = c.anchor
+            if anchor == "auto":
+                def lay_for(a: str, w: int, h: int, sa: str, _c=c, _s=style) -> captions_mod.Layout:
+                    return captions_mod.layout_block(_c.copy_id, self.deck.text(_c.copy_id), _s, self.fonts(),
+                                                     self.reel.brand, w, h, anchor=a, safe_area=sa)
+                anchor = captions_mod.pick_anchor(fr, lay_for, self.w, self.h, self.reel.settings.safe_area)
             lay = stt.extra["caption"] = captions_mod.layout_block(
                 c.copy_id, self.deck.text(c.copy_id), style, self.fonts(),
-                self.reel.brand, self.w, self.h, anchor=c.anchor, safe_area=self.reel.settings.safe_area)
+                self.reel.brand, self.w, self.h, anchor=anchor, safe_area=self.reel.settings.safe_area)
         return lay
 
     def caption_sprite(self, span: ShotSpan, local: int) -> captions_mod.Sprite | None:
@@ -335,7 +347,7 @@ class Renderer:
         c = self.reel.shots[span.index].caption
         assert c is not None
         t = local / self.fps - captions_mod.CAPTION_DELAY
-        return captions_mod.render_caption(lay, c.reveal, t, span.vo_dur)
+        return captions_mod.render_caption(lay, c.reveal, t, span.vo_dur, span.duration)
 
     def _overlay_caption(self, fr: np.ndarray, span: ShotSpan, local: int) -> np.ndarray:
         spr = self.caption_sprite(span, local)
@@ -395,8 +407,7 @@ class Renderer:
         cur = self.shot_frame(span, local)
         self._last_frames[span.index] = cur
         if span.kind == "shot" and span.index > 0:
-            sh = self.reel.shots[span.index]
-            cur = self._transition(sh.transition_in, span, local, cur)
+            cur = self._transition(self._transitions[span.index], span, local, cur)
         return cur
 
     def _prev_last(self, span: ShotSpan) -> np.ndarray:

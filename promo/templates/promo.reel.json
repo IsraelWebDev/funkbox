@@ -34,7 +34,7 @@
         "copy_id": "hook",
         "style": "auto-box",
         "reveal": "typewriter",
-        "anchor": "center"
+        "anchor": "auto"
       }
     },
     {
@@ -43,7 +43,7 @@
         "image": "assets/card-copy-json.png"
       },
       "duration": "beats:6",
-      "transition_in": "zoom-punch",
+      "transition_in": "auto",
       "motion": {
         "type": "frame",
         "from": [
@@ -77,7 +77,7 @@
         "image": "assets/card-reel-json.png"
       },
       "duration": "beats:6",
-      "transition_in": "push",
+      "transition_in": "auto",
       "motion": {
         "type": "frame",
         "from": [
@@ -109,7 +109,7 @@
         ]
       },
       "duration": "beats:7",
-      "transition_in": "flash",
+      "transition_in": "auto",
       "motion": {
         "type": "none"
       },
@@ -127,7 +127,7 @@
         "loop": true
       },
       "duration": "beats:5",
-      "transition_in": "zoom-punch",
+      "transition_in": "auto",
       "motion": {
         "type": "none"
       },
@@ -135,7 +135,7 @@
         "copy_id": "p4",
         "style": "auto-box",
         "reveal": "typewriter",
-        "anchor": "center"
+        "anchor": "auto"
       }
     }
   ],

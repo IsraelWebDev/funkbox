@@ -22,6 +22,11 @@ from funkbox.config import ROOT as FUNKBOX
 from .schema import HEX_RE, Brand
 
 MIN_SIZE = 0.032                     # of frame height; below this the validator errors
+AUTO_SIZE_BIG, AUTO_SIZE_SMALL = 0.062, 0.046   # of frame height, at <= AUTO_N_SHORT / >= AUTO_N_LONG chars
+AUTO_N_SHORT, AUTO_N_LONG = 14, 40
+AUTO_CPS_SHARE = 0.55                # of the shot the "auto" typewriter reveal takes
+AUTO_CPS_MIN, AUTO_CPS_MAX = 14.0, 40.0
+DEFAULT_CPS = 28.0                   # when cps is "auto" but no shot duration is known
 SAFE_TOP, SAFE_BOTTOM = 0.14, 0.22   # reels safe area
 LAND_TOP, LAND_BOTTOM = 0.07, 0.12   # landscape safe area (player controls)
 CAPTION_DELAY = 0.1                  # seconds after the shot starts
@@ -39,7 +44,7 @@ class CaptionFitError(ValueError):
 @dataclass(frozen=True)
 class Style:
     font: str = "caption"                # "caption" | "display" (brand fonts)
-    size: float = 0.05                   # font px / frame height
+    size: float | str = 0.05             # font px / frame height, or "auto" (see effective_size)
     color: str = "text"                  # brand key (primary|secondary|text) or #rrggbb
     box: str | None = "primary"
     box_alpha: float = 1.0
@@ -53,7 +58,7 @@ class Style:
     shadow: float = 0.0                  # em offset
     accent: str | None = None            # left accent bar colour
     cursor: bool = False
-    cps: float = 28.0
+    cps: float | str = 28.0              # chars/second of the typewriter, or "auto" (see effective_cps)
     x: float | None = None               # left edge (fraction of width); None = centred
     y: float | None = None               # top (fraction of height); None = anchored
     gap: float = 0.0
@@ -78,7 +83,37 @@ def parse_style(d: dict, where: str = "style") -> Style:
             raise ValueError(f"{where}: {k}={v!r} must be primary|secondary|text or #rrggbb")
     if s.box is not None and s.box not in ("primary", "secondary", "text", "auto") and not HEX_RE.match(str(s.box)):
         raise ValueError(f"{where}: box={s.box!r} must be primary|secondary|text|auto or #rrggbb")
+    for k in ("size", "cps"):
+        v = getattr(s, k)
+        if v != "auto" and not isinstance(v, (int, float)):
+            raise ValueError(f"{where}: {k}={v!r} must be a number or 'auto'")
     return s
+
+
+def effective_size(style: Style, text: str) -> float:
+    """The numeric size of ``style`` for a line of ``text``. ``"auto"`` scales with the line's length:
+    linear between 0.062 of frame height at 14 characters or fewer and 0.046 at 40 or more, clamped to
+    that range (the caller still never goes below MIN_SIZE)."""
+    if style.size == "auto":
+        n = len(text)
+        if n <= AUTO_N_SHORT:
+            return AUTO_SIZE_BIG
+        if n >= AUTO_N_LONG:
+            return AUTO_SIZE_SMALL
+        f = (n - AUTO_N_SHORT) / (AUTO_N_LONG - AUTO_N_SHORT)
+        return AUTO_SIZE_BIG - (AUTO_SIZE_BIG - AUTO_SIZE_SMALL) * f
+    return float(style.size)
+
+
+def effective_cps(style: Style, text: str, span: float | None = None) -> float:
+    """The numeric cps of ``style`` for a line of ``text``. ``"auto"`` finishes the typewriter reveal in
+    about 55% of the shot: cps = characters / (0.55 * span), clamped to 14..40. Without a shot duration
+    (span None) it falls back to the fixed 28."""
+    if style.cps == "auto":
+        if span is None or span <= 0:
+            return DEFAULT_CPS
+        return min(AUTO_CPS_MAX, max(AUTO_CPS_MIN, len(text) / (AUTO_CPS_SHARE * span)))
+    return float(style.cps)
 
 
 def list_styles() -> list[str]:
@@ -223,6 +258,35 @@ def auto_box(frame: np.ndarray, brand: Brand, text_rgb) -> tuple[tuple[int, int,
     return box_rgb, text_rgb
 
 
+def pick_anchor(frame: np.ndarray, lay_for, W: int, H: int, safe_area: str = "reels") -> str:
+    """Pick "top" | "center" | "bottom" for a caption from the frame itself.
+
+    ``lay_for(anchor, W, H, safe_area)`` must return the caption's Layout for that anchor (layout_block), so
+    safe areas and the real text size are respected. The frame is downsampled to at most 270 px wide and
+    made greyscale; for each anchor the busyness under that anchor's caption box is the mean absolute
+    gradient of the greyscale frame inside the box. The least busy anchor wins; ties go bottom, then
+    center, then top. Deterministic.
+    """
+    h, w = frame.shape[:2]
+    scale = min(1.0, 270.0 / max(1, w))
+    nw, nh = max(1, round(w * scale)), max(1, round(h * scale))
+    grey = np.asarray(Image.fromarray(frame[..., :3]).convert("L").resize((nw, nh), Image.BILINEAR), np.float32)
+    best, best_busy = "bottom", None
+    for anchor in ("bottom", "center", "top"):        # strict < keeps the earlier one on ties: bottom first
+        lay = lay_for(anchor, W, H, safe_area)
+        x0 = max(0, min(nw - 1, int(round(lay.x0 * scale))))
+        x1 = max(x0 + 1, min(nw, int(round((lay.x0 + lay.box_w) * scale))))
+        y0 = max(0, min(nh - 1, int(round(lay.y0 * scale))))
+        y1 = max(y0 + 1, min(nh, int(round((lay.y0 + lay.box_h) * scale))))
+        box = grey[y0:y1, x0:x1]
+        gx, gy = np.abs(np.diff(box, axis=1)), np.abs(np.diff(box, axis=0))
+        grads = np.concatenate([gx.ravel(), gy.ravel()])
+        busy = float(np.mean(grads)) if grads.size else 0.0
+        if best_busy is None or busy < best_busy:
+            best, best_busy = anchor, busy
+    return best
+
+
 @dataclass
 class Layout:
     copy_id: str
@@ -301,7 +365,7 @@ def layout_block(copy_id: str, text: str, style: Style, fonts: Fonts, brand: Bra
                  anchor: str = "bottom", safe_area: str = "reels") -> Layout:
     """Lay out a copy line. Raises CaptionFitError (naming the copy id) if it cannot fit."""
     min_px = max(8, math.ceil(MIN_SIZE * H))
-    px = max(min_px, int(round(style.size * H)))
+    px = max(min_px, int(round(effective_size(style, text) * H)))
     if safe_area == "reels":
         top, bot = SAFE_TOP * H, H - SAFE_BOTTOM * H
     elif safe_area == "landscape":                 # 16:9 / square players: title-safe margins, controls at the bottom
@@ -338,7 +402,7 @@ def layout_block(copy_id: str, text: str, style: Style, fonts: Fonts, brand: Bra
         y0 = int(round(top))
     elif anchor == "center":
         y0 = int(round((top + bot - box_h) / 2))
-    else:
+    else:                               # "bottom"; "auto" also lands here (only a render frame can resolve it)
         y0 = int(round(bot - box_h))
     return Layout(copy_id, text, style, fonts, brand, px, pad, line_h, lines, widths, x0, y0, box_w, box_h,
                   cap_h, (W, H))
@@ -347,15 +411,17 @@ def layout_block(copy_id: str, text: str, style: Style, fonts: Fonts, brand: Bra
 # --------------------------------------------------------------------------- #
 # Reveals
 # --------------------------------------------------------------------------- #
-def reveal_count(lay: Layout, reveal: str, t: float, vo_dur: float | None = None) -> int:
-    """Number of characters of the copy text visible ``t`` seconds after the caption starts."""
+def reveal_count(lay: Layout, reveal: str, t: float, vo_dur: float | None = None,
+                 span: float | None = None) -> int:
+    """Number of characters of the copy text visible ``t`` seconds after the caption starts.
+    ``span`` is the shot's duration in seconds (resolves a cps of "auto"; None = the old fixed cps)."""
     n_total = len(lay.text)
     if t < 0:
         return 0
     if reveal in ("none", "pop"):
         return n_total
     if reveal == "typewriter":
-        return min(n_total, int(math.floor(t * lay.style.cps)))
+        return min(n_total, int(math.floor(t * effective_cps(lay.style, lay.text, span))))
     if reveal == "words":
         words = [m.end() for m in re.finditer(r"[^\s]+", lay.text)]
         if not words:
@@ -366,10 +432,11 @@ def reveal_count(lay: Layout, reveal: str, t: float, vo_dur: float | None = None
     raise ValueError(f"unknown reveal {reveal!r}")
 
 
-def reveal_seconds(lay: Layout, reveal: str, vo_dur: float | None = None) -> float:
-    """Time until the caption is fully visible."""
+def reveal_seconds(lay: Layout, reveal: str, vo_dur: float | None = None, span: float | None = None) -> float:
+    """Time until the caption is fully visible. ``span`` is the shot's duration in seconds (resolves a
+    cps of "auto"; None = the old fixed cps)."""
     if reveal == "typewriter":
-        return len(lay.text) / lay.style.cps
+        return len(lay.text) / effective_cps(lay.style, lay.text, span)
     if reveal == "words":
         n = len(re.findall(r"[^\s]+", lay.text))
         return (vo_dur if vo_dur else 0.3 * n) * (n - 1) / max(1, n)
@@ -497,9 +564,11 @@ def _animate(arr, x, y, lay: Layout, bw: int, bh: int, m: int, t: float, anim: s
     return a, int(round(cx - (m + bw / 2) * s)), int(round(cy - (m + bh / 2) * s))
 
 
-def render_caption(lay: Layout, reveal: str, t: float, vo_dur: float | None = None) -> Sprite | None:
-    """Sprite for a caption ``t`` seconds after it started (t < 0: not yet visible)."""
-    n = reveal_count(lay, reveal, t, vo_dur)
+def render_caption(lay: Layout, reveal: str, t: float, vo_dur: float | None = None,
+                   span: float | None = None) -> Sprite | None:
+    """Sprite for a caption ``t`` seconds after it started (t < 0: not yet visible).
+    ``span`` is the shot's duration in seconds (resolves a cps of "auto"; None = the old fixed cps)."""
+    n = reveal_count(lay, reveal, t, vo_dur, span)
     strings = revealed_lines(lay, n)
     if reveal == "none" and t < 0:
         return None

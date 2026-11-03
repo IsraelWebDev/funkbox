@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import bisect
+import hashlib
 import math
 import statistics
 from dataclasses import dataclass
@@ -20,6 +21,35 @@ LONG_REEL_WARN = 60.0
 
 class TimelineError(ValueError):
     pass
+
+
+AUTO_TRANSITIONS = ("flash", "push", "zoom-punch", "crossfade")
+
+
+def resolve_transition(shot_id: str, index: int, value: str, prev: str | None = None) -> str:
+    """The concrete transition a shot enters with. ``"auto"`` becomes a deterministic choice among
+    AUTO_TRANSITIONS seeded by a hash of the shot id and its index (hashlib, not hash()), never the same
+    value twice in a row (``prev`` is the previous shot's resolved transition) and never on shot 0, which
+    cuts. Any other value is returned unchanged."""
+    if value != "auto":
+        return value
+    if index == 0:
+        return "cut"
+    h = int.from_bytes(hashlib.sha256(f"{shot_id}:{index}".encode("utf-8")).digest()[:8], "big")
+    choice = AUTO_TRANSITIONS[h % len(AUTO_TRANSITIONS)]
+    if prev in AUTO_TRANSITIONS and choice == prev:
+        choice = AUTO_TRANSITIONS[(h + 1) % len(AUTO_TRANSITIONS)]
+    return choice
+
+
+def resolve_transitions(shots) -> list[str]:
+    """resolve_transition for every shot, in order (so "never twice in a row" sees the resolved previous)."""
+    out, prev = [], None
+    for i, sh in enumerate(shots):
+        v = resolve_transition(sh.id, i, sh.transition_in, prev)
+        out.append(v)
+        prev = v
+    return out
 
 
 @dataclass(frozen=True)

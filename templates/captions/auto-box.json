@@ -1,6 +1,6 @@
 {
   "font": "caption",
-  "size": 0.052,
+  "size": "auto",
   "color": "text",
   "box": "auto",
   "padding": 0.6,
@@ -9,5 +9,5 @@
   "align": "left",
   "scale_in": 0.15,
   "cursor": false,
-  "cps": 28
+  "cps": "auto"
 }
