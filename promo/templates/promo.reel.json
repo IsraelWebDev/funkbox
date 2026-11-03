@@ -7,6 +7,7 @@
     "safe_area": "reels"
   },
   "brand": {
+    "from": "assets/key.png",
     "primary": "#e0245e",
     "secondary": "#12141c",
     "text": "#ffffff"

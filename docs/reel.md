@@ -118,6 +118,8 @@ height at 14 characters or fewer, 0.046 at 40 or more, linear between, never bel
 with `cps: "auto"` finishes in about 55% of its shot (cps = characters / (0.55 x shot seconds), clamped to 14..40; 28 when
 no shot length is known). Every other style keeps its fixed numbers, so existing reels render exactly as before.
 
+**`brand.from`.** A reel's `brand` may name an image (or an mp4, read at its frame at 1.0 s) with `"from"`, relative to the reel's folder. The primary, secondary and text colours are then resolved from that file with the same helpers as `brand_from_assets` (the most vivid usable cluster, a dark colour for secondary, and white or near-black text, darkened or lightened to reach contrast 4.5). The explicit `primary`, `secondary` and `text` keys are the fallback: if the file is missing or has no usable colours, validation warns and names the file, and the explicit colours are used. A reel without `from` renders exactly as before.
+
 **Beat grid.** `"audio": {"bpm": 110, "beat_offset": 0.0}` sets a fixed grid (one beat = 60 / 110 = 0.545 s) without
 analysing any music. `"duration": "beats:4"` (halves allowed: `beats:1.5`) and `snap_cuts_to_beats` use it. Without `bpm`
 the grid is detected from `audio.music`.

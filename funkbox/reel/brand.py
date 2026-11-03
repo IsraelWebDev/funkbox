@@ -8,7 +8,10 @@ darkened/lightened until the contrast is >= 4.5 and the tool says so).
 from __future__ import annotations
 
 import colorsys
+import os
 import re
+import subprocess
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -162,6 +165,54 @@ def pick(clusters: list[dict]) -> dict:
                      f"{'darkened' if text == white else 'lightened'} to {rgb_to_hex(primary)}")
     return {"primary": rgb_to_hex(primary), "secondary": sec["hex"] if "hex" in sec else rgb_to_hex(sec["rgb"]),
             "text": rgb_to_hex(text), "notes": notes}
+
+
+# --------------------------------------------------------------------------- #
+def video_frame(video: Path, seconds: float = 1.0) -> Path | None:
+    """One frame of a video at ``seconds``, written to a temp PNG (never next to the video).
+    None when ffmpeg is missing or cannot produce a frame."""
+    from funkbox.media import require_ffmpeg
+    fd, name = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
+    out = Path(name)
+    try:
+        ff = require_ffmpeg()
+    except RuntimeError:
+        out.unlink(missing_ok=True)
+        return None
+    try:
+        for ss in (seconds, 0.0):              # a clip shorter than `seconds` falls back to its first frame
+            r = subprocess.run([ff, "-y", "-loglevel", "error", "-ss", f"{ss}", "-i", str(video),
+                                "-frames:v", "1", str(out)], capture_output=True)
+            if r.returncode == 0 and out.stat().st_size > 0:
+                return out
+            out.unlink(missing_ok=True)
+    except OSError:
+        out.unlink(missing_ok=True)
+        return None
+    return None
+
+
+def brand_from_file(path: Path) -> dict | None:
+    """Brand colours from one image (or one frame at 1.0 s of an mp4): the same ``pick(palette_of(...))``
+    as brand_from_assets. None when the file cannot be read or has no usable colours."""
+    tmp: Path | None = None
+    try:
+        p = path
+        if path.suffix.lower() == ".mp4":
+            tmp = video_frame(path, 1.0)
+            if tmp is None:
+                return None
+            p = tmp
+        px = opaque_pixels(p)
+    except (OSError, ValueError, RuntimeError):
+        return None
+    finally:
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
+    if len(px) < 50:
+        return None
+    return pick(palette_of(px))
 
 
 # --------------------------------------------------------------------------- #

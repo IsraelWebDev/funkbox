@@ -61,6 +61,7 @@ class Brand:
     font_display: str = "fonts/DMSerifDisplay-Regular.ttf"
     logo: str | None = None
     font_fallback: str | None = "fonts/Rubik-Bold.ttf"   # draws text the caption/display font cannot (Hebrew, Cyrillic)
+    brand_from: str | None = None             # "from": image/mp4 the colours were resolved from (None = explicit colours)
 
 
 @dataclass
@@ -172,6 +173,7 @@ class Reel:
     base_dir: str | None = None             # folder of the reel file; paths resolve against it
     formats: list[Format] = field(default_factory=list)     # extra output formats (see materialize)
     format_id: str | None = None            # set when this Reel is one format's variant
+    warnings: list[str] = field(default_factory=list)       # non-fatal notes from parsing (e.g. brand.from fallback)
 
     def shot(self, shot_id: str) -> Shot:
         for s in self.shots:
@@ -493,6 +495,25 @@ def _parse_end_card(r: _R) -> EndCard:
     return e
 
 
+def _resolve_brand_from(frm: str, base_dir: str | None, warnings: list[str]) -> dict | None:
+    """``brand.from``: resolve the palette from an image (or one frame of an mp4) with the helpers in
+    reel.brand, resolved like every other reel asset path. Returns None — and appends a warning naming
+    the file — when the file is missing or has no usable colours, so the explicit colours stay as fallback."""
+    from funkbox.config import resolve_path
+
+    from . import brand as brand_mod
+    try:
+        p = resolve_path(frm, base_dir)
+    except (ValueError, FileNotFoundError) as e:
+        warnings.append(f"brand.from {frm!r}: {e}; keeping the explicit brand colours")
+        return None
+    chosen = brand_mod.brand_from_file(p)
+    if chosen is None:
+        warnings.append(f"brand.from {frm!r}: no usable colours in that file; keeping the explicit brand colours")
+        return None
+    return chosen
+
+
 def parse_reel(d: Any, base_dir: str | None = None) -> Reel:
     """Parse a reel dict. Raises ReelError listing every problem."""
     errs: list[str] = scan_forbidden(d)
@@ -506,12 +527,20 @@ def parse_reel(d: Any, base_dir: str | None = None) -> Reel:
                              safe_area=s.s("safe_area", "reels", SAFE_AREAS) or "reels")
     s.finish()
     b = r.sub("brand")
+    brand_from = b.s("from", None)
     reel.brand = Brand(primary=b.s("primary", "#c8102e", pattern=HEX_RE) or "#c8102e",
                        secondary=b.s("secondary", "#1a1a1a", pattern=HEX_RE) or "#1a1a1a",
                        text=b.s("text", "#ffffff", pattern=HEX_RE) or "#ffffff",
                        font_caption=b.s("font_caption", "fonts/Oswald-SemiBold.ttf") or "",
                        font_display=b.s("font_display", "fonts/DMSerifDisplay-Regular.ttf") or "",
                        logo=b.s("logo", None), font_fallback=b.s("font_fallback", "fonts/Rubik-Bold.ttf"))
+    if brand_from:
+        reel.brand.brand_from = brand_from
+        chosen = _resolve_brand_from(brand_from, base_dir, reel.warnings)
+        if chosen:
+            reel.brand.primary = chosen["primary"]
+            reel.brand.secondary = chosen["secondary"]
+            reel.brand.text = chosen["text"]
     b.finish()
     reel.copy = r.s("copy", "", required=True) or ""
     a = r.sub("audio")

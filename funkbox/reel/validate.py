@@ -99,6 +99,7 @@ def _validate_one(src, base_dir, *, vo_durations, beats, deep: bool, fmt: str | 
         rep.errors.append(f"cannot read reel: {e}")
         return rep
     rep.reel = reel
+    rep.warnings += reel.warnings
     try:
         cp = _res(reel.copy, reel)
         data = cp.read_bytes()                # ONE read: the bytes that are hash-checked are the bytes that are parsed
