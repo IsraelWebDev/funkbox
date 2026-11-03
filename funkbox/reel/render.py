@@ -6,7 +6,7 @@ import os
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Iterator
 
@@ -145,7 +145,6 @@ class Renderer:
         self._endcard: endcard_mod.EndCardRenderer | None = None
         if self.fps != self.src_fps:                 # rescale the timeline to the render fps
             sc = self.fps / self.src_fps
-            from dataclasses import replace
             self.spans = [replace(s, start_frame=round(s.start_frame * sc), end_frame=round(s.end_frame * sc))
                           for s in spans]
         self.total_frames = self.spans[-1].end_frame
@@ -314,8 +313,18 @@ class Renderer:
         lay = stt.extra.get("caption")
         if lay is None:
             c = sh.caption
+            style = captions_mod.load_style(c.style)
+            if style.box == "auto":
+                # the shot's frame at its middle, WITHOUT the caption (same composition as shot_frame minus
+                # _overlay_caption), so the box can follow a colour of the shot itself
+                mid = (span.end_frame - span.start_frame) // 2
+                fr = self._overlay_product(self._source_frame(span, mid), span, mid)
+                text_c = captions_mod.colour(style.color, self.reel.brand) or (255, 255, 255)
+                box_rgb, text_rgb = captions_mod.auto_box(fr, self.reel.brand, text_c)
+                style = replace(style, box="#{:02x}{:02x}{:02x}".format(*box_rgb),
+                                color="#{:02x}{:02x}{:02x}".format(*text_rgb))
             lay = stt.extra["caption"] = captions_mod.layout_block(
-                c.copy_id, self.deck.text(c.copy_id), captions_mod.load_style(c.style), self.fonts(),
+                c.copy_id, self.deck.text(c.copy_id), style, self.fonts(),
                 self.reel.brand, self.w, self.h, anchor=c.anchor, safe_area=self.reel.settings.safe_area)
         return lay
 

@@ -16,7 +16,8 @@ reel from a trailer: `video_scenes`, look at the sheet, pick shots, copy their t
 
 **Subtitles.** Cues come from an `.srt` / `.vtt` file or a list `[{"start": 1.2, "end": 3.0, "text": "..."}]` (times
 in seconds or `[hh:]mm:ss`). Each cue is drawn by the same caption engine as reels: a caption style (`lower-third`,
-`red-box`, `bold-pop`), the brand's fonts and colours, wrapped on spaces, never shrunk below the minimum size,
+`red-box`, `bold-pop`, `auto-box` — there, with no reel frame to sample, the `"auto"` box falls back to `brand.primary`),
+the brand's fonts and colours, wrapped on spaces, never shrunk below the minimum size,
 right-to-left for Hebrew. The text is never rewritten (tags such as `<i>` are drawn as written), and
 `<name>.text_audit.json` proves every cue was drawn exactly. A portrait video uses the reels safe area (clear of the
 app's buttons); a landscape one keeps clear of the player controls.

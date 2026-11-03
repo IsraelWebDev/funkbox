@@ -110,6 +110,10 @@ gives the right crop in 9:16 and in 16:9.
 copy of the same frame). On video, `speed: 2` plays twice as fast and `speed: [1, 3]` ramps from 1x to 3x over the
 shot; `validate` warns when a clip runs out before its shot ends (its last frame is held unless `loop` is set).
 
+**Caption styles.** Styles live in `templates/captions/` (`red-box`, `lower-third`, `bold-pop`, `auto-box`); `box` is
+`primary`/`secondary`/`text`/`#rrggbb`, or `"auto"` (only for `box`, as in `auto-box`): the box then takes a dominant
+colour from the shot's own frame (the text switches to dark when that reads better; contrast-checked), falling back to `brand.primary`.
+
 **Beat grid.** `"audio": {"bpm": 110, "beat_offset": 0.0}` sets a fixed grid (one beat = 60 / 110 = 0.545 s) without
 analysing any music. `"duration": "beats:4"` (halves allowed: `beats:1.5`) and `snap_cuts_to_beats` use it. Without `bpm`
 the grid is detected from `audio.music`.

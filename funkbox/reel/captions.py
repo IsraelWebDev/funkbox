@@ -72,10 +72,12 @@ def parse_style(d: dict, where: str = "style") -> Style:
         raise ValueError(f"{where}: font must be 'caption' or 'display'")
     if s.align not in ("left", "center"):
         raise ValueError(f"{where}: align must be left|center")
-    for k in ("color", "stroke_color", "box", "accent"):
+    for k in ("color", "stroke_color", "accent"):
         v = getattr(s, k)
         if v is not None and v not in ("primary", "secondary", "text") and not HEX_RE.match(str(v)):
             raise ValueError(f"{where}: {k}={v!r} must be primary|secondary|text or #rrggbb")
+    if s.box is not None and s.box not in ("primary", "secondary", "text", "auto") and not HEX_RE.match(str(s.box)):
+        raise ValueError(f"{where}: box={s.box!r} must be primary|secondary|text|auto or #rrggbb")
     return s
 
 
@@ -152,9 +154,73 @@ def hex_rgb(h: str) -> tuple[int, int, int]:
 def colour(key: str | None, brand: Brand) -> tuple[int, int, int] | None:
     if key is None:
         return None
+    if key == "auto":
+        return hex_rgb(brand.primary)          # paths without a frame (validate, subtitles) use the primary
     if key in ("primary", "secondary", "text"):
         return hex_rgb(getattr(brand, key))
     return hex_rgb(key)
+
+
+def auto_box(frame: np.ndarray, brand: Brand, text_rgb) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+    """Pick a caption box colour from the shot's own frame.
+
+    Downsamples ``frame`` (HxWx3 uint8) to at most 64 px on the long side, drops near-black (value < 0.15),
+    near-white (value > 0.95 with saturation < 0.15) and greyish (saturation < 0.25) pixels, quantises hue into
+    24 bins and takes the bin with the highest sum of saturation*value (ties: the lower hue bin); the box colour
+    is the mean RGB of that bin's pixels. Fewer than 2% qualifying pixels -> brand primary. The box is then
+    kept vivid: if ``text_rgb`` does not reach contrast 4.5 on it, the text becomes #111111 or white (whichever
+    reads), and only if neither does is the box darkened/lightened in small Lab steps. Returns (box, text).
+    Deterministic.
+    """
+    from .brand import contrast, hex_to_rgb, luminance
+    from .product import lab_to_srgb, srgb_to_lab
+
+    primary = hex_to_rgb(brand.primary)
+    text_rgb = tuple(int(c) for c in text_rgb)
+    h, w = frame.shape[:2]
+    scale = min(1.0, 64.0 / max(h, w))
+    if scale < 1.0:
+        small = np.asarray(Image.fromarray(frame).resize(
+            (max(1, round(w * scale)), max(1, round(h * scale))), Image.BILINEAR))
+    else:
+        small = frame
+    a = small.astype(np.float32) / 255.0
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    mx, mn = a.max(-1), a.min(-1)
+    diff = mx - mn
+    val = mx
+    sat = np.where(mx > 1e-9, diff / np.maximum(mx, 1e-9), 0.0)
+    hue = np.zeros_like(mx)
+    m = diff > 1e-9
+    i = m & (mx == r)
+    hue[i] = ((g - b)[i] / diff[i]) % 6.0
+    i = m & (mx == g)
+    hue[i] = (b - r)[i] / diff[i] + 2.0
+    i = m & (mx == b)
+    hue[i] = (r - g)[i] / diff[i] + 4.0
+    hue /= 6.0
+    keep = (val >= 0.15) & ~((val > 0.95) & (sat < 0.15)) & (sat >= 0.25)
+    if keep.sum() < 0.02 * keep.size:
+        return primary, text_rgb
+    bins = np.minimum((hue[keep] * 24).astype(np.int64), 23)
+    sums = np.bincount(bins, weights=(sat * val)[keep], minlength=24)
+    best = int(np.argmax(sums))               # first maximum: the lowest hue bin on ties
+    mean = np.mean(small[keep][bins == best].astype(np.float64), axis=0)
+    box_rgb = tuple(int(min(255, max(0, round(float(c))))) for c in mean)
+    if contrast(box_rgb, text_rgb) >= 4.5:
+        return box_rgb, text_rgb
+    for alt in ((17, 17, 17), (255, 255, 255)):      # keep a vivid box: switch the text before touching the box
+        if alt != text_rgb and contrast(box_rgb, alt) >= 4.5:
+            return box_rgb, alt
+    lab = srgb_to_lab(np.array(box_rgb, np.float32)).astype(np.float64)
+    step = -1.5 if luminance(text_rgb) >= 0.5 else 1.5     # light text: darken the box; dark text: lighten it
+    for _ in range(100):
+        lab[0] = float(np.clip(lab[0] + step, 0, 100))
+        cand = tuple(int(min(255, max(0, round(float(c))))) for c in lab_to_srgb(lab.astype(np.float32)))
+        box_rgb = cand
+        if contrast(box_rgb, text_rgb) >= 4.5 or lab[0] in (0.0, 100.0):
+            break
+    return box_rgb, text_rgb
 
 
 @dataclass
