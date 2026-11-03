@@ -543,3 +543,61 @@ def test_committing_the_queue_take_works_with_the_day_folder_mid_edit(tmp_path, 
     subprocess.run(["git", "clone", "-q", bare.as_uri(), str(check)], check=True, capture_output=True)
     assert not list((check / "queue").glob("*")) and (check / "README.md").read_text() == "someone else pushed"
     assert (day / "measured.json").read_text() == '{"edited": true}'      # the edit survived
+
+
+# --------------------------------------------------------------------------- owner seeds and trend shape
+def _seeds(tmp_path, monkeypatch):
+    import seeds
+    monkeypatch.setattr(seeds.state, "STATE_DIR", tmp_path)
+    return seeds
+
+
+def test_seeds_add_next_use_and_expiry(tmp_path, monkeypatch):
+    seeds = _seeds(tmp_path, monkeypatch)
+    assert seeds.next_seed("2026-11-03") is None
+    a = seeds.add("Claude-made animations of gears and cells all over my feed", ["https://x.com/i/status/1"],
+                  seen="2026-11-01", today="2026-11-03")
+    b = seeds.add("A second thing I saw about looping posters", ["https://x.com/i/status/2"],
+                  seen="2026-11-02", today="2026-11-03")
+    assert (a["id"], b["id"]) == ("sd-0001", "sd-0002")
+    assert seeds.next_seed("2026-11-03")["id"] == "sd-0001"            # oldest seen first
+    seeds.use("sd-0001", "2026-11-03")
+    assert seeds.next_seed("2026-11-03")["id"] == "sd-0002"            # a used seed is not offered again
+    assert seeds.next_seed("2026-12-30") is None                       # stale after 21 days
+    with pytest.raises(ValueError):
+        seeds.use("sd-0099", "2026-11-03")
+
+
+def test_seeds_reject_bad_input(tmp_path, monkeypatch):
+    seeds = _seeds(tmp_path, monkeypatch)
+    for note, urls, seen in (("short", ["https://x.com/a"], None), ("long enough note here", [], None),
+                             ("long enough note here", ["not a link"], None),
+                             ("long enough note here", ["https://x.com/a"], "2099-01-01")):
+        with pytest.raises(ValueError):
+            seeds.add(note, urls, seen=seen, today="2026-11-03")
+    assert seeds.load() == []
+
+
+def _trend_brief(tmp_path, **kw):
+    d = tmp_path / "d"
+    d.mkdir(exist_ok=True)
+    brief = {"date": "2026-11-03", "format": "trend-reaction", **kw}
+    (d / "brief.json").write_text(json.dumps(brief), encoding="utf-8")
+    return d
+
+
+def test_trend_shape_is_linted(tmp_path):
+    import lint
+    src = {"title": "post", "url": "https://x.com/i/status/1", "date": "2026-10-20"}
+    assert lint.trend_problems(_trend_brief(tmp_path, trend=None))                      # trend-reaction needs a trend
+    assert lint.trend_problems(_trend_brief(tmp_path, format="tip", trend=None)) == []
+    ok_genre = {"summary": "machine animations", "kind": "genre", "origin": "owner-seed", "seed": "sd-0001",
+                "demo": "a gear train shader loop made by funkbox", "sources": [src]}
+    assert lint.trend_problems(_trend_brief(tmp_path, trend=ok_genre)) == []
+    web_one = dict(ok_genre, origin="web")
+    web_one.pop("seed")
+    assert any("2 independent" in p for p in lint.trend_problems(_trend_brief(tmp_path, trend=web_one)))
+    assert any("trend.demo" in p for p in lint.trend_problems(_trend_brief(tmp_path, trend=dict(ok_genre, demo=""))))
+    event_old = {"summary": "release", "kind": "event", "sources": [src]}              # 14 days old: too old for news
+    assert any("allows 7" in p for p in lint.trend_problems(_trend_brief(tmp_path, trend=event_old)))
+    assert any("seed" in p for p in lint.trend_problems(_trend_brief(tmp_path, trend=dict(ok_genre, seed="x"))))

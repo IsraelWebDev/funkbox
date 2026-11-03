@@ -26,7 +26,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
 FORMATS = {
-    "trend-reaction": "react to something new in AI video, with funkbox's honest connection to it",
+    "trend-reaction": "react to something new in AI video, or ride a content style people are making with AI, with funkbox's honest connection to it (the video shows funkbox making it)",
     "feature-spotlight": "one feature, shown working on screen",
     "how-to": "a job done in 3 real steps (real commands or shot-list lines)",
     "behind-the-scenes": "how this very video was made: the measured numbers from measured.json",
@@ -166,9 +166,64 @@ def approval_problems(day: Path) -> list[str]:
     return ap(day)
 
 
+TREND_KINDS = ("event", "genre")                 # an event is news; a genre is a style people are making
+TREND_ORIGINS = ("web", "owner-seed")
+TREND_MAX_AGE = {"event": 7, "genre": 30}        # days between a source's date and the brief's date
+
+
+def trend_problems(day: Path) -> list[str]:
+    """The shape of brief.json's trend, so the reviewer's honesty check has real sources to read."""
+    import datetime as _dt
+    import re as _re
+    if not (day / "brief.json").is_file():
+        return []                                  # a missing brief is reported by the other checks
+    brief = _json(day / "brief.json")
+    trend = brief.get("trend")
+    if not trend:
+        return ["format trend-reaction needs a trend (summary and sources)"] if brief.get("format") == "trend-reaction" else []
+    if not isinstance(trend, dict):
+        return ["trend must be an object or null"]
+    out = []
+    if not str(trend.get("summary", "")).strip():
+        out.append("trend.summary is empty")
+    kind = trend.get("kind", "event")
+    if kind not in TREND_KINDS:
+        out.append(f"trend.kind must be one of {list(TREND_KINDS)}")
+        kind = "event"
+    origin = trend.get("origin", "web")
+    if origin not in TREND_ORIGINS:
+        out.append(f"trend.origin must be one of {list(TREND_ORIGINS)}")
+    if origin == "owner-seed" and not _re.match(r"^sd-\d{4}$", str(trend.get("seed", ""))):
+        out.append("trend.origin owner-seed needs trend.seed (the seed id, like sd-0001)")
+    if kind == "genre" and not str(trend.get("demo", "")).strip():
+        out.append("a genre trend needs trend.demo: how the video shows funkbox making this style itself")
+    sources = trend.get("sources")
+    if not isinstance(sources, list) or not sources:
+        return out + ["trend.sources needs at least one {title, url, date}"]
+    if kind == "genre" and origin == "web" and len(sources) < 2:
+        out.append("a genre trend found on the web needs at least 2 independent sources (or come from an owner seed)")
+    try:
+        today = _dt.date.fromisoformat(str(brief.get("date", "")))
+    except ValueError:
+        today = None
+    for i, src in enumerate(sources):
+        if not isinstance(src, dict) or not str(src.get("title", "")).strip() \
+                or not _re.match(r"^https?://\S+$", str(src.get("url", ""))):
+            out.append(f"trend.sources[{i}] needs a title and an http(s) url")
+            continue
+        try:
+            sd = _dt.date.fromisoformat(str(src.get("date", "")))
+        except ValueError:
+            out.append(f"trend.sources[{i}].date must be YYYY-MM-DD")
+            continue
+        if today and (today - sd).days > TREND_MAX_AGE[kind]:
+            out.append(f"trend.sources[{i}] is {(today - sd).days} days old; a {kind} trend allows {TREND_MAX_AGE[kind]}")
+    return out
+
+
 def check(day: Path) -> list[str]:
     return (caption_problems(day) + variety_problems(day) + feedback_problems(day) + claim_problems(day)
-            + approval_problems(day))
+            + approval_problems(day) + trend_problems(day))
 
 
 def add_feedback(day: Path, log: Path | None = None) -> bool:

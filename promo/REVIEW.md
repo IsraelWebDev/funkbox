@@ -22,9 +22,16 @@ entries of `$STATE/posts.jsonl` (the post log, next to the day folders; it may n
 3. Every claim maps to a fact in FACTS.md, or to an M-key in measured.json whose "say" sentence it matches (a
    number may be rounded down, never up; "no GPU" only if M-machine says so). No superlatives, no invented numbers, no
    named competitors, no testimonials, nothing about Anthropic beyond "works with Claude".
-4. If the brief uses a trend (`trend` is not null), the tie-in is honest: the sources in brief.json are real, recent (last 7 days) and say what the brief
-   says. funkbox's link to the trend is true, not forced. If the trend is a tragedy, politics, a lawsuit, a person's
-   private life, or a security incident, FAIL.
+4. If the brief uses a trend (`trend` is not null), the tie-in is honest. Read `trend.kind`:
+   - `event` (news): the sources in brief.json are real, recent (last 7 days) and say what the brief says.
+   - `genre` (a style people are making): the sources (at most 30 days old; 2 or more, or an owner seed, whose
+     links are the owner's own evidence and need not be re-fetched when the site blocks it) show people making that
+     style, and the brief claims no more than they show. The video itself must show funkbox making a piece in that
+     style (`trend.demo`; look at the frames and reel.json): a caption about the style over unrelated footage is
+     FORCED, so FAIL. Nothing may suggest funkbox, Claude or the account started the trend, shows or copies
+     another person's post or footage, or names or tags an individual creator or account.
+   In both kinds funkbox's link to the trend is true, not forced. If the trend is a tragedy, politics, a lawsuit, a
+   person's private life, or a security incident, FAIL.
 5. Spelling and grammar are clean; the X text is <= 255 chars with no URL (post.py adds one link itself); the YouTube
    title <= 100 chars.
 6. Not a repeat: lint enforces the format, selling point and hook rules; also judge whether the angle would feel

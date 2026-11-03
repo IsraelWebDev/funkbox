@@ -34,12 +34,21 @@ posters behind its shots): the owner's sign-off on the specific content it names
 or edit one yourself; only the owner gives it. The reviewer uses it for check 7 and nothing else (REVIEW.md).
 
 ## 1. Pick today's idea (15 minutes, not more)
-The point is a promo a follower of the account has NOT seen yet. Gather candidates from three places, then choose.
-- **What's new in AI video** (last 48 hours): 3-5 web searches across model releases, creator workflows, ad and
-  marketing trends, open-source tools, on-device / local generation, and what creators complain about. Skip
-  tragedies, politics, lawsuits, personal matters and security incidents.
+The point is a promo a follower of the account has NOT seen yet. Gather candidates from four places, then choose.
+- **Owner seeds first:** `python promo/seeds.py next`. A seed is something the owner saw (on X, say) that the web
+  search cannot see, with links. If it prints one, it is a candidate trend (`"origin": "owner-seed"`, `"seed": <id>`);
+  once you ride it, `python promo/seeds.py use <id> $DAY` and include `seeds.jsonl` in the state commit.
+- **What's new in AI video and AI-made content** (last 7 days; an event can be older than 48 hours and still be
+  the thing people are talking about): 3-5 web searches. Look for EVENTS (model releases, tools, creator workflows,
+  ad and marketing trends, open-source and local generation, what creators complain about) and for GENRES: a kind
+  of content people keep making with AI, for example explainer animations of mechanisms, machines or cells made by
+  Claude, posters with exact text, looping visuals, before/after reveals. A genre needs no release behind it;
+  it needs several people making it. Skip tragedies, politics, lawsuits, personal matters and security incidents.
 - **What's new in funkbox:** `python promo/measure.py facts $DAY` and read M-commits (changes since the last promo).
 - **What hasn't been said:** read the last 14 `$STATE/days/*/brief.json` (format, selling point, hook).
+A trend is a candidate only if funkbox can honestly do it: ask "can funkbox make this style, today, from a prompt?"
+(shader loops from GLSL Claude writes, posters, reels, tracing). If yes, the promo MAKES one with funkbox and shows
+it; the video is the proof (F18). If funkbox can only comment on it, it is an event reaction at best.
 Write down at least 3 candidates, each as format + selling point + hook, then pick the one that is most specific
 and least like recent posts. Formats and selling points (ids are what lint checks):
 - formats: trend-reaction, feature-spotlight, how-to, behind-the-scenes, whats-new, use-case, myth-vs-fact, tip
@@ -48,7 +57,10 @@ and least like recent posts. Formats and selling points (ids are what lint check
 - rules lint enforces: a format not used in the previous 2 days, a selling point not used in the previous 4, a hook
   that does not echo any of the last 14.
 Write `brief.json`: {"date", "format", "selling_point", "candidates": [<the 3+ you considered, one line each>],
-"trend": {"summary", "sources": [{"title", "url", "date"}]} (for formats that use a trend; otherwise null), "angle",
+"trend": {"summary", "kind": "event" | "genre", "origin": "web" | "owner-seed", "seed": "sd-0001" (owner-seed only),
+"demo": "<how the video shows funkbox making this style>" (genre only), "sources": [{"title", "url", "date"}]}
+(for formats that use a trend; otherwise null; `lint` checks the shape: an event's sources are at most 7 days old, a
+genre's at most 30, and a genre found on the web needs 2 or more sources), "angle",
 "hook", "novelty": "<what a follower of the last posts has not seen yet>", "claims": [{"text", "fact": "F9" or
 "M-render"}]}. Claims should be strong in the FACTS.md sense: a number, a real file, a before/after.
 
