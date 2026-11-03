@@ -217,7 +217,7 @@ def test_playbook_and_review_reference_real_commands():
                    "promo/PAUSED", "FACTS.md"):
         assert needle in pb, needle
     tpl = json.loads((ROOT / "promo" / "templates" / "promo.reel.json").read_text())
-    assert tpl["audio"]["bpm"] == 110 and tpl["settings"]["height"] == 1920
+    assert "bpm" not in tpl["audio"] and tpl["settings"]["height"] == 1920     # the grid follows the day's music
 
 
 @pytest.fixture
@@ -601,3 +601,33 @@ def test_trend_shape_is_linted(tmp_path):
     event_old = {"summary": "release", "kind": "event", "sources": [src]}              # 14 days old: too old for news
     assert any("allows 7" in p for p in lint.trend_problems(_trend_brief(tmp_path, trend=event_old)))
     assert any("seed" in p for p in lint.trend_problems(_trend_brief(tmp_path, trend=dict(ok_genre, seed="x"))))
+
+
+# --------------------------------------------------------------------------- the day's tempo and key image
+def test_day_bpm_is_seeded_and_in_range():
+    import assets
+    values = {assets.day_bpm(s) for s in range(20261001, 20261040)}
+    assert all(96 <= v <= 128 for v in values) and len(values) > 5          # varies from day to day
+    assert assets.day_bpm(20261103) == assets.day_bpm(20261103)
+
+
+def test_key_image_is_seeded_and_skips_a_dull_one(tmp_path):
+    import assets
+    from PIL import Image
+    grey, blue, red = tmp_path / "grey.png", tmp_path / "blue.png", tmp_path / "red.png"
+    Image.new("RGB", (80, 80), (128, 128, 128)).save(grey)
+    Image.new("RGB", (80, 80), (20, 60, 220)).save(blue)
+    Image.new("RGB", (80, 80), (220, 30, 30)).save(red)
+    for seed in range(30):
+        out = assets.make_key_image(tmp_path, [grey, blue, red], seed)
+        assert out == tmp_path / "key.png"
+        r, g, b = Image.open(out).convert("RGB").getpixel((5, 5))
+        assert (r, g, b) != (128, 128, 128)                                    # never the dull grey one
+    seen = set()
+    for seed in range(30):
+        assets.make_key_image(tmp_path, [grey, blue, red], seed)
+        seen.add(Image.open(tmp_path / "key.png").convert("RGB").getpixel((5, 5)))
+    assert len(seen) == 2                                                      # both vivid candidates get picked
+    assert assets.make_key_image(tmp_path, [tmp_path / "missing.png"], 1) is None
+    assets.make_key_image(tmp_path, [grey], 1)
+    assert Image.open(tmp_path / "key.png").convert("RGB").getpixel((5, 5)) == (128, 128, 128)   # only dull: still one

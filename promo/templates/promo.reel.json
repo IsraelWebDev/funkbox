@@ -14,7 +14,6 @@
   "copy": "copy.json",
   "audio": {
     "music": "assets/music.mp3",
-    "bpm": 110,
     "snap_cuts_to_beats": true,
     "voiceover": false,
     "music_gain_db": -10

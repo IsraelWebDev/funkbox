@@ -111,6 +111,55 @@ def code_card(src: Path, marker: str, n: int, out: Path, title: str, w: int = 10
     return out, f"{first}-{first + shown - 1}", box
 
 
+BPM_RANGE = (96, 128)
+
+
+def day_bpm(seed: int) -> int:
+    """The day's tempo: a seeded whole number of beats per minute (own generator, so it never shifts the loop picks)."""
+    return random.Random(f"{seed}-bpm").randint(*BPM_RANGE)
+
+
+def _vivid_fraction(im: Image.Image) -> float:
+    """Share of pixels that are clearly coloured (HSV saturation > 0.35 and value > 0.2)."""
+    import numpy as np
+    hsv = np.asarray(im.convert("RGB").resize((64, 64)).convert("HSV"))
+    return float(((hsv[..., 1] > 89) & (hsv[..., 2] > 51)).mean())
+
+
+def make_key_image(a: Path, candidates: list[Path], seed: int) -> Path | None:
+    """assets/key.png: the day's key image, whose colours become the day's palette (reel brand.from).
+
+    Candidates are the FastSD scene stills and one frame of each shader loop. One is picked by the day's seed, and
+    a dull one (under 8 percent clearly coloured pixels) is skipped, so the palette is fresh each day but never grey.
+    """
+    from funkbox.media import ffmpeg_exe
+    frames: list[Image.Image] = []
+    for c in candidates:
+        try:
+            if c.suffix.lower() == ".mp4":
+                exe = ffmpeg_exe()
+                tmp = a / "_key_frame.png"
+                if not exe or subprocess.run([exe, "-y", "-v", "error", "-ss", "1", "-i", str(c), "-frames:v", "1",
+                                              str(tmp)], capture_output=True).returncode or not tmp.is_file():
+                    continue
+                with Image.open(tmp) as im:
+                    frames.append(im.convert("RGB").copy())
+                tmp.unlink()
+            else:
+                with Image.open(c) as im:
+                    frames.append(im.convert("RGB").copy())
+        except OSError:
+            continue
+    if not frames:
+        return None
+    start = random.Random(f"{seed}-key").randrange(len(frames))
+    order = frames[start:] + frames[:start]
+    pick = next((f for f in order if _vivid_fraction(f) >= 0.08), order[0])
+    out = a / "key.png"
+    pick.save(out)
+    return out
+
+
 def build(day: Path, seed: int) -> dict:
     a = day / "assets"
     a.mkdir(parents=True, exist_ok=True)
@@ -148,8 +197,19 @@ def build(day: Path, seed: int) -> dict:
         add("image", path, f"{note} ({rel} lines {span}, verbatim). Its text fills text_rect (top part); a caption "
             "must not cover or sit beside it: anchor captions at the bottom, and push in only where lint allows",
             size=[1080, 1920], source=f"{rel}:{span}", text_rect=box)
+    cands = [a / f"{sid}.jpg" for sid in ("scene-dog", "scene-machine") if (a / f"{sid}.jpg").is_file()]
+    cands += [day / x["path"] for x in man["assets"]
+              if x["kind"] == "video" and x["id"].startswith("loop-")]
+    key = make_key_image(a, cands, seed)
+    if key is not None:
+        add("image", key, "the day's key image: its colours are the day's palette (reel brand.from)")
+        man["key_image"] = key.relative_to(day).as_posix()
     import music
-    add("music", music.write(a / "music.mp3", 30.0, 110.0, seed), "seeded music bed, 110 BPM, 30 s", bpm=110)
+    bpm = day_bpm(seed)
+    man["bpm"] = bpm
+    add("music", music.write(a / "music.mp3", 30.0, float(bpm), seed),
+        f"seeded music bed, {bpm} BPM, 30 s (leave audio.bpm out of reel.json: the grid is detected from this file)",
+        bpm=bpm)
     (day / "assets.json").write_text(json.dumps(man, indent=2) + "\n", encoding="utf-8")
     return man
 
