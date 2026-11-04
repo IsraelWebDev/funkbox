@@ -566,6 +566,19 @@ def test_every_label_is_audited_once_and_byte_identical_to_the_deck(demo, gl, cl
     assert doc["ok"] and not doc["missing"] and not doc["inexact"] and out.audit_ok is True
 
 
+def test_opaque_frame_is_when_a_label_can_be_read_not_just_when_its_text_is_present(demo, gl, clips, work, monkeypatch):
+    monkeypatch.setenv("REEL_DEPTH", "stub")
+    _, doc = _audit(demo, grid_reel(demo, clips, reveal="sequence", stagger=0.5, dur=3.0), work, "fade")
+    for e in (e for e in doc["entries"] if e["slot"] == "grid_label"):
+        i = int(e["instance"])
+        # the exact text is drawn from the first frame after arrival, at alpha 0.4; alpha is 1.0 0.3 s after arrival
+        assert e["first_frame"] == i * 5 + 1 and e["complete_frame"] == e["first_frame"]
+        assert e["opaque_frame"] == e["first_frame"] + 2
+    _, doc = _audit(demo, grid_reel(demo, clips, reveal="none", stagger=None), work, "still")
+    for e in (e for e in doc["entries"] if e["slot"] == "grid_label"):
+        assert e["opaque_frame"] == e["first_frame"]
+
+
 def test_a_reel_with_a_labelled_grid_and_a_late_cell_is_refused_before_it_can_fail_the_audit(demo, gl, clips):
     d = grid_reel(demo, clips, stagger=1.0, dur=2.0)  # cells 2 and 3 arrive at 2 s and 3 s
     with pytest.raises(S.ReelError) as ei:

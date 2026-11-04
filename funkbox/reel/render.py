@@ -343,7 +343,15 @@ class Renderer:
                 if spr is not None:
                     if note and self.audit is not None:
                         self._note(
-                            "grid_label", span, "grid_label", str(i), c.label, span.start_frame + local, gc.label, spr
+                            "grid_label",
+                            span,
+                            "grid_label",
+                            str(i),
+                            c.label,
+                            span.start_frame + local,
+                            gc.label,
+                            spr,
+                            alpha=alpha,
                         )
                     tile = spr.over(tile)
             # the cell drops in from above inside its own slot (clipped to it: it never covers a neighbour)
@@ -536,6 +544,7 @@ class Renderer:
         gframe: int,
         lay: captions_mod.Layout,
         spr: captions_mod.Sprite,
+        alpha: float | None = None,
     ) -> None:
         assert self.audit is not None
         key = f"{span.id}/{slot}/{instance}"
@@ -554,6 +563,7 @@ class Renderer:
                 "chars": -1,
                 "text": "",
                 "complete_frame": None,
+                "opaque_frame": None,
                 "drawn_lines": [],
             }
         e["last_frame"] = f0
@@ -563,6 +573,9 @@ class Renderer:
             e["text"] = lay.reconstruct(spr.drawn)
         if e["complete_frame"] is None and e["text"] == lay.text:
             e["complete_frame"] = f0
+        # "complete" is the exact text being drawn, which a fading cell can do at low opacity; "opaque" is when it can be read
+        if alpha is not None and alpha >= 1.0 and e["opaque_frame"] is None and e["text"] == lay.text:
+            e["opaque_frame"] = f0
 
     def audit_report(self) -> list[dict]:
         """Entries for every string drawn so far: copy id, the exact text drawn, frame range."""

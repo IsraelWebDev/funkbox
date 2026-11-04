@@ -132,6 +132,8 @@ arriving one after another, each with a label from the copy deck:
   and the text audit gets one entry per label (`slot: "grid_label"`, `instance` = the cell index, 0-based, as a string).
   A cell that cannot finish arriving before its shot ends would never be drawn and its label could not be audited, so
   `validate` reports it as an error (shorten the stagger or lengthen the shot).
+  In the audit, `complete_frame` is the first frame the exact text is drawn; while the cell is still fading in that can be
+  at low opacity. `opaque_frame` is the first frame where the label is at full opacity, the first it can be read.
 - `reveal`: `none` (default: every cell is drawn for the whole shot) or `sequence`: cell `i` arrives at shot time
   `i * stagger`. `stagger` is seconds, or `"beats:N"` (N beat periods, needs `audio.bpm` or music). Default: `beats:1`
   when the reel has a beat grid, else 0.25 s. A cell arrives by dropping in from 10% of its height above its place (inside
