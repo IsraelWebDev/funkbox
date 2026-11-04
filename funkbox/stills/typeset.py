@@ -271,7 +271,10 @@ def typeset(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> Set:
         frame_w = int(L[-1] * (1.0 - float(lay.get("path_offset", 0.0))))
     lh = float(lay.get("line_height", 1.1))
     min_px = max(8, math.ceil(ctx.min_text * H))
-    px = max(min_px, int(round(float(lay.get("size", TEXT_SIZE)) * H)))
+    want = int(round(float(lay.get("size", TEXT_SIZE)) * H))
+    if want < min_px:  # the same warning as text.layout_text: this path is taken on Pillow builds without libraqm
+        ctx.warnings.append(f"text layer {lay['id']!r}: size raised to the minimum ({ctx.min_text} x height)")
+    px = max(min_px, want)
     align = lay.get("align", "left")
     from PIL import ImageFont
 

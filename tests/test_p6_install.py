@@ -254,7 +254,7 @@ def test_uv_run_project_lists_tools():
     async def go():
         params = StdioServerParameters(
             command="uv",
-            args=["run", "--project", str(ROOT), "python", str(ROOT / "funkbox.py"), "serve"],
+            args=["run", "--frozen", "--project", str(ROOT), "python", str(ROOT / "funkbox.py"), "serve"],
             env={**os.environ},
             cwd=str(ROOT.parent),
         )
