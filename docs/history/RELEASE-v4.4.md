@@ -1,7 +1,7 @@
 # funkbox 4.4.0
 
 Everything since 4.2.0. The 4.3.0 number went into the captions commit without a tag or notes of its own, so its
-changes are folded in here. The full test suite has 695 tests.
+changes are folded in here. The full test suite has 694 tests.
 
 ## Reels
 - **Grid shot source**: `source.grid` lays out clips side by side (`cols` x `rows`, with a gap and a contain or cover fit
@@ -30,8 +30,9 @@ changes are folded in here. The full test suite has 695 tests.
 - **Ruff 0.17.3** (pinned) is the formatter and linter. CI has a `lint` job that runs `ruff check` and
   `ruff format --check`. The lint covers syntax errors and pyflakes findings; style rules are not enforced yet.
 - The repo was formatted in a single commit, so later diffs stay readable.
+- `uv run` in the MCP test uses `--frozen`, so running the tests no longer rewrites `uv.lock`.
+- Text layers on Pillow builds without libraqm (the Windows wheels) get the same "size raised to the minimum" warning
+  as the others. The warning had been missing on that path.
 
 ## Known issues
-- `tests/stills/test_s15_lift_text.py::test_min_text_lets_an_emblem_keep_its_small_print` fails. It also fails on 4.3
-  code before the formatting pass, so it is not caused by ruff. CI will show this failure.
 - Captions fade in with the `pop` animation, and `opaque_frame` does not track that yet.
