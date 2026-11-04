@@ -20,6 +20,7 @@ inbox/, get an ad).
     funkbox project render glowmop [--full]
     funkbox project shortcuts                     (desktop links "funk inbox" and "funk projects")
 """
+
 from __future__ import annotations
 
 import json
@@ -42,6 +43,7 @@ def _reel_arg(a) -> str:
     """The reel path, or a project's <slug>.reel.json for --project."""
     if getattr(a, "project", None):
         from funkbox.reel import project
+
         p = project.project_dir(a.project) / f"{a.project}.reel.json"
         if not p.is_file():
             raise ValueError(f"project {a.project!r} has no reel yet; run: funkbox project auto {a.project}")
@@ -53,6 +55,7 @@ def _reel_arg(a) -> str:
 
 def cmd_validate(a) -> int:
     from funkbox.reel.validate import validate
+
     rep = validate(_reel_arg(a))
     print(rep.text())
     return 0 if rep.ok else 1
@@ -63,12 +66,12 @@ def cmd_still(a) -> int:
 
     from funkbox.config import funk_out
     from funkbox.reel import render
+
     plan = render.prepare(_reel_arg(a), fmt=a.format)
     st = plan.reel.settings
     w = a.width or st.width
     h = round(w * st.height / st.width)
-    r = render.Renderer(plan.reel, plan.deck, plan.spans, width=w, height=h,
-                        depth_mode="off" if a.no_depth else "auto")
+    r = render.Renderer(plan.reel, plan.deck, plan.spans, width=w, height=h, depth_mode="off" if a.no_depth else "auto")
     try:
         fr = r.still(a.shot, a.t)
     finally:
@@ -86,6 +89,7 @@ def cmd_storyboard(a) -> int:
     from funkbox.config import funk_out
     from funkbox.reel import render
     from funkbox.reel.storyboard import storyboard
+
     plan = render.prepare(_reel_arg(a), fmt=a.format)
     t0 = time.perf_counter()
     out = Path(a.output) if a.output else funk_out() / "storyboard.png"
@@ -96,11 +100,22 @@ def cmd_storyboard(a) -> int:
 
 def cmd_render(a) -> int:
     from funkbox.reel import render
+
     src = _reel_arg(a)
     name = a.name or Path(src).name.replace(".reel.json", "").replace(".json", "")
     out_dir = a.out or (str(Path(src).parent / "out") if getattr(a, "project", None) else None)
-    outs = render.render_formats(src, name, fmt=a.format, out_dir=out_dir, draft=a.draft, audit=a.audit,
-                                 depth_mode=None, with_audio=not a.no_audio, gif=a.gif, progress=True)
+    outs = render.render_formats(
+        src,
+        name,
+        fmt=a.format,
+        out_dir=out_dir,
+        draft=a.draft,
+        audit=a.audit,
+        depth_mode=None,
+        with_audio=not a.no_audio,
+        gif=a.gif,
+        progress=True,
+    )
     for out in outs:
         for k, v in out.paths.items():
             print(f"{k}: {v}")
@@ -114,6 +129,7 @@ def cmd_render(a) -> int:
 
 def cmd_setup_models(a) -> int:
     from funkbox.reel import models
+
     models.setup_models(only=a.only, force=a.force)
     for k, v in models.status().items():
         print(f"{k}: {'ready' if v['ready'] else 'MISSING'}  licence: {v['license']}")
@@ -122,6 +138,7 @@ def cmd_setup_models(a) -> int:
 
 def cmd_cutout(a) -> int:
     from funkbox.reel.product import cutout
+
     out = Path(a.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     cutout(a.photo, a.tolerance, a.feather).save(out)
@@ -131,6 +148,7 @@ def cmd_cutout(a) -> int:
 
 def cmd_beats(a) -> int:
     from funkbox.reel import audio
+
     info = audio.detect_beats(a.music)
     print(f"tempo: {info.bpm:.1f} BPM, {len(info.beats)} beats in {info.duration:.1f}s")
     print("first beats (s): " + ", ".join(f"{b:.3f}" for b in info.beats[:12]))
@@ -141,9 +159,11 @@ def cmd_project_approve_copy(a) -> int:
     """A PERSON at a terminal re-approves copy.json after a hand edit (or approves the pending draft with
     --from-draft). The agent must not run this: it is the user's own approval path."""
     from funkbox.reel import approval, project
+
     if not sys.stdin.isatty() and not a.stdin:
-        return _err("approve-copy must be typed by a person at a terminal. (If YOU are piping your own answer in, "
-                    "add --stdin.)")
+        return _err(
+            "approve-copy must be typed by a person at a terminal. (If YOU are piping your own answer in, add --stdin.)"
+        )
     slug = a.project
     project.project_dir(slug)
     if a.from_draft:
@@ -167,6 +187,7 @@ def cmd_project_approve_copy(a) -> int:
 
 def cmd_project_new(a) -> int:
     from funkbox.reel import project
+
     meta = project.new_project(a.name)
     print(f"project {meta['slug']!r} created at {project.project_dir(meta['slug'])}")
     print(f"inbox (drop files here): {project.inbox_dir()}")
@@ -176,10 +197,13 @@ def cmd_project_new(a) -> int:
 
 def cmd_project_list(a) -> int:
     from funkbox.reel import project
+
     ps = project.list_projects()
     for p in ps:
-        print(f"{p['slug']}: {p['status']}; product {'yes' if p['has_product'] else 'no'}, copy "
-              f"{'approved' if p['copy_approved'] else 'not approved'}, {p['shots']} shots, {p['clips']} clips, {p['music']} music")
+        print(
+            f"{p['slug']}: {p['status']}; product {'yes' if p['has_product'] else 'no'}, copy "
+            f"{'approved' if p['copy_approved'] else 'not approved'}, {p['shots']} shots, {p['clips']} clips, {p['music']} music"
+        )
     if not ps:
         print("no projects yet; run: funkbox project new NAME")
     print(f"inbox: {project.inbox_dir()}")
@@ -188,6 +212,7 @@ def cmd_project_list(a) -> int:
 
 def cmd_project_ingest(a) -> int:
     from funkbox.reel import ingest
+
     res = ingest.ingest(a.project, a.source, move=not a.copy)
     print(res.text())
     return 0
@@ -195,6 +220,7 @@ def cmd_project_ingest(a) -> int:
 
 def cmd_project_set_product(a) -> int:
     from funkbox.reel import ingest
+
     pr = ingest.set_product(a.project, a.file)
     q = pr["cutout"]
     print(f"product set to {pr['file']}; cut-out score {q['score']} ({'OK' if q['ok'] else 'POOR'})")
@@ -207,13 +233,19 @@ def cmd_project_set_product(a) -> int:
 
 def cmd_project_brand(a) -> int:
     from funkbox.reel import brand
+
     print(brand.brand_text(brand.brand_from_assets(a.project)))
     return 0
 
 
 def cmd_project_set_brand(a) -> int:
     from funkbox.reel import brand
-    print(brand.brand_text(brand.set_brand(a.project, a.primary, a.secondary, a.text, a.font_caption, a.font_display, a.font_fallback)))
+
+    print(
+        brand.brand_text(
+            brand.set_brand(a.project, a.primary, a.secondary, a.text, a.font_caption, a.font_display, a.font_fallback)
+        )
+    )
     return 0
 
 
@@ -221,6 +253,7 @@ def cmd_project_propose_copy(a) -> int:
     """Draft copy from a JSON file {id: {text, say?}} (or the full copy-deck shape). Draft only: nothing is
     approved until you run approve-copy."""
     from funkbox.reel import approval
+
     raw = json.loads(Path(a.file).read_text(encoding="utf-8-sig"))
     lines, pron, bn = raw, None, None
     if isinstance(raw, dict) and "lines" in raw and isinstance(raw["lines"], dict):
@@ -233,6 +266,7 @@ def cmd_project_propose_copy(a) -> int:
 
 def cmd_project_copy_diff(a) -> int:
     from funkbox.reel import approval
+
     print(approval.copy_diff(a.project))
     return 0
 
@@ -240,8 +274,19 @@ def cmd_project_copy_diff(a) -> int:
 def cmd_project_auto(a) -> int:
     from funkbox.reel import autoreel, render
     from funkbox.reel.storyboard import storyboard
-    res = autoreel.auto_reel(a.project, a.length, a.style, a.pace, a.cta or None, a.music, clip_share=a.clip_share,
-                             product_every=a.product_every, formats=a.formats or None, bpm=a.bpm)
+
+    res = autoreel.auto_reel(
+        a.project,
+        a.length,
+        a.style,
+        a.pace,
+        a.cta or None,
+        a.music,
+        clip_share=a.clip_share,
+        product_every=a.product_every,
+        formats=a.formats or None,
+        bpm=a.bpm,
+    )
     print(res.text())
     plan = render.prepare(str(res.path))
     sb = res.path.parent / "out" / f"{a.project}-storyboard.png"
@@ -252,13 +297,15 @@ def cmd_project_auto(a) -> int:
 
 def cmd_project_render(a) -> int:
     from funkbox.reel import project, render
+
     d = project.project_dir(a.project)
     reel = d / f"{a.project}.reel.json"
     if not reel.is_file():
         return _err(f"project {a.project!r} has no reel yet; run: funkbox project auto {a.project}")
     name = a.project if a.full else f"{a.project}-draft"
-    outs = render.render_formats(str(reel), name, fmt=a.format, out_dir=d / "out", draft=not a.full, audit=True,
-                                 progress=True)
+    outs = render.render_formats(
+        str(reel), name, fmt=a.format, out_dir=d / "out", draft=not a.full, audit=True, progress=True
+    )
     out = outs[-1]
     for o in outs[:-1]:
         for k, v in o.paths.items():
@@ -274,6 +321,7 @@ def cmd_project_render(a) -> int:
 
 def cmd_project_shortcuts(a) -> int:
     from funkbox.reel import shortcuts
+
     for line in shortcuts.make_shortcuts(dry_run=a.dry_run):
         print(line)
     return 0
@@ -282,13 +330,14 @@ def cmd_project_shortcuts(a) -> int:
 def cmd_timeline(a) -> int:
     import webbrowser
     from funkbox.reel import editor
+
     ed = editor.open_editor(_reel_arg(a), port=a.port)
     print(f"timeline: {ed.url}  (Ctrl+C to stop; edits log: {ed.log_path})")
     if not a.no_browser:
         webbrowser.open(ed.url)
     try:
         while True:
-            ed.pump.pump(0.2)                         # GL work (thumbnails, previews) runs on this thread
+            ed.pump.pump(0.2)  # GL work (thumbnails, previews) runs on this thread
     except KeyboardInterrupt:
         ed.stop()
     return 0
@@ -296,10 +345,13 @@ def cmd_timeline(a) -> int:
 
 def add_cli(sub) -> None:
     ap = sub.add_parser("reel", help="shot list -> vertical video ad: validate, storyboard, still, render, ...")
-    rsub = ap.add_subparsers(dest="verb", required=True,
-                             metavar="{validate,storyboard,still,render,timeline,beats,cutout,setup-models}")
+    rsub = ap.add_subparsers(
+        dest="verb", required=True, metavar="{validate,storyboard,still,render,timeline,beats,cutout,setup-models}"
+    )
     p = rsub.add_parser("timeline", help="drag-and-drop timeline page for a reel (shared with Claude)")
-    p.add_argument("reel", nargs="?"); p.add_argument("--project"); p.add_argument("--port", type=int, default=0)
+    p.add_argument("reel", nargs="?")
+    p.add_argument("--project")
+    p.add_argument("--port", type=int, default=0)
     p.add_argument("--no-browser", action="store_true")
     p.set_defaults(fn=cmd_timeline)
     p = rsub.add_parser("validate", help="check a reel (copy ids, files, timing, caption fit)")
@@ -349,9 +401,12 @@ def add_cli(sub) -> None:
     p.set_defaults(fn=cmd_beats)
 
     ap = sub.add_parser("project", help="projects: new, ingest, brand, copy, auto, render, shortcuts")
-    psub = ap.add_subparsers(dest="verb", required=True,
-                             metavar="{new,list,ingest,set-product,brand,set-brand,propose-copy,approve-copy,"
-                                     "copy-diff,auto,render,shortcuts}")
+    psub = ap.add_subparsers(
+        dest="verb",
+        required=True,
+        metavar="{new,list,ingest,set-product,brand,set-brand,propose-copy,approve-copy,"
+        "copy-diff,auto,render,shortcuts}",
+    )
     p = psub.add_parser("new", help="start a project (folder under projects/)")
     p.add_argument("name")
     p.set_defaults(fn=cmd_project_new)
@@ -372,14 +427,15 @@ def add_cli(sub) -> None:
     p = psub.add_parser("set-brand", help="override brand values")
     p.add_argument("project")
     for k in ("primary", "secondary", "text", "font-caption", "font-display", "font-fallback"):
-        p.add_argument("--" + k, help="a .ttf/.otf path or a font name like 'Rubik:800'" if k.startswith("font") else None)
+        p.add_argument(
+            "--" + k, help="a .ttf/.otf path or a font name like 'Rubik:800'" if k.startswith("font") else None
+        )
     p.set_defaults(fn=cmd_project_set_brand)
     p = psub.add_parser("propose-copy", help="write a DRAFT of the copy from a JSON file (not approved)")
     p.add_argument("project")
     p.add_argument("--file", required=True)
     p.set_defaults(fn=cmd_project_propose_copy)
-    p = psub.add_parser("approve-copy",
-                        help="(you, at a terminal) re-approve a hand-edited copy.json, or the draft")
+    p = psub.add_parser("approve-copy", help="(you, at a terminal) re-approve a hand-edited copy.json, or the draft")
     p.add_argument("project")
     p.add_argument("--from-draft", action="store_true", help="approve the pending copy.draft.json instead")
     p.add_argument("--stdin", action="store_true", help="read the y/N answer from a pipe (for scripts YOU run)")
@@ -394,7 +450,9 @@ def add_cli(sub) -> None:
     p.add_argument("--pace", choices=["fast", "calm"], default="fast")
     p.add_argument("--cta", nargs="*", help="copy ids for the end card (headline, sub, url)")
     p.add_argument("--music")
-    p.add_argument("--clip-share", type=float, default=None, help="fraction of shots that are clips (default: follows the assets)")
+    p.add_argument(
+        "--clip-share", type=float, default=None, help="fraction of shots that are clips (default: follows the assets)"
+    )
     p.add_argument("--product-every", type=int, default=2, help="product in every Nth shot (0 = end card only)")
     p.add_argument("--formats", nargs="*", help="output formats, e.g. 9x16 16x9")
     p.add_argument("--bpm", type=float, default=None, help="fixed beat grid for the cuts")

@@ -1,5 +1,4 @@
 import shutil
-import struct
 import subprocess
 import wave
 from pathlib import Path
@@ -7,9 +6,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from funkbox.gl import Engine, load_recipe, render_recipe
+from funkbox.gl import Engine, render_recipe
 from funkbox.gl.audio import SPEC_BINS, analyze, read_wav, wav_duration
-from funkbox.gl.recipe import Layer, Recipe2, Settings2
+from funkbox.gl.recipe import Recipe2
 
 
 def write_wav(path: Path, samples: np.ndarray, sr: int = 22050, channels: int = 1) -> Path:
@@ -66,20 +65,28 @@ def test_audio_drives_shader_and_muxes_into_mp4(gl, tmp_path, monkeypatch):
     monkeypatch.setenv("FUNK_INPUTS", str(tmp_path))
     quiet = np.zeros(11025)
     loud = sine(100, 1.0)
-    wav = write_wav(tmp_path / "mix.wav", np.concatenate([quiet, loud[:22050 - 11025 + 11025]])[:44100])
-    rec = Recipe2.from_dict({"settings": {"width": 32, "height": 32, "fps": 10, "audio": "mix.wav"},
-                             "layers": [{"type": "shader", "source": REACT}]})
-    assert abs(rec.settings.seconds - wav_duration(wav)) < 1e-3          # seconds defaults to audio length
+    wav = write_wav(tmp_path / "mix.wav", np.concatenate([quiet, loud[: 22050 - 11025 + 11025]])[:44100])
+    rec = Recipe2.from_dict(
+        {
+            "settings": {"width": 32, "height": 32, "fps": 10, "audio": "mix.wav"},
+            "layers": [{"type": "shader", "source": REACT}],
+        }
+    )
+    assert abs(rec.settings.seconds - wav_duration(wav)) < 1e-3  # seconds defaults to audio length
     e = Engine(32, 32, gl)
     try:
-        first = e.render(rec, 1).mean()       # silent part
-        later = e.render(rec, rec.settings.frames - 3).mean()   # loud part
+        first = e.render(rec, 1).mean()  # silent part
+        later = e.render(rec, rec.settings.frames - 3).mean()  # loud part
     finally:
         e.release()
     assert first < 5 and later > 40, (first, later)
     res = render_recipe(rec, tmp_path / "o", "aud", gif=False)
     ff = shutil.which("ffprobe")
     if ff:
-        r = subprocess.run([ff, "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0",
-                            res.paths["mp4"]], capture_output=True, text=True, check=True)
+        r = subprocess.run(
+            [ff, "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", res.paths["mp4"]],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
         assert "audio" in r.stdout and "video" in r.stdout

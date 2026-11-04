@@ -27,7 +27,7 @@ def test_new_project_layout_and_slug_rules(penv):
     for sub in ("product", "brand", "brand/fonts", "shots", "clips", "music", "out"):
         assert (d / sub).is_dir()
     assert json.loads((d / "project.json").read_text())["status"] == "new"
-    assert P.inbox_dir().is_dir()                        # inbox is created on first run
+    assert P.inbox_dir().is_dir()  # inbox is created on first run
     with pytest.raises(P.ProjectError):
         P.new_project("Glow Mop 2")
     for bad in ("../x", "A B", "", "x" * 60, "-a"):
@@ -38,6 +38,7 @@ def test_new_project_layout_and_slug_rules(penv):
 
 def test_projects_root_is_an_allowed_path_root(penv, monkeypatch):
     from funkbox.config import allowed_roots
+
     assert P.projects_root() in allowed_roots()
 
 
@@ -99,7 +100,7 @@ def test_duplicates_are_skipped_and_reingest_is_idempotent(penv):
     synth.scene(P.inbox_dir() / "again.jpg", 1)
     res2 = ingest.ingest("demo")
     assert res2.counts["shot"] == 0 and "again.jpg" in res2.duplicates
-    assert (P.inbox_dir() / "again.jpg").exists()                      # duplicates are never deleted
+    assert (P.inbox_dir() / "again.jpg").exists()  # duplicates are never deleted
     assert len(list((P.project_dir("demo") / "shots").glob("*.jpg"))) == 1
 
 
@@ -109,7 +110,7 @@ def test_external_folder_is_copied_not_moved(penv):
     before = sorted(p.name for p in ext.iterdir())
     res = ingest.ingest("demo", source=str(ext))
     assert res.moved is False
-    assert sorted(p.name for p in ext.iterdir()) == before                  # untouched
+    assert sorted(p.name for p in ext.iterdir()) == before  # untouched
     assert (P.project_dir("demo") / "clips" / "move.mp4").exists()
     # even with move=True an external source is only copied
     P.new_project("demo2")
@@ -126,7 +127,7 @@ def test_ambiguous_product_returns_candidates_and_set_product_resolves(penv):
     res = ingest.ingest("demo")
     assert res.product["status"] == "ambiguous"
     assert sorted(Path(c).name for c in res.product["candidates"]) == ["product-back.png", "product-front.png"]
-    assert not (P.project_dir("demo") / "product" / "product.png").exists()      # no guessing
+    assert not (P.project_dir("demo") / "product" / "product.png").exists()  # no guessing
     assert "set_product" in res.text()
     prod = ingest.set_product("demo", "product-back.png")
     assert (P.project_dir("demo") / "product" / "product.png").exists()
@@ -144,14 +145,14 @@ def test_unsupported_left_in_place_exif_and_downscale(penv):
     synth.scene(penv / "tmp_scene.png", 5)
     im = Image.open(penv / "tmp_scene.png").resize((3000, 1500))
     ex = Image.Exif()
-    ex[0x0112] = 6                                                     # rotate 90 cw
+    ex[0x0112] = 6  # rotate 90 cw
     im.save(P.inbox_dir() / "big.jpg", exif=ex)
     res = ingest.ingest("demo")
     assert (P.inbox_dir() / "notes.txt").exists()
     assert [Path(f).name for f, _ in res.unsupported] == ["notes.txt"]
     assert any("SVG" in w and "PNG" in w for w in res.warnings)
     out = Image.open(P.project_dir("demo") / "shots" / "big.jpg")
-    assert out.size == (1200, 2400)                                    # rotated, long side 2400
+    assert out.size == (1200, 2400)  # rotated, long side 2400
     assert (P.project_dir("demo") / "shots" / "_orig" / "big.jpg").exists()
 
 

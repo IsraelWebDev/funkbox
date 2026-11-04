@@ -7,6 +7,7 @@ colour or a blurred copy of the same frame) only where the window reaches past t
 Coordinates: a *rect* is (x, y, w, h) in fractions of the source; a *window* is (x0, y0, x1, y1) in source
 pixels and always has the output aspect ratio.
 """
+
 from __future__ import annotations
 
 import math
@@ -24,7 +25,7 @@ from funkbox.media import require_ffmpeg
 from .schema import FrameKey, Motion, Source
 
 FULL = (0.0, 0.0, 1.0, 1.0)
-MAX_DECODE_SIDE = 3840              # decode big sources at most this large (long side)
+MAX_DECODE_SIDE = 3840  # decode big sources at most this large (long side)
 BLUR_DOWNSCALE = 8
 
 
@@ -142,7 +143,7 @@ class Window:
     y0: float
     x1: float
     y1: float
-    cut: float = 0.0          # fraction of the wanted rect's area that could not be shown (cover fit only)
+    cut: float = 0.0  # fraction of the wanted rect's area that could not be shown (cover fit only)
 
     @property
     def inside(self) -> bool:
@@ -152,8 +153,16 @@ class Window:
         return (self.x0, self.y0, self.x1, self.y1)
 
 
-def window(rect: tuple[float, float, float, float], src_w: int, src_h: int, out_w: int, out_h: int, *,
-           fit: str = "cover", centre: tuple[float, float] | None = None) -> Window:
+def window(
+    rect: tuple[float, float, float, float],
+    src_w: int,
+    src_h: int,
+    out_w: int,
+    out_h: int,
+    *,
+    fit: str = "cover",
+    centre: tuple[float, float] | None = None,
+) -> Window:
     """Smallest output-aspect window containing ``rect``, centred on it (or on ``centre``, fractions of the
     source).
 
@@ -184,8 +193,17 @@ def window(rect: tuple[float, float, float, float], src_w: int, src_h: int, out_
     return Window(cx - ww / 2, cy - wh / 2, cx + ww / 2, cy + wh / 2, cut)
 
 
-def window_for(motion: Motion, source: Source, u: float, shot_seconds: float, src_w: int, src_h: int,
-               out_w: int, out_h: int, kenburns_cam=None) -> Window:
+def window_for(
+    motion: Motion,
+    source: Source,
+    u: float,
+    shot_seconds: float,
+    src_w: int,
+    src_h: int,
+    out_w: int,
+    out_h: int,
+    kenburns_cam=None,
+) -> Window:
     """The window of one frame: ``frame`` keys; Ken Burns (zoom/pan inside the base framing); or the base
     framing alone (cover crop centred on ``source.focus``, or contain)."""
     if motion.type == "frame" and motion.keys:
@@ -240,8 +258,12 @@ def draw(src: np.ndarray | Image.Image, win: Window, out_w: int, out_h: int, pad
 
 def needs_windowing(source: Source, motion: Motion) -> bool:
     """True when a video source cannot use the plain ffmpeg scale/crop path (kept for speed when it can)."""
-    return (motion.type in ("frame", "kenburns") or source.speed != (1.0, 1.0) or source.focus is not None
-            or (source.fit == "contain" and source.pad != "#000000"))
+    return (
+        motion.type in ("frame", "kenburns")
+        or source.speed != (1.0, 1.0)
+        or source.focus is not None
+        or (source.fit == "contain" and source.pad != "#000000")
+    )
 
 
 def needs_windowing_image(source: Source, motion: Motion) -> bool:
@@ -249,5 +271,4 @@ def needs_windowing_image(source: Source, motion: Motion) -> bool:
     a padded contain fit). Parallax always stays on the GL path."""
     if source.kind != "image" or motion.type == "parallax":
         return False
-    return (motion.type == "frame" or source.focus is not None
-            or (source.fit == "contain" and source.pad != "#000000"))
+    return motion.type == "frame" or source.focus is not None or (source.fit == "contain" and source.pad != "#000000")

@@ -1,4 +1,5 @@
 """High-level render_recipe(): a recipe in, a seamless loop (mp4 / gif / png / json sidecar) out."""
+
 from __future__ import annotations
 
 import copy
@@ -22,7 +23,7 @@ class RenderResult:
     frames: int
     width: int
     height: int
-    seconds: float            # wall time spent rendering+encoding
+    seconds: float  # wall time spent rendering+encoding
     recipe: Recipe2 = field(repr=False, default=None)  # type: ignore[assignment]
 
     @property
@@ -33,9 +34,16 @@ class RenderResult:
         return f"{self.frames} frames {self.width}x{self.height} in {self.seconds:.1f}s ({self.fps:.1f} fps)"
 
 
-def render_recipe(recipe: Recipe2, out_dir: str | Path, name: str, mp4: bool = True,
-                  gif: bool = True, png: bool = True, gif_width: int = 400,
-                  engine: Engine | None = None) -> RenderResult:
+def render_recipe(
+    recipe: Recipe2,
+    out_dir: str | Path,
+    name: str,
+    mp4: bool = True,
+    gif: bool = True,
+    png: bool = True,
+    gif_width: int = 400,
+    engine: Engine | None = None,
+) -> RenderResult:
     """Render the whole loop to out_dir/name.{mp4,gif,png,json}. The JSON sidecar is a v2 recipe
     with inline shader source, so it reproduces the render by itself."""
     rec = copy.deepcopy(recipe)
@@ -49,7 +57,7 @@ def render_recipe(recipe: Recipe2, out_dir: str | Path, name: str, mp4: bool = T
     own = engine is None
     eng = engine or Engine(st.width, st.height)
     try:
-        eng.prepare(rec)            # fail fast on compile errors before ffmpeg starts
+        eng.prepare(rec)  # fail fast on compile errors before ffmpeg starts
         n = st.frames
 
         def gen() -> Iterator[np.ndarray]:
@@ -57,8 +65,9 @@ def render_recipe(recipe: Recipe2, out_dir: str | Path, name: str, mp4: bool = T
                 yield eng.render(rec, i)
 
         audio = resolve_path(st.audio, rec.base_dir) if st.audio else None
-        paths = encode(gen(), eng.w, eng.h, st.fps, base, mp4=mp4, gif=gif,
-                       gif_width=gif_width, poster=png, audio=audio)
+        paths = encode(
+            gen(), eng.w, eng.h, st.fps, base, mp4=mp4, gif=gif, gif_width=gif_width, poster=png, audio=audio
+        )
     finally:
         if own:
             eng.release()

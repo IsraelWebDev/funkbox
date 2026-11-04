@@ -12,6 +12,7 @@ If the repo is public, Buffer can fetch a waiting video from it by URL (see post
 
     eval "$(python promo/state.py env)"    # clones or pulls it, then exports STATE and the funkbox folder settings
 """
+
 from __future__ import annotations
 
 import os
@@ -45,14 +46,15 @@ def has_ident() -> bool:
 def ensure() -> Path:
     """Clone the state repo (shallow) the first time, pull it afterwards. Returns STATE_DIR."""
     if (STATE_DIR / ".git").is_dir():
-        if _has_head():                                   # a brand-new empty repo has nothing to pull yet
+        if _has_head():  # a brand-new empty repo has nothing to pull yet
             git("pull", "-q", "--rebase", "--autostash", "origin", "main")
     elif not STATE_URL:
         raise StateError("no state repo configured: set PROMO_STATE_REPO=owner/name")
     else:
         STATE_DIR.parent.mkdir(parents=True, exist_ok=True)
-        r = subprocess.run(["git", "clone", "-q", "--depth", "1", STATE_URL, str(STATE_DIR)],
-                           capture_output=True, text=True)
+        r = subprocess.run(
+            ["git", "clone", "-q", "--depth", "1", STATE_URL, str(STATE_DIR)], capture_output=True, text=True
+        )
         if r.returncode:
             raise StateError(f"cannot clone {STATE_REPO} (attach it with push access): {r.stderr.strip()[:300]}")
     gi = STATE_DIR / ".gitignore"
@@ -63,33 +65,40 @@ def ensure() -> Path:
 
 
 def _has_head() -> bool:
-    return subprocess.run(["git", "-C", str(STATE_DIR), "ls-remote", "--exit-code", "--heads", "origin", "main"],
-                          capture_output=True).returncode == 0
+    return (
+        subprocess.run(
+            ["git", "-C", str(STATE_DIR), "ls-remote", "--exit-code", "--heads", "origin", "main"], capture_output=True
+        ).returncode
+        == 0
+    )
 
 
 def commit(paths: list[str], msg: str) -> bool:
     """Stage ``paths`` (relative to STATE_DIR), commit and push. False when there was nothing to commit."""
-    git("add", "--", ".gitignore", *paths)                # .gitignore rides along with the first commit
+    git("add", "--", ".gitignore", *paths)  # .gitignore rides along with the first commit
     if not git("diff", "--cached", "--name-only").strip():
         return False
     git(*([] if has_ident() else IDENT), "commit", "-q", "-m", msg)
     if _has_head():
-        git("pull", "-q", "--rebase", "--autostash", "origin", "main")   # the day folder is usually mid-edit
+        git("pull", "-q", "--rebase", "--autostash", "origin", "main")  # the day folder is usually mid-edit
     git("push", "-q", "origin", "HEAD:main")
     return True
 
 
 if __name__ == "__main__":
     import sys
+
     try:
         if sys.argv[1:2] == ["init"]:
             print(ensure())
-        elif sys.argv[1:2] == ["env"]:                    # day folders sit outside the checkout: allow them
+        elif sys.argv[1:2] == ["env"]:  # day folders sit outside the checkout: allow them
             d = ensure()
             print(f"export STATE={d} FUNK_INPUTS={d / 'days'} FUNK_OUT={d / 'days'}")
         elif len(sys.argv) >= 4 and sys.argv[1] == "commit":
             print("committed and pushed" if commit(sys.argv[3:], sys.argv[2]) else "nothing to commit")
         else:
-            sys.exit("usage: state.py init | state.py env | state.py commit MESSAGE PATH...   (paths relative to the state repo)")
+            sys.exit(
+                "usage: state.py init | state.py env | state.py commit MESSAGE PATH...   (paths relative to the state repo)"
+            )
     except StateError as e:
         sys.exit(f"state: {e}")

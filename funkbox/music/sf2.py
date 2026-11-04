@@ -10,6 +10,7 @@ until-release), root key, coarse/fine tuning, scale tuning, pitch correction, th
 decay, sustain, release), initial attenuation, pan. What it leaves out: modulators (the defaults' velocity curve is
 applied), filters, LFOs, the modulation envelope, chorus/reverb sends (score.py adds one reverb to the mix).
 """
+
 from __future__ import annotations
 
 import struct
@@ -27,10 +28,30 @@ G_START, G_END, G_LSTART, G_LEND = 0, 1, 2, 3
 G_START_C, G_END_C, G_LSTART_C, G_LEND_C = 4, 12, 45, 50
 RANGES = (G_KEYRANGE, G_VELRANGE)
 ADDITIVE = {G_PAN, G_DELAY, G_ATTACK, G_HOLD, G_DECAY, G_SUSTAIN, G_RELEASE, G_ATTEN, G_COARSE, G_FINE, G_SCALE}
-DEFAULTS = {G_PAN: 0, G_DELAY: -12000, G_ATTACK: -12000, G_HOLD: -12000, G_DECAY: -12000, G_SUSTAIN: 0,
-            G_RELEASE: -12000, G_ATTEN: 0, G_COARSE: 0, G_FINE: 0, G_MODES: 0, G_SCALE: 100, G_ROOT: -1,
-            G_START: 0, G_END: 0, G_LSTART: 0, G_LEND: 0, G_START_C: 0, G_END_C: 0, G_LSTART_C: 0, G_LEND_C: 0}
-ATTEN_SCALE = 0.4            # most players (FluidSynth among them) apply 0.4 of the written attenuation
+DEFAULTS = {
+    G_PAN: 0,
+    G_DELAY: -12000,
+    G_ATTACK: -12000,
+    G_HOLD: -12000,
+    G_DECAY: -12000,
+    G_SUSTAIN: 0,
+    G_RELEASE: -12000,
+    G_ATTEN: 0,
+    G_COARSE: 0,
+    G_FINE: 0,
+    G_MODES: 0,
+    G_SCALE: 100,
+    G_ROOT: -1,
+    G_START: 0,
+    G_END: 0,
+    G_LSTART: 0,
+    G_LEND: 0,
+    G_START_C: 0,
+    G_END_C: 0,
+    G_LSTART_C: 0,
+    G_LEND_C: 0,
+}
+ATTEN_SCALE = 0.4  # most players (FluidSynth among them) apply 0.4 of the written attenuation
 
 
 class SF2Error(ValueError):
@@ -56,7 +77,7 @@ class Zone:
 
 def _chunks(data: bytes, off: int, end: int):
     while off + 8 <= end:
-        cid, size = data[off:off + 4], struct.unpack_from("<I", data, off + 4)[0]
+        cid, size = data[off : off + 4], struct.unpack_from("<I", data, off + 4)[0]
         yield cid, off + 8, size
         off += 8 + size + (size & 1)
 
@@ -88,7 +109,7 @@ class SoundFont:
         for cid, off, size in _chunks(data, 12, len(data)):
             if cid != b"LIST":
                 continue
-            kind = data[off:off + 4]
+            kind = data[off : off + 4]
             for sid, soff, ssize in _chunks(data, off + 4, off + size):
                 if kind == b"sdta" and sid == b"smpl":
                     smpl = np.frombuffer(data, "<i2", ssize // 2, soff).astype(np.float32) / 32768.0
@@ -109,8 +130,19 @@ class SoundFont:
         inst = recs(b"inst", "<20sH")
         ibag = [r[0] for r in recs(b"ibag", "<HH")]
         igen = recs(b"igen", "<HH")
-        self.samples = [Sample(r[0].split(b"\0")[0].decode("latin-1"), r[1], r[2], r[3], r[4], r[5], r[6],
-                               r[7] - 256 if r[7] > 127 else r[7]) for r in recs(b"shdr", "<20sIIIIIBbHH")[:-1]]
+        self.samples = [
+            Sample(
+                r[0].split(b"\0")[0].decode("latin-1"),
+                r[1],
+                r[2],
+                r[3],
+                r[4],
+                r[5],
+                r[6],
+                r[7] - 256 if r[7] > 127 else r[7],
+            )
+            for r in recs(b"shdr", "<20sIIIIIBbHH")[:-1]
+        ]
         self.instruments = [_zones(ibag, igen, inst[i][1], inst[i + 1][1]) for i in range(len(inst) - 1)]
         self._presets: dict[tuple[int, int], tuple[str, list[Zone]]] = {}
         for i in range(len(phdr) - 1):
@@ -167,8 +199,13 @@ class SoundFont:
 
     def _voice(self, s: Sample, g: dict, key: int, vel: int, held: float, sr: int) -> np.ndarray:
         tc = lambda v: 2.0 ** (max(-12000, min(8000, v)) / 1200.0)
-        delay, attack, hold, decay, release = (tc(g[G_DELAY]), tc(g[G_ATTACK]), tc(g[G_HOLD]), tc(g[G_DECAY]),
-                                               tc(g[G_RELEASE]))
+        delay, attack, hold, decay, release = (
+            tc(g[G_DELAY]),
+            tc(g[G_ATTACK]),
+            tc(g[G_HOLD]),
+            tc(g[G_DECAY]),
+            tc(g[G_RELEASE]),
+        )
         release = min(release, 8.0)
         start = s.start + g[G_START] + 32768 * g[G_START_C]
         end = s.end + g[G_END] + 32768 * g[G_END_C]
@@ -185,7 +222,7 @@ class SoundFont:
         if looped:
             L = le - ls
             rel = start + pos
-            if mode == 3:                                 # loop while held, then play on to the end
+            if mode == 3:  # loop while held, then play on to the end
                 n_held = int(held * sr)
                 over = rel[:n_held] >= ls
                 rel[:n_held][over] = ls + (rel[:n_held][over] - ls) % L
@@ -204,7 +241,7 @@ class SoundFont:
         i0 = idx.astype(np.int64)
         fr = (idx - i0).astype(np.float32)
         i1 = np.minimum(i0 + 1, len(self.data) - 1)
-        if looped:                                        # across the loop point the next sample is the loop start
+        if looped:  # across the loop point the next sample is the loop start
             i1 = np.where((i1 >= le) & (i0 < le), ls, i1)
         x = self.data[i0] * (1 - fr) + self.data[i1] * fr
         x[rel >= end - 1] = 0.0
@@ -260,15 +297,31 @@ def write_sf2(path: str | Path, instruments: list[dict], rate: int = 44100) -> N
             loop = z.get("loop")
             ls, le = (start + loop[0], start + loop[1]) if loop else (start, start + len(w) - 1)
             sid = len(shdr)
-            shdr.append(struct.pack("<20sIIIIIBbHH", f"{ins['name'][:14]}{sid}".encode(), start, start + len(w),
-                                    ls, le, rate, z.get("root", 60), 0, 0, 1))
+            shdr.append(
+                struct.pack(
+                    "<20sIIIIIBbHH",
+                    f"{ins['name'][:14]}{sid}".encode(),
+                    start,
+                    start + len(w),
+                    ls,
+                    le,
+                    rate,
+                    z.get("root", 60),
+                    0,
+                    0,
+                    1,
+                )
+            )
             ibag.append(struct.pack("<HH", len(igen), 0))
             lo, hi = z.get("keys", (0, 127))
             gens = [(G_KEYRANGE, lo | (hi << 8))] + [(k, v & 0xFFFF) for k, v in (z.get("gens") or {}).items()]
             gens += [(G_MODES, 1 if loop else 0), (G_SAMPLE, sid)]
             igen += [struct.pack("<HH", k, v) for k, v in gens]
-        phdr.append(struct.pack("<20sHHHIII", ins["name"][:19].encode(), ins.get("program", n), ins.get("bank", 0),
-                                len(pbag), 0, 0, 0))
+        phdr.append(
+            struct.pack(
+                "<20sHHHIII", ins["name"][:19].encode(), ins.get("program", n), ins.get("bank", 0), len(pbag), 0, 0, 0
+            )
+        )
         pbag.append(struct.pack("<HH", len(pgen), 0))
         pgen.append(struct.pack("<HH", G_INSTRUMENT, n))
     shdr.append(struct.pack("<20sIIIIIBbHH", b"EOS", 0, 0, 0, 0, 0, 0, 0, 0, 0))
@@ -284,10 +337,22 @@ def write_sf2(path: str | Path, instruments: list[dict], rate: int = 44100) -> N
 
     def lst(kind: bytes, body: bytes) -> bytes:
         return ck(b"LIST", kind + body)
+
     info = lst(b"INFO", ck(b"ifil", struct.pack("<HH", 2, 1)) + ck(b"INAM", b"funkbox\0"))
     sdta = lst(b"sdta", ck(b"smpl", bytes(smpl)))
-    pd = b"".join(ck(c, b"".join(v)) for c, v in ((b"phdr", phdr), (b"pbag", pbag), (b"pmod", [b"\0" * 10]),
-                                                   (b"pgen", pgen), (b"inst", inst), (b"ibag", ibag),
-                                                   (b"imod", [b"\0" * 10]), (b"igen", igen), (b"shdr", shdr)))
+    pd = b"".join(
+        ck(c, b"".join(v))
+        for c, v in (
+            (b"phdr", phdr),
+            (b"pbag", pbag),
+            (b"pmod", [b"\0" * 10]),
+            (b"pgen", pgen),
+            (b"inst", inst),
+            (b"ibag", ibag),
+            (b"imod", [b"\0" * 10]),
+            (b"igen", igen),
+            (b"shdr", shdr),
+        )
+    )
     body = b"sfbk" + info + sdta + lst(b"pdta", pd)
     Path(path).write_bytes(b"RIFF" + struct.pack("<I", len(body)) + body)

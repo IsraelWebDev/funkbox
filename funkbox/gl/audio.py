@@ -5,6 +5,7 @@ iAudio = (bass 20-150 Hz, mid 150-2k, treble 2k-8k, rms), each normalised to 0..
 95th percentile over the clip, plus a 512-bin log-spaced magnitude row (bound as iChannel3).
 PCM WAV only (8/16/24/32-bit integer); convert other formats with ffmpeg first.
 """
+
 from __future__ import annotations
 
 import wave
@@ -17,7 +18,7 @@ WINDOW = 2048
 BANDS = ((20.0, 150.0), (150.0, 2000.0), (2000.0, 8000.0))
 SPEC_BINS = 512
 SPEC_LO, SPEC_HI = 20.0, 16000.0
-FLOOR = 1e-4          # amplitude floor (-80 dB): silence in a band must not be amplified into noise
+FLOOR = 1e-4  # amplitude floor (-80 dB): silence in a band must not be amplified into noise
 
 
 def read_wav(path: str | Path) -> tuple[np.ndarray, int]:
@@ -27,8 +28,9 @@ def read_wav(path: str | Path) -> tuple[np.ndarray, int]:
             n, ch, width, sr = w.getnframes(), w.getnchannels(), w.getsampwidth(), w.getframerate()
             raw = w.readframes(n)
     except wave.Error as e:
-        raise ValueError(f"cannot read {Path(path).name} as PCM WAV ({e}); convert with "
-                         "`ffmpeg -i in.mp3 out.wav`") from None
+        raise ValueError(
+            f"cannot read {Path(path).name} as PCM WAV ({e}); convert with `ffmpeg -i in.mp3 out.wav`"
+        ) from None
     if width == 1:
         x = (np.frombuffer(raw, np.uint8).astype(np.float32) - 128.0) / 128.0
     elif width == 2:
@@ -54,8 +56,8 @@ def wav_duration(path: str | Path) -> float:
 @dataclass
 class AudioFeatures:
     fps: int
-    bands: np.ndarray      # (n, 4) float32: bass, mid, treble, rms, each 0..1
-    spectrum: np.ndarray   # (n, 512) float32, 0..1, log-spaced SPEC_LO..SPEC_HI
+    bands: np.ndarray  # (n, 4) float32: bass, mid, treble, rms, each 0..1
+    spectrum: np.ndarray  # (n, 512) float32, 0..1, log-spaced SPEC_LO..SPEC_HI
 
     def _idx(self, frame: int) -> int:
         return int(min(max(frame, 0), len(self.bands) - 1))
@@ -90,7 +92,7 @@ def analyze(path: str | Path, fps: int, n_frames: int) -> AudioFeatures:
     spec = np.zeros((n, SPEC_BINS), np.float32)
     for i in range(n):
         centre = int(min(max(round(i / fps * sr), lo), hi))
-        seg = pad[centre - WINDOW // 2: centre + WINDOW // 2]
+        seg = pad[centre - WINDOW // 2 : centre + WINDOW // 2]
         mag = np.abs(np.fft.rfft(seg * win)) / wsum
         for k, m in enumerate(masks):
             raw[i, k] = float(np.sqrt(np.sum(mag[m] ** 2)))

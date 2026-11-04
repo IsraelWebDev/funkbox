@@ -10,11 +10,11 @@ inside). The search is coordinate descent with a shrinking step, on small previe
 it improves what you point it at; it does not invent a design. Every candidate is validated like any poster, and
 text stays exact (a text layer's words are never a parameter).
 """
+
 from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from . import compare as cmp
 from . import render, schema
@@ -38,8 +38,16 @@ def _bad_key(key: str) -> bool:
     return last in ("text", "copy_id", "match", "type", "id", "path", "image", "font", "d", "on_path")
 
 
-def fit(doc, reference, params: dict, rounds: int = 4, scale: float | None = None, base_dir=None,
-        fit_mode: str = "cover", keep_inside: list | None = None) -> Fit:
+def fit(
+    doc,
+    reference,
+    params: dict,
+    rounds: int = 4,
+    scale: float | None = None,
+    base_dir=None,
+    fit_mode: str = "cover",
+    keep_inside: list | None = None,
+) -> Fit:
     raw = copy.deepcopy(schema.parse(doc).raw if not isinstance(doc, schema.Doc) else doc.raw)
     if not params or len(params) > MAX_PARAMS:
         raise ValueError(f"params: 1..{MAX_PARAMS} keys, each with a step or a [low, high] range")
@@ -62,10 +70,11 @@ def fit(doc, reference, params: dict, rounds: int = 4, scale: float | None = Non
     ref = cmp._load(reference)
     s = scale or min(1.0, 420 / max(schema.parse(raw).width, schema.parse(raw).height))
     n = [0]
-    cache: dict = {}                                   # layers a candidate did not change are drawn once
+    cache: dict = {}  # layers a candidate did not change are drawn once
     keep = []
-    if keep_inside:                                    # words must stay inside their part of the artwork (see inside.py)
+    if keep_inside:  # words must stay inside their part of the artwork (see inside.py)
         from . import inside
+
         for sp in inside.check_specs(raw, keep_inside):
             keep.append((sp, inside.region(raw, sp, base_dir, s, cache)))
             if keep[-1][1].sum() < 50:
@@ -77,7 +86,7 @@ def fit(doc, reference, params: dict, rounds: int = 4, scale: float | None = Non
         try:
             for sp, mask in keep:
                 if inside.outside(d, sp, mask, base_dir, s) > 0.005:
-                    return None                        # a candidate that leaves its region is not a candidate
+                    return None  # a candidate that leaves its region is not a candidate
             r = render.render_document(d, base_dir, scale=s, cache=cache)
         except (schema.PosterError, ValueError):
             return None
@@ -86,8 +95,11 @@ def fit(doc, reference, params: dict, rounds: int = 4, scale: float | None = Non
 
     best = score(raw)
     if best is None:
-        raise ValueError("the poster does not render as it is" + (", or its words are not inside their regions"
-                         " (run fit_inside first)" if keep else "") + "; fix it before fitting")
+        raise ValueError(
+            "the poster does not render as it is"
+            + (", or its words are not inside their regions (run fit_inside first)" if keep else "")
+            + "; fix it before fitting"
+        )
     res = Fit(raw, {}, {}, [(0, round(best, 2))])
     steps = {k: v[2] for k, v in space.items()}
     for _ in range(rounds):
@@ -114,8 +126,12 @@ def fit(doc, reference, params: dict, rounds: int = 4, scale: float | None = Non
     res.doc = raw
     res.score = {k: round(float(v), 1) for k, v in cmp.compare(full.pil, ref, fit_mode).scores.items()}
     start_doc = schema.parse(doc).raw if not isinstance(doc, schema.Doc) else doc.raw
-    res.start = {k: round(float(v), 1) for k, v in
-                 cmp.compare(render.render_document(start_doc, base_dir).pil, ref, fit_mode).scores.items()}
-    res.changed = {k: (get_path(start_doc, k), get_path(raw, k)) for k in space if get_path(start_doc, k) != get_path(raw, k)}
+    res.start = {
+        k: round(float(v), 1)
+        for k, v in cmp.compare(render.render_document(start_doc, base_dir).pil, ref, fit_mode).scores.items()
+    }
+    res.changed = {
+        k: (get_path(start_doc, k), get_path(raw, k)) for k in space if get_path(start_doc, k) != get_path(raw, k)
+    }
     res.evaluations = n[0]
     return res

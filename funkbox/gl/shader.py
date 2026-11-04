@@ -1,4 +1,5 @@
 """Shader assembly, @param annotations, compilation and error remapping."""
+
 from __future__ import annotations
 
 import hashlib
@@ -17,8 +18,7 @@ void main() { gl_Position = vec4(p, 0.0, 1.0); }
 """
 
 _NATIVE_WRAP = "\nvoid main() { fragColor = effect(uv()); }\n"
-_TOY_WRAP = ("\nvoid main() { vec4 c = vec4(0.0, 0.0, 0.0, 1.0); "
-             "mainImage(c, gl_FragCoord.xy); fragColor = c; }\n")
+_TOY_WRAP = "\nvoid main() { vec4 c = vec4(0.0, 0.0, 0.0, 1.0); mainImage(c, gl_FragCoord.xy); fragColor = c; }\n"
 
 _PARAM_RE = re.compile(r"^\s*uniform\s+(float|int|vec3)\s+(\w+)\s*;\s*//\s*@param\s+(.+)$")
 _TOY_RE = re.compile(r"\bvoid\s+mainImage\s*\(")
@@ -32,22 +32,28 @@ class ShaderError(Exception):
 @dataclass
 class CompileResult:
     ok: bool
-    errors: list[dict]          # {"line": int|None, "message": str}, line in USER coordinates
+    errors: list[dict]  # {"line": int|None, "message": str}, line in USER coordinates
     program: moderngl.Program | None
 
 
 @dataclass
 class Param:
     name: str
-    type: str                   # float | int | color
+    type: str  # float | int | color
     min: float | None = None
     max: float | None = None
     default: float | int | str = 0.0
-    fixed: bool = False         # look control: never sampled from the seed, stays at `default` unless set
+    fixed: bool = False  # look control: never sampled from the seed, stays at `default` unless set
 
     def to_dict(self) -> dict:
-        return {"name": self.name, "type": self.type, "min": self.min, "max": self.max,
-                "default": self.default, "fixed": self.fixed}
+        return {
+            "name": self.name,
+            "type": self.type,
+            "min": self.min,
+            "max": self.max,
+            "default": self.default,
+            "fixed": self.fixed,
+        }
 
 
 def _read(name: str) -> str:
@@ -111,8 +117,9 @@ def parse_params(source: str) -> list[Param]:
                 lo, hi, df = _num(rest[0]), _num(rest[1]), _num(rest[2])
                 out.append(Param(name, "float", lo, hi, df, _fixed(rest)))
         except (ValueError, IndexError):
-            raise ShaderError(f"bad @param on uniform {name}: expected "
-                              "'min max default' (or 'color #rrggbb' for vec3)") from None
+            raise ShaderError(
+                f"bad @param on uniform {name}: expected 'min max default' (or 'color #rrggbb' for vec3)"
+            ) from None
     return out
 
 
@@ -134,16 +141,16 @@ def sample_params(params: list[Param], seed: int, overrides: dict | None = None)
 
 def hex_to_rgb(h: str) -> tuple[float, float, float]:
     h = h.lstrip("#")
-    return tuple(int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))  # type: ignore[return-value]
+    return tuple(int(h[i : i + 2], 16) / 255.0 for i in (0, 2, 4))  # type: ignore[return-value]
 
 
 # Driver log line formats seen in the wild:
 #   Mesa:    0:12(7): error: ...        NVIDIA: 0(12) : error C1008: ...
 #   ANGLE/Apple: ERROR: 0:12: ...       Others: ERROR: 12:7: ...
 _LOC_RES = [
-    re.compile(r"^\s*(?:ERROR|WARNING)?:?\s*(\d+):(\d+)\(\d+\):?\s*(.*)$", re.I),   # 0:12(7)
-    re.compile(r"^\s*(?:ERROR|WARNING)?:?\s*(\d+)\((\d+)\)\s*:?\s*(.*)$", re.I),    # 0(12)
-    re.compile(r"^\s*(?:ERROR|WARNING)?:?\s*(\d+):(\d+):\s*(.*)$", re.I),           # 0:12: / 12:7:
+    re.compile(r"^\s*(?:ERROR|WARNING)?:?\s*(\d+):(\d+)\(\d+\):?\s*(.*)$", re.I),  # 0:12(7)
+    re.compile(r"^\s*(?:ERROR|WARNING)?:?\s*(\d+)\((\d+)\)\s*:?\s*(.*)$", re.I),  # 0(12)
+    re.compile(r"^\s*(?:ERROR|WARNING)?:?\s*(\d+):(\d+):\s*(.*)$", re.I),  # 0:12: / 12:7:
 ]
 
 
@@ -159,9 +166,9 @@ def parse_driver_log(log: str, offset: int, n_user_lines: int) -> list[dict]:
             if not m:
                 continue
             a, b, msg = int(m.group(1)), int(m.group(2)), m.group(3).strip()
-            if k == 2 and a != 0:       # "LINE:COL" form
+            if k == 2 and a != 0:  # "LINE:COL" form
                 line = a
-            else:                       # "<source-string>:LINE"
+            else:  # "<source-string>:LINE"
                 line = b
             if "warning" in raw.lower()[:20] and "error" not in raw.lower()[:30]:
                 break

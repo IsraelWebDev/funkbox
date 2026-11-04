@@ -3,6 +3,7 @@
 Order: hook (first copy line) -> body lines -> end card (ids starting ``end_`` plus ``url``, or ``cta_ids``).
 Only APPROVED, locked copy is used (project.copy_lock_error); shots reference copy by id only, like every reel.
 """
+
 from __future__ import annotations
 
 import json
@@ -25,11 +26,11 @@ from .timeline import VO_LEAD, VO_TAIL
 
 W, H, FPS = 1080, 1920, 30
 END_SECONDS = 4.0
-MIN_CLIP_SHARE = 0.40                    # clip share when clips are a minority of the assets (clip_share=None)
+MIN_CLIP_SHARE = 0.40  # clip share when clips are a minority of the assets (clip_share=None)
 PACE_SECONDS = {"fast": 1.3, "calm": 2.2}
 MIN_SHOT = 0.8
 PRODUCT_H = 0.38
-PRODUCT_Y = 0.78                         # bottom anchor; the reels UI owns the bottom 22%
+PRODUCT_Y = 0.78  # bottom anchor; the reels UI owns the bottom 22%
 SHRINK = 0.85
 PLACEMENTS = (("bottom-centre", 0.5), ("right-third", 0.7), ("left-third", 0.3))
 FAST_TRANSITIONS = ("cut", "zoom-punch", "push", "cut", "flash")
@@ -38,7 +39,7 @@ FILLER_SHADERS = ("warp", "plasma", "fbm_flow", "blobs", "moire", "rings")
 IMG_EXT = {".png", ".jpg", ".jpeg", ".webp"}
 VID_EXT = {".mp4", ".mov", ".webm"}
 AUD_EXT = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
-HOLD = 0.35                              # a finished caption stays up at least this long
+HOLD = 0.35  # a finished caption stays up at least this long
 
 
 @dataclass
@@ -46,17 +47,19 @@ class AutoResult:
     slug: str
     reel: dict
     path: Path
-    report: object = None                # validate.Report
+    report: object = None  # validate.Report
     storyboard: Path | None = None
     notes: list[str] = field(default_factory=list)
     stats: dict = field(default_factory=dict)
 
     def text(self) -> str:
         s = self.stats
-        out = [f"project_auto_reel for {self.slug!r}: {self.path}",
-               f"{s.get('shots')} shots + end card, {s.get('total', 0):.1f}s total, product in {s.get('product_shots')} "
-               f"of {s.get('shots')} shots, {s.get('clip_shots')} clip shot(s), motion {s.get('motion')}, "
-               f"voice-over {'on' if s.get('voiceover') else 'off'}, music {s.get('music') or 'none'}"]
+        out = [
+            f"project_auto_reel for {self.slug!r}: {self.path}",
+            f"{s.get('shots')} shots + end card, {s.get('total', 0):.1f}s total, product in {s.get('product_shots')} "
+            f"of {s.get('shots')} shots, {s.get('clip_shots')} clip shot(s), motion {s.get('motion')}, "
+            f"voice-over {'on' if s.get('voiceover') else 'off'}, music {s.get('music') or 'none'}",
+        ]
         out += [f"note: {n}" for n in self.notes]
         out.append("validate: " + (self.report.text() if self.report is not None else "?"))
         if self.storyboard:
@@ -78,8 +81,12 @@ def _roles(deck: copydeck.CopyDeck, cta_ids: list[str] | None, has_logo: bool) -
             end_ids.append("url")
     rest = [i for i in ids if i not in end_ids]
     if not rest:
-        raise ReelError(["the approved copy has no hook/body line: add at least one line that is not an end_* line "
-                         "(the first line is the hook)"])
+        raise ReelError(
+            [
+                "the approved copy has no hook/body line: add at least one line that is not an end_* line "
+                "(the first line is the hook)"
+            ]
+        )
     hook, body = rest[0], rest[1:]
     end = None
     if end_ids:
@@ -88,24 +95,28 @@ def _roles(deck: copydeck.CopyDeck, cta_ids: list[str] | None, has_logo: bool) -
         head = next((i for i in non_url if re.search(r"head", i)), non_url[0] if non_url else None)
         others = [i for i in non_url if i != head]
         sub = next((i for i in others if re.search(r"sub", i)), others[0] if others else None)
-        if cta_ids and len(cta_ids) >= 2 and "url" not in cta_ids:       # explicit order: headline, sub, url
+        if cta_ids and len(cta_ids) >= 2 and "url" not in cta_ids:  # explicit order: headline, sub, url
             head, sub, url = (list(cta_ids) + [None, None])[:3]
         if head and sub and url:
             end = {"template": "brand-split", "copy": {"headline": head, "sub": sub, "url": url}}
         elif head and url and has_logo:
             end = {"template": "centered-logo", "copy": {"headline": head, "url": url}}
         else:
-            raise ReelError([
-                "cannot build an end card from the copy ids " + str(end_ids) + ": the 'brand-split' end card needs "
-                "three lines (end_head, end_sub, url); 'centered-logo' needs end_head and url plus a brand logo. "
-                "Add the missing lines with project_propose_copy (the user approves them), or pass cta_ids."])
+            raise ReelError(
+                [
+                    "cannot build an end card from the copy ids " + str(end_ids) + ": the 'brand-split' end card needs "
+                    "three lines (end_head, end_sub, url); 'centered-logo' needs end_head and url plus a brand logo. "
+                    "Add the missing lines with project_propose_copy (the user approves them), or pass cta_ids."
+                ]
+            )
     return {"hook": hook, "body": body, "end": end, "end_ids": end_ids}
 
 
 def _clip_duration(path: Path) -> float | None:
     try:
-        r = subprocess.run([require_ffmpeg(), "-hide_banner", "-i", str(path)], capture_output=True, text=True,
-                           timeout=30)
+        r = subprocess.run(
+            [require_ffmpeg(), "-hide_banner", "-i", str(path)], capture_output=True, text=True, timeout=30
+        )
         m = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.?\d*)", r.stderr)
         if m:
             return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
@@ -118,7 +129,10 @@ def make_fillers(d: Path, brand: dict, count: int, rng: random.Random) -> list[s
     """funk2 recipes tinted with the brand palette: a brand-coloured gradient PNG multiplied into an animated
     shader (no text). Returns project-relative recipe paths."""
     out = []
-    pr, sc = np.array(brandmod.hex_to_rgb(brand["primary"]), float), np.array(brandmod.hex_to_rgb(brand["secondary"]), float)
+    pr, sc = (
+        np.array(brandmod.hex_to_rgb(brand["primary"]), float),
+        np.array(brandmod.hex_to_rgb(brand["secondary"]), float),
+    )
     light = pr + (255 - pr) * 0.45
     shaders = list(FILLER_SHADERS)
     rng.shuffle(shaders)
@@ -133,21 +147,41 @@ def make_fillers(d: Path, brand: dict, count: int, rng: random.Random) -> list[s
         mid = np.clip(0.5 + 0.5 * np.sin((t * 2.0 + j) * math.pi), 0, 1)
         img = (pr * (1 - t) + light * t) * (1 - 0.5 * mid) + sc * (0.5 * mid) * 0.6 + pr * (0.5 * mid) * 0.4
         Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)).save(fdir / f"filler-{j + 1}-bg.png")
-        recipe = {"version": 2, "settings": {"width": 540, "height": 960, "fps": 30, "seconds": 2, "seed": 7 + j},
-                  "palette": {"name": "mono", "cycles": 1},
-                  "layers": [{"type": "shader", "shader": f"shaders/{shaders[j % len(shaders)]}.frag"},
-                             {"type": "image", "path": f"filler-{j + 1}-bg.png", "fit": "cover", "blend": "multiply",
-                              "opacity": 1.0}],
-                  "post": [{"name": "vignette", "amount": 0.3}]}
+        recipe = {
+            "version": 2,
+            "settings": {"width": 540, "height": 960, "fps": 30, "seconds": 2, "seed": 7 + j},
+            "palette": {"name": "mono", "cycles": 1},
+            "layers": [
+                {"type": "shader", "shader": f"shaders/{shaders[j % len(shaders)]}.frag"},
+                {
+                    "type": "image",
+                    "path": f"filler-{j + 1}-bg.png",
+                    "fit": "cover",
+                    "blend": "multiply",
+                    "opacity": 1.0,
+                },
+            ],
+            "post": [{"name": "vignette", "amount": 0.3}],
+        }
         (fdir / f"filler-{j + 1}.json").write_text(json.dumps(recipe, indent=2) + "\n", encoding="utf-8")
         out.append(f"funk2/filler-{j + 1}.json")
     return out
 
 
 # --------------------------------------------------------------------------- #
-def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: str = "fast",
-              cta_ids: list[str] | None = None, music: str | None = None, *, clip_share: float | None = None,
-              product_every: int = 2, formats: list[str] | None = None, bpm: float | None = None) -> AutoResult:
+def auto_reel(
+    slug: str,
+    length_s: float = 20.0,
+    style: str = "red-box",
+    pace: str = "fast",
+    cta_ids: list[str] | None = None,
+    music: str | None = None,
+    *,
+    clip_share: float | None = None,
+    product_every: int = 2,
+    formats: list[str] | None = None,
+    bpm: float | None = None,
+) -> AutoResult:
     """``clip_share``: fraction of shots that use video clips (None = follow the assets: the share of clips among
     the supplied visuals, at least 40%). ``product_every``: the product goes in every Nth shot and the last
     (0 = never). ``formats``: extra output formats, e.g. ["9x16", "16x9"]. ``bpm``: a fixed beat grid for the cuts
@@ -171,6 +205,7 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
         raise ReelError(["bpm must be between 30 and 300"])
     if formats:
         from .schema import FORMAT_PRESETS
+
         bad = [f for f in formats if f not in FORMAT_PRESETS]
         if bad:
             raise ReelError([f"unknown formats {bad}; presets are {list(FORMAT_PRESETS)}"])
@@ -181,9 +216,14 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
             br = brandmod.brand_from_assets(slug)
             notes.append("no brand was set yet; project_brand was run automatically (override with project_set_brand)")
         else:
-            br = {"primary": "#c8102e", "secondary": "#1a1a1a", "text": "#ffffff",
-                  "font_caption": brandmod.DEFAULT_CAPTION_FONT, "font_display": brandmod.DEFAULT_DISPLAY_FONT,
-                  "logo": None}
+            br = {
+                "primary": "#c8102e",
+                "secondary": "#1a1a1a",
+                "text": "#ffffff",
+                "font_caption": brandmod.DEFAULT_CAPTION_FONT,
+                "font_display": brandmod.DEFAULT_DISPLAY_FONT,
+                "logo": None,
+            }
             notes.append("no product or logo to take colours from: default brand colours used (set_brand to change)")
     deck = copydeck.load_copy(d / "copy.json")
     rng = random.Random(slug)
@@ -206,8 +246,10 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
     if filler_n:
         filler_paths = make_fillers(d, br, filler_n, rng)
         visuals += [{"kind": "funk2", "path": p} for p in filler_paths]
-        notes.append(f"only {n_real} visual asset(s) in shots/ and clips/: added {filler_n} funk2 filler recipe(s) in "
-                     f"the brand colours (funk2/). Drop more scene images or clips in the inbox for a richer ad.")
+        notes.append(
+            f"only {n_real} visual asset(s) in shots/ and clips/: added {filler_n} funk2 filler recipe(s) in "
+            f"the brand colours (funk2/). Drop more scene images or clips in the inbox for a richer ad."
+        )
     # ---- how many shots
     music_file = None
     mus = [p for p in P.files_in(d / "music") if p.suffix.lower() in AUD_EXT]
@@ -217,7 +259,7 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
             raise ReelError([f"no music file {music!r} in music/ (have {[p.name for p in mus]})"])
         music_file = sel[0]
     elif mus:
-        music_file = max(mus, key=lambda p: (_clip_duration(p) or 0.0, p.name))      # the longest track
+        music_file = max(mus, key=lambda p: (_clip_duration(p) or 0.0, p.name))  # the longest track
         if len(mus) > 1:
             notes.append(f"{len(mus)} music files: using the longest, {music_file.name} (pick another with music=)")
     end_total = END_SECONDS if end else 0.0
@@ -236,9 +278,12 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
     vo_len = {cid: audio.wav_duration(audio.synthesize(deck, cid)) for cid in cap_ids} if vo_on else {}
     cap_dur: dict[str, float] = {}
     for cid in cap_ids:
-        lay = captions.layout_block(cid, deck.text(cid), captions.load_style(style), fonts, bobj, W, H,
-                                    anchor="bottom", safe_area="reels")
-        nd = max(MIN_SHOT, captions.CAPTION_DELAY + captions.reveal_seconds(lay, reveal_for[cid], vo_len.get(cid)) + HOLD)
+        lay = captions.layout_block(
+            cid, deck.text(cid), captions.load_style(style), fonts, bobj, W, H, anchor="bottom", safe_area="reels"
+        )
+        nd = max(
+            MIN_SHOT, captions.CAPTION_DELAY + captions.reveal_seconds(lay, reveal_for[cid], vo_len.get(cid)) + HOLD
+        )
         if cid in vo_len:
             nd = max(nd, vo_len[cid] + VO_LEAD + VO_TAIL + 0.05)
         cap_dur[cid] = nd
@@ -255,12 +300,16 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
     if n < 2:
         n = 2
         n_free = 1
-    if not n_free and free_time > 0:                   # no room for extra shots: the lines' shots stretch a little
+    if not n_free and free_time > 0:  # no room for extra shots: the lines' shots stretch a little
         for cid in cap_dur:
             cap_dur[cid] += free_time / len(cap_ids)
     if free_time < -2.0:
-        raise ReelError([f"the {len(cap_ids)} copy lines need {sum(cap_dur.values()):.1f}s (caption reveals and "
-                         f"voice-over) but length_s={length_s:g} leaves {T:.1f}s; raise length_s or shorten/cut lines"])
+        raise ReelError(
+            [
+                f"the {len(cap_ids)} copy lines need {sum(cap_dur.values()):.1f}s (caption reveals and "
+                f"voice-over) but length_s={length_s:g} leaves {T:.1f}s; raise length_s or shorten/cut lines"
+            ]
+        )
 
     # ---- visual per shot: clips take their share of the shots, stills (and filler) cycle through the rest
     if clip_share is not None:
@@ -278,16 +327,16 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
     else:
         c = int(math.floor(share * n + 1e-9))
         if clip_share is None:
-            c = min(c, len(clip_pool))      # following the assets: never repeat a clip to fill the share
+            c = min(c, len(clip_pool))  # following the assets: never repeat a clip to fill the share
     if clip_pool and c > len(clip_pool):
         notes.append(f"{c} clip shots from {len(clip_pool)} clip file(s): clips repeat")
     if clip_pool and clip_share is None and visuals:
         notes.append(f"clips in {c} of {n} shots (share follows the assets: {share:.0%}; set clip_share to change it)")
     clip_items = [{"kind": "video", "path": p.relative_to(d).as_posix(), "file": p} for p in clip_pool]
     if c and visuals and c < n:
-        if share >= 0.5:                    # mostly clips: spread evenly from the first shot
+        if share >= 0.5:  # mostly clips: spread evenly from the first shot
             clip_slots = {min(n - 1, (j * n) // c) for j in range(c)}
-        else:                               # mostly stills: the hook stays a still, clips in between
+        else:  # mostly stills: the hook stays a still, clips in between
             clip_slots = {min(n - 1, max(1, round((j + 0.5) * n / c))) for j in range(c)}
     else:
         clip_slots = set(range(n)) if c else set()
@@ -311,8 +360,9 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
         cap_at[1 + (j * (n - 1)) // m] = cid
 
     # ---- product placement
-    prod_slots = ([i for i in range(n) if i % product_every == 0 or i == n - 1]
-                  if has_product and product_every > 0 else [])
+    prod_slots = (
+        [i for i in range(n) if i % product_every == 0 or i == n - 1] if has_product and product_every > 0 else []
+    )
     if has_product and product_every == 0:
         notes.append("product_every=0: the product appears only on the end card")
     asp = collision.image_aspect(prod_path) if has_product else 1.0
@@ -349,15 +399,22 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
             name, x = PLACEMENTS[place_k % len(PLACEMENTS)]
             place_k += 1
             h_frac = PRODUCT_H
-            if h_frac * H * asp > 0.9 * W:                      # very wide product: keep it inside the frame
+            if h_frac * H * asp > 0.9 * W:  # very wide product: keep it inside the frame
                 h_frac = 0.9 * W / (H * asp)
             half = h_frac * H * asp / 2 / W
             x = min(max(x, half + 0.03), 1 - half - 0.03)
-            sh["product"] = {"image": "product/product.png", "x": round(x, 3), "y": PRODUCT_Y, "height": round(h_frac, 3),
-                             "depth": 0.85, "shadow": 0.6, "match_color": 0.5}
+            sh["product"] = {
+                "image": "product/product.png",
+                "x": round(x, 3),
+                "y": PRODUCT_Y,
+                "height": round(h_frac, 3),
+                "depth": 0.85,
+                "shadow": 0.6,
+                "match_color": 0.5,
+            }
         cid = cap_at.get(i)
         if cid:
-            anchor_pref = ("top" if (i == 0 or i % 2) else "bottom")
+            anchor_pref = "top" if (i == 0 or i % 2) else "bottom"
             sh["caption"] = {"copy_id": cid, "style": style, "reveal": reveal_for[cid], "anchor": anchor_pref}
             if "product" in sh:
                 _resolve_collision(sh, deck, style, fonts, bobj, asp)
@@ -376,8 +433,12 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
     dur = [cap_dur[sh["caption"]["copy_id"]] if "caption" in sh else free_each for sh in shots]
     total = sum(dur) + end_total
     if abs(total - length_s) > 2.0:
-        raise ReelError([f"the lines need {total:.1f}s (voice-over and caption reveals) but length_s={length_s:g}; "
-                         f"raise length_s, shorten lines, or use pace=calm with fewer lines"])
+        raise ReelError(
+            [
+                f"the lines need {total:.1f}s (voice-over and caption reveals) but length_s={length_s:g}; "
+                f"raise length_s, shorten lines, or use pace=calm with fewer lines"
+            ]
+        )
     for sh, x in zip(shots, dur):
         sh["duration"] = round(max(0.2, round(x * FPS) / FPS), 3)
     # clips: loop when shorter than the shot, trim when longer is not needed (the shot cuts them)
@@ -396,16 +457,31 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
             notes.append(f"{music_file.name}: no usable beat ({e}); cuts are not snapped to beats")
         mlen = _clip_duration(music_file)
         if mlen is not None and mlen + 0.5 < sum(dur) + end_total:
-            notes.append(f"{music_file.name} is {mlen:.1f}s, shorter than the {sum(dur) + end_total:.1f}s ad: the music "
-                         f"ends early (drop a longer track in the inbox)")
+            notes.append(
+                f"{music_file.name} is {mlen:.1f}s, shorter than the {sum(dur) + end_total:.1f}s ad: the music "
+                f"ends early (drop a longer track in the inbox)"
+            )
 
-    reel = {"version": 3, "settings": {"width": W, "height": H, "fps": FPS, "safe_area": "reels"},
-            "brand": {"primary": br["primary"], "secondary": br["secondary"], "text": br["text"],
-                      "font_caption": br["font_caption"], "font_display": br["font_display"]},
-            "copy": "copy.json",
-            "audio": {"music_gain_db": -14, "voiceover": bool(vo_on), "duck_db": -10,
-                      "snap_cuts_to_beats": snap, "loudness_lufs": -14},
-            "shots": shots}
+    reel = {
+        "version": 3,
+        "settings": {"width": W, "height": H, "fps": FPS, "safe_area": "reels"},
+        "brand": {
+            "primary": br["primary"],
+            "secondary": br["secondary"],
+            "text": br["text"],
+            "font_caption": br["font_caption"],
+            "font_display": br["font_display"],
+        },
+        "copy": "copy.json",
+        "audio": {
+            "music_gain_db": -14,
+            "voiceover": bool(vo_on),
+            "duck_db": -10,
+            "snap_cuts_to_beats": snap,
+            "loudness_lufs": -14,
+        },
+        "shots": shots,
+    }
     if logo:
         reel["brand"]["logo"] = logo
     if music_file:
@@ -415,8 +491,13 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
     if formats:
         reel["formats"] = list(dict.fromkeys(formats))
     if end:
-        ec = {"template": end["template"], "duration": END_SECONDS, "audio": "silence", "copy": end["copy"],
-              "headline_reveal": "typewriter"}
+        ec = {
+            "template": end["template"],
+            "duration": END_SECONDS,
+            "audio": "silence",
+            "copy": end["copy"],
+            "headline_reveal": "typewriter",
+        }
         if has_product:
             ec["product"] = "product/product.png"
         reel["end_card"] = ec
@@ -424,16 +505,33 @@ def auto_reel(slug: str, length_s: float = 20.0, style: str = "red-box", pace: s
     path.write_text(json.dumps(reel, indent=2) + "\n", encoding="utf-8")
 
     from .validate import validate
+
     rep = validate(str(path))
     if not rep.ok:
         raise ReelError([f"project_auto_reel built a reel that does not validate (kept at {path}):"] + rep.errors)
     P.advance_status(slug, "reel-built")
     n_prod = sum(1 for s in shots if "product" in s)
     n_clip = sum(1 for s in shots if "video" in s["source"])
-    res = AutoResult(slug, reel, path, rep, None, notes, {
-        "shots": n, "total": rep.info.get("total_seconds", total), "product_shots": n_prod, "clip_shots": n_clip,
-        "filler": len(filler_paths), "voiceover": vo_on, "music": music_file.name if music_file else None,
-        "motion": motion_kind, "hook": roles["hook"], "end_card": (end or {}).get("copy")})
+    res = AutoResult(
+        slug,
+        reel,
+        path,
+        rep,
+        None,
+        notes,
+        {
+            "shots": n,
+            "total": rep.info.get("total_seconds", total),
+            "product_shots": n_prod,
+            "clip_shots": n_clip,
+            "filler": len(filler_paths),
+            "voiceover": vo_on,
+            "music": music_file.name if music_file else None,
+            "motion": motion_kind,
+            "hook": roles["hook"],
+            "end_card": (end or {}).get("copy"),
+        },
+    )
     return res
 
 
@@ -458,5 +556,9 @@ def _resolve_collision(sh: dict, deck: copydeck.CopyDeck, style: str, fonts, bra
                 return
         if attempt == 0:
             p["height"] = round(p["height"] * SHRINK, 3)
-    raise ReelError([f"shot {sh['id']}: caption {c['copy_id']!r} collides with the product at both the top and the "
-                     f"bottom anchor, even with the product shrunk to {SHRINK}x; shorten that line"])
+    raise ReelError(
+        [
+            f"shot {sh['id']}: caption {c['copy_id']!r} collides with the product at both the top and the "
+            f"bottom anchor, even with the product shrunk to {SHRINK}x; shorten that line"
+        ]
+    )

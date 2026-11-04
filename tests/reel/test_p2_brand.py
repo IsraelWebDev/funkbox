@@ -1,7 +1,3 @@
-import json
-from pathlib import Path
-
-import numpy as np
 import pytest
 from PIL import Image
 
@@ -69,6 +65,7 @@ def test_user_fonts_win_and_set_brand_overrides(penv):
     make(penv)
     import shutil
     from funkbox.config import ROOT as FUNKBOX
+
     fd = P.project_dir("demo") / "brand" / "fonts"
     shutil.copy(FUNKBOX / "fonts" / "Oswald-SemiBold.ttf", fd / "Brandsans.ttf")
     shutil.copy(FUNKBOX / "fonts" / "DMSerifDisplay-Regular.ttf", fd / "Brand-Display.ttf")
@@ -83,13 +80,13 @@ def test_user_fonts_win_and_set_brand_overrides(penv):
         brand.set_brand("demo", font_caption="brand/fonts/missing.ttf")
     with pytest.raises(P.ProjectError):
         brand.set_brand("demo", font_caption="../../../etc/passwd")
-    b = brand.set_brand("demo", font_fallback="fonts/Rubik-Bold.ttf")    # a bundled fallback, by path
+    b = brand.set_brand("demo", font_fallback="fonts/Rubik-Bold.ttf")  # a bundled fallback, by path
     assert b["font_fallback"] == "fonts/Rubik-Bold.ttf"
     with pytest.raises(P.ProjectError, match="font name like"):
         brand.set_brand("demo", font_display="brand/fonts/logo.png")
     with pytest.raises(P.ProjectError, match="font name like 'Rubik:800'"):
         brand.set_brand("demo", font_caption="Rubik:bold")
-    b = brand.set_brand("demo", primary="#ffee00")                      # white-on-yellow: warned, not blocked
+    b = brand.set_brand("demo", primary="#ffee00")  # white-on-yellow: warned, not blocked
     assert any("warning" in n for n in b["notes"])
 
 

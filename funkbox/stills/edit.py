@@ -18,6 +18,7 @@ Ops (each ``{"op": "<name>", ...}``, applied in order; ``{"crop": {...}}`` is ac
 crop/resize/rotate/flip/remove_background change the picture's shape, so they must come before everything else.
 adjust/filter/vignette apply to everything built so far (the picture plus any overlay/text/border before them).
 """
+
 from __future__ import annotations
 
 import json
@@ -43,12 +44,28 @@ GEOMETRY = ("crop", "resize", "rotate", "flip", "remove_background")
 PIXEL = ("adjust", "filter", "vignette")
 LAYERED = ("overlay", "text", "border")
 ALL_OPS = GEOMETRY + PIXEL + LAYERED
-ANCHORS = {"center": (0.5, 0.5), "top": (0.5, 0.0), "bottom": (0.5, 1.0), "left": (0.0, 0.5), "right": (1.0, 0.5),
-           "top-left": (0.0, 0.0), "top-right": (1.0, 0.0), "bottom-left": (0.0, 1.0), "bottom-right": (1.0, 1.0)}
+ANCHORS = {
+    "center": (0.5, 0.5),
+    "top": (0.5, 0.0),
+    "bottom": (0.5, 1.0),
+    "left": (0.0, 0.5),
+    "right": (1.0, 0.5),
+    "top-left": (0.0, 0.0),
+    "top-right": (1.0, 0.0),
+    "bottom-left": (0.0, 1.0),
+    "bottom-right": (1.0, 1.0),
+}
 OP_KEYS = {
-    "crop": {"x", "y", "w", "h", "aspect", "anchor"}, "resize": {"width", "height"}, "rotate": {"deg"},
-    "flip": {"axis"}, "remove_background": set(), "vignette": {"amount"}, "border": {"px", "color"},
-    "overlay": {"path", "x", "y", "scale", "blend", "opacity"}, "adjust": set(ADJUST_KEYS), "filter": set(FILTER_KEYS),
+    "crop": {"x", "y", "w", "h", "aspect", "anchor"},
+    "resize": {"width", "height"},
+    "rotate": {"deg"},
+    "flip": {"axis"},
+    "remove_background": set(),
+    "vignette": {"amount"},
+    "border": {"px", "color"},
+    "overlay": {"path", "x", "y", "scale", "blend", "opacity"},
+    "adjust": set(ADJUST_KEYS),
+    "filter": set(FILTER_KEYS),
     "text": TYPE_KEYS["text"],
 }
 NAME_RE = re.compile(r"^[A-Za-z0-9_\-]{1,40}$")
@@ -65,17 +82,17 @@ def normalize(ops: Any) -> list[dict]:
     if isinstance(ops, str):
         ops = json.loads(ops)
     if not isinstance(ops, list) or not ops:
-        raise EditError("ops must be a non-empty list like [{\"op\": \"crop\", \"aspect\": \"4:5\"}, ...]")
+        raise EditError('ops must be a non-empty list like [{"op": "crop", "aspect": "4:5"}, ...]')
     out, errs = [], []
     for i, op in enumerate(ops):
         if isinstance(op, dict) and "op" not in op and len(op) == 1:
-            (k, v), = op.items()
+            ((k, v),) = op.items()
             if k in ALL_OPS and isinstance(v, dict):
                 op = {"op": k, **v}
             elif k in ALL_OPS and v in (None, True):
                 op = {"op": k}
         if not isinstance(op, dict) or op.get("op") not in ALL_OPS:
-            errs.append(f"ops[{i}]: must be {{\"op\": one of {', '.join(ALL_OPS)}, ...}}")
+            errs.append(f'ops[{i}]: must be {{"op": one of {", ".join(ALL_OPS)}, ...}}')
             continue
         kind = op["op"]
         bad = set(op) - {"op"} - OP_KEYS[kind]
@@ -86,8 +103,10 @@ def normalize(ops: Any) -> list[dict]:
     for i, op in enumerate(out):
         if op["op"] in GEOMETRY:
             if seen_other:
-                errs.append(f"ops[{i}] ({op['op']}) comes after {seen_other}: crop, resize, rotate, flip and "
-                            "remove_background change the picture's shape, so put them first")
+                errs.append(
+                    f"ops[{i}] ({op['op']}) comes after {seen_other}: crop, resize, rotate, flip and "
+                    "remove_background change the picture's shape, so put them first"
+                )
         elif seen_other is None:
             seen_other = f"ops[{i}] ({op['op']})"
     if errs:
@@ -116,7 +135,9 @@ def _crop(im: Image.Image, op: dict) -> Image.Image:
             x, y, w_, h_ = (float(op[k]) for k in ("x", "y", "w", "h"))
         except KeyError:
             raise EditError("crop needs x, y, w, h (fractions of the image) or aspect") from None
-        if not (0 <= x < 1 and 0 <= y < 1 and 0 < w_ <= 1 and 0 < h_ <= 1 and x + w_ <= 1 + 1e-9 and y + h_ <= 1 + 1e-9):
+        if not (
+            0 <= x < 1 and 0 <= y < 1 and 0 < w_ <= 1 and 0 < h_ <= 1 and x + w_ <= 1 + 1e-9 and y + h_ <= 1 + 1e-9
+        ):
             raise EditError("crop x, y, w, h must be fractions inside the image (x + w <= 1, y + h <= 1)")
         x0, y0, w, h = round(x * iw), round(y * ih), max(1, round(w_ * iw)), max(1, round(h_ * ih))
         w, h = min(w, iw - x0), min(h, ih - y0)
@@ -158,6 +179,7 @@ def _flip(im: Image.Image, op: dict) -> Image.Image:
 
 def _remove_background(im: Image.Image, ctx: RCtx) -> Image.Image:
     from funkbox.reel import ingest
+
     work = funk_out() / "edits" / f".work-{os.getpid()}"
     work.mkdir(parents=True, exist_ok=True)
     try:
@@ -204,8 +226,15 @@ def load_source(path: str | Path) -> tuple[Path, Image.Image]:
     return p, ImageOps.exif_transpose(im).convert("RGBA")
 
 
-def build_doc(path: str | Path, ops: Any, *, name: str = "", project: str | None = None, copy: str | None = None,
-              casual: bool = False) -> tuple[dict, Path]:
+def build_doc(
+    path: str | Path,
+    ops: Any,
+    *,
+    name: str = "",
+    project: str | None = None,
+    copy: str | None = None,
+    casual: bool = False,
+) -> tuple[dict, Path]:
     """The one-image poster for ``ops`` applied to ``path`` (the source is only ever read)."""
     ops = normalize(ops)
     src_path, im = load_source(path)
@@ -218,7 +247,9 @@ def build_doc(path: str | Path, ops: Any, *, name: str = "", project: str | None
     if W < schema.MIN_SIDE or H < schema.MIN_SIDE:
         raise EditError(f"the edited picture is {W}x{H}; the minimum is {schema.MIN_SIDE} px per side")
     if W > schema.MAX_SIDE or H > schema.MAX_SIDE:
-        raise EditError(f"the edited picture is {W}x{H}; the maximum is {schema.MAX_SIDE} px per side (add a resize op)")
+        raise EditError(
+            f"the edited picture is {W}x{H}; the maximum is {schema.MAX_SIDE} px per side (add a resize op)"
+        )
     has_alpha = np.asarray(shaped.getchannel("A")).min() < 255
     src = {"id": "src", "type": "image", "path": src_path.as_posix(), "fit": "stretch", "pre": pre}
     root: list[dict] = [src]
@@ -253,16 +284,24 @@ def build_doc(path: str | Path, ops: Any, *, name: str = "", project: str | None
         elif k == "overlay":
             if "path" not in body:
                 raise EditError("overlay needs path")
-            lay = {"id": next_id("overlay"), "type": "image", "fit": "contain",
-                   "path": resolve_path(body.pop("path")).as_posix(), **body}
+            lay = {
+                "id": next_id("overlay"),
+                "type": "image",
+                "fit": "contain",
+                "path": resolve_path(body.pop("path")).as_posix(),
+                **body,
+            }
             root.append(lay)
         elif k == "text":
             root.append({"id": next_id("text"), "type": "text", **body})
         elif k == "border":
             root.append({"id": next_id("border"), "type": "border", **body})
-    doc: dict[str, Any] = {"version": 1, "canvas": {"width": W, "height": H,
-                                                   "background": "transparent" if has_alpha else "#000000"},
-                           "layers": root, "export": {"formats": ["png"]}}
+    doc: dict[str, Any] = {
+        "version": 1,
+        "canvas": {"width": W, "height": H, "background": "transparent" if has_alpha else "#000000"},
+        "layers": root,
+        "export": {"formats": ["png"]},
+    }
     if project:
         doc["project"] = project
     if copy:
@@ -305,8 +344,16 @@ def _stem(p: Path) -> str:
     return re.sub(r"[^A-Za-z0-9_\-]", "_", p.stem)[:40] or "image"
 
 
-def edit_image(path: str | Path, ops: Any, name: str = "", *, project: str | None = None, copy: str | None = None,
-               casual: bool = False, out_dir: str | Path | None = None) -> EditResult:
+def edit_image(
+    path: str | Path,
+    ops: Any,
+    name: str = "",
+    *,
+    project: str | None = None,
+    copy: str | None = None,
+    casual: bool = False,
+    out_dir: str | Path | None = None,
+) -> EditResult:
     """Apply ``ops`` to a COPY of the picture: writes ``<edits>/<stem>-<name|n>.png`` (+ sidecar, audit, before/after
     sheet). The source file is never written."""
     if name and not NAME_RE.match(name):
@@ -328,8 +375,9 @@ def edit_image(path: str | Path, ops: Any, name: str = "", *, project: str | Non
     r = render.render_document(doc)
     paths = render.write_outputs(r, d, out_name, ["png"])
     before = Image.open(src_path).convert("RGBA")
-    sheet = contact_sheet([checker_flatten(before), checker_flatten(r.pil.convert("RGBA"))], ["before", "after"],
-                          tile=520, cols=2)
+    sheet = contact_sheet(
+        [checker_flatten(before), checker_flatten(r.pil.convert("RGBA"))], ["before", "after"], tile=520, cols=2
+    )
     cp = d / f"{out_name}.compare.png"
     sheet.save(cp)
     paths["compare"] = cp

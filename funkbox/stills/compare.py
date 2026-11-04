@@ -11,6 +11,7 @@ Structure is SSIM on the grey image, colour is the CIE76 delta E of the blurred 
 not texture), layout compares where the edges are. Numbers are deterministic, so a change can be measured: render,
 compare, adjust, compare again.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -19,7 +20,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
-WORK = 384                       # analysis size (longest side)
+WORK = 384  # analysis size (longest side)
 GRID = 4
 
 
@@ -34,16 +35,23 @@ class Comparison:
 
     def summary(self) -> str:
         s = self.scores
-        lines = [f"overall {s['overall']:.1f}/100  (structure {s['structure']:.1f}, colour {s['colour']:.1f}, "
-                 f"layout {s['layout']:.1f})"]
+        lines = [
+            f"overall {s['overall']:.1f}/100  (structure {s['structure']:.1f}, colour {s['colour']:.1f}, "
+            f"layout {s['layout']:.1f})"
+        ]
         bad = [c for c in self.cells if c["score"] < 85][:4]
         if bad:
-            lines.append("most different regions: " + "; ".join(
-                f"{c['where']} {c['score']:.0f} ({c['differs']})" for c in bad))
+            lines.append(
+                "most different regions: " + "; ".join(f"{c['where']} {c['score']:.0f} ({c['differs']})" for c in bad)
+            )
         miss = [p for p in self.palette if p["delta_e"] > 12 and p["share"] >= 0.05]
         if miss:
-            lines.append("reference colours not matched: " + ", ".join(
-                f"{p['color']} ({p['share']:.0%}, nearest {p['nearest']}, dE {p['delta_e']:.0f})" for p in miss))
+            lines.append(
+                "reference colours not matched: "
+                + ", ".join(
+                    f"{p['color']} ({p['share']:.0%}, nearest {p['nearest']}, dE {p['delta_e']:.0f})" for p in miss
+                )
+            )
         return "\n".join(lines + self.notes)
 
 
@@ -92,6 +100,7 @@ def _load(x) -> Image.Image:
         im = x
     else:
         from funkbox.config import resolve_path
+
         im = Image.open(resolve_path(str(x)))
     im = ImageOps.exif_transpose(im)
     if im.mode in ("RGBA", "LA", "P"):
@@ -114,8 +123,10 @@ def compare(candidate, reference, fit_mode: str = "cover", grid: int = GRID) -> 
     notes = []
     ar_c, ar_r = cand.width / cand.height, ref.width / ref.height
     if abs(ar_c / ar_r - 1) > 0.02:
-        notes.append(f"the reference is {ref.width}x{ref.height}, the candidate {cand.width}x{cand.height}: "
-                     f"the reference was {'cropped' if fit_mode == 'cover' else 'stretched'} to fit")
+        notes.append(
+            f"the reference is {ref.width}x{ref.height}, the candidate {cand.width}x{cand.height}: "
+            f"the reference was {'cropped' if fit_mode == 'cover' else 'stretched'} to fit"
+        )
     ref = fit(ref, cand.size, fit_mode)
     k = WORK / max(cand.size)
     ws = (max(16, round(cand.width * k)), max(16, round(cand.height * k)))
@@ -134,7 +145,7 @@ def compare(candidate, reference, fit_mode: str = "cover", grid: int = GRID) -> 
 
     def scores(sl) -> dict:
         st = float(np.clip(smap[sl].mean(), 0, 1)) * 100
-        col = float(np.clip(1 - de[sl].mean() / 40.0, 0, 1)) * 100     # dE 40 (very different) -> 0
+        col = float(np.clip(1 - de[sl].mean() / 40.0, 0, 1)) * 100  # dE 40 (very different) -> 0
         na, nb = ea[sl].sum(), eb[sl].sum()
         if na + nb == 0:
             lay = 100.0
@@ -154,9 +165,18 @@ def compare(candidate, reference, fit_mode: str = "cover", grid: int = GRID) -> 
             sl = (slice(i * H // grid, (i + 1) * H // grid), slice(j * W // grid, (j + 1) * W // grid))
             s = scores(sl)
             differs = "colour" if s["colour"] < s["structure"] and s["colour"] < s["layout"] else "shape"
-            cells.append({"row": i, "col": j, "where": f"{rows[i]} {cols[j]}", "score": round(s["overall"], 1),
-                          "colour": round(s["colour"], 1), "structure": round(s["structure"], 1),
-                          "layout": round(s["layout"], 1), "differs": differs})
+            cells.append(
+                {
+                    "row": i,
+                    "col": j,
+                    "where": f"{rows[i]} {cols[j]}",
+                    "score": round(s["overall"], 1),
+                    "colour": round(s["colour"], 1),
+                    "structure": round(s["structure"], 1),
+                    "layout": round(s["layout"], 1),
+                    "differs": differs,
+                }
+            )
     cells.sort(key=lambda c: c["score"])
     palette = _palette(B.astype(np.uint8), A.astype(np.uint8))
     sheet = _sheet(cand, ref, smap, de, cells, grid)
@@ -201,8 +221,14 @@ def _palette(ref: np.ndarray, cand: np.ndarray, n: int = 6) -> list[dict]:
         d = np.linalg.norm(lc - l, axis=-1)
         thr = float(np.quantile(d, min(0.5, share / 2)))
         near = cp[d <= thr].mean(0)
-        out.append({"color": _hex(col + 0.5), "share": round(float(share), 3), "nearest": _hex(near + 0.5),
-                    "delta_e": round(thr, 1)})
+        out.append(
+            {
+                "color": _hex(col + 0.5),
+                "share": round(float(share), 3),
+                "nearest": _hex(near + 0.5),
+                "delta_e": round(thr, 1),
+            }
+        )
     return out
 
 
@@ -220,8 +246,11 @@ def _sheet(cand: Image.Image, ref: Image.Image, smap, de, cells, grid) -> Image.
     for c in cells:
         if c["score"] < 85:
             x0, y0 = c["col"] * sz[0] // grid, c["row"] * sz[1] // grid
-            d.rectangle((x0, y0, (c["col"] + 1) * sz[0] // grid - 1, (c["row"] + 1) * sz[1] // grid - 1),
-                        outline=(255, 210, 0), width=2)
+            d.rectangle(
+                (x0, y0, (c["col"] + 1) * sz[0] // grid - 1, (c["row"] + 1) * sz[1] // grid - 1),
+                outline=(255, 210, 0),
+                width=2,
+            )
             d.text((x0 + 4, y0 + 3), f"{c['score']:.0f}", fill=(255, 255, 255))
     pad, top = 8, 22
     sheet = Image.new("RGB", (3 * sz[0] + 4 * pad, sz[1] + top + pad), (24, 24, 28))
@@ -236,12 +265,16 @@ def _sheet(cand: Image.Image, ref: Image.Image, smap, de, cells, grid) -> Image.
 def write(res: Comparison, out_dir: str | Path, name: str) -> dict[str, Path]:
     import json
     from .render import NAME_RE, fence_out
+
     if not NAME_RE.match(name or ""):
         raise ValueError(f"bad output name {name!r}")
     d = fence_out(out_dir)
     d.mkdir(parents=True, exist_ok=True)
     png, js = d / f"{name}.compare.png", d / f"{name}.compare.json"
     res.sheet.save(png)
-    js.write_text(json.dumps({"scores": res.scores, "cells": res.cells, "palette": res.palette, "notes": res.notes},
-                             indent=2) + "\n", encoding="utf-8")
+    js.write_text(
+        json.dumps({"scores": res.scores, "cells": res.cells, "palette": res.palette, "notes": res.notes}, indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
     return {"sheet": png, "report": js}

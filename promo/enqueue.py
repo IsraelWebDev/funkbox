@@ -16,6 +16,7 @@ It travels with the item into the day folder. It approves only what it names, an
 check still applies, and it can never make a false claim true. `--extra` adds other files or folders the item
 needs (for example the posters its shots were made from), relative to SRC_DIR.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -30,10 +31,17 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import state  # noqa: E402
 
-REQUIRED = ("final.mp4", "final.text_audit.json", "brief.json", "copy.json", "reel.json", "caption.json",
-            "feedback.json")
+REQUIRED = (
+    "final.mp4",
+    "final.text_audit.json",
+    "brief.json",
+    "copy.json",
+    "reel.json",
+    "caption.json",
+    "feedback.json",
+)
 APPROVAL = "owner_approval.json"
-FILES = REQUIRED + (APPROVAL,)                     # the approval is optional: carried when present
+FILES = REQUIRED + (APPROVAL,)  # the approval is optional: carried when present
 APPROVAL_KEYS = ("by", "date", "approves", "scope")
 APPROVAL_SCOPE = "this item only"
 
@@ -58,8 +66,11 @@ def approval_problems(folder: Path) -> list[str]:
         return [f"{APPROVAL} is not valid JSON ({e})"]
     if not isinstance(a, dict):
         return [f"{APPROVAL} must be an object with {', '.join(APPROVAL_KEYS)}"]
-    out = [f"{APPROVAL} needs a non-empty {k!r}" for k in APPROVAL_KEYS
-           if not isinstance(a.get(k), str) or not a[k].strip()]
+    out = [
+        f"{APPROVAL} needs a non-empty {k!r}"
+        for k in APPROVAL_KEYS
+        if not isinstance(a.get(k), str) or not a[k].strip()
+    ]
     if isinstance(a.get("date"), str) and a["date"].strip() and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", a["date"]):
         out.append(f"{APPROVAL} date must be YYYY-MM-DD (got {a['date']!r})")
     if isinstance(a.get("scope"), str) and a["scope"].strip() and a["scope"] != APPROVAL_SCOPE:
@@ -116,7 +127,7 @@ def take(day: Path, commit: bool = True) -> Path | None:
     for f in FILES:
         if (item / f).is_file():
             shutil.move(str(item / f), str(day / f))
-    for extra in item.iterdir():                   # anything else the owner left (notes, assets list)
+    for extra in item.iterdir():  # anything else the owner left (notes, assets list)
         shutil.move(str(extra), str(day / extra.name))
     item.rmdir()
     b = json.loads((day / "brief.json").read_text(encoding="utf-8"))

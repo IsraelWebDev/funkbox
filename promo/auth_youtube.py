@@ -12,6 +12,7 @@ client_secret.json: Google Cloud console -> APIs & Services -> enable "YouTube D
 Create OAuth client ID -> Application type "Desktop app" -> Download JSON. Set the OAuth consent screen's publishing
 status to "In production" (an app left in "Testing" gets refresh tokens that expire after 7 days).
 """
+
 from __future__ import annotations
 
 import base64
@@ -52,29 +53,54 @@ def main(path: str, out: str | None = None) -> None:
 
     srv = http.server.HTTPServer(("127.0.0.1", 0), H)
     redirect = f"http://127.0.0.1:{srv.server_port}"
-    url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode({
-        "client_id": cid, "redirect_uri": redirect, "response_type": "code", "scope": SCOPE, "access_type": "offline",
-        "prompt": "consent", "state": state, "code_challenge": challenge, "code_challenge_method": "S256"})
-    print("Opening your browser. Sign in with the account that owns the funkbox YouTube channel.\nIf nothing opens, "
-          "paste this URL into your browser:\n\n" + url + "\n")
+    url = "https://accounts.google.com/o/oauth2/v2/auth?" + urllib.parse.urlencode(
+        {
+            "client_id": cid,
+            "redirect_uri": redirect,
+            "response_type": "code",
+            "scope": SCOPE,
+            "access_type": "offline",
+            "prompt": "consent",
+            "state": state,
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+        }
+    )
+    print(
+        "Opening your browser. Sign in with the account that owns the funkbox YouTube channel.\nIf nothing opens, "
+        "paste this URL into your browser:\n\n" + url + "\n"
+    )
     threading.Thread(target=lambda: webbrowser.open(url), daemon=True).start()
     while "code" not in got and "error" not in got:
         srv.handle_request()
     if "error" in got:
         sys.exit(f"Google said: {got['error']}")
-    body = urllib.parse.urlencode({"code": got["code"], "client_id": cid, "client_secret": csec, "redirect_uri": redirect,
-                                   "grant_type": "authorization_code", "code_verifier": verifier}).encode()
+    body = urllib.parse.urlencode(
+        {
+            "code": got["code"],
+            "client_id": cid,
+            "client_secret": csec,
+            "redirect_uri": redirect,
+            "grant_type": "authorization_code",
+            "code_verifier": verifier,
+        }
+    ).encode()
     tok = json.load(urllib.request.urlopen(urllib.request.Request("https://oauth2.googleapis.com/token", data=body)))
     if "refresh_token" not in tok:
-        sys.exit("No refresh token came back. Remove the app's access at myaccount.google.com/permissions and run "
-                 "this again.")
+        sys.exit(
+            "No refresh token came back. Remove the app's access at myaccount.google.com/permissions and run "
+            "this again."
+        )
     lines = f"YT_CLIENT_ID={cid}\nYT_CLIENT_SECRET={csec}\nYT_REFRESH_TOKEN={tok['refresh_token']}\n"
     if out:
         from pathlib import Path
+
         Path(out).parent.mkdir(parents=True, exist_ok=True)
         Path(out).write_text(lines, encoding="utf-8")
-        print(f"Done. The three values are in {out}: copy them into the cloud environment's network secret "
-              "(see promo/README.md), then delete the file.")
+        print(
+            f"Done. The three values are in {out}: copy them into the cloud environment's network secret "
+            "(see promo/README.md), then delete the file."
+        )
     else:
         print("Store these three as secrets (environment variables) where the daily run executes:\n\n" + lines)
 

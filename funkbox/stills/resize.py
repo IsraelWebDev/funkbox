@@ -12,6 +12,7 @@ centred, so circles stay round and text keeps its relative size. A layer can cho
 After adapting, ``set`` patches per size use the variations keys (``layers.<id>.<prop>``, ``canvas.<k>``, ...), in the
 new canvas's fractions, e.g. {"story": {"layers.title.y": 0.12, "layers.title.size": 0.07}}.
 """
+
 from __future__ import annotations
 
 import copy
@@ -34,11 +35,12 @@ MAX_SIZES = 12
 @dataclass
 class Frame:
     """Where the original design lands in the new canvas, for one rule: old fraction v -> o + v * s_."""
-    sx: float          # new fraction per old fraction, x  (s * W0 / W1)
-    sy: float          # y                                (s * H0 / H1)
-    ox: float          # where old x = 0 lands, new fraction of width
+
+    sx: float  # new fraction per old fraction, x  (s * W0 / W1)
+    sy: float  # y                                (s * H0 / H1)
+    ox: float  # where old x = 0 lands, new fraction of width
     oy: float
-    s: float           # pixel scale
+    s: float  # pixel scale
 
     def x(self, v: float) -> float:
         return self.ox + float(v) * self.sx
@@ -47,15 +49,22 @@ class Frame:
         return self.oy + float(v) * self.sy
 
 
-def frame_for(rule: str, W0: int, H0: int, W1: int, H1: int,
-              box: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0), margin: float = 0.0) -> Frame:
+def frame_for(
+    rule: str,
+    W0: int,
+    H0: int,
+    W1: int,
+    H1: int,
+    box: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0),
+    margin: float = 0.0,
+) -> Frame:
     """Fit ``box`` (x0, y0, x1, y1 in old fractions; the whole canvas by default) into the new canvas, ``margin``
     (a fraction of the new canvas's shorter side) kept clear, centred or pinned to the rule's edges."""
     bx0, by0, bx1, by1 = box
-    bw, bh = (bx1 - bx0) * W0, (by1 - by0) * H0                # the box in old pixels
+    bw, bh = (bx1 - bx0) * W0, (by1 - by0) * H0  # the box in old pixels
     m = margin * min(W1, H1)
     s = min((W1 - 2 * m) / bw, (H1 - 2 * m) / bh)
-    sw, sh = s * bw / W1, s * bh / H1                        # the box's share of the new canvas
+    sw, sh = s * bw / W1, s * bh / H1  # the box's share of the new canvas
     mx, my = m / W1, m / H1
     hx = mx if "left" in rule else 1.0 - mx - sw if "right" in rule else (1.0 - sw) / 2
     hy = my if "top" in rule else 1.0 - my - sh if "bottom" in rule else (1.0 - sh) / 2
@@ -70,7 +79,7 @@ def _canvas_size(size) -> tuple[str, int, int, dict]:
         w, h = schema.PRESETS[size]
         return size, w, h, {}
     if not isinstance(size, dict) or "width" not in size or "height" not in size:
-        raise ValueError("a size is a preset name or {\"name\", \"width\", \"height\", \"set\": {...}}")
+        raise ValueError('a size is a preset name or {"name", "width", "height", "set": {...}}')
     name = str(size.get("name") or f"{size['width']}x{size['height']}")
     return name, int(size["width"]), int(size["height"]), dict(size.get("set") or {})
 
@@ -99,9 +108,11 @@ def _adapt_layer(lay: dict, W0: int, H0: int, W1: int, H1: int, warn: list[str],
         if lay.get("arc"):
             lay["arc"] = float(lay["arc"]) * f.sx
         if lay.get("on_path"):
-            lay["on_path"] = (transform_d(lay["on_path"], f.s, f.s, f.ox * W1, f.oy * H1)
-                              if lay.get("path_units", "fraction") == "px"
-                              else transform_d(lay["on_path"], f.sx, f.sy, f.ox, f.oy))
+            lay["on_path"] = (
+                transform_d(lay["on_path"], f.s, f.s, f.ox * W1, f.oy * H1)
+                if lay.get("path_units", "fraction") == "px"
+                else transform_d(lay["on_path"], f.sx, f.sy, f.ox, f.oy)
+            )
     elif t == "shape":
         if lay["kind"] == "path":
             if lay.get("units", "fraction") == "px":
@@ -122,7 +133,7 @@ def _adapt_layer(lay: dict, W0: int, H0: int, W1: int, H1: int, warn: list[str],
     elif t == "product":
         lay["x"], lay["y"] = f.x(lay.get("x", 0.5)), f.y(lay.get("y", 0.9))
         lay["height"] = float(lay.get("height", 0.5)) * f.sy
-    elif t == "image":                                       # an image the author asked to keep in proportion
+    elif t == "image":  # an image the author asked to keep in proportion
         lay["x"], lay["y"] = f.x(lay.get("x", 0.5)), f.y(lay.get("y", 0.5))
         lay["scale"] = float(lay.get("scale", 1.0)) * min(f.sx, f.sy)
         warn.append(f"image {lay['id']!r}: resize {rule!r} keeps its centre and scale; check the crop")
@@ -136,6 +147,7 @@ def _adapt_layer(lay: dict, W0: int, H0: int, W1: int, H1: int, warn: list[str],
 def content_box(doc, base_dir=None) -> tuple[float, float, float, float]:
     """The bounding box (old canvas fractions) of everything that is not a stretched background."""
     import numpy as np
+
     d = schema.parse(doc) if not isinstance(doc, schema.Doc) else doc
     r = render.render_document(d, base_dir, scale=min(1.0, 512 / max(d.width, d.height)))
     keep = {l["id"] for l in d.layers if rule_of(l) != "fill" or l["type"] == "group"}
@@ -175,25 +187,34 @@ class Sizes:
     sheet_image: Image.Image | None = None
 
 
-def poster_sizes(doc, sizes: list, out_dir: str | Path | None = None, name: str = "", base_dir=None,
-                 formats: list[str] | None = None, scale: float = 1.0, write_files: bool = True,
-                 fit_to: str = "canvas", margin: float = 0.06) -> Sizes:
+def poster_sizes(
+    doc,
+    sizes: list,
+    out_dir: str | Path | None = None,
+    name: str = "",
+    base_dir=None,
+    formats: list[str] | None = None,
+    scale: float = 1.0,
+    write_files: bool = True,
+    fit_to: str = "canvas",
+    margin: float = 0.06,
+) -> Sizes:
     """Render the poster in every size. ``fit_to``: "canvas" keeps the original framing (its margins scale too);
     "content" fits just the drawn foreground (plus ``margin``), so a wide banner or tall story uses its space.
     A size that cannot be drawn (text no longer fits, ...) is reported in ``errors`` and the others still render.
     Files: ``<name>-<size>.png`` (+ sidecar, text audit, other ``formats``) and ``<name>-sizes.png``, a sheet."""
     if not sizes:
-        raise ValueError("give at least one size, e.g. [\"story\", \"landscape\", \"square\"]")
+        raise ValueError('give at least one size, e.g. ["story", "landscape", "square"]')
     if len(sizes) > MAX_SIZES:
         raise ValueError(f"at most {MAX_SIZES} sizes")
     base = schema.parse(doc) if not isinstance(doc, schema.Doc) else doc
     name = name or base.name
     if fit_to not in ("canvas", "content"):
         raise ValueError("fit_to is 'canvas' or 'content'")
-    box, mg = ((content_box(base, base_dir), margin) if fit_to == "content" else ((0.0, 0.0, 1.0, 1.0), 0.0))
+    box, mg = (content_box(base, base_dir), margin) if fit_to == "content" else ((0.0, 0.0, 1.0, 1.0), 0.0)
     res = Sizes([])
     ims, labels = [], []
-    for label, w, h, patch in [_canvas_size(sz) for sz in sizes]:       # bad size names fail before any render
+    for label, w, h, patch in [_canvas_size(sz) for sz in sizes]:  # bad size names fail before any render
         res.names.append(label)
         try:
             d, warn = adapt(base, w, h, box, mg)

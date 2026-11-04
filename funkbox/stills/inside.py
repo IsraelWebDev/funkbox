@@ -14,6 +14,7 @@ named the smallest of their sizes (two halves of one phrase). The same specs can
 ``keep_inside``: candidates whose words leave their region are rejected, so a fit to a flawed reference cannot push
 words out of their bar.
 """
+
 from __future__ import annotations
 
 import copy
@@ -24,7 +25,7 @@ from PIL import Image, ImageFilter
 
 from . import render, schema
 
-MAX_PX = 800                                    # regions and ink are measured at most this big
+MAX_PX = 800  # regions and ink are measured at most this big
 SPEC_KEYS = {"layer", "at", "band", "margin", "tolerance", "max_size"}
 
 
@@ -50,16 +51,30 @@ def check_specs(doc: dict, specs) -> list[dict]:
         if lay.get("type") != "text":
             raise ValueError(f"spec: layer {lid!r} is not a text layer")
         if lay.get("on_path") or lay.get("arc"):
-            raise ValueError(f"spec: layer {lid!r} is bent (arc/on_path); only straight, optionally slanted text can be fitted inside")
+            raise ValueError(
+                f"spec: layer {lid!r} is bent (arc/on_path); only straight, optionally slanted text can be fitted inside"
+            )
         at = s["at"]
-        if not (isinstance(at, (list, tuple)) and len(at) == 2 and all(isinstance(v, (int, float)) and 0 <= v <= 1 for v in at)):
+        if not (
+            isinstance(at, (list, tuple))
+            and len(at) == 2
+            and all(isinstance(v, (int, float)) and 0 <= v <= 1 for v in at)
+        ):
             raise ValueError(f"spec {lid!r}: at is [x, y] as fractions 0..1 of the canvas")
         for k, lo, hi in (("band", 0.002, 0.5), ("margin", 0.0, 0.1), ("tolerance", 1, 300), ("max_size", 0.01, 0.5)):
             if k in s and not (isinstance(s[k], (int, float)) and lo <= s[k] <= hi):
                 raise ValueError(f"spec {lid!r}: {k} is a number in {lo}..{hi}")
-        out.append({"layer": lid, "at": [float(at[0]), float(at[1])], "band": s.get("band"),
-                    "margin": float(s.get("margin", 0.003)), "tolerance": float(s.get("tolerance", 60)),
-                    "max_size": float(s.get("max_size", 0.2)), "index": layers[lid]})
+        out.append(
+            {
+                "layer": lid,
+                "at": [float(at[0]), float(at[1])],
+                "band": s.get("band"),
+                "margin": float(s.get("margin", 0.003)),
+                "tolerance": float(s.get("tolerance", 60)),
+                "max_size": float(s.get("max_size", 0.2)),
+                "index": layers[lid],
+            }
+        )
     if len({s["layer"] for s in out}) != len(out):
         raise ValueError("specs: one spec per layer")
     return out
@@ -80,7 +95,8 @@ def _erode(mask: np.ndarray, r: int) -> np.ndarray:
         return mask
     try:
         from scipy import ndimage
-        yy, xx = np.ogrid[-r:r + 1, -r:r + 1]
+
+        yy, xx = np.ogrid[-r : r + 1, -r : r + 1]
         return ndimage.binary_erosion(mask, structure=(xx * xx + yy * yy) <= r * r)
     except ImportError:
         return np.asarray(Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.MinFilter(2 * r + 1))) > 127
@@ -89,8 +105,9 @@ def _erode(mask: np.ndarray, r: int) -> np.ndarray:
 def region(doc: dict, spec: dict, base_dir=None, scale: float | None = None, cache=None) -> np.ndarray:
     """The boolean mask (at ``scale``) the words of spec's layer must stay inside."""
     from .trace import _components
+
     s = scale or _scale(doc)
-    below = dict(doc, layers=doc["layers"][:spec["index"]])
+    below = dict(doc, layers=doc["layers"][: spec["index"]])
     if not below["layers"]:
         raise ValueError(f"layer {spec['layer']!r} has nothing under it to fit inside")
     art = np.asarray(render.render_document(below, base_dir, scale=s, cache=cache).pil.convert("RGB")).astype(int)
@@ -112,7 +129,7 @@ def region(doc: dict, spec: dict, base_dir=None, scale: float | None = None, cac
 def _hex(c):
     if isinstance(c, str) and len(c) == 7 and c[0] == "#":
         try:
-            return tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))
+            return tuple(int(c[i : i + 2], 16) for i in (1, 3, 5))
         except ValueError:
             return None
     return None
@@ -128,15 +145,24 @@ def ink(doc: dict, layer_id: str, base_dir=None, scale: float | None = None, cac
     shots = []
     for bg in bgs:
         d = dict(doc, layers=[{"id": "_bg", "type": "solid", "color": "#%02x%02x%02x" % bg}, copy.deepcopy(lay)])
-        shots.append(np.asarray(render.render_document(d, base_dir, scale=s, cache=cache).pil.convert("RGB")).astype(int))
+        shots.append(
+            np.asarray(render.render_document(d, base_dir, scale=s, cache=cache).pil.convert("RGB")).astype(int)
+        )
     if len(shots) == 2:
         return np.abs(shots[0] - shots[1]).sum(-1) < 3 * 255 * 0.6
     full = float(np.abs(np.array(col) - np.array(bgs[0])).sum())
     return np.abs(shots[0] - np.array(bgs[0])).sum(-1) > 0.4 * full
 
 
-def outside(doc: dict, spec: dict, mask: np.ndarray, base_dir=None, scale: float | None = None, cache=None,
-            t: np.ndarray | None = None) -> float:
+def outside(
+    doc: dict,
+    spec: dict,
+    mask: np.ndarray,
+    base_dir=None,
+    scale: float | None = None,
+    cache=None,
+    t: np.ndarray | None = None,
+) -> float:
     """Fraction of the words' ink that falls outside ``mask`` (0 = all inside). ``t`` is the ink if already measured."""
     t = ink(doc, spec["layer"], base_dir, scale, cache) if t is None else t
     if t.shape != mask.shape or not t.any():
@@ -183,8 +209,10 @@ def fit_inside(doc, specs, base_dir=None, equal_size: bool = True) -> InsideFit:
     masks = {x["layer"]: region(doc, x, base_dir, s) for x in sp}
     for x in sp:
         if masks[x["layer"]].sum() < 50:
-            raise ValueError(f"layer {x['layer']!r}: the region around {x['at']} is empty; point `at` at the artwork "
-                             f"colour the words belong on (tolerance {x['tolerance']})")
+            raise ValueError(
+                f"layer {x['layer']!r}: the region around {x['at']} is empty; point `at` at the artwork "
+                f"colour the words belong on (tolerance {x['tolerance']})"
+            )
     best: dict[str, float] = {}
     for x in sp:
         lid = x["layer"]
@@ -199,21 +227,21 @@ def fit_inside(doc, specs, base_dir=None, equal_size: bool = True) -> InsideFit:
         k = _growth(t, masks[lid])
         size = min(x["max_size"], start * k * 0.99)
         ok = None
-        for _ in range(8):                                  # ink grows linearly with size: verify, shrink if needed
+        for _ in range(8):  # ink grows linearly with size: verify, shrink if needed
             lay["size"] = round(size, 4)
             lay["x"] = lay["y"] = 0.0
             try:
                 t = _centre(doc, lid, masks[lid], base_dir, s)
                 fine = t is not None and outside(doc, x, masks[lid], base_dir, s, t=t) == 0
             except schema.PosterError:
-                fine = False                                # too big for the line: smaller
+                fine = False  # too big for the line: smaller
             if fine:
                 ok = size
                 break
             size *= 0.95
         if ok is None:
             raise ValueError(f"layer {lid!r}: its words do not fit inside the region even at the smallest size")
-        best[lid] = round(ok * 0.98, 4)                     # a little air
+        best[lid] = round(ok * 0.98, 4)  # a little air
     size = min(best.values()) if equal_size and len(best) > 1 else None
     for x in sp:
         lid = x["layer"]

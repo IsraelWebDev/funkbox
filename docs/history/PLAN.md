@@ -175,7 +175,7 @@ the user source, and return:
 @dataclass
 class CompileResult:
     ok: bool
-    errors: list[dict]   # {"line": int|None, "message": str}, line in USER coordinates
+    errors: list[dict]  # {"line": int|None, "message": str}, line in USER coordinates
     program: moderngl.Program | None
 ```
 Prepend nothing to the user's source that would shift lines unpredictably. Count the
@@ -468,8 +468,8 @@ Use the same import shim as `funk_mcp.py` (mcp 2.x `MCPServer`, falling back to 
 ```python
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-params = StdioServerParameters(command=sys.executable, args=["funk2_mcp.py"],
-                               env={**os.environ, "FUNK_OUT": str(tmp)})
+
+params = StdioServerParameters(command=sys.executable, args=["funk2_mcp.py"], env={**os.environ, "FUNK_OUT": str(tmp)})
 async with stdio_client(params) as (r, w):
     async with ClientSession(r, w) as s:
         await s.initialize()
@@ -481,9 +481,11 @@ async with stdio_client(params) as (r, w):
 
 **Minimal moderngl render** (verified on the laptop at 74 fps for 1080²):
 ```python
-vbo = ctx.buffer(np.array([-1,-1, 3,-1, -1,3], dtype="f4"))
+vbo = ctx.buffer(np.array([-1, -1, 3, -1, -1, 3], dtype="f4"))
 vao = ctx.simple_vertex_array(prog, vbo, "p")
-fbo = ctx.simple_framebuffer((w, h)); fbo.use(); vao.render()
+fbo = ctx.simple_framebuffer((w, h))
+fbo.use()
+vao.render()
 img = np.frombuffer(fbo.read(components=3, alignment=1), np.uint8).reshape(h, w, 3)[::-1]
 ```
 

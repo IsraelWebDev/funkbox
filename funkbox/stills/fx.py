@@ -1,4 +1,5 @@
 """Per-layer colour adjustments and filters, expressed as GPU passes (see gl.Step)."""
+
 from __future__ import annotations
 
 from .gl import PASSES, POST, Step
@@ -9,17 +10,27 @@ ADJUST_DEFAULTS = {"brightness": 0.0, "contrast": 0.0, "saturation": 0.0, "hue":
 def adjust_values(a: dict) -> dict:
     """Uniform values (keyed u_<name>) for passes/adjust.frag from an `adjust` dict."""
     lv = a.get("levels", [0.0, 1.0, 1.0])
-    return {"u_brightness": float(a.get("brightness", 0.0)), "u_contrast": float(a.get("contrast", 0.0)),
-            "u_saturation": float(a.get("saturation", 0.0)), "u_hue": float(a.get("hue", 0.0)),
-            "u_black": float(lv[0]), "u_white": float(lv[1]), "u_gamma": float(lv[2]),
-            "u_temp": float(a.get("temperature", 0.0)), "u_invert": 1.0 if a.get("invert") else 0.0}
+    return {
+        "u_brightness": float(a.get("brightness", 0.0)),
+        "u_contrast": float(a.get("contrast", 0.0)),
+        "u_saturation": float(a.get("saturation", 0.0)),
+        "u_hue": float(a.get("hue", 0.0)),
+        "u_black": float(lv[0]),
+        "u_white": float(lv[1]),
+        "u_gamma": float(lv[2]),
+        "u_temp": float(a.get("temperature", 0.0)),
+        "u_invert": 1.0 if a.get("invert") else 0.0,
+    }
 
 
 def _is_noop_adjust(a: dict | None) -> bool:
     if not a:
         return True
-    return (all(abs(float(a.get(k, 0.0))) < 1e-9 for k in ADJUST_DEFAULTS)
-            and list(a.get("levels", [0, 1, 1])) == [0, 1, 1] and not a.get("invert"))
+    return (
+        all(abs(float(a.get(k, 0.0))) < 1e-9 for k in ADJUST_DEFAULTS)
+        and list(a.get("levels", [0, 1, 1])) == [0, 1, 1]
+        and not a.get("invert")
+    )
 
 
 def steps(adjust: dict | None, filters: dict | None, scale: float = 1.0) -> list[Step]:
@@ -39,7 +50,9 @@ def steps(adjust: dict | None, filters: dict | None, scale: float = 1.0) -> list
     if int(f.get("posterize", 0)) >= 2:
         out.append(Step(POST / "posterize.frag", {"u_levels": float(f["posterize"])}, restore=True))
     if int(f.get("halftone", 0)) >= 3:
-        out.append(Step(POST / "halftone.frag", {"u_cell": max(3.0, round(float(f["halftone"]) * scale))}, restore=True))
+        out.append(
+            Step(POST / "halftone.frag", {"u_cell": max(3.0, round(float(f["halftone"]) * scale))}, restore=True)
+        )
     if f.get("duotone"):
         out.append(Step(PASSES / "duotone.frag", {"u_dark": f["duotone"][0], "u_light": f["duotone"][1]}))
     if int(f.get("pixelate", 0)) >= 2:

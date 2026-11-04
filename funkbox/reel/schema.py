@@ -4,6 +4,7 @@ The schema has NO free-text fields. Text reaches pixels only through the copy de
 (``reel.copydeck``) by ID. Any unknown key is an error, and keys that look like free text
 (``text``, ``label``, ``caption_text`` ...) get a dedicated message.
 """
+
 from __future__ import annotations
 
 import re
@@ -14,24 +15,45 @@ SAFE_AREAS = ("reels", "landscape", "none")
 MOTION_TYPES = ("none", "kenburns", "parallax", "frame")
 EASES = ("smooth", "linear", "in", "out", "hold")
 REVEALS = ("none", "typewriter", "words", "pop")
-GRID_REVEALS = ("none", "sequence")                  # grid source: all cells at once | one after another
-ANCHORS = ("top", "center", "bottom", "auto")      # "auto": the renderer picks from the frame (else bottom)
-TRANSITIONS = ("cut", "flash", "push", "crossfade", "zoom-punch", "auto")   # "auto": resolved per shot, see timeline
+GRID_REVEALS = ("none", "sequence")  # grid source: all cells at once | one after another
+ANCHORS = ("top", "center", "bottom", "auto")  # "auto": the renderer picks from the frame (else bottom)
+TRANSITIONS = ("cut", "flash", "push", "crossfade", "zoom-punch", "auto")  # "auto": resolved per shot, see timeline
 END_AUDIO = ("silence", "keep")
 HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 ID_RE = re.compile(r"^[A-Za-z0-9_\-]{1,40}$")
-BEATS_RE = re.compile(r"^beats:([0-9]{1,3}(?:\.[0-9]{1,3})?)$")      # beats:4, beats:1.5, beats:0.5
+BEATS_RE = re.compile(r"^beats:([0-9]{1,3}(?:\.[0-9]{1,3})?)$")  # beats:4, beats:1.5, beats:0.5
 
 #: format presets: id -> (width, height, safe_area)
-FORMAT_PRESETS = {"9x16": (1080, 1920, "reels"), "16x9": (1920, 1080, "landscape"),
-                  "1x1": (1080, 1080, "landscape"), "4x5": (1080, 1350, "landscape")}
+FORMAT_PRESETS = {
+    "9x16": (1080, 1920, "reels"),
+    "16x9": (1920, 1080, "landscape"),
+    "1x1": (1080, 1080, "landscape"),
+    "4x5": (1080, 1350, "landscape"),
+}
 #: what a shot may override per format (motion is replaced whole; the others are merged key by key)
-SHOT_FORMAT_KEYS = {"motion": None, "caption": ("anchor",), "product": ("x", "y", "height"),
-                    "source": ("focus", "fit", "pad")}
+SHOT_FORMAT_KEYS = {
+    "motion": None,
+    "caption": ("anchor",),
+    "product": ("x", "y", "height"),
+    "source": ("focus", "fit", "pad"),
+}
 
 # keys that would smuggle literal copy into a reel; always rejected (except brand.text colour)
-FORBIDDEN_KEYS = ("text", "label", "caption_text", "title", "subtitle", "headline_text",
-                  "string", "content", "copy_text", "message", "say", "body", "name_text")
+FORBIDDEN_KEYS = (
+    "text",
+    "label",
+    "caption_text",
+    "title",
+    "subtitle",
+    "headline_text",
+    "string",
+    "content",
+    "copy_text",
+    "message",
+    "say",
+    "body",
+    "name_text",
+)
 # the one place `label` is allowed: a grid cell's label is a copy ID (checked against the deck), not text
 GRID_LABEL_PATH_RE = re.compile(r"^shots\[\d+\]\.source\.grid\.cells\[\d+\]\.label$")
 
@@ -59,22 +81,22 @@ class Settings:
 class Brand:
     primary: str = "#c8102e"
     secondary: str = "#1a1a1a"
-    text: str = "#ffffff"           # a COLOUR (the one allowed `text` key); see validate_forbidden
+    text: str = "#ffffff"  # a COLOUR (the one allowed `text` key); see validate_forbidden
     font_caption: str = "fonts/Oswald-SemiBold.ttf"
     font_display: str = "fonts/DMSerifDisplay-Regular.ttf"
     logo: str | None = None
-    font_fallback: str | None = "fonts/Rubik-Bold.ttf"   # draws text the caption/display font cannot (Hebrew, Cyrillic)
-    brand_from: str | None = None             # "from": image/mp4 the colours were resolved from (None = explicit colours)
+    font_fallback: str | None = "fonts/Rubik-Bold.ttf"  # draws text the caption/display font cannot (Hebrew, Cyrillic)
+    brand_from: str | None = None  # "from": image/mp4 the colours were resolved from (None = explicit colours)
 
 
 @dataclass
 class Audio:
     music: str | None = None
-    bpm: float | None = None                # fixed beat grid: beats:N and snapping need no music detection
-    beat_offset: float = 0.0                # seconds of the first beat on that grid
+    bpm: float | None = None  # fixed beat grid: beats:N and snapping need no music detection
+    beat_offset: float = 0.0  # seconds of the first beat on that grid
     music_gain_db: float = -14.0
     voiceover: bool = False
-    voice: str | None = None                # "kokoro:af_heart" | "kokoro:am_michael" | "kokoro:bm_george" | "piper"
+    voice: str | None = None  # "kokoro:af_heart" | "kokoro:am_michael" | "kokoro:bm_george" | "piper"
     voice_speed: float = 1.0
     duck_db: float = -10.0
     snap_cuts_to_beats: bool = False
@@ -83,35 +105,36 @@ class Audio:
 
 @dataclass(frozen=True)
 class GridCell:
-    video: str | None = None        # a path (video only: image cells are not supported)
-    fit: str = "contain"            # cover | contain
-    label: str | None = None        # a copy ID (never text), drawn at the bottom of the cell
+    video: str | None = None  # a path (video only: image cells are not supported)
+    fit: str = "contain"  # cover | contain
+    label: str | None = None  # a copy ID (never text), drawn at the bottom of the cell
     label_style: str = "bold-pop"
 
 
 @dataclass
 class Grid:
     """``source.grid``: clips side by side, ``cells`` row-major (``cols * rows`` of them)."""
+
     cols: int = 2
     rows: int = 2
-    gap: float = 0.02               # of the output width
-    reveal: str = "none"            # none | sequence
-    stagger: float | str | None = None   # seconds | "beats:N" | None (= beats:1 with a beat grid, else 0.25 s)
+    gap: float = 0.02  # of the output width
+    reveal: str = "none"  # none | sequence
+    stagger: float | str | None = None  # seconds | "beats:N" | None (= beats:1 with a beat grid, else 0.25 s)
     ease: str = "out"
     cells: tuple[GridCell, ...] = ()
 
 
 @dataclass
 class Source:
-    kind: str = "color"             # image | video | color | funk2 | grid
-    value: str = "#000000"          # path or hex colour ("" for a grid)
+    kind: str = "color"  # image | video | color | funk2 | grid
+    value: str = "#000000"  # path or hex colour ("" for a grid)
     trim: tuple[float, float] | None = None
     loop: bool = False
     fit: str = "cover"
-    focus: tuple[float, float] | None = None        # cover-crop centre, fractions of the source
-    pad: str = "#000000"                            # fit=contain / framing past the edge: #hex or "blur"
-    speed: tuple[float, float] = (1.0, 1.0)         # video playback speed at shot start / end (ramp)
-    grid: Grid | None = None                        # kind "grid" only
+    focus: tuple[float, float] | None = None  # cover-crop centre, fractions of the source
+    pad: str = "#000000"  # fit=contain / framing past the edge: #hex or "blur"
+    speed: tuple[float, float] = (1.0, 1.0)  # video playback speed at shot start / end (ramp)
+    grid: Grid | None = None  # kind "grid" only
 
 
 @dataclass
@@ -122,7 +145,7 @@ class Motion:
     push: float = 0.0
     orbit_deg: float = 0.0
     dof: float = 0.0
-    keys: tuple["FrameKey", ...] = ()        # type "frame": source rectangles over the shot
+    keys: tuple["FrameKey", ...] = ()  # type "frame": source rectangles over the shot
 
 
 @dataclass(frozen=True)
@@ -130,6 +153,7 @@ class FrameKey:
     """One framing keyframe: show ``rect`` (x, y, w, h as fractions of the SOURCE) at time ``t``
     (fraction of the shot, 0..1) or ``s`` (seconds from the shot start). The output window is the smallest
     rectangle of the output aspect that contains ``rect``; between keys it moves with ``ease``."""
+
     rect: tuple[float, float, float, float]
     t: float | None = None
     s: float | None = None
@@ -162,8 +186,8 @@ class Shot:
     motion: Motion = field(default_factory=Motion)
     product: ProductSpec | None = None
     caption: CaptionSpec | None = None
-    vo: str | None = None                   # copy id spoken during the shot
-    duration: float | str = "auto"          # seconds | "auto" | "beats:N"
+    vo: str | None = None  # copy id spoken during the shot
+    duration: float | str = "auto"  # seconds | "auto" | "beats:N"
     transition_in: str = "cut"
 
 
@@ -172,7 +196,7 @@ class EndCard:
     template: str = "brand-split"
     duration: float = 5.0
     audio: str = "silence"
-    copy: dict[str, str] = field(default_factory=dict)   # slot -> copy id
+    copy: dict[str, str] = field(default_factory=dict)  # slot -> copy id
     product: str | None = None
     headline_reveal: str = "typewriter"
 
@@ -194,10 +218,10 @@ class Reel:
     audio: Audio = field(default_factory=Audio)
     shots: list[Shot] = field(default_factory=list)
     end_card: EndCard | None = None
-    base_dir: str | None = None             # folder of the reel file; paths resolve against it
-    formats: list[Format] = field(default_factory=list)     # extra output formats (see materialize)
-    format_id: str | None = None            # set when this Reel is one format's variant
-    warnings: list[str] = field(default_factory=list)       # non-fatal notes from parsing (e.g. brand.from fallback)
+    base_dir: str | None = None  # folder of the reel file; paths resolve against it
+    formats: list[Format] = field(default_factory=list)  # extra output formats (see materialize)
+    format_id: str | None = None  # set when this Reel is one format's variant
+    warnings: list[str] = field(default_factory=list)  # non-fatal notes from parsing (e.g. brand.from fallback)
 
     def shot(self, shot_id: str) -> Shot:
         for s in self.shots:
@@ -229,8 +253,9 @@ class _R:
         self.used.add(k)
         return self.d.get(k, default)
 
-    def num(self, k: str, default: float, lo: float | None = None, hi: float | None = None,
-            integer: bool = False) -> float:
+    def num(
+        self, k: str, default: float, lo: float | None = None, hi: float | None = None, integer: bool = False
+    ) -> float:
         v = self.raw(k, default)
         if isinstance(v, bool) or not isinstance(v, (int, float)) or (integer and int(v) != v):
             self.errs.append(f"{self._p(k)}: expected {'an integer' if integer else 'a number'}, got {v!r}")
@@ -240,8 +265,14 @@ class _R:
             return default
         return int(v) if integer else float(v)
 
-    def s(self, k: str, default: str | None, choices: tuple[str, ...] | None = None,
-          required: bool = False, pattern: re.Pattern | None = None) -> str | None:
+    def s(
+        self,
+        k: str,
+        default: str | None,
+        choices: tuple[str, ...] | None = None,
+        required: bool = False,
+        pattern: re.Pattern | None = None,
+    ) -> str | None:
         if required and k not in self.d:
             self.errs.append(f"{self._p(k)}: required")
             return default
@@ -270,8 +301,11 @@ class _R:
         v = self.raw(k, None)
         if v is None:
             return default
-        if (not isinstance(v, (list, tuple)) or len(v) != 2
-                or any(isinstance(x, bool) or not isinstance(x, (int, float)) for x in v)):
+        if (
+            not isinstance(v, (list, tuple))
+            or len(v) != 2
+            or any(isinstance(x, bool) or not isinstance(x, (int, float)) for x in v)
+        ):
             self.errs.append(f"{self._p(k)}: expected [a, b] numbers, got {v!r}")
             return default
         if any((lo is not None and x < lo) or (hi is not None and x > hi) for x in v):
@@ -287,8 +321,9 @@ class _R:
             if k in self.used:
                 continue
             if k in FORBIDDEN_KEYS:
-                self.errs.append(f"{self._p(k)}: free text is not allowed in a reel; reference a copy "
-                                 f"line by ID (copy.json) instead")
+                self.errs.append(
+                    f"{self._p(k)}: free text is not allowed in a reel; reference a copy line by ID (copy.json) instead"
+                )
             else:
                 self.errs.append(f"{self._p(k)}: unknown key")
 
@@ -304,9 +339,8 @@ def scan_forbidden(obj: Any, path: str = "") -> list[str]:
                 if p == "brand.text" and isinstance(v, str) and HEX_RE.match(v):
                     continue
                 if GRID_LABEL_PATH_RE.match(p) and isinstance(v, str) and ID_RE.match(v):
-                    continue                 # a grid cell's label is a copy id
-                errs.append(f"{p}: free text is not allowed in a reel; reference a copy line by ID "
-                            f"(copy.json) instead")
+                    continue  # a grid cell's label is a copy id
+                errs.append(f"{p}: free text is not allowed in a reel; reference a copy line by ID (copy.json) instead")
             errs += scan_forbidden(v, p)
     elif isinstance(obj, list):
         for i, v in enumerate(obj):
@@ -320,11 +354,16 @@ def scan_forbidden(obj: Any, path: str = "") -> list[str]:
 def _parse_grid_cell(r: _R) -> GridCell:
     """One grid cell: a ``video`` path (image cells are not supported), ``fit``, an optional ``label`` copy id."""
     if not r.has("video"):
-        r.errs.append(f"{r.path}: needs a video (a path); a cell with neither video nor image is not allowed "
-                      f"(image cells are not supported)")
-    c = GridCell(video=r.s("video", None), fit=r.s("fit", "contain", ("cover", "contain")) or "contain",
-                 label=r.s("label", None, pattern=ID_RE),
-                 label_style=r.s("label_style", "bold-pop", pattern=ID_RE) or "bold-pop")
+        r.errs.append(
+            f"{r.path}: needs a video (a path); a cell with neither video nor image is not allowed "
+            f"(image cells are not supported)"
+        )
+    c = GridCell(
+        video=r.s("video", None),
+        fit=r.s("fit", "contain", ("cover", "contain")) or "contain",
+        label=r.s("label", None, pattern=ID_RE),
+        label_style=r.s("label_style", "bold-pop", pattern=ID_RE) or "bold-pop",
+    )
     r.finish()
     return c
 
@@ -336,17 +375,21 @@ def _parse_grid(r: _R, shot_id: str) -> Grid:
         if not r.has(k):
             r.errs.append(f"{r._p(k)}: required")
     cols, rows = r.num("cols", 2, 1, 8, integer=True), r.num("rows", 2, 1, 8, integer=True)
-    dims_ok = len(r.errs) == dims_before               # a bad cols/rows is reported once, not again as a count error
-    g = Grid(cols=cols, rows=rows,
-             gap=r.num("gap", 0.02, 0.0, 0.2),
-             reveal=r.s("reveal", "none", GRID_REVEALS) or "none",
-             ease=r.s("ease", "out", EASES) or "out")
+    dims_ok = len(r.errs) == dims_before  # a bad cols/rows is reported once, not again as a count error
+    g = Grid(
+        cols=cols,
+        rows=rows,
+        gap=r.num("gap", 0.02, 0.0, 0.2),
+        reveal=r.s("reveal", "none", GRID_REVEALS) or "none",
+        ease=r.s("ease", "out", EASES) or "out",
+    )
     if r.has("stagger"):
         st = r.raw("stagger")
         if isinstance(st, bool) or not (
-                (isinstance(st, (int, float)) and 0.0 <= st <= 10.0)
-                or (isinstance(st, str) and BEATS_RE.match(st) and float(st[6:]) > 0)):
-            r.errs.append(f"{r._p('stagger')}: expected seconds (0..10) or \"beats:N\" (N > 0), got {st!r}")
+            (isinstance(st, (int, float)) and 0.0 <= st <= 10.0)
+            or (isinstance(st, str) and BEATS_RE.match(st) and float(st[6:]) > 0)
+        ):
+            r.errs.append(f'{r._p("stagger")}: expected seconds (0..10) or "beats:N" (N > 0), got {st!r}')
         else:
             g.stagger = float(st) if isinstance(st, (int, float)) else st
     raw = r.raw("cells")
@@ -354,8 +397,10 @@ def _parse_grid(r: _R, shot_id: str) -> Grid:
         r.errs.append(f"{r._p('cells')}: required, a list of {{video, fit, label, label_style}}, row-major")
         raw = []
     elif dims_ok and len(raw) != g.cols * g.rows:
-        r.errs.append(f"{r.path}.cells: shot {shot_id!r}: a {g.cols} x {g.rows} grid needs exactly "
-                      f"{g.cols * g.rows} cells (cols * rows), got {len(raw)}")
+        r.errs.append(
+            f"{r.path}.cells: shot {shot_id!r}: a {g.cols} x {g.rows} grid needs exactly "
+            f"{g.cols * g.rows} cells (cols * rows), got {len(raw)}"
+        )
     g.cells = tuple(_parse_grid_cell(_R(cd, f"{r.path}.cells[{j}]", r.errs)) for j, cd in enumerate(raw))
     r.finish()
     return g
@@ -364,7 +409,7 @@ def _parse_grid(r: _R, shot_id: str) -> Grid:
 def _parse_pad(r: _R, src: Source) -> None:
     pad = r.raw("pad", "#000000")
     if not (isinstance(pad, str) and (pad == "blur" or HEX_RE.match(pad))):
-        r.errs.append(f"{r.path}.pad: expected \"#rrggbb\" or \"blur\", got {pad!r}")
+        r.errs.append(f'{r.path}.pad: expected "#rrggbb" or "blur", got {pad!r}')
     else:
         src.pad = pad
 
@@ -376,7 +421,7 @@ def _parse_source(r: _R, shot_id: str = "") -> Source:
         r.finish()
         return Source()
     kind = kinds[0]
-    if kind == "grid":                       # pad (the gap and contain colour) is the only other key
+    if kind == "grid":  # pad (the gap and contain colour) is the only other key
         src = Source("grid", "", grid=_parse_grid(r.sub("grid"), shot_id))
         _parse_pad(r, src)
         r.finish()
@@ -393,8 +438,11 @@ def _parse_source(r: _R, shot_id: str = "") -> Source:
         sp = r.raw("speed")
         if isinstance(sp, (int, float)) and not isinstance(sp, bool):
             sp = [sp, sp]
-        if (isinstance(sp, list) and len(sp) == 2 and all(isinstance(x, (int, float)) and not isinstance(x, bool)
-                                                           and 0.1 <= x <= 8.0 for x in sp)):
+        if (
+            isinstance(sp, list)
+            and len(sp) == 2
+            and all(isinstance(x, (int, float)) and not isinstance(x, bool) and 0.1 <= x <= 8.0 for x in sp)
+        ):
             src.speed = (float(sp[0]), float(sp[1]))
         else:
             r.errs.append(f"{r.path}.speed: expected a number or [start, end] between 0.1 and 8 (a ramp), got {sp!r}")
@@ -409,10 +457,16 @@ def _parse_motion(r: _R) -> Motion:
     m.zoom = r.pair("zoom", (1.0, 1.0), lo=1.0, hi=3.0)
     pan = r.raw("pan", None)
     if pan is not None:
-        ok = (isinstance(pan, list) and len(pan) == 2 and all(
-            isinstance(p, list) and len(p) == 2 and all(
-                isinstance(x, (int, float)) and not isinstance(x, bool) and -0.5 <= x <= 0.5 for x in p)
-            for p in pan))
+        ok = (
+            isinstance(pan, list)
+            and len(pan) == 2
+            and all(
+                isinstance(p, list)
+                and len(p) == 2
+                and all(isinstance(x, (int, float)) and not isinstance(x, bool) and -0.5 <= x <= 0.5 for x in p)
+                for p in pan
+            )
+        )
         if ok:
             m.pan = ((float(pan[0][0]), float(pan[0][1])), (float(pan[1][0]), float(pan[1][1])))
         else:
@@ -424,7 +478,7 @@ def _parse_motion(r: _R) -> Motion:
     if m.type == "frame":
         m.keys = _parse_frame_keys(r)
     elif has_keys:
-        r.errs.append(f"{r.path}: from/to/keys belong to motion type \"frame\" (got type {m.type!r})")
+        r.errs.append(f'{r.path}: from/to/keys belong to motion type "frame" (got type {m.type!r})')
         for k in ("from", "to", "keys", "at", "ease"):
             r.raw(k)
     r.finish()
@@ -432,8 +486,7 @@ def _parse_motion(r: _R) -> Motion:
 
 
 def _rect(v, where: str, errs: list[str]) -> tuple[float, float, float, float] | None:
-    ok = (isinstance(v, list) and len(v) == 4
-          and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in v))
+    ok = isinstance(v, list) and len(v) == 4 and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in v)
     if ok:
         x, y, w, h = (float(t) for t in v)
         ok = 0 <= x < 1 and 0 <= y < 1 and 0 < w <= 1 and 0 < h <= 1 and x + w <= 1.0001 and y + h <= 1.0001
@@ -477,7 +530,9 @@ def _parse_frame_keys(r: _R) -> tuple[FrameKey, ...]:
             r.errs.append(f"{r.path}.keys: times must not decrease")
         return tuple(out)
     if not r.has("to"):
-        r.errs.append(f"{r.path}: motion type \"frame\" needs `to` (or `keys`): the source rectangle [x, y, w, h] to end on")
+        r.errs.append(
+            f'{r.path}: motion type "frame" needs `to` (or `keys`): the source rectangle [x, y, w, h] to end on'
+        )
     frm = _rect(r.raw("from"), f"{r.path}.from", r.errs) if r.has("from") else FULL
     to = _rect(r.raw("to"), f"{r.path}.to", r.errs) if r.has("to") else None
     at = r.pair("at", (0.0, 1.0), lo=0.0, hi=1.0)
@@ -490,19 +545,26 @@ def _parse_frame_keys(r: _R) -> tuple[FrameKey, ...]:
 
 
 def _parse_product(r: _R) -> ProductSpec:
-    p = ProductSpec(image=r.s("image", "", required=True) or "",
-                    x=r.num("x", 0.5, 0.0, 1.0), y=r.num("y", 0.62, 0.0, 1.0),
-                    height=r.num("height", 0.4, 0.02, 1.0), depth=r.num("depth", 0.8, 0.0, 1.0),
-                    shadow=r.num("shadow", 0.6, 0.0, 1.0), match_color=r.num("match_color", 0.0, 0.0, 1.0))
+    p = ProductSpec(
+        image=r.s("image", "", required=True) or "",
+        x=r.num("x", 0.5, 0.0, 1.0),
+        y=r.num("y", 0.62, 0.0, 1.0),
+        height=r.num("height", 0.4, 0.02, 1.0),
+        depth=r.num("depth", 0.8, 0.0, 1.0),
+        shadow=r.num("shadow", 0.6, 0.0, 1.0),
+        match_color=r.num("match_color", 0.0, 0.0, 1.0),
+    )
     r.finish()
     return p
 
 
 def _parse_caption(r: _R) -> CaptionSpec:
-    c = CaptionSpec(copy_id=r.s("copy_id", "", required=True) or "",
-                    style=r.s("style", "red-box", pattern=ID_RE) or "red-box",
-                    reveal=r.s("reveal", "none", REVEALS) or "none",
-                    anchor=r.s("anchor", "bottom", ANCHORS) or "bottom")
+    c = CaptionSpec(
+        copy_id=r.s("copy_id", "", required=True) or "",
+        style=r.s("style", "red-box", pattern=ID_RE) or "red-box",
+        reveal=r.s("reveal", "none", REVEALS) or "none",
+        anchor=r.s("anchor", "bottom", ANCHORS) or "bottom",
+    )
     r.finish()
     return c
 
@@ -522,10 +584,12 @@ def _parse_shot(r: _R, idx: int) -> Shot:
         sh.vo = vo
     dur = r.raw("duration", "auto")
     if isinstance(dur, bool) or not (
-            (isinstance(dur, (int, float)) and 0.2 <= dur <= 30)
-            or (isinstance(dur, str) and (dur == "auto" or (BEATS_RE.match(dur) and float(dur[6:]) > 0)))):
-        r.errs.append(f"{r.path}.duration: expected seconds (0.2..30), \"auto\" or \"beats:N\" (N > 0, halves ok), "
-                      f"got {dur!r}")
+        (isinstance(dur, (int, float)) and 0.2 <= dur <= 30)
+        or (isinstance(dur, str) and (dur == "auto" or (BEATS_RE.match(dur) and float(dur[6:]) > 0)))
+    ):
+        r.errs.append(
+            f'{r.path}.duration: expected seconds (0.2..30), "auto" or "beats:N" (N > 0, halves ok), got {dur!r}'
+        )
     else:
         sh.duration = float(dur) if isinstance(dur, (int, float)) else dur
     sh.transition_in = r.s("transition_in", "cut", TRANSITIONS) or "cut"
@@ -561,10 +625,13 @@ def _check_shot_formats(v: Any, where: str, errs: list[str]) -> None:
 
 
 def _parse_end_card(r: _R) -> EndCard:
-    e = EndCard(template=r.s("template", "brand-split", pattern=ID_RE) or "brand-split",
-                duration=r.num("duration", 5.0, 0.5, 30.0),
-                audio=r.s("audio", "silence", END_AUDIO) or "silence",
-                product=r.s("product", None), headline_reveal=r.s("headline_reveal", "typewriter", REVEALS) or "typewriter")
+    e = EndCard(
+        template=r.s("template", "brand-split", pattern=ID_RE) or "brand-split",
+        duration=r.num("duration", 5.0, 0.5, 30.0),
+        audio=r.s("audio", "silence", END_AUDIO) or "silence",
+        product=r.s("product", None),
+        headline_reveal=r.s("headline_reveal", "typewriter", REVEALS) or "typewriter",
+    )
     cp = r.raw("copy", {})
     if not isinstance(cp, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in cp.items()):
         r.errs.append(f"{r.path}.copy: expected {{slot: copy_id}}")
@@ -581,6 +648,7 @@ def _resolve_brand_from(frm: str, base_dir: str | None, warnings: list[str]) -> 
     from funkbox.config import resolve_path
 
     from . import brand as brand_mod
+
     try:
         p = resolve_path(frm, base_dir)
     except (ValueError, FileNotFoundError) as e:
@@ -600,19 +668,24 @@ def parse_reel(d: Any, base_dir: str | None = None) -> Reel:
     reel = Reel(base_dir=base_dir)
     reel.version = int(r.num("version", 3, 3, 3, integer=True))
     s = r.sub("settings")
-    reel.settings = Settings(width=int(s.num("width", 1080, 64, 4320, integer=True)),
-                             height=int(s.num("height", 1920, 64, 7680, integer=True)),
-                             fps=int(s.num("fps", 30, 1, 60, integer=True)),
-                             safe_area=s.s("safe_area", "reels", SAFE_AREAS) or "reels")
+    reel.settings = Settings(
+        width=int(s.num("width", 1080, 64, 4320, integer=True)),
+        height=int(s.num("height", 1920, 64, 7680, integer=True)),
+        fps=int(s.num("fps", 30, 1, 60, integer=True)),
+        safe_area=s.s("safe_area", "reels", SAFE_AREAS) or "reels",
+    )
     s.finish()
     b = r.sub("brand")
     brand_from = b.s("from", None)
-    reel.brand = Brand(primary=b.s("primary", "#c8102e", pattern=HEX_RE) or "#c8102e",
-                       secondary=b.s("secondary", "#1a1a1a", pattern=HEX_RE) or "#1a1a1a",
-                       text=b.s("text", "#ffffff", pattern=HEX_RE) or "#ffffff",
-                       font_caption=b.s("font_caption", "fonts/Oswald-SemiBold.ttf") or "",
-                       font_display=b.s("font_display", "fonts/DMSerifDisplay-Regular.ttf") or "",
-                       logo=b.s("logo", None), font_fallback=b.s("font_fallback", "fonts/Rubik-Bold.ttf"))
+    reel.brand = Brand(
+        primary=b.s("primary", "#c8102e", pattern=HEX_RE) or "#c8102e",
+        secondary=b.s("secondary", "#1a1a1a", pattern=HEX_RE) or "#1a1a1a",
+        text=b.s("text", "#ffffff", pattern=HEX_RE) or "#ffffff",
+        font_caption=b.s("font_caption", "fonts/Oswald-SemiBold.ttf") or "",
+        font_display=b.s("font_display", "fonts/DMSerifDisplay-Regular.ttf") or "",
+        logo=b.s("logo", None),
+        font_fallback=b.s("font_fallback", "fonts/Rubik-Bold.ttf"),
+    )
     if brand_from:
         reel.brand.brand_from = brand_from
         chosen = _resolve_brand_from(brand_from, base_dir, reel.warnings)
@@ -623,10 +696,14 @@ def parse_reel(d: Any, base_dir: str | None = None) -> Reel:
     b.finish()
     reel.copy = r.s("copy", "", required=True) or ""
     a = r.sub("audio")
-    reel.audio = Audio(music=a.s("music", None), music_gain_db=a.num("music_gain_db", -14.0, -60.0, 12.0),
-                       voiceover=a.b("voiceover", False), duck_db=a.num("duck_db", -10.0, -40.0, 0.0),
-                       snap_cuts_to_beats=a.b("snap_cuts_to_beats", False),
-                       loudness_lufs=a.num("loudness_lufs", -14.0, -40.0, -5.0))
+    reel.audio = Audio(
+        music=a.s("music", None),
+        music_gain_db=a.num("music_gain_db", -14.0, -60.0, 12.0),
+        voiceover=a.b("voiceover", False),
+        duck_db=a.num("duck_db", -10.0, -40.0, 0.0),
+        snap_cuts_to_beats=a.b("snap_cuts_to_beats", False),
+        loudness_lufs=a.num("loudness_lufs", -14.0, -40.0, -5.0),
+    )
     reel.audio.voice = a.s("voice", None, pattern=re.compile(r"^(piper|kokoro:[a-z]{2}_[a-z]+)$"))
     reel.audio.voice_speed = a.num("voice_speed", 1.0, 0.7, 1.4)
     if a.has("bpm"):
@@ -673,7 +750,9 @@ def parse_formats(v: Any, errs: list[str]) -> list[Format]:
     for i, f in enumerate(v):
         if isinstance(f, str):
             if f not in FORMAT_PRESETS:
-                errs.append(f"formats[{i}]: unknown preset {f!r}; have {list(FORMAT_PRESETS)} (or give {{id, width, height}})")
+                errs.append(
+                    f"formats[{i}]: unknown preset {f!r}; have {list(FORMAT_PRESETS)} (or give {{id, width, height}})"
+                )
                 continue
             w, h, sa = FORMAT_PRESETS[f]
             out.append(Format(f, w, h, sa))
@@ -711,6 +790,7 @@ def materialize(raw: dict, fmt: str) -> dict:
     that format applied (``motion`` replaced whole; ``caption`` / ``product`` / ``source`` merged), and no
     ``formats`` keys left. Raises ReelError for an unknown format id."""
     import copy
+
     errs: list[str] = []
     fmts = {f.id: f for f in parse_formats(raw.get("formats"), errs)} if "formats" in raw else {}
     if fmt not in fmts:

@@ -7,8 +7,7 @@ from funkbox.gl.recipe import Layer, PostPass, Recipe2, Settings2
 
 
 def recipe(*layers, size=64, **kw):
-    return Recipe2(settings=Settings2(width=size, height=size, fps=10, seconds=1.0, seed=3),
-                   layers=list(layers), **kw)
+    return Recipe2(settings=Settings2(width=size, height=size, fps=10, seconds=1.0, seed=3), layers=list(layers), **kw)
 
 
 @pytest.fixture()
@@ -57,14 +56,14 @@ def test_image_layer_roundtrip(eng, tmp_path, monkeypatch):
 def test_image_orientation_and_contain(eng, tmp_path, monkeypatch):
     monkeypatch.setenv("FUNK_INPUTS", str(tmp_path))
     im = Image.new("RGB", (32, 32), (0, 0, 255))
-    im.paste((255, 0, 0), (0, 0, 32, 16))            # red top half
+    im.paste((255, 0, 0), (0, 0, 32, 16))  # red top half
     im.save(tmp_path / "tb.png")
     arr = eng.render(recipe(Layer(type="image", path="tb.png", fit="stretch")), 0)
     assert arr[8, 32, 0] > 200 and arr[56, 32, 2] > 200
     wide = Image.new("RGB", (64, 16), (0, 255, 0))
     wide.save(tmp_path / "wide.png")
     arr = eng.render(recipe(Layer(type="image", path="wide.png", fit="contain")), 0)
-    assert arr[2, 32, 1] == 0 and arr[32, 32, 1] > 250     # letterboxed
+    assert arr[2, 32, 1] == 0 and arr[32, 32, 1] > 250  # letterboxed
 
 
 def test_blend_modes_run(eng):
@@ -91,13 +90,19 @@ def test_post_passes_run_and_unknown_rejected(eng):
 
 def test_v1_layer_converts_to_shader_layer(eng):
     """A legacy {"type": "v1"} layer becomes a shader layer on the matching port, same pixels."""
-    legacy = Layer(type="v1", effect="plasma", params={"k": [5.0, 6.0, 7.0, 8.0]},
-                   extra={"palette": "acid", "cycles": 1, "kaleido": 6, "spin": 1})
+    legacy = Layer(
+        type="v1",
+        effect="plasma",
+        params={"k": [5.0, 6.0, 7.0, 8.0]},
+        extra={"palette": "acid", "cycles": 1, "kaleido": 6, "spin": 1},
+    )
     assert legacy.type == "shader" and legacy.shader == "shaders/plasma.frag"
     assert legacy.params["u_k2"] == 7.0 and legacy.params["u_kaleido"] == 6 and legacy.params["k_spin"] == 1
-    direct = Layer(shader="shaders/plasma.frag", params={"u_k0": 5.0, "u_k1": 6.0, "u_k2": 7.0, "u_k3": 8.0,
-                                                          "u_kaleido": 6, "k_spin": 1},
-                   extra={"palette": "acid", "cycles": 1})
+    direct = Layer(
+        shader="shaders/plasma.frag",
+        params={"u_k0": 5.0, "u_k1": 6.0, "u_k2": 7.0, "u_k3": 8.0, "u_kaleido": 6, "k_spin": 1},
+        extra={"palette": "acid", "cycles": 1},
+    )
     assert np.array_equal(eng.render(recipe(legacy), 3), eng.render(recipe(direct), 3))
 
 
@@ -105,11 +110,12 @@ def test_layer_palette_override(eng):
     src = "vec4 effect(vec2 p){ return vec4(palette(0.3), 1.0); }"
     a = eng.render(recipe(Layer(source=src)), 0)
     b = eng.render(recipe(Layer(source=src, extra={"palette": "mono", "cycles": 0})), 0)
-    assert not np.array_equal(a, b) and np.abs(b[..., 0].astype(int) - b[..., 1]).max() <= 1   # mono = grey
+    assert not np.array_equal(a, b) and np.abs(b[..., 0].astype(int) - b[..., 1]).max() <= 1  # mono = grey
 
 
 def test_text_overlay(eng):
     from funkbox.gl.recipe import TextSpec
+
     src = "vec4 effect(vec2 p){ return vec4(0.0, 0.0, 0.0, 1.0); }"
     arr = eng.render(recipe(Layer(source=src), text=TextSpec(text="HI", size=0.4)), 0)
     assert arr.max() > 200

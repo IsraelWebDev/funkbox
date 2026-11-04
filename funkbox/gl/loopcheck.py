@@ -1,4 +1,5 @@
 """Machine check that a recipe loops seamlessly."""
+
 from __future__ import annotations
 
 import copy
@@ -18,10 +19,10 @@ STATIC_STEP = 0.05
 @dataclass
 class LoopReport:
     ok: bool
-    max_diff: int          # 0..255, frame0 vs frame N (t=1)
+    max_diff: int  # 0..255, frame0 vs frame N (t=1)
     bad_pixel_frac: float  # fraction of pixels with any channel diff > 3
-    seam_step: float       # mean abs diff between frame N-1 and frame 0
-    typical_step: float    # mean abs diff of consecutive frames, sampled every k frames
+    seam_step: float  # mean abs diff between frame N-1 and frame 0
+    typical_step: float  # mean abs diff of consecutive frames, sampled every k frames
     reason: str
 
     def to_dict(self) -> dict:
@@ -32,8 +33,9 @@ def _mad(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.abs(a.astype(np.int16) - b.astype(np.int16)).mean())
 
 
-def validate_loop(recipe: Recipe2, size: int = 192, frames: int | None = None,
-                  engine: Engine | None = None) -> LoopReport:
+def validate_loop(
+    recipe: Recipe2, size: int = 192, frames: int | None = None, engine: Engine | None = None
+) -> LoopReport:
     """Render t=0 and t=1.0 (grain off) and compare; also compare the seam step with the
     typical frame-to-frame step."""
     rec = copy.deepcopy(recipe)
@@ -69,14 +71,18 @@ def validate_loop(recipe: Recipe2, size: int = 192, frames: int | None = None,
     ok, reason = True, "seamless"
     if bad > BAD_FRAC_MAX:
         ok = False
-        reason = (f"frame at t=1 differs from t=0 in {bad * 100:.1f}% of pixels "
-                  f"(max diff {max_diff}); you probably animate with iTime, or multiply "
-                  "iPhase by a non-integer")
+        reason = (
+            f"frame at t=1 differs from t=0 in {bad * 100:.1f}% of pixels "
+            f"(max diff {max_diff}); you probably animate with iTime, or multiply "
+            "iPhase by a non-integer"
+        )
     elif seam > SEAM_FACTOR * typical + SEAM_SLACK:
         ok = False
-        reason = (f"motion jumps at the loop point: the step from the last frame to the first "
-                  f"is {seam:.2f} vs a typical {typical:.2f}; check for iTime or a non-integer "
-                  "multiple of iPhase")
+        reason = (
+            f"motion jumps at the loop point: the step from the last frame to the first "
+            f"is {seam:.2f} vs a typical {typical:.2f}; check for iTime or a non-integer "
+            "multiple of iPhase"
+        )
     elif typical < STATIC_STEP:
         reason = "static: nothing moves"
     return LoopReport(ok, max_diff, bad, seam, typical, reason)

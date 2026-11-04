@@ -1,7 +1,6 @@
 import pytest
 
-from funkbox.gl.shader import (USER_LINE_OFFSET, ShaderError, ShaderSource, parse_params,
-                           sample_params)
+from funkbox.gl.shader import USER_LINE_OFFSET, ShaderError, ShaderSource, parse_params, sample_params
 
 GOOD = """vec4 effect(vec2 p) {
   return vec4(palette(p.x * 0.5 + 0.5) * 0.5, 1.0);
@@ -20,7 +19,7 @@ def test_error_line_is_in_user_coordinates(gl):
     assert not r.ok and r.program is None
     assert r.errors and all(e["line"] == 3 for e in r.errors if e["line"] is not None)
     assert any(e["line"] == 3 for e in r.errors)
-    assert USER_LINE_OFFSET > 100          # the offset really is being subtracted
+    assert USER_LINE_OFFSET > 100  # the offset really is being subtracted
 
 
 def test_error_line_other_position(gl):
@@ -43,7 +42,7 @@ def test_shadertoy_detection_and_compile(gl):
 def test_no_entry_point_raises():
     with pytest.raises(ShaderError, match="effect"):
         ShaderSource("float f(float x) { return x; }\n")
-    with pytest.raises(ShaderError):       # commented-out entry points do not count
+    with pytest.raises(ShaderError):  # commented-out entry points do not count
         ShaderSource("// vec4 effect(vec2 p) { return vec4(1.0); }\n")
 
 

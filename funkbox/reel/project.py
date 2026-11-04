@@ -12,6 +12,7 @@ The exactness guarantee lives here too: ``copy_lock_error`` / ``check_reel_copy`
 v3 validator, so a reel inside a project can only ever use the project's *approved* ``copy.json`` and
 only while its sha256 still equals ``project.json.copy_lock``.
 """
+
 from __future__ import annotations
 
 import datetime as _dt
@@ -70,8 +71,9 @@ def slugify(name: str) -> str:
 
 def project_dir(slug: str, must_exist: bool = True) -> Path:
     if not isinstance(slug, str) or not SLUG_RE.match(slug):
-        raise ProjectError(f"bad project name {slug!r}: use a slug matching {SLUG_RE.pattern} "
-                           f"(lowercase letters, digits and dashes)")
+        raise ProjectError(
+            f"bad project name {slug!r}: use a slug matching {SLUG_RE.pattern} (lowercase letters, digits and dashes)"
+        )
     d = projects_root() / slug
     if must_exist and not (d / "project.json").is_file():
         have = ", ".join(list_slugs()) or "none yet"
@@ -127,8 +129,18 @@ def new_project(name: str) -> dict:
         raise ProjectError(f"project {slug!r} already exists; use it, or pick another name")
     for sub in SUBDIRS:
         (d / sub).mkdir(parents=True, exist_ok=True)
-    meta = {"name": name.strip(), "slug": slug, "created": now_iso(), "status": "new", "brand": None,
-            "copy_lock": None, "copy_approval": None, "product": None, "assets": {}, "notes": []}
+    meta = {
+        "name": name.strip(),
+        "slug": slug,
+        "created": now_iso(),
+        "status": "new",
+        "brand": None,
+        "copy_lock": None,
+        "copy_approval": None,
+        "product": None,
+        "assets": {},
+        "notes": [],
+    }
     _write_json_atomic(d / "project.json", meta)
     ensure_inbox()
     return meta
@@ -139,11 +151,19 @@ def list_projects() -> list[dict]:
     for slug in list_slugs():
         m = load_meta(slug)
         d = project_dir(slug)
-        out.append({"slug": slug, "name": m.get("name", slug), "status": m.get("status", "new"),
-                    "created": m.get("created"), "has_product": (d / "product" / "product.png").exists(),
-                    "copy_approved": bool(m.get("copy_lock")),
-                    "shots": len(files_in(d / "shots")), "clips": len(files_in(d / "clips")),
-                    "music": len(files_in(d / "music"))})
+        out.append(
+            {
+                "slug": slug,
+                "name": m.get("name", slug),
+                "status": m.get("status", "new"),
+                "created": m.get("created"),
+                "has_product": (d / "product" / "product.png").exists(),
+                "copy_approved": bool(m.get("copy_lock")),
+                "shots": len(files_in(d / "shots")),
+                "clips": len(files_in(d / "clips")),
+                "music": len(files_in(d / "music")),
+            }
+        )
     return out
 
 
@@ -195,8 +215,10 @@ def check_reel_copy(copy_path: Path, base_dir: str | Path | None, data: bytes | 
         slug = rel.parts[0]
     elif base_rel is not None and base_rel.parts:
         slug = base_rel.parts[0]
-        return (f"reel is stored in project {slug!r} but its copy deck {copy_path} is not that project's "
-                f"copy.json; project reels may only use the approved copy.json")
+        return (
+            f"reel is stored in project {slug!r} but its copy deck {copy_path} is not that project's "
+            f"copy.json; project reels may only use the approved copy.json"
+        )
     if slug is None:
         return None
     if base_rel is not None and base_rel.parts and base_rel.parts[0] != slug:
@@ -204,6 +226,8 @@ def check_reel_copy(copy_path: Path, base_dir: str | Path | None, data: bytes | 
     if not SLUG_RE.match(slug) or not (root / slug / "project.json").is_file():
         return f"copy deck {copy_path} is inside the projects folder but not in a project"
     if rel is None or tuple(rel.parts) != (slug, "copy.json"):
-        return (f"inside project {slug!r} only the approved copy.json may be used as the copy deck "
-                f"(got {'/'.join(rel.parts[1:]) if rel else copy_path}); copy.draft.json never reaches pixels")
+        return (
+            f"inside project {slug!r} only the approved copy.json may be used as the copy deck "
+            f"(got {'/'.join(rel.parts[1:]) if rel else copy_path}); copy.draft.json never reaches pixels"
+        )
     return copy_lock_error(slug, data)

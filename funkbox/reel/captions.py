@@ -5,6 +5,7 @@ hyphenation, never below 0.032 x frame height, never truncated). Reveals then sh
 that fixed layout, so a typewriter frame is exactly ``text[:n]`` drawn on the final layout.
 Nothing here transforms case or touches characters.
 """
+
 from __future__ import annotations
 
 import json
@@ -21,20 +22,39 @@ from funkbox.config import ROOT as FUNKBOX
 
 from .schema import HEX_RE, Brand
 
-MIN_SIZE = 0.032                     # of frame height; below this the validator errors
-AUTO_SIZE_BIG, AUTO_SIZE_SMALL = 0.062, 0.046   # of frame height, at <= AUTO_N_SHORT / >= AUTO_N_LONG chars
+MIN_SIZE = 0.032  # of frame height; below this the validator errors
+AUTO_SIZE_BIG, AUTO_SIZE_SMALL = 0.062, 0.046  # of frame height, at <= AUTO_N_SHORT / >= AUTO_N_LONG chars
 AUTO_N_SHORT, AUTO_N_LONG = 14, 40
-AUTO_CPS_SHARE = 0.55                # of the shot the "auto" typewriter reveal takes
+AUTO_CPS_SHARE = 0.55  # of the shot the "auto" typewriter reveal takes
 AUTO_CPS_MIN, AUTO_CPS_MAX = 14.0, 40.0
-DEFAULT_CPS = 28.0                   # when cps is "auto" but no shot duration is known
-SAFE_TOP, SAFE_BOTTOM = 0.14, 0.22   # reels safe area
-LAND_TOP, LAND_BOTTOM = 0.07, 0.12   # landscape safe area (player controls)
-CAPTION_DELAY = 0.1                  # seconds after the shot starts
+DEFAULT_CPS = 28.0  # when cps is "auto" but no shot duration is known
+SAFE_TOP, SAFE_BOTTOM = 0.14, 0.22  # reels safe area
+LAND_TOP, LAND_BOTTOM = 0.07, 0.12  # landscape safe area (player controls)
+CAPTION_DELAY = 0.1  # seconds after the shot starts
 NAME_RE = re.compile(r"^[A-Za-z0-9_\-]{1,40}$")
 TEMPLATES = FUNKBOX / "templates"
 
-_STYLE_KEYS = {"font", "size", "color", "box", "box_alpha", "padding", "max_width", "line_height", "align",
-               "scale_in", "stroke", "stroke_color", "shadow", "accent", "cursor", "cps", "x", "y", "gap"}
+_STYLE_KEYS = {
+    "font",
+    "size",
+    "color",
+    "box",
+    "box_alpha",
+    "padding",
+    "max_width",
+    "line_height",
+    "align",
+    "scale_in",
+    "stroke",
+    "stroke_color",
+    "shadow",
+    "accent",
+    "cursor",
+    "cps",
+    "x",
+    "y",
+    "gap",
+}
 
 
 class CaptionFitError(ValueError):
@@ -43,24 +63,24 @@ class CaptionFitError(ValueError):
 
 @dataclass(frozen=True)
 class Style:
-    font: str = "caption"                # "caption" | "display" (brand fonts)
-    size: float | str = 0.05             # font px / frame height, or "auto" (see effective_size)
-    color: str = "text"                  # brand key (primary|secondary|text) or #rrggbb
+    font: str = "caption"  # "caption" | "display" (brand fonts)
+    size: float | str = 0.05  # font px / frame height, or "auto" (see effective_size)
+    color: str = "text"  # brand key (primary|secondary|text) or #rrggbb
     box: str | None = "primary"
     box_alpha: float = 1.0
-    padding: float = 0.6                 # em
-    max_width: float = 0.82              # of frame width
+    padding: float = 0.6  # em
+    max_width: float = 0.82  # of frame width
     line_height: float = 1.1
-    align: str = "center"                # alignment of lines inside the block
-    scale_in: float = 0.15               # seconds
-    stroke: float = 0.0                  # em
+    align: str = "center"  # alignment of lines inside the block
+    scale_in: float = 0.15  # seconds
+    stroke: float = 0.0  # em
     stroke_color: str = "secondary"
-    shadow: float = 0.0                  # em offset
-    accent: str | None = None            # left accent bar colour
+    shadow: float = 0.0  # em offset
+    accent: str | None = None  # left accent bar colour
     cursor: bool = False
-    cps: float | str = 28.0              # chars/second of the typewriter, or "auto" (see effective_cps)
-    x: float | None = None               # left edge (fraction of width); None = centred
-    y: float | None = None               # top (fraction of height); None = anchored
+    cps: float | str = 28.0  # chars/second of the typewriter, or "auto" (see effective_cps)
+    x: float | None = None  # left edge (fraction of width); None = centred
+    y: float | None = None  # top (fraction of height); None = anchored
     gap: float = 0.0
 
 
@@ -145,6 +165,7 @@ class Fonts:
         if IT has every glyph. Anything else raises GlyphError naming the characters, so text is never drawn as
         empty boxes. (The choice is per text block: a block is drawn in one font.)"""
         from .. import fonts as fontsmod
+
         main = self.caption if which == "caption" else self.display
         if text is None:
             return main
@@ -155,26 +176,37 @@ class Fonts:
             if not fontsmod.missing(self.fallback, text):
                 return self.fallback
             miss = [c for c in miss if c in fontsmod.missing(self.fallback, text)]
-            raise GlyphError(f"neither the {which} font ({main.name}) nor the fallback ({self.fallback.name}) has "
-                             f"{fontsmod.describe(miss)}; pick a font that covers them")
-        raise GlyphError(f"the {which} font ({main.name}) has no glyph for {fontsmod.describe(miss)}; set "
-                         f"brand.font_fallback (e.g. 'Rubik:700' for Hebrew) or use a font that covers them")
+            raise GlyphError(
+                f"neither the {which} font ({main.name}) nor the fallback ({self.fallback.name}) has "
+                f"{fontsmod.describe(miss)}; pick a font that covers them"
+            )
+        raise GlyphError(
+            f"the {which} font ({main.name}) has no glyph for {fontsmod.describe(miss)}; set "
+            f"brand.font_fallback (e.g. 'Rubik:700' for Hebrew) or use a font that covers them"
+        )
 
     def get(self, which: str, px: int, text: str | None = None) -> ImageFont.FreeTypeFont:
         return _font(str(self.path_for(which, text)), px)
 
 
-DEFAULT_FALLBACK = "fonts/Rubik-Bold.ttf"     # bundled: Latin, Hebrew, Cyrillic
+DEFAULT_FALLBACK = "fonts/Rubik-Bold.ttf"  # bundled: Latin, Hebrew, Cyrillic
 
 
 def fonts_for(brand, base_dir) -> Fonts:
     """A brand's fonts: paths or names (funkbox.fonts), plus the optional fallback."""
     from .. import fonts as fontsmod
-    fb = (getattr(brand, "font_fallback", DEFAULT_FALLBACK) if not isinstance(brand, dict)
-          else brand.get("font_fallback", DEFAULT_FALLBACK))
+
+    fb = (
+        getattr(brand, "font_fallback", DEFAULT_FALLBACK)
+        if not isinstance(brand, dict)
+        else brand.get("font_fallback", DEFAULT_FALLBACK)
+    )
     get = (lambda k: brand[k]) if isinstance(brand, dict) else (lambda k: getattr(brand, k))
-    return Fonts(fontsmod.resolve(get("font_caption"), base_dir), fontsmod.resolve(get("font_display"), base_dir),
-                 fontsmod.resolve(fb, base_dir) if fb else None)
+    return Fonts(
+        fontsmod.resolve(get("font_caption"), base_dir),
+        fontsmod.resolve(get("font_display"), base_dir),
+        fontsmod.resolve(fb, base_dir) if fb else None,
+    )
 
 
 @lru_cache(maxsize=64)
@@ -190,7 +222,7 @@ def colour(key: str | None, brand: Brand) -> tuple[int, int, int] | None:
     if key is None:
         return None
     if key == "auto":
-        return hex_rgb(brand.primary)          # paths without a frame (validate, subtitles) use the primary
+        return hex_rgb(brand.primary)  # paths without a frame (validate, subtitles) use the primary
     if key in ("primary", "secondary", "text"):
         return hex_rgb(getattr(brand, key))
     return hex_rgb(key)
@@ -215,8 +247,9 @@ def auto_box(frame: np.ndarray, brand: Brand, text_rgb) -> tuple[tuple[int, int,
     h, w = frame.shape[:2]
     scale = min(1.0, 64.0 / max(h, w))
     if scale < 1.0:
-        small = np.asarray(Image.fromarray(frame).resize(
-            (max(1, round(w * scale)), max(1, round(h * scale))), Image.BILINEAR))
+        small = np.asarray(
+            Image.fromarray(frame).resize((max(1, round(w * scale)), max(1, round(h * scale))), Image.BILINEAR)
+        )
     else:
         small = frame
     a = small.astype(np.float32) / 255.0
@@ -239,16 +272,16 @@ def auto_box(frame: np.ndarray, brand: Brand, text_rgb) -> tuple[tuple[int, int,
         return primary, text_rgb
     bins = np.minimum((hue[keep] * 24).astype(np.int64), 23)
     sums = np.bincount(bins, weights=(sat * val)[keep], minlength=24)
-    best = int(np.argmax(sums))               # first maximum: the lowest hue bin on ties
+    best = int(np.argmax(sums))  # first maximum: the lowest hue bin on ties
     mean = np.mean(small[keep][bins == best].astype(np.float64), axis=0)
     box_rgb = tuple(int(min(255, max(0, round(float(c))))) for c in mean)
     if contrast(box_rgb, text_rgb) >= 4.5:
         return box_rgb, text_rgb
-    for alt in ((17, 17, 17), (255, 255, 255)):      # keep a vivid box: switch the text before touching the box
+    for alt in ((17, 17, 17), (255, 255, 255)):  # keep a vivid box: switch the text before touching the box
         if alt != text_rgb and contrast(box_rgb, alt) >= 4.5:
             return box_rgb, alt
     lab = srgb_to_lab(np.array(box_rgb, np.float32)).astype(np.float64)
-    step = -1.5 if luminance(text_rgb) >= 0.5 else 1.5     # light text: darken the box; dark text: lighten it
+    step = -1.5 if luminance(text_rgb) >= 0.5 else 1.5  # light text: darken the box; dark text: lighten it
     for _ in range(100):
         lab[0] = float(np.clip(lab[0] + step, 0, 100))
         cand = tuple(int(min(255, max(0, round(float(c))))) for c in lab_to_srgb(lab.astype(np.float32)))
@@ -272,7 +305,7 @@ def pick_anchor(frame: np.ndarray, lay_for, W: int, H: int, safe_area: str = "re
     nw, nh = max(1, round(w * scale)), max(1, round(h * scale))
     grey = np.asarray(Image.fromarray(frame[..., :3]).convert("L").resize((nw, nh), Image.BILINEAR), np.float32)
     best, best_busy = "bottom", None
-    for anchor in ("bottom", "center", "top"):        # strict < keeps the earlier one on ties: bottom first
+    for anchor in ("bottom", "center", "top"):  # strict < keeps the earlier one on ties: bottom first
         lay = lay_for(anchor, W, H, safe_area)
         x0 = max(0, min(nw - 1, int(round(lay.x0 * scale))))
         x1 = max(x0 + 1, min(nw, int(round((lay.x0 + lay.box_w) * scale))))
@@ -297,8 +330,8 @@ class Layout:
     px: int
     pad: int
     line_h: int
-    lines: list[tuple[int, int]]          # (start, end) offsets into text; end excludes the wrap space
-    widths: list[float]                   # full width of each line
+    lines: list[tuple[int, int]]  # (start, end) offsets into text; end excludes the wrap space
+    widths: list[float]  # full width of each line
     x0: int
     y0: int
     box_w: int
@@ -329,9 +362,9 @@ class Layout:
                 break
             out.append(s)
             if i < last:
-                out.append(self.text[self.lines[i][1]: self.lines[i + 1][0]])
+                out.append(self.text[self.lines[i][1] : self.lines[i + 1][0]])
         if last == len(self.lines) - 1:
-            out.append(self.text[self.lines[-1][1]:])
+            out.append(self.text[self.lines[-1][1] :])
         return "".join(out)
 
 
@@ -350,7 +383,7 @@ def wrap(text: str, font: ImageFont.FreeTypeFont, avail: float) -> tuple[list[tu
                 ok = False
             if cur is None:
                 cur = (ws, we)
-            elif font.getlength(text[cur[0]:we]) <= avail:
+            elif font.getlength(text[cur[0] : we]) <= avail:
                 cur = (cur[0], we)
             else:
                 lines.append(cur)
@@ -361,14 +394,24 @@ def wrap(text: str, font: ImageFont.FreeTypeFont, avail: float) -> tuple[list[tu
     return lines, ok
 
 
-def layout_block(copy_id: str, text: str, style: Style, fonts: Fonts, brand: Brand, W: int, H: int, *,
-                 anchor: str = "bottom", safe_area: str = "reels") -> Layout:
+def layout_block(
+    copy_id: str,
+    text: str,
+    style: Style,
+    fonts: Fonts,
+    brand: Brand,
+    W: int,
+    H: int,
+    *,
+    anchor: str = "bottom",
+    safe_area: str = "reels",
+) -> Layout:
     """Lay out a copy line. Raises CaptionFitError (naming the copy id) if it cannot fit."""
     min_px = max(8, math.ceil(MIN_SIZE * H))
     px = max(min_px, int(round(effective_size(style, text) * H)))
     if safe_area == "reels":
         top, bot = SAFE_TOP * H, H - SAFE_BOTTOM * H
-    elif safe_area == "landscape":                 # 16:9 / square players: title-safe margins, controls at the bottom
+    elif safe_area == "landscape":  # 16:9 / square players: title-safe margins, controls at the bottom
         top, bot = LAND_TOP * H, H - LAND_BOTTOM * H
     else:
         top, bot = 0.04 * H, H - 0.04 * H
@@ -384,8 +427,10 @@ def layout_block(copy_id: str, text: str, style: Style, fonts: Fonts, brand: Bra
             break
         if px <= min_px:
             why = "a word is wider than the line" if not fits else "the block is taller than the safe area"
-            raise CaptionFitError(f"copy {copy_id!r}: text does not fit at the minimum size "
-                                  f"({MIN_SIZE} x frame height = {min_px}px): {why}")
+            raise CaptionFitError(
+                f"copy {copy_id!r}: text does not fit at the minimum size "
+                f"({MIN_SIZE} x frame height = {min_px}px): {why}"
+            )
         px = max(min_px, int(px * 0.94))
     widths = [font.getlength(text[s:e]) for s, e in lines]
     tw = max(widths) if widths else 0.0
@@ -402,17 +447,17 @@ def layout_block(copy_id: str, text: str, style: Style, fonts: Fonts, brand: Bra
         y0 = int(round(top))
     elif anchor == "center":
         y0 = int(round((top + bot - box_h) / 2))
-    else:                               # "bottom"; "auto" also lands here (only a render frame can resolve it)
+    else:  # "bottom"; "auto" also lands here (only a render frame can resolve it)
         y0 = int(round(bot - box_h))
-    return Layout(copy_id, text, style, fonts, brand, px, pad, line_h, lines, widths, x0, y0, box_w, box_h,
-                  cap_h, (W, H))
+    return Layout(
+        copy_id, text, style, fonts, brand, px, pad, line_h, lines, widths, x0, y0, box_w, box_h, cap_h, (W, H)
+    )
 
 
 # --------------------------------------------------------------------------- #
 # Reveals
 # --------------------------------------------------------------------------- #
-def reveal_count(lay: Layout, reveal: str, t: float, vo_dur: float | None = None,
-                 span: float | None = None) -> int:
+def reveal_count(lay: Layout, reveal: str, t: float, vo_dur: float | None = None, span: float | None = None) -> int:
     """Number of characters of the copy text visible ``t`` seconds after the caption starts.
     ``span`` is the shot's duration in seconds (resolves a cps of "auto"; None = the old fixed cps)."""
     n_total = len(lay.text)
@@ -445,7 +490,7 @@ def reveal_seconds(lay: Layout, reveal: str, vo_dur: float | None = None, span: 
 
 def revealed_lines(lay: Layout, n: int) -> list[str | None]:
     """The strings to draw per line when ``n`` characters are visible (None = not yet visible)."""
-    return [lay.text[s:min(e, n)].rstrip() if n > s else None for s, e in lay.lines]
+    return [lay.text[s : min(e, n)].rstrip() if n > s else None for s, e in lay.lines]
 
 
 # --------------------------------------------------------------------------- #
@@ -453,7 +498,7 @@ def revealed_lines(lay: Layout, n: int) -> list[str | None]:
 # --------------------------------------------------------------------------- #
 @dataclass
 class Sprite:
-    rgba: np.ndarray                      # HxWx4 uint8
+    rgba: np.ndarray  # HxWx4 uint8
     x: int
     y: int
     drawn: list[str | None] = field(default_factory=list)
@@ -463,10 +508,15 @@ class Sprite:
         """Composite onto an HxWx3 uint8 frame; returns a new array."""
         out = frame.copy()
         h, w = self.rgba.shape[:2]
-        X0, Y0, X1, Y1 = max(0, self.x), max(0, self.y), min(frame.shape[1], self.x + w), min(frame.shape[0], self.y + h)
+        X0, Y0, X1, Y1 = (
+            max(0, self.x),
+            max(0, self.y),
+            min(frame.shape[1], self.x + w),
+            min(frame.shape[0], self.y + h),
+        )
         if X1 <= X0 or Y1 <= Y0:
             return out
-        sub = self.rgba[Y0 - self.y:Y1 - self.y, X0 - self.x:X1 - self.x].astype(np.float32)
+        sub = self.rgba[Y0 - self.y : Y1 - self.y, X0 - self.x : X1 - self.x].astype(np.float32)
         a = sub[..., 3:4] / 255.0
         out[Y0:Y1, X0:X1] = np.clip(out[Y0:Y1, X0:X1] * (1 - a) + sub[..., :3] * a + 0.5, 0, 255).astype(np.uint8)
         return out
@@ -477,12 +527,13 @@ class Sprite:
         h, w = self.rgba.shape[:2]
         X0, Y0, X1, Y1 = max(0, self.x), max(0, self.y), min(W, self.x + w), min(H, self.y + h)
         if X1 > X0 and Y1 > Y0:
-            out[Y0:Y1, X0:X1] = self.rgba[Y0 - self.y:Y1 - self.y, X0 - self.x:X1 - self.x]
+            out[Y0:Y1, X0:X1] = self.rgba[Y0 - self.y : Y1 - self.y, X0 - self.x : X1 - self.x]
         return out
 
 
-def draw_block(lay: Layout, strings: list[str | None], t: float = 1e9, anim: str = "none",
-               cursor_on: bool = False) -> Sprite | None:
+def draw_block(
+    lay: Layout, strings: list[str | None], t: float = 1e9, anim: str = "none", cursor_on: bool = False
+) -> Sprite | None:
     """Draw the revealed ``strings`` (one per layout line) at the layout's fixed geometry.
 
     ``anim``: "none" | "scale-in" | "pop" with ``t`` seconds since the caption started.
@@ -517,13 +568,20 @@ def draw_block(lay: Layout, strings: list[str | None], t: float = 1e9, anim: str
         base = m + lay.pad + i * lay.line_h + (lay.line_h + lay.cap_h) / 2
         x = m + lay.line_x(i)
         from funkbox.bidi import shown
-        s = shown(s)                                  # right-to-left lines in display order without libraqm
+
+        s = shown(s)  # right-to-left lines in display order without libraqm
         if st.shadow > 0:
             off = max(1, int(round(st.shadow * lay.px)))
-            d.text((x + off, base + off), s, font=font, fill=(0, 0, 0, 120), anchor="ls",
-                   stroke_width=stroke, stroke_fill=(0, 0, 0, 120))
-        d.text((x, base), s, font=font, fill=(*text_c, 255), anchor="ls", stroke_width=stroke,
-               stroke_fill=(*sc, 255))
+            d.text(
+                (x + off, base + off),
+                s,
+                font=font,
+                fill=(0, 0, 0, 120),
+                anchor="ls",
+                stroke_width=stroke,
+                stroke_fill=(0, 0, 0, 120),
+            )
+        d.text((x, base), s, font=font, fill=(*text_c, 255), anchor="ls", stroke_width=stroke, stroke_fill=(*sc, 255))
     if cursor_on and st.cursor:
         li = nvis - 1
         cx = int(m + lay.line_x(li) + wid[li]) + max(2, lay.px // 10)
@@ -545,7 +603,7 @@ def _animate(arr, x, y, lay: Layout, bw: int, bh: int, m: int, t: float, anim: s
         p = t / dur
         s = 0.9 + 0.1 * (p * p * (3 - 2 * p))
         alpha = 1.0
-    else:   # pop: ease-out-back over 0.22 s
+    else:  # pop: ease-out-back over 0.22 s
         dur = 0.22
         if t >= dur:
             return arr, x, y
@@ -564,8 +622,9 @@ def _animate(arr, x, y, lay: Layout, bw: int, bh: int, m: int, t: float, anim: s
     return a, int(round(cx - (m + bw / 2) * s)), int(round(cy - (m + bh / 2) * s))
 
 
-def render_caption(lay: Layout, reveal: str, t: float, vo_dur: float | None = None,
-                   span: float | None = None) -> Sprite | None:
+def render_caption(
+    lay: Layout, reveal: str, t: float, vo_dur: float | None = None, span: float | None = None
+) -> Sprite | None:
     """Sprite for a caption ``t`` seconds after it started (t < 0: not yet visible).
     ``span`` is the shot's duration in seconds (resolves a cps of "auto"; None = the old fixed cps)."""
     n = reveal_count(lay, reveal, t, vo_dur, span)
@@ -581,11 +640,12 @@ def render_caption(lay: Layout, reveal: str, t: float, vo_dur: float | None = No
 
 
 # --------------------------------------------------------------------------- #
-def check_caption(copy_id: str, text: str, style_name: str, anchor: str, fonts: Fonts, brand: Brand,
-                  W: int, H: int, safe_area: str) -> str | None:
+def check_caption(
+    copy_id: str, text: str, style_name: str, anchor: str, fonts: Fonts, brand: Brand, W: int, H: int, safe_area: str
+) -> str | None:
     """Validator hook: returns an error string (naming the copy id) or None."""
     try:
         layout_block(copy_id, text, load_style(style_name), fonts, brand, W, H, anchor=anchor, safe_area=safe_area)
-    except (CaptionFitError, ValueError) as e:            # GlyphError is a ValueError
+    except (CaptionFitError, ValueError) as e:  # GlyphError is a ValueError
         return f"copy {copy_id!r}: {e}" if isinstance(e, GlyphError) else str(e)
     return None

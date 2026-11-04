@@ -15,6 +15,7 @@ font file. FUNK_FONTS_URL points the lookup at a mirror (tests use a local folde
 missing() lists the characters a font has no glyph for. funkbox refuses to render text in a font that lacks any
 of its characters, so "exact text" never comes out as empty boxes.
 """
+
 from __future__ import annotations
 
 import json
@@ -44,12 +45,15 @@ def is_name(spec: str) -> bool:
 def parse(spec: str) -> tuple[str, int, str]:
     m = _NAME_RE.match(str(spec).strip())
     if not m:
-        raise FontError(f"font {spec!r}: expected a file path or a name like 'Rubik', 'Rubik:800' or 'Exo 2:700:italic'")
+        raise FontError(
+            f"font {spec!r}: expected a file path or a name like 'Rubik', 'Rubik:800' or 'Exo 2:700:italic'"
+        )
     return m["family"].strip(), int(m["weight"] or 400), m["style"] or "normal"
 
 
 def cache_dir() -> Path:
     from . import config
+
     d = config.get().home / "fonts-cache"
     d.mkdir(parents=True, exist_ok=True)
     return d
@@ -79,14 +83,22 @@ def _metadata(family: str) -> tuple[str, str, dict]:
         except OSError as e:
             errors.append(str(e))
             continue
-        fonts = [dict(re.findall(r'(\w+):\s*"?([^"\n]*)"?', blk)) for blk in re.findall(r"fonts\s*\{(.*?)\}", text, re.S)]
-        axes = {a: (float(lo), float(hi)) for a, lo, hi in
-                re.findall(r'axes\s*\{\s*tag:\s*"(\w+)"\s*min_value:\s*([\d.]+)\s*max_value:\s*([\d.]+)', text)}
+        fonts = [
+            dict(re.findall(r'(\w+):\s*"?([^"\n]*)"?', blk)) for blk in re.findall(r"fonts\s*\{(.*?)\}", text, re.S)
+        ]
+        axes = {
+            a: (float(lo), float(hi))
+            for a, lo, hi in re.findall(
+                r'axes\s*\{\s*tag:\s*"(\w+)"\s*min_value:\s*([\d.]+)\s*max_value:\s*([\d.]+)', text
+            )
+        }
         name = re.search(r'^name:\s*"([^"]+)"', text, re.M)
         return url, lic, {"name": name.group(1) if name else family, "fonts": fonts, "axes": axes}
     offline = all("urlopen" in e or "Errno" in e or "resolve" in e.lower() for e in errors)
-    raise FontError(f"font {family!r} is not in Google Fonts (looked in {', '.join(LICENCE_DIRS)})"
-                    + (" or there is no network to look it up; use a font file path instead" if offline else ""))
+    raise FontError(
+        f"font {family!r} is not in Google Fonts (looked in {', '.join(LICENCE_DIRS)})"
+        + (" or there is no network to look it up; use a font file path instead" if offline else "")
+    )
 
 
 def fetch(spec: str) -> Path:
@@ -109,8 +121,9 @@ def fetch(spec: str) -> Path:
     else:
         best = min(files, key=lambda f: abs(int(f.get("weight", 400)) - weight))
         if int(best.get("weight", 400)) != weight:
-            raise FontError(f"font {family!r} has no weight {weight}; it has "
-                            f"{sorted({int(f.get('weight', 400)) for f in files})}")
+            raise FontError(
+                f"font {family!r} has no weight {weight}; it has {sorted({int(f.get('weight', 400)) for f in files})}"
+            )
         out.write_bytes(_get(f"{url}/{best['filename']}"))
     for lic_file in ("OFL.txt", "LICENSE.txt", "UFL.txt"):
         try:
@@ -118,9 +131,17 @@ def fetch(spec: str) -> Path:
             break
         except OSError:
             continue
-    (cache_dir() / "index.json").write_text(json.dumps(
-        {**_index(), out.name: {"family": meta["name"], "weight": weight, "style": style, "licence": lic,
-                                "source": url}}, indent=2) + "\n", encoding="utf-8")
+    (cache_dir() / "index.json").write_text(
+        json.dumps(
+            {
+                **_index(),
+                out.name: {"family": meta["name"], "weight": weight, "style": style, "licence": lic, "source": url},
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     return out
 
 
@@ -135,6 +156,7 @@ def _instance(blob: bytes, out: Path, axes: dict) -> None:
     import io
     from fontTools.ttLib import TTFont
     from fontTools.varLib import instancer
+
     f = TTFont(io.BytesIO(blob))
     if "fvar" in f:
         pinned = {t: v for t, v in axes.items() if any(a.axisTag == t for a in f["fvar"].axes)}
@@ -151,9 +173,11 @@ def resolve(spec: str, base_dir: str | Path | None = None) -> Path:
         family, weight, _ = parse(spec)
         if family.lower() == "funkbox block":
             from .lettering import block_font
+
             return block_font(weight)
         return fetch(spec)
     from . import config
+
     try:
         return config.resolve_path(spec, base_dir)
     except FileNotFoundError:
@@ -170,6 +194,7 @@ def resolve(spec: str, base_dir: str | Path | None = None) -> Path:
 @lru_cache(maxsize=32)
 def _cmap(path: str) -> frozenset[int]:
     from fontTools.ttLib import TTFont
+
     f = TTFont(path, fontNumber=0, lazy=True)
     return frozenset(f.getBestCmap() or {})
 
@@ -191,4 +216,5 @@ def missing(path: str | Path, text: str) -> list[str]:
 
 def describe(chars: list[str]) -> str:
     return ", ".join(f"{c!r} (U+{ord(c):04X} {unicodedata.name(c, '?').title()})" for c in chars[:8]) + (
-        f" and {len(chars) - 8} more" if len(chars) > 8 else "")
+        f" and {len(chars) - 8} more" if len(chars) > 8 else ""
+    )

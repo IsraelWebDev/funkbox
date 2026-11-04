@@ -3,6 +3,7 @@
 Pure functions, standard library only, so ``funkbox doctor`` and the tests can use them before any
 graphics stack is installed.
 """
+
 from __future__ import annotations
 
 import platform
@@ -16,8 +17,7 @@ _PACKAGE_SETS: tuple[tuple[set[str], str], ...] = (
     ({"alpine"}, "sudo apk add mesa-egl mesa-dri-gallium mesa-gl"),
     ({"suse", "opensuse"}, "sudo zypper install Mesa-libEGL1 Mesa-dri libGL1"),
 )
-_GENERIC = ("install Mesa's EGL, GL and DRI packages (libEGL, libGL, mesa dri drivers) "
-            "with your package manager")
+_GENERIC = "install Mesa's EGL, GL and DRI packages (libEGL, libGL, mesa dri drivers) with your package manager"
 
 
 def read_os_release(path: str = "/etc/os-release") -> dict:
@@ -63,5 +63,7 @@ def install_hint(errors: list[str], system: str | None = None, os_release: dict 
     if "libGL" in text or "libgl" in text:
         missing.append("(libGL was not found)")
     note = "".join(f"\n{m}" for m in missing)
-    return (f"OpenGL needs Mesa's EGL/GL libraries. Install them with:{note}\n  {command}\n"
-            "then run `python -m funkbox doctor`.")
+    return (
+        f"OpenGL needs Mesa's EGL/GL libraries. Install them with:{note}\n  {command}\n"
+        "then run `python -m funkbox doctor`."
+    )

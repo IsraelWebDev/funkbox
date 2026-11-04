@@ -3,6 +3,7 @@
 Plain module-level functions plus ``register(server)``: thin wrappers over ``funkbox.studio.images`` and
 ``funkbox.studio.apps``. With STUDIO_FAKE_SD=1 the image tools use a deterministic stub (the tests).
 """
+
 from __future__ import annotations
 
 from funkbox.mcp_util import png as _png, safe
@@ -34,8 +35,16 @@ def apps_stop(service: str = "fastsd", force: bool = False) -> str:
 
 
 @safe
-def image_generate(prompt: str, aspect: str = "square", seed: int = -1, n: int = 1, negative_prompt: str = "",
-                   name: str = "", steps: int = 1, confirm_slow: bool = False) -> list:
+def image_generate(
+    prompt: str,
+    aspect: str = "square",
+    seed: int = -1,
+    n: int = 1,
+    negative_prompt: str = "",
+    name: str = "",
+    steps: int = 1,
+    confirm_slow: bool = False,
+) -> list:
     """Text-to-image with FastSD (SD-Turbo, OpenVINO on the iGPU); auto-starts FastSD. Aspect presets:
     square 512x512, portrait 512x768, landscape 768x512, story 512x896, wide 896x512. n=2-8 returns variations
     (seeds seed, seed+1, ... or random) as a contact sheet plus one file each in the inputs folder. seed -1 =
@@ -48,8 +57,15 @@ def image_generate(prompt: str, aspect: str = "square", seed: int = -1, n: int =
 
 
 @safe
-def image_restyle(path: str, prompt: str, strength: float = 0.5, aspect: str | None = None, seed: int = -1,
-                  name: str = "", confirm_slow: bool = False) -> list:
+def image_restyle(
+    path: str,
+    prompt: str,
+    strength: float = 0.5,
+    aspect: str | None = None,
+    seed: int = -1,
+    name: str = "",
+    confirm_slow: bool = False,
+) -> list:
     """img2img: re-render an existing picture (a file in inputs/, out/ or the funkbox folder) following `prompt`.
     strength 0.05 stays close to the original, 0.95 nearly ignores it. aspect None picks the preset closest to the
     picture's shape (it is cover-cropped to that size). SD-Turbo needs steps*strength >= 1, so steps are raised

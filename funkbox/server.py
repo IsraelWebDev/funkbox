@@ -4,6 +4,7 @@ Each area module exposes ``register(server)``; this file builds the server, regi
 Tool names are prefixed by area: loop_*, reel_*, project_*, poster_*, image_*, apps_*.
 NOTHING may be printed to stdout in a server process: stdout is the MCP protocol. Logs go to stderr.
 """
+
 from __future__ import annotations
 
 from funkbox import config
@@ -28,12 +29,19 @@ INSTRUCTIONS = (
     "Errors come back as text starting with ERROR:, and the loop, copy and path checks are there to be obeyed."
 )
 
-AREAS = ("funkbox.loops.tools", "funkbox.reel.tools", "funkbox.stills.tools", "funkbox.studio.tools",
-         "funkbox.music.tools", "funkbox.video.tools")
+AREAS = (
+    "funkbox.loops.tools",
+    "funkbox.reel.tools",
+    "funkbox.stills.tools",
+    "funkbox.studio.tools",
+    "funkbox.music.tools",
+    "funkbox.video.tools",
+)
 
 
 def build_server() -> Server:
     import importlib
+
     server = Server("funkbox", instructions=INSTRUCTIONS)
     for mod in AREAS:
         importlib.import_module(mod).register(server)

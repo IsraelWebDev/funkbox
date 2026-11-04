@@ -8,6 +8,7 @@ turned into pixels is embedded as a picture in its place, and the export report 
 
     export(rendered, "out/poster.svg")          # or .pdf
 """
+
 from __future__ import annotations
 
 import base64
@@ -24,21 +25,36 @@ from . import fx, raster
 from .shapes import bar_polygons, path_px
 
 Pt = tuple[float, float]
-Cmd = tuple                                   # ("M", p) ("L", p) ("Q", c, p) ("C", c1, c2, p) ("Z",)
+Cmd = tuple  # ("M", p) ("L", p) ("Q", c, p) ("C", c1, c2, p) ("Z",)
 
-CSS_BLEND = {"normal": "normal", "add": "plus-lighter", "screen": "screen", "multiply": "multiply",
-             "overlay": "overlay", "difference": "difference", "softlight": "soft-light", "hue": "hue"}
-PDF_BLEND = {"normal": "Normal", "screen": "Screen", "multiply": "Multiply", "overlay": "Overlay",
-             "difference": "Difference", "softlight": "SoftLight", "hue": "Hue"}
+CSS_BLEND = {
+    "normal": "normal",
+    "add": "plus-lighter",
+    "screen": "screen",
+    "multiply": "multiply",
+    "overlay": "overlay",
+    "difference": "difference",
+    "softlight": "soft-light",
+    "hue": "hue",
+}
+PDF_BLEND = {
+    "normal": "Normal",
+    "screen": "Screen",
+    "multiply": "Multiply",
+    "overlay": "Overlay",
+    "difference": "Difference",
+    "softlight": "SoftLight",
+    "hue": "Hue",
+}
 KAPPA = 0.5522847498
 
 
 # --------------------------------------------------------------------------- display list
 @dataclass
 class Grad:
-    kind: str                                 # linear | radial
-    a: Pt                                     # linear: start; radial: centre
-    b: Pt | float                             # linear: end;   radial: radius
+    kind: str  # linear | radial
+    a: Pt  # linear: start; radial: centre
+    b: Pt | float  # linear: end;   radial: radius
     stops: list[tuple[float, tuple[int, int, int, int]]]
 
 
@@ -51,14 +67,14 @@ class PathItem:
     stroke_w: float = 0.0
     join: str = "miter"
     cap: str = "butt"
-    under: bool = True                        # stroke painted under the fill (outside outlines, text strokes)
+    under: bool = True  # stroke painted under the fill (outside outlines, text strokes)
     opacity: float = 1.0
 
 
 @dataclass
 class ImageItem:
     rgba: np.ndarray
-    box: tuple[float, float, float, float]    # x, y, w, h in canvas px
+    box: tuple[float, float, float, float]  # x, y, w, h in canvas px
 
 
 @dataclass
@@ -88,11 +104,14 @@ def _positive(pts: list[Pt]) -> list[Pt]:
 def ellipse_cmds(x0: float, y0: float, x1: float, y1: float) -> list[Cmd]:
     cx, cy, rx, ry = (x0 + x1) / 2, (y0 + y1) / 2, abs(x1 - x0) / 2, abs(y1 - y0) / 2
     kx, ky = rx * KAPPA, ry * KAPPA
-    return [("M", (cx + rx, cy)),
-            ("C", (cx + rx, cy + ky), (cx + kx, cy + ry), (cx, cy + ry)),
-            ("C", (cx - kx, cy + ry), (cx - rx, cy + ky), (cx - rx, cy)),
-            ("C", (cx - rx, cy - ky), (cx - kx, cy - ry), (cx, cy - ry)),
-            ("C", (cx + kx, cy - ry), (cx + rx, cy - ky), (cx + rx, cy)), ("Z",)]
+    return [
+        ("M", (cx + rx, cy)),
+        ("C", (cx + rx, cy + ky), (cx + kx, cy + ry), (cx, cy + ry)),
+        ("C", (cx - kx, cy + ry), (cx - rx, cy + ky), (cx - rx, cy)),
+        ("C", (cx - rx, cy - ky), (cx - kx, cy - ry), (cx, cy - ry)),
+        ("C", (cx + kx, cy - ry), (cx + rx, cy - ky), (cx + rx, cy)),
+        ("Z",),
+    ]
 
 
 def map_points(cmds: list[Cmd], f: Callable[[Pt], Pt]) -> list[Cmd]:
@@ -121,15 +140,23 @@ def flatten(cmds: list[Cmd], tol: float = 0.25) -> list[Cmd]:
             n = max(2, min(48, int(math.ceil((math.dist(cur, c1) + math.dist(c1, c2) + math.dist(c2, p)) / (4 * tol)))))
             for i in range(1, n + 1):
                 t = i / n
-                a, b, cc, d = (1 - t) ** 3, 3 * (1 - t) ** 2 * t, 3 * (1 - t) * t * t, t ** 3
-                out.append(("L", (a * cur[0] + b * c1[0] + cc * c2[0] + d * p[0],
-                                  a * cur[1] + b * c1[1] + cc * c2[1] + d * p[1])))
+                a, b, cc, d = (1 - t) ** 3, 3 * (1 - t) ** 2 * t, 3 * (1 - t) * t * t, t**3
+                out.append(
+                    (
+                        "L",
+                        (
+                            a * cur[0] + b * c1[0] + cc * c2[0] + d * p[0],
+                            a * cur[1] + b * c1[1] + cc * c2[1] + d * p[1],
+                        ),
+                    )
+                )
             cur = p
     return out
 
 
-def text_geometry(centre: Pt, *, arc: float = 0.0, rotate_deg: float = 0.0, skew_x: float = 0.0,
-                  skew_y: float = 0.0) -> Callable[[Pt], Pt]:
+def text_geometry(
+    centre: Pt, *, arc: float = 0.0, rotate_deg: float = 0.0, skew_x: float = 0.0, skew_y: float = 0.0
+) -> Callable[[Pt], Pt]:
     """The forward map of shapes.warp_text: bend along the arc, then slant, then rotate, about ``centre``."""
     cx, cy = centre
     a, b = math.tan(math.radians(skew_x)), math.tan(math.radians(skew_y))
@@ -147,17 +174,20 @@ def text_geometry(centre: Pt, *, arc: float = 0.0, rotate_deg: float = 0.0, skew
         x, y = x + a * y, b * x + y
         x, y = x * ct + y * st, -x * st + y * ct
         return x + cx, y + cy
+
     return f
 
 
 # --------------------------------------------------------------------------- text outlines
 class Shaper:
     """HarfBuzz shaping + fontTools outlines for one font file, cached."""
+
     _cache: dict[str, "Shaper"] = {}
 
     def __init__(self, path: Path):
         import uharfbuzz as hb
         from fontTools.ttLib import TTFont
+
         data = Path(path).read_bytes()
         self.hb = hb
         self.font = hb.Font(hb.Face(data))
@@ -178,15 +208,27 @@ class Shaper:
         """The glyph's outline in font units (y up)."""
         if gid not in self.outlines:
             from fontTools.pens.basePen import BasePen
+
             out: list[Cmd] = []
 
             class Pen(BasePen):
-                def _moveTo(self, p): out.append(("M", p))
-                def _lineTo(self, p): out.append(("L", p))
-                def _curveToOne(self, a, b, c): out.append(("C", a, b, c))
-                def _qCurveToOne(self, a, b): out.append(("Q", a, b))
-                def _closePath(self): out.append(("Z",))
-                def _endPath(self): pass
+                def _moveTo(self, p):
+                    out.append(("M", p))
+
+                def _lineTo(self, p):
+                    out.append(("L", p))
+
+                def _curveToOne(self, a, b, c):
+                    out.append(("C", a, b, c))
+
+                def _qCurveToOne(self, a, b):
+                    out.append(("Q", a, b))
+
+                def _closePath(self):
+                    out.append(("Z",))
+
+                def _endPath(self):
+                    pass
 
             self.glyphs[self.order[gid]].draw(Pen(self.glyphs))
             self.outlines[gid] = out
@@ -258,6 +300,7 @@ def _shape_items(lay: dict, ctx) -> list[PathItem]:
 def _svg_items(lay: dict, ctx) -> list[PathItem]:
     from ..config import resolve_path
     from .vpath import svg_items
+
     items, (vx, vy, vw, vh), _ = svg_items(resolve_path(lay["path"], ctx.base_dir), tol=0.05)
     tw = float(lay.get("width", 0.5)) * ctx.w
     th = float(lay["height"]) * ctx.h if "height" in lay else tw * vh / vw
@@ -265,14 +308,23 @@ def _svg_items(lay: dict, ctx) -> list[PathItem]:
     kx, ky = tw / vw, th / vh
     out = []
     for it in items:
-        cmds = [c for pts, closed in it["subpaths"]
-                for c in poly_cmds([(tx + (x - vx) * kx, ty + (y - vy) * ky) for x, y in pts], closed)]
+        cmds = [
+            c
+            for pts, closed in it["subpaths"]
+            for c in poly_cmds([(tx + (x - vx) * kx, ty + (y - vy) * ky) for x, y in pts], closed)
+        ]
         has_stroke = it["stroke"] and it["stroke_width"] > 0
-        out.append(PathItem(cmds, fill=_rgba(it["fill"], ctx.brand) if it["fill"] else None,
-                            rule="evenodd" if it["evenodd"] else "nonzero",
-                            stroke=_rgba(it["stroke"], ctx.brand) if has_stroke else None,
-                            stroke_w=it["stroke_width"] * (kx + ky) / 2 if has_stroke else 0.0,
-                            under=False, opacity=float(it["opacity"])))
+        out.append(
+            PathItem(
+                cmds,
+                fill=_rgba(it["fill"], ctx.brand) if it["fill"] else None,
+                rule="evenodd" if it["evenodd"] else "nonzero",
+                stroke=_rgba(it["stroke"], ctx.brand) if has_stroke else None,
+                stroke_w=it["stroke_width"] * (kx + ky) / 2 if has_stroke else 0.0,
+                under=False,
+                opacity=float(it["opacity"]),
+            )
+        )
     return out
 
 
@@ -280,12 +332,23 @@ def _gradient_item(lay: dict, ctx) -> PathItem:
     w, h = ctx.w, ctx.h
     raw = lay["stops"]
     n = len(raw)
-    stops = sorted(((float(s["pos"]) if isinstance(s, dict) and "pos" in s else i / (n - 1),
-                     _rgba(s["color"] if isinstance(s, dict) else s, ctx.brand)) for i, s in enumerate(raw)),
-                   key=lambda t: t[0])
+    stops = sorted(
+        (
+            (
+                float(s["pos"]) if isinstance(s, dict) and "pos" in s else i / (n - 1),
+                _rgba(s["color"] if isinstance(s, dict) else s, ctx.brand),
+            )
+            for i, s in enumerate(raw)
+        ),
+        key=lambda t: t[0],
+    )
     if lay.get("kind", "linear") == "radial":
-        g = Grad("radial", (lay.get("cx", 0.5) * w, lay.get("cy", 0.5) * h),
-                 lay.get("radius", 0.5) * float(math.hypot(w, h)), stops)
+        g = Grad(
+            "radial",
+            (lay.get("cx", 0.5) * w, lay.get("cy", 0.5) * h),
+            lay.get("radius", 0.5) * float(math.hypot(w, h)),
+            stops,
+        )
     else:
         a = math.radians(lay.get("angle", 90.0))
         dx, dy = math.cos(a), math.sin(a)
@@ -295,10 +358,10 @@ def _gradient_item(lay: dict, ctx) -> PathItem:
 
 
 def _text_items(lay: dict, ctx, text: str) -> list[PathItem]:
-    from funkbox.reel import captions
     from .text import _fx, _line_x, layout_text
     from .typeset import typeset, use_outlines
     from .text import layer_fonts
+
     fonts = layer_fonts(lay, ctx)
     if use_outlines(lay):
         ts = typeset(lay, text, ctx, fonts)
@@ -352,6 +415,7 @@ def _crop(rgba: np.ndarray, k: float) -> ImageItem | None:
 def build(r, base_dir: str | Path | None = None) -> tuple[list[Group], dict]:
     """The poster as a display list of layer groups, plus a report: which layers are vectors, which are pixels."""
     from .render import make_context
+
     doc = r.doc
     W, H = doc.width, doc.height
     ctx = make_context(doc, base_dir if base_dir is not None else r.base_dir, W, H, 1.0)
@@ -363,6 +427,7 @@ def build(r, base_dir: str | Path | None = None) -> tuple[list[Group], dict]:
             by_id[l["id"]] = l
             if l["type"] == "group":
                 collect(l.get("layers", []))
+
     collect(doc.layers)
     outs = {o.id: o for o in r.layers}
     k = W / r.width
@@ -381,8 +446,13 @@ def build(r, base_dir: str | Path | None = None) -> tuple[list[Group], dict]:
                 g.items = [PathItem(_rect(0, 0, W, H), fill=_rgba(lay["color"], ctx.brand))]
             elif t == "border":
                 b = max(1, round(ctx.px(lay["px"])))
-                g.items = [PathItem(_rect(0, 0, W, H) + _rect(b, b, W - b, H - b), rule="evenodd",
-                                    fill=_rgba(lay.get("color", "#000000"), ctx.brand))]
+                g.items = [
+                    PathItem(
+                        _rect(0, 0, W, H) + _rect(b, b, W - b, H - b),
+                        rule="evenodd",
+                        fill=_rgba(lay.get("color", "#000000"), ctx.brand),
+                    )
+                ]
             elif t == "gradient":
                 g.items = [_gradient_item(lay, ctx)]
             elif t == "shape":
@@ -402,8 +472,11 @@ def build(r, base_dir: str | Path | None = None) -> tuple[list[Group], dict]:
             report["pixels"][lay["id"]] = why
         groups.append(g)
     if doc.post:
-        report["warnings"].append("poster-level effects (" + ", ".join(p.get("type", "?") for p in doc.post)
-                                  + ") are only in the pixel exports")
+        report["warnings"].append(
+            "poster-level effects ("
+            + ", ".join(p.get("type", "?") for p in doc.post)
+            + ") are only in the pixel exports"
+        )
     return groups, report
 
 
@@ -434,14 +507,22 @@ def _paint_attrs(prefix: str, col, defs: list[str], ids: list[int]) -> str:
     if isinstance(col, Grad):
         ids[0] += 1
         gid = f"g{ids[0]}"
-        stops = "".join(f'<stop offset="{_n(p)}" stop-color="{_hex(c)}"'
-                        + (f' stop-opacity="{_n(c[3] / 255)}"' if c[3] < 255 else "") + "/>" for p, c in col.stops)
+        stops = "".join(
+            f'<stop offset="{_n(p)}" stop-color="{_hex(c)}"'
+            + (f' stop-opacity="{_n(c[3] / 255)}"' if c[3] < 255 else "")
+            + "/>"
+            for p, c in col.stops
+        )
         if col.kind == "linear":
-            defs.append(f'<linearGradient id="{gid}" gradientUnits="userSpaceOnUse" x1="{_n(col.a[0])}" '
-                        f'y1="{_n(col.a[1])}" x2="{_n(col.b[0])}" y2="{_n(col.b[1])}">{stops}</linearGradient>')
+            defs.append(
+                f'<linearGradient id="{gid}" gradientUnits="userSpaceOnUse" x1="{_n(col.a[0])}" '
+                f'y1="{_n(col.a[1])}" x2="{_n(col.b[0])}" y2="{_n(col.b[1])}">{stops}</linearGradient>'
+            )
         else:
-            defs.append(f'<radialGradient id="{gid}" gradientUnits="userSpaceOnUse" cx="{_n(col.a[0])}" '
-                        f'cy="{_n(col.a[1])}" r="{_n(col.b)}">{stops}</radialGradient>')
+            defs.append(
+                f'<radialGradient id="{gid}" gradientUnits="userSpaceOnUse" cx="{_n(col.a[0])}" '
+                f'cy="{_n(col.a[1])}" r="{_n(col.b)}">{stops}</radialGradient>'
+            )
         return f' {prefix}="url(#{gid})"'
     s = f' {prefix}="{_hex(col)}"'
     return s + (f' {prefix}-opacity="{_n(col[3] / 255)}"' if col[3] < 255 else "")
@@ -460,15 +541,20 @@ def to_svg(groups: list[Group], W: int, H: int) -> str:
         if g.clip:
             ids[0] += 1
             cid = f"c{ids[0]}"
-            defs.append(f'<clipPath id="{cid}">' + "".join(
-                f'<path d="{d_of(p.cmds)}" clip-rule="{p.rule}"/>' for p in g.clip) + "</clipPath>")
+            defs.append(
+                f'<clipPath id="{cid}">'
+                + "".join(f'<path d="{d_of(p.cmds)}" clip-rule="{p.rule}"/>' for p in g.clip)
+                + "</clipPath>"
+            )
             attrs += f' clip-path="url(#{cid})"'
         inner = []
         for it in g.items:
             if isinstance(it, ImageItem):
                 x, y, w, h = it.box
-                inner.append(f'<image x="{_n(x)}" y="{_n(y)}" width="{_n(w)}" height="{_n(h)}" '
-                             f'preserveAspectRatio="none" href="data:image/png;base64,{_png_b64(it.rgba)}"/>')
+                inner.append(
+                    f'<image x="{_n(x)}" y="{_n(y)}" width="{_n(w)}" height="{_n(h)}" '
+                    f'preserveAspectRatio="none" href="data:image/png;base64,{_png_b64(it.rgba)}"/>'
+                )
                 continue
             a = f'<path d="{d_of(it.cmds)}"'
             a += _paint_attrs("fill", it.fill, defs, ids) if it.fill is not None else ' fill="none"'
@@ -485,8 +571,13 @@ def to_svg(groups: list[Group], W: int, H: int) -> str:
                 a += f' opacity="{_n(it.opacity)}"'
             inner.append(a + "/>")
         body.append(f"<g{attrs}>" + "".join(inner) + "</g>")
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">'
-            + (f"<defs>{''.join(defs)}</defs>" if defs else "") + "\n" + "\n".join(body) + "\n</svg>\n")
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">'
+        + (f"<defs>{''.join(defs)}</defs>" if defs else "")
+        + "\n"
+        + "\n".join(body)
+        + "\n</svg>\n"
+    )
 
 
 def _xml_id(s: str) -> str:
@@ -498,11 +589,12 @@ def to_pdf(groups: list[Group], W: int, H: int, path: Path, dpi: float = 96.0) -
     """Draw the display list into a PDF page of W x H pixels at ``dpi`` (96 = CSS pixels). Returns warnings."""
     from reportlab.lib.colors import Color
     from reportlab.pdfgen import canvas
+
     warns: list[str] = []
     k = 72.0 / dpi
     c = canvas.Canvas(str(path), pagesize=(W * k, H * k))
     c.setTitle(path.stem)
-    c.transform(k, 0, 0, -k, 0, H * k)                # y down, canvas pixels
+    c.transform(k, 0, 0, -k, 0, H * k)  # y down, canvas pixels
 
     def rl_path(cmds):
         p = c.beginPath()
@@ -510,15 +602,24 @@ def to_pdf(groups: list[Group], W: int, H: int, path: Path, dpi: float = 96.0) -
         for cm in cmds:
             op = cm[0]
             if op == "M":
-                p.moveTo(*cm[1]); cur = cm[1]
+                p.moveTo(*cm[1])
+                cur = cm[1]
             elif op == "L":
-                p.lineTo(*cm[1]); cur = cm[1]
+                p.lineTo(*cm[1])
+                cur = cm[1]
             elif op == "Q":
                 (qx, qy), e = cm[1], cm[2]
-                p.curveTo(cur[0] + 2 / 3 * (qx - cur[0]), cur[1] + 2 / 3 * (qy - cur[1]),
-                          e[0] + 2 / 3 * (qx - e[0]), e[1] + 2 / 3 * (qy - e[1]), *e); cur = e
+                p.curveTo(
+                    cur[0] + 2 / 3 * (qx - cur[0]),
+                    cur[1] + 2 / 3 * (qy - cur[1]),
+                    e[0] + 2 / 3 * (qx - e[0]),
+                    e[1] + 2 / 3 * (qy - e[1]),
+                    *e,
+                )
+                cur = e
             elif op == "C":
-                p.curveTo(*cm[1], *cm[2], *cm[3]); cur = cm[3]
+                p.curveTo(*cm[1], *cm[2], *cm[3])
+                cur = cm[3]
             else:
                 p.close()
         return p
@@ -527,7 +628,7 @@ def to_pdf(groups: list[Group], W: int, H: int, path: Path, dpi: float = 96.0) -
         return Color(rgba[0] / 255, rgba[1] / 255, rgba[2] / 255, alpha=rgba[3] / 255 * alpha)
 
     def fill_rule(rule):
-        return 0 if rule == "evenodd" else 1          # reportlab: FILL_EVEN_ODD=0, FILL_NON_ZERO=1
+        return 0 if rule == "evenodd" else 1  # reportlab: FILL_EVEN_ODD=0, FILL_NON_ZERO=1
 
     for g in groups:
         c.saveState()
@@ -542,9 +643,10 @@ def to_pdf(groups: list[Group], W: int, H: int, path: Path, dpi: float = 96.0) -
         for it in g.items:
             if isinstance(it, ImageItem):
                 from reportlab.lib.utils import ImageReader
+
                 x, y, w, h = it.box
                 c.saveState()
-                c.transform(1, 0, 0, -1, 0, 2 * y + h)       # images draw upright in a y-down space
+                c.transform(1, 0, 0, -1, 0, 2 * y + h)  # images draw upright in a y-down space
                 rgba = it.rgba
                 if g.opacity < 1:
                     rgba = rgba.copy()
@@ -603,6 +705,7 @@ def export(r, path: str | Path, base_dir: str | Path | None = None) -> dict:
     else:
         report["warnings"] += to_pdf(groups, W, H, path)
     if report["pixels"]:
-        report["warnings"].append("kept as pictures inside the " + fmt + ": "
-                                  + ", ".join(f"{k} ({v})" for k, v in report["pixels"].items()))
+        report["warnings"].append(
+            "kept as pictures inside the " + fmt + ": " + ", ".join(f"{k} ({v})" for k, v in report["pixels"].items())
+        )
     return report

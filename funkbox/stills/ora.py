@@ -10,6 +10,7 @@
 Poster-level ``post`` passes (grain, vignette, ...) cannot be expressed as layers, so they are NOT part of the .ora;
 they are in the PNG/JPG exports. A group is exported as one flattened layer carrying the group's blend and opacity.
 """
+
 from __future__ import annotations
 
 import io
@@ -24,8 +25,16 @@ from PIL import Image
 from funkbox.gl.recipe import BLEND_MODES
 
 #: funkbox.gl blend mode -> OpenRaster composite-op
-OP = {"normal": "svg:src-over", "add": "svg:plus", "screen": "svg:screen", "multiply": "svg:multiply",
-      "overlay": "svg:overlay", "difference": "svg:difference", "softlight": "svg:soft-light", "hue": "svg:hue"}
+OP = {
+    "normal": "svg:src-over",
+    "add": "svg:plus",
+    "screen": "svg:screen",
+    "multiply": "svg:multiply",
+    "overlay": "svg:overlay",
+    "difference": "svg:difference",
+    "softlight": "svg:soft-light",
+    "hue": "svg:hue",
+}
 assert set(OP) == set(BLEND_MODES)
 OP_TO_MODE = {v: k for k, v in OP.items()}
 MIMETYPE = b"image/openraster"
@@ -56,16 +65,37 @@ def write_ora(r, path: str | Path) -> Path:
         used.add(n.lower())
         return n
 
-    for lay in reversed(r.layers):                          # stack.xml lists the TOP layer first
+    for lay in reversed(r.layers):  # stack.xml lists the TOP layer first
         fn = uniq(lay.id)
-        ET.SubElement(stack, "layer", {"name": lay.id, "src": f"data/{fn}.png", "x": "0", "y": "0",
-                                       "opacity": f"{float(lay.opacity):.4f}".rstrip("0").rstrip(".") or "0",
-                                       "visibility": "visible", "composite-op": OP[lay.blend]})
+        ET.SubElement(
+            stack,
+            "layer",
+            {
+                "name": lay.id,
+                "src": f"data/{fn}.png",
+                "x": "0",
+                "y": "0",
+                "opacity": f"{float(lay.opacity):.4f}".rstrip("0").rstrip(".") or "0",
+                "visibility": "visible",
+                "composite-op": OP[lay.blend],
+            },
+        )
         entries.append((f"data/{fn}.png", _png(lay.rgba)))
-    if r.alpha is None:                                     # an opaque canvas has a background layer at the bottom
+    if r.alpha is None:  # an opaque canvas has a background layer at the bottom
         fn = uniq("background")
-        ET.SubElement(stack, "layer", {"name": "background", "src": f"data/{fn}.png", "x": "0", "y": "0",
-                                       "opacity": "1", "visibility": "visible", "composite-op": OP["normal"]})
+        ET.SubElement(
+            stack,
+            "layer",
+            {
+                "name": "background",
+                "src": f"data/{fn}.png",
+                "x": "0",
+                "y": "0",
+                "opacity": "1",
+                "visibility": "visible",
+                "composite-op": OP["normal"],
+            },
+        )
         bg = np.empty((h, w, 4), np.uint8)
         bg[:] = (*r.background, 255)
         entries.append((f"data/{fn}.png", _png(bg)))
@@ -78,7 +108,7 @@ def write_ora(r, path: str | Path) -> Path:
         z.writestr(zipfile.ZipInfo("mimetype"), MIMETYPE, compress_type=zipfile.ZIP_STORED)
         z.writestr("stack.xml", xml, compress_type=zipfile.ZIP_DEFLATED)
         for name, data in entries:
-            z.writestr(name, data, compress_type=zipfile.ZIP_STORED)       # PNG is already compressed
+            z.writestr(name, data, compress_type=zipfile.ZIP_STORED)  # PNG is already compressed
         z.writestr("Thumbnails/thumbnail.png", _png(thumb), compress_type=zipfile.ZIP_STORED)
         z.writestr("mergedimage.png", _png(merged), compress_type=zipfile.ZIP_STORED)
     tmp.replace(path)
@@ -117,9 +147,17 @@ def validate_ora(path: str | Path) -> dict:
             op = el.get("composite-op", "svg:src-over")
             if op not in OP_TO_MODE:
                 raise OraError(f"layer {el.get('name')!r}: unsupported composite-op {op!r}")
-            layers.append({"name": el.get("name"), "src": src, "opacity": float(el.get("opacity", "1")), "op": op,
-                           "x": int(el.get("x", "0")), "y": int(el.get("y", "0")),
-                           "visibility": el.get("visibility", "visible")})
+            layers.append(
+                {
+                    "name": el.get("name"),
+                    "src": src,
+                    "opacity": float(el.get("opacity", "1")),
+                    "op": op,
+                    "x": int(el.get("x", "0")),
+                    "y": int(el.get("y", "0")),
+                    "visibility": el.get("visibility", "visible"),
+                }
+            )
         for need in ("mergedimage.png", "Thumbnails/thumbnail.png"):
             if need not in names:
                 raise OraError(f"{need} is missing")
@@ -133,12 +171,14 @@ def recomposite(path: str | Path) -> np.ndarray:
     w, h = info["w"], info["h"]
     base = np.zeros((h, w, 4), np.float64)
     with zipfile.ZipFile(path) as z:
-        for lay in reversed(info["layers"]):            # stack.xml is top first
+        for lay in reversed(info["layers"]):  # stack.xml is top first
             if lay["visibility"] != "visible":
                 continue
             src = np.asarray(Image.open(io.BytesIO(z.read(lay["src"]))).convert("RGBA"), np.float64) / 255.0
             canvas = np.zeros((h, w, 4))
-            canvas[lay["y"]:lay["y"] + src.shape[0], lay["x"]:lay["x"] + src.shape[1]] = src[:h - lay["y"], :w - lay["x"]]
+            canvas[lay["y"] : lay["y"] + src.shape[0], lay["x"] : lay["x"] + src.shape[1]] = src[
+                : h - lay["y"], : w - lay["x"]
+            ]
             base = _blend_over(base, canvas, OP_TO_MODE[lay["op"]], lay["opacity"])
     return np.clip(np.floor(base * 255.0 + 0.5), 0, 255).astype(np.uint8)
 

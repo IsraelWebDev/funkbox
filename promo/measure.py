@@ -13,6 +13,7 @@ may cite an M-key instead of a FACTS.md id; the reviewer checks the words agains
   M-tools, M-presets, M-shaders, M-tests   counts read from the code right now
   M-commits    what changed in funkbox since the previous promo day (subjects of commits), for "what's new"
 """
+
 from __future__ import annotations
 
 import json
@@ -42,13 +43,22 @@ def machine() -> dict:
     software = bool(re.search(r"llvmpipe|softpipe|swiftshader|software", renderer, re.I))
     cpu = platform.processor() or ""
     try:
-        cpu = next((l.split(":", 1)[1].strip() for l in Path("/proc/cpuinfo").read_text().splitlines()
-                    if l.startswith("model name")), cpu)
+        cpu = next(
+            (
+                l.split(":", 1)[1].strip()
+                for l in Path("/proc/cpuinfo").read_text().splitlines()
+                if l.startswith("model name")
+            ),
+            cpu,
+        )
     except OSError:
         pass
     cores = os.cpu_count() or 0
-    where = (f"a {cores}-core CPU with no GPU (software OpenGL)" if software
-             else f"a {cores}-core machine, graphics: {renderer.split('(')[0].strip()}")
+    where = (
+        f"a {cores}-core CPU with no GPU (software OpenGL)"
+        if software
+        else f"a {cores}-core machine, graphics: {renderer.split('(')[0].strip()}"
+    )
     return {"value": {"cpu": cpu, "cores": cores, "opengl": renderer, "gpu": not software}, "say": where}
 
 
@@ -56,9 +66,10 @@ def repo_counts() -> dict:
     out = {}
     try:
         from funkbox.server import build_server
+
         n = len(build_server()._tool_manager.list_tools())
         out["M-tools"] = {"value": n, "say": f"Claude drives it through {n} MCP tools"}
-    except Exception:                                       # noqa: BLE001 - a count we cannot read is not claimed
+    except Exception:  # noqa: BLE001 - a count we cannot read is not claimed
         pass
     listing = _run(sys.executable, "-m", "funkbox", "loop", "list")
     block = listing.split("PRESETS", 1)[1].split("\n\n", 1)[0] if "PRESETS" in listing else ""
@@ -77,22 +88,44 @@ def repo_counts() -> dict:
 def commits_since(day: Path) -> dict:
     prev = sorted(p.name for p in day.parent.iterdir() if p.is_dir() and p.name < day.name)
     since = prev[-1][:10] if prev else None
-    log = _run("git", "log", "--no-merges", "--format=%h %s", *([f"--since={since}"] if since else ["-15"]), "--",
-               "funkbox", "promo", "docs", "README.md", "install.py", "templates", "shaders")
+    log = _run(
+        "git",
+        "log",
+        "--no-merges",
+        "--format=%h %s",
+        *([f"--since={since}"] if since else ["-15"]),
+        "--",
+        "funkbox",
+        "promo",
+        "docs",
+        "README.md",
+        "install.py",
+        "templates",
+        "shaders",
+    )
     items = [l for l in log.splitlines() if l.strip() and not re.search(r"\bpromo\b", l)][:15]
-    return {"value": items, "say": "changes since the last promo: " + ("; ".join(i.split(" ", 1)[1] for i in items)
-                                                                      if items else "none")}
+    return {
+        "value": items,
+        "say": "changes since the last promo: " + ("; ".join(i.split(" ", 1)[1] for i in items) if items else "none"),
+    }
 
 
 def video(day: Path) -> dict | None:
     from funkbox.reel import framing
+
     try:
         info = framing.probe_video(day / "final.mp4")
     except (OSError, ValueError):
         return None
-    return {"value": {"seconds": round(info.duration or 0, 2), "width": info.width, "height": info.height,
-                      "fps": round(info.fps or 0, 2)},
-            "say": f"{info.duration:.0f} seconds, {info.width}x{info.height}"}
+    return {
+        "value": {
+            "seconds": round(info.duration or 0, 2),
+            "width": info.width,
+            "height": info.height,
+            "fps": round(info.fps or 0, 2),
+        },
+        "say": f"{info.duration:.0f} seconds, {info.width}x{info.height}",
+    }
 
 
 def audit(day: Path) -> dict | None:
@@ -101,8 +134,10 @@ def audit(day: Path) -> dict | None:
     except (OSError, ValueError):
         return None
     n = len(a.get("entries", []))
-    return {"value": {"strings": n, "ok": bool(a.get("ok"))},
-            "say": f"the text audit checked {n} on-screen strings: " + ("all exact" if a.get("ok") else "NOT all exact")}
+    return {
+        "value": {"strings": n, "ok": bool(a.get("ok"))},
+        "say": f"the text audit checked {n} on-screen strings: " + ("all exact" if a.get("ok") else "NOT all exact"),
+    }
 
 
 def write(day: Path, render_s: float | None = None, frames: int | None = None) -> dict:
@@ -113,8 +148,10 @@ def write(day: Path, render_s: float | None = None, frames: int | None = None) -
             facts[key] = v
     if render_s is not None:
         where = facts["M-machine"]["say"]
-        facts["M-render"] = {"value": {"seconds": round(render_s, 1), "frames": frames},
-                             "say": f"this video rendered in {render_s:.0f} seconds on {where}"}
+        facts["M-render"] = {
+            "value": {"seconds": round(render_s, 1), "frames": frames},
+            "say": f"this video rendered in {render_s:.0f} seconds on {where}",
+        }
     doc = {"day": day.name, "measured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "facts": facts}
     (day / "measured.json").write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
     return doc
@@ -122,8 +159,24 @@ def write(day: Path, render_s: float | None = None, frames: int | None = None) -
 
 def render(day: Path) -> dict:
     t = time.perf_counter()
-    r = subprocess.run([sys.executable, "-m", "funkbox", "reel", "render", str(day / "reel.json"), "--name", "final",
-                        "--out", str(day), "--audit"], cwd=ROOT, capture_output=True, text=True)
+    r = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "funkbox",
+            "reel",
+            "render",
+            str(day / "reel.json"),
+            "--name",
+            "final",
+            "--out",
+            str(day),
+            "--audit",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
     took = time.perf_counter() - t
     print((r.stdout + r.stderr).strip())
     if r.returncode:

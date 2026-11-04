@@ -8,6 +8,7 @@
 <day>/final.mp4 and <day>/caption.json into <day>/review.json, so any change to either after the review voids it:
 post.py refuses to post unless review.json says PASS for those exact hashes.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -36,9 +37,14 @@ def write(day: Path, verdict: str, reviewer: str, notes: str) -> dict:
     for f in (VIDEO, CAPTION):
         if not (day / f).is_file():
             raise SystemExit(f"{day / f} is missing: nothing to review")
-    doc = {"verdict": verdict, "reviewer": reviewer.strip(), "notes": notes.strip(),
-           "video_sha256": sha256(day / VIDEO), "caption_sha256": sha256(day / CAPTION),
-           "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")}
+    doc = {
+        "verdict": verdict,
+        "reviewer": reviewer.strip(),
+        "notes": notes.strip(),
+        "video_sha256": sha256(day / VIDEO),
+        "caption_sha256": sha256(day / CAPTION),
+        "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+    }
     (day / REVIEW).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
     return doc
 

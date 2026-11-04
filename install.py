@@ -13,6 +13,7 @@ It never installs GIMP (prints where to get it), never touches Claude config key
 (funkbox, gimp, and the v3 keys funk, funk2, reel, studio, stills, which it migrates away) and takes a
 timestamped backup before changing a config file.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -28,6 +29,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 from funkbox import config  # noqa: E402  (stdlib only: the one place that reads env and funkbox.toml)
+
 SERVER_KEYS = ("funkbox", "gimp")
 #: the five v3 servers that `funkbox` replaces; registering removes them (after the backup)
 OLD_SERVER_KEYS = ("funk", "funk2", "reel", "studio", "stills")
@@ -62,8 +64,11 @@ def msix_config_dirs() -> list[Path]:
     base = os.environ.get("LOCALAPPDATA")
     if system() != "Windows" or not base:
         return []
-    dirs = [d for d in (p / "LocalCache" / "Roaming" / "Claude" for p in Path(base, "Packages").glob("Claude_*"))
-            if d.is_dir()]
+    dirs = [
+        d
+        for d in (p / "LocalCache" / "Roaming" / "Claude" for p in Path(base, "Packages").glob("Claude_*"))
+        if d.is_dir()
+    ]
     cfg = lambda d: d / "claude_desktop_config.json"
     return sorted(dirs, key=lambda d: cfg(d).stat().st_mtime if cfg(d).exists() else 0.0, reverse=True)
 
@@ -76,10 +81,16 @@ def desktop_config_path() -> Path:
     if s == "Windows":
         for d in msix_config_dirs():
             return d / "claude_desktop_config.json"
-        return Path(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))) / "Claude" / "claude_desktop_config.json"
+        return (
+            Path(os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming")))
+            / "Claude"
+            / "claude_desktop_config.json"
+        )
     if s == "Darwin":
         return Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
-    return Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "Claude" / "claude_desktop_config.json"
+    return (
+        Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "Claude" / "claude_desktop_config.json"
+    )
 
 
 def toml_str(s: str) -> str:
@@ -139,8 +150,7 @@ def server_entries(root: Path = ROOT, parts: tuple[str, ...] = ()) -> dict[str, 
     gdir = config.get(root).gimp_mcp_dir
     if "gimp" in parts or (gdir / "gimp_mcp_server.py").exists():
         # absolute uv path: Claude Desktop does not necessarily inherit the shell's PATH
-        out["gimp"] = {"command": find_uv() or "uv",
-                       "args": ["run", "--directory", str(gdir), "gimp_mcp_server.py"]}
+        out["gimp"] = {"command": find_uv() or "uv", "args": ["run", "--directory", str(gdir), "gimp_mcp_server.py"]}
     return out
 
 
@@ -199,10 +209,17 @@ def write_config(path: Path, cfg: dict) -> None:
 def register_desktop(r: Runner, path: Path, parts: tuple[str, ...]) -> None:
     r.step(f"Register with Claude Desktop ({path})")
     entries = server_entries(r.root, parts)
-    r.say("   servers to add or update: " + ", ".join(entries) + " (no other key is touched; the v3 entries "
-          + ", ".join(OLD_SERVER_KEYS) + " are removed if present, after a backup)")
-    r.say("   WARNING: quit Claude Desktop first (right-click the tray icon, Quit) or it may overwrite this file; "
-          "start it again afterwards.")
+    r.say(
+        "   servers to add or update: "
+        + ", ".join(entries)
+        + " (no other key is touched; the v3 entries "
+        + ", ".join(OLD_SERVER_KEYS)
+        + " are removed if present, after a backup)"
+    )
+    r.say(
+        "   WARNING: quit Claude Desktop first (right-click the tray icon, Quit) or it may overwrite this file; "
+        "start it again afterwards."
+    )
     if r.dry:
         r.say("   (dry run: nothing written, no backup made)")
         return
@@ -222,8 +239,10 @@ def register_desktop(r: Runner, path: Path, parts: tuple[str, ...]) -> None:
     r.say(f"   written and read back: {path}")
     shadow = [d / "claude_desktop_config.json" for d in msix_config_dirs()]
     if shadow and path.resolve() not in {s.resolve() for s in shadow}:
-        r.say(f"   WARNING: Claude Desktop here is the packaged (Store/MSIX) build and reads {shadow[0]}, not this "
-              "file; drop --config / CLAUDE_DESKTOP_CONFIG to target it.")
+        r.say(
+            f"   WARNING: Claude Desktop here is the packaged (Store/MSIX) build and reads {shadow[0]}, not this "
+            "file; drop --config / CLAUDE_DESKTOP_CONFIG to target it."
+        )
 
 
 def unregister_desktop(r: Runner, path: Path) -> None:
@@ -259,7 +278,7 @@ def register_code(r: Runner, parts: tuple[str, ...]) -> None:
     """Claude Code: user-scope servers through its own CLI (the repo's .mcp.json belongs to the plugin)."""
     r.step("Register with Claude Code")
     have = shutil.which("claude")
-    for k in OLD_SERVER_KEYS:       # migrate from v3: drop the five old servers (no-op when absent)
+    for k in OLD_SERVER_KEYS:  # migrate from v3: drop the five old servers (no-op when absent)
         c = ["claude", "mcp", "remove", "--scope", "user", k]
         if have and not r.dry:
             if subprocess.run(c, capture_output=True).returncode == 0:
@@ -326,8 +345,10 @@ def make_venv(r: Runner, parts: tuple[str, ...]) -> bool:
         if uv and ver:  # non-destructive: put the interpreter back where pyvenv.cfg says, for this process
             r.run([uv, "python", "install", ver])
         if not venv_ok(py):
-            r.fail(f"{r.root / '.venv'} is unusable; delete it (quit Claude Desktop first if funkbox is "
-                   "registered: it runs from there) and run this again")
+            r.fail(
+                f"{r.root / '.venv'} is unusable; delete it (quit Claude Desktop first if funkbox is "
+                "registered: it runs from there) and run this again"
+            )
             return False
         r.say("   .venv repaired")
     elif uv:
@@ -350,9 +371,11 @@ def make_venv(r: Runner, parts: tuple[str, ...]) -> bool:
 
 def setup_reel(r: Runner) -> None:
     r.step("reel models (depth + voices)")
-    r.say("   Licences: Depth-Anything-V2-Small and Kokoro-82M are Apache-2.0; Piper voice en_US-ljspeech-medium is "
-          "public-domain data; piper-tts and espeak-ng (used by kokoro-onnx) are GPL-3.0 (installed here, not "
-          "bundled). See THIRD_PARTY_NOTICES.md.")
+    r.say(
+        "   Licences: Depth-Anything-V2-Small and Kokoro-82M are Apache-2.0; Piper voice en_US-ljspeech-medium is "
+        "public-domain data; piper-tts and espeak-ng (used by kokoro-onnx) are GPL-3.0 (installed here, not "
+        "bundled). See THIRD_PARTY_NOTICES.md."
+    )
     r.run([str(venv_python(r.root)), "-m", "funkbox", "reel", "setup-models"], cwd=r.root)
 
 
@@ -383,8 +406,10 @@ def setup_fastsd(r: Runner) -> None:
         r.say("   (uv not found: a real run would stop here and ask for it; showing the plan with 'uv')")
         uv = "uv"
     if not uv:
-        r.say("   uv is required for FastSD's Python 3.11 environment: https://docs.astral.sh/uv/ "
-              "(pip install uv), then run this again")
+        r.say(
+            "   uv is required for FastSD's Python 3.11 environment: https://docs.astral.sh/uv/ "
+            "(pip install uv), then run this again"
+        )
         return
     env_dir = dest / "env"
     fpy = env_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
@@ -395,7 +420,9 @@ def setup_fastsd(r: Runner) -> None:
     if reqs.exists() or r.dry:
         r.run([uv, "pip", "install", "--python", str(fpy), "-r", str(reqs)])
     r.run([uv, "pip", "install", "--python", str(fpy), "pydantic>=2.11,<2.12", "fastapi-mcp"])
-    r.say("   copying funkbox/studio/start_local_mcp.py and funkbox/studio/sdcore.py into the FastSD folder (localhost-only launcher)")
+    r.say(
+        "   copying funkbox/studio/start_local_mcp.py and funkbox/studio/sdcore.py into the FastSD folder (localhost-only launcher)"
+    )
     if not r.dry:
         for f in ("start_local_mcp.py", "sdcore.py"):
             shutil.copy2(r.root / "funkbox" / "studio" / f, dest / f)
@@ -411,7 +438,9 @@ def find_gimp() -> Path | None:
     if s == "Windows":
         for base in (os.environ.get("LOCALAPPDATA", ""), os.environ.get("ProgramFiles", "")):
             if base:
-                for d in sorted(Path(base, "Programs").glob("GIMP 3*"), reverse=True) + sorted(Path(base).glob("GIMP 3*"), reverse=True):
+                for d in sorted(Path(base, "Programs").glob("GIMP 3*"), reverse=True) + sorted(
+                    Path(base).glob("GIMP 3*"), reverse=True
+                ):
                     cands += [d / "bin" / n for n in ("gimp-3.2.exe", "gimp-3.exe", "gimp.exe")]
     elif s == "Darwin":
         cands.append(Path("/Applications/GIMP.app/Contents/MacOS/gimp"))
@@ -427,6 +456,7 @@ def find_gimp() -> Path | None:
 
 def gimp_profile(exe: Path | None) -> str:
     import re
+
     m = re.search(r"gimp-(\d+)\.(\d+)", exe.name if exe else "")
     return f"{m.group(1)}.{m.group(2)}" if m else "3.2"
 
@@ -474,10 +504,12 @@ def write_toml(r: Runner, **kv: str) -> None:
 def render_gimp_cmd(r: Runner, exe: Path | None, gimp_dir: Path) -> Path:
     tpl = (r.root / "funkbox" / "studio" / "GIMP-MCP.cmd.template").read_text(encoding="utf-8")
     out = r.root / "funkbox" / "studio" / "GIMP-MCP.cmd"
-    text = (tpl.replace("@GIMP_EXE@", str(exe or r"%LOCALAPPDATA%\Programs\GIMP 3\bin\gimp-3.exe"))
-            .replace("@GIMP_MCP_DIR@", str(gimp_dir))
-            .replace("@GIMP_PROFILE@", gimp_profile(exe))
-            .replace("@FUNK_HOME_FWD@", str(r.root).replace("\\", "/")))
+    text = (
+        tpl.replace("@GIMP_EXE@", str(exe or r"%LOCALAPPDATA%\Programs\GIMP 3\bin\gimp-3.exe"))
+        .replace("@GIMP_MCP_DIR@", str(gimp_dir))
+        .replace("@GIMP_PROFILE@", gimp_profile(exe))
+        .replace("@FUNK_HOME_FWD@", str(r.root).replace("\\", "/"))
+    )
     r.say(f"   rendering {out} from the template")
     if not r.dry:
         out.write_text(text, encoding="utf-8", newline="\r\n")
@@ -493,9 +525,11 @@ def make_shortcuts(r: Runner, parts: tuple[str, ...]) -> None:
     if "gimp" in parts:
         cmd = r.root / "funkbox" / "studio" / "GIMP-MCP.cmd"
         if system() == "Windows":
-            script = ("$sh=New-Object -ComObject WScript.Shell;"
-                      "$l=$sh.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'GIMP + MCP.lnk'));"
-                      f"$l.TargetPath='{cmd}';$l.Save()")
+            script = (
+                "$sh=New-Object -ComObject WScript.Shell;"
+                "$l=$sh.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'GIMP + MCP.lnk'));"
+                f"$l.TargetPath='{cmd}';$l.Save()"
+            )
             r.say(f'   creating "GIMP + MCP" desktop shortcut -> {cmd}')
             if not r.dry:
                 subprocess.call(["powershell", "-NoProfile", "-Command", script])
@@ -512,9 +546,30 @@ def self_test(r: Runner) -> int:
     shader = sorted((r.root / "shaders").glob("*.frag"))
     shader_arg = ["--shader", str(shader[0])] if shader else []
     env = dict(os.environ)
-    rc = r.run([str(py), "-m", "funkbox", "loop", "render", *shader_arg, "--size", "128", "--seconds", "1",
-                "--fps", "12", "--out-dir", str(out), "--name", "selftest", "--no-png", "--no-check"],
-               cwd=r.root, env=env)
+    rc = r.run(
+        [
+            str(py),
+            "-m",
+            "funkbox",
+            "loop",
+            "render",
+            *shader_arg,
+            "--size",
+            "128",
+            "--seconds",
+            "1",
+            "--fps",
+            "12",
+            "--out-dir",
+            str(out),
+            "--name",
+            "selftest",
+            "--no-png",
+            "--no-check",
+        ],
+        cwd=r.root,
+        env=env,
+    )
     if rc == 0 and not r.dry:
         r.say(f"   OK: {out}")
     elif rc != 0:
@@ -530,7 +585,9 @@ def next_steps(r: Runner, register: str, parts: tuple[str, ...]) -> None:
         r.say("   1. Restart Claude Code in this folder; check with: claude mcp list")
     else:
         r.say("   1. Connect later with: python install.py --register desktop   (or code)")
-    r.say("   2. Ask Claude: 'make me a funky looping video'. For ads: project_new, then drop files in the inbox folder.")
+    r.say(
+        "   2. Ask Claude: 'make me a funky looping video'. For ads: project_new, then drop files in the inbox folder."
+    )
     r.say("   3. Verify: " + str(venv_python(r.root)) + " -m pytest -q   (needs: pip install pytest)")
     r.say("   4. Remove: python install.py --unregister   (then delete the folder)")
 
@@ -565,8 +622,10 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
             unregister_code(r)
         return 0
     if not a.yes and not a.dry_run and sys.stdin.isatty():
-        r.say(f"Plan: venv + core deps; parts: {', '.join(a.parts) or 'none'}; register: {a.register}; "
-              f"shortcuts: {a.shortcuts}. (Use --dry-run to see every step.)")
+        r.say(
+            f"Plan: venv + core deps; parts: {', '.join(a.parts) or 'none'}; register: {a.register}; "
+            f"shortcuts: {a.shortcuts}. (Use --dry-run to see every step.)"
+        )
         if input("Proceed? [y/N] ").strip().lower() not in ("y", "yes"):
             print("aborted")
             return 1

@@ -1,4 +1,3 @@
-import copy
 import json
 
 import pytest
@@ -6,16 +5,24 @@ import pytest
 from funkbox.reel import copydeck, timeline, validate
 from funkbox.reel.schema import ReelError, parse_reel
 
-DECK = {"brand_name": "X", "lines": {"a": {"text": "ONE\nTWO", "say": "one two"}, "b": {"text": "Bee GLOWMOP"}},
-        "pronounce": {"GLOWMOP": "glow mop"}}
+DECK = {
+    "brand_name": "X",
+    "lines": {"a": {"text": "ONE\nTWO", "say": "one two"}, "b": {"text": "Bee GLOWMOP"}},
+    "pronounce": {"GLOWMOP": "glow mop"},
+}
 
 
 def reel_dict(**kw):
-    d = {"copy": "c.json", "settings": {"fps": 30},
-         "shots": [{"id": "s1", "source": {"color": "#112233"}, "duration": 1.4},
-                   {"id": "s2", "source": {"color": "#223344"}, "duration": 1.4},
-                   {"id": "s3", "source": {"color": "#334455"}, "duration": 1.4}],
-         "end_card": {"template": "brand-split", "duration": 2.0, "copy": {"headline": "a"}}}
+    d = {
+        "copy": "c.json",
+        "settings": {"fps": 30},
+        "shots": [
+            {"id": "s1", "source": {"color": "#112233"}, "duration": 1.4},
+            {"id": "s2", "source": {"color": "#223344"}, "duration": 1.4},
+            {"id": "s3", "source": {"color": "#334455"}, "duration": 1.4},
+        ],
+        "end_card": {"template": "brand-split", "duration": 2.0, "copy": {"headline": "a"}},
+    }
     d.update(kw)
     return d
 
@@ -36,7 +43,7 @@ def test_literal_text_key_anywhere_is_an_error(where):
     elif where == "shot":
         d["shots"][1]["label"] = "hello"
     elif where == "brand":
-        d["brand"] = {"text": "hello"}         # brand.text is a colour; a non-colour is literal text
+        d["brand"] = {"text": "hello"}  # brand.text is a colour; a non-colour is literal text
     elif where == "end_card":
         d["end_card"]["caption_text"] = "x"
     else:
@@ -54,9 +61,9 @@ def test_copy_deck_exactness_and_pronounce(tmp_path):
     p = tmp_path / "copy.json"
     p.write_bytes(json.dumps(DECK, ensure_ascii=False).encode("utf-8"))
     deck = copydeck.load_copy(p)
-    assert deck.text("a") == "ONE\nTWO" and deck.text("b") == "Bee GLOWMOP"      # never altered
+    assert deck.text("a") == "ONE\nTWO" and deck.text("b") == "Bee GLOWMOP"  # never altered
     assert deck.say("a") == "one two"
-    assert deck.say("b") == "Bee glow mop"                                     # TTS only
+    assert deck.say("b") == "Bee glow mop"  # TTS only
     assert deck.text("b") == "Bee GLOWMOP"
 
 
@@ -67,8 +74,7 @@ def test_say_defaults_to_text_without_newlines():
 
 def vo_reel(durs, voiceover=True, snap=False, fps=30):
     d = reel_dict(audio={"voiceover": voiceover, "snap_cuts_to_beats": snap, "music": "m.wav"})
-    d["shots"] = [{"id": f"s{i}", "source": {"color": "#112233"}, "vo": "a", "duration": x}
-                  for i, x in enumerate(durs)]
+    d["shots"] = [{"id": f"s{i}", "source": {"color": "#112233"}, "vo": "a", "duration": x} for i, x in enumerate(durs)]
     d["settings"]["fps"] = fps
     return parse_reel(d)
 
@@ -78,7 +84,7 @@ def test_auto_follows_vo_durations():
     reel.shots[1].vo = "b"
     spans = timeline.build_timeline(reel, {"a": 1.8, "b": 0.4}, None)
     assert spans[0].duration == pytest.approx(1.8 + 0.35, abs=1 / 30)
-    assert spans[1].duration == pytest.approx(1.0, abs=1 / 30)             # min 1.0 s
+    assert spans[1].duration == pytest.approx(1.0, abs=1 / 30)  # min 1.0 s
     assert spans[0].vo_start == pytest.approx(spans[0].start + 0.1)
     assert spans[1].start == pytest.approx(spans[0].end)
     assert spans[-1].kind == "end"
@@ -102,7 +108,7 @@ def test_validator_reports_short_duration_with_shot_name(work):
 
 
 def test_beat_snapping_moves_cuts_within_one_frame_of_beats():
-    beats = [i * 0.5 for i in range(60)]                                   # 120 BPM
+    beats = [i * 0.5 for i in range(60)]  # 120 BPM
     reel = vo_reel([1.4, 1.35, 1.6, 1.45], voiceover=False, snap=True)
     spans = timeline.build_timeline(reel, {}, beats)
     cuts = [s.start for s in spans[1:]]
@@ -110,7 +116,7 @@ def test_beat_snapping_moves_cuts_within_one_frame_of_beats():
     for c in cuts:
         nearest = min(beats, key=lambda b: abs(b - c))
         assert abs(nearest - c) <= 1 / 30 + 1e-9, (c, nearest)
-    assert all(s.frames >= 0.6 * 30 for s in spans[:-1])                   # no shot under 0.6 s
+    assert all(s.frames >= 0.6 * 30 for s in spans[:-1])  # no shot under 0.6 s
 
 
 def test_snapping_never_breaks_min_length_or_vo():

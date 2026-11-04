@@ -10,6 +10,7 @@ Writes into <day>/assets/ and prints assets.json, a manifest the agent picks sho
 - cards: code / command "screenshots" drawn from REAL repo files (so what is shown exists), 1080x1920 PNG
 - music: a seeded music bed (promo/music.py)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,8 +28,16 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "promo"))
 
-PRESETS = ["acid-plasma", "pop-moire", "liquid-disco", "hypno-tunnel", "lava-lamp", "op-art", "frozen-kaleido",
-           "party-poster"]
+PRESETS = [
+    "acid-plasma",
+    "pop-moire",
+    "liquid-disco",
+    "hypno-tunnel",
+    "lava-lamp",
+    "op-art",
+    "frozen-kaleido",
+    "party-poster",
+]
 STILLS = {
     "fastsd-scenes": ("docs/gallery/fastsd-scenes.jpg", "six FastSD scenes generated on an Intel iGPU"),
     "poster-variations": ("docs/gallery/poster-variations.jpg", "one poster in four palettes, exact text"),
@@ -41,18 +50,33 @@ STILLS = {
 #: contains `marker` (found at build time, so edits to the files never break a card)
 CARDS = [
     ("card-reel-json", "examples/mimic/mimic.reel.json", '"shots": [', 22, "a real shot from the demo ad's shot list"),
-    ("card-copy-json", "examples/mimic/copy.json", '"lines": {', 18, "the demo ad's copy deck: every caption comes from here"),
+    (
+        "card-copy-json",
+        "examples/mimic/copy.json",
+        '"lines": {',
+        18,
+        "the demo ad's copy deck: every caption comes from here",
+    ),
     ("card-install", "README.md", "git clone https://github.com/IsraelWebDev/funkbox", 3, "the install commands"),
     ("card-loop-recipe", "examples/disco_cat.json", "{", 14, "the disco-cat loop recipe"),
     ("card-frame-json", "docs/reel.md", '{"id": "accept"', 3, "a push-in on a screen recording, from the docs"),
-    ("card-text-exact", "docs/reel.md", "**Text is exact by construction.**", 3, "how the text audit works, from the docs",
-     720),
+    (
+        "card-text-exact",
+        "docs/reel.md",
+        "**Text is exact by construction.**",
+        3,
+        "how the text audit works, from the docs",
+        720,
+    ),
 ]
 
 
 def _font(size: int) -> ImageFont.FreeTypeFont:
-    for p in ("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", "C:/Windows/Fonts/consola.ttf",
-              str(ROOT / "fonts" / "Oswald-SemiBold.ttf")):
+    for p in (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+        "C:/Windows/Fonts/consola.ttf",
+        str(ROOT / "fonts" / "Oswald-SemiBold.ttf"),
+    ):
         if Path(p).is_file():
             return ImageFont.truetype(p, size)
     return ImageFont.load_default()
@@ -63,14 +87,17 @@ def find_lines(src: Path, marker: str, n: int) -> tuple[int, list[str]]:
     i = next((k for k, l in enumerate(lines) if marker in l), None)
     if i is None:
         raise ValueError(f"{src}: marker {marker!r} not found")
-    return i + 1, lines[i:i + n]
+    return i + 1, lines[i : i + n]
 
 
-TEXT_BOTTOM = 0.50   # card text stops here (fraction of height): below it stays clear for a bottom caption of up to 3 lines
+TEXT_BOTTOM = (
+    0.50  # card text stops here (fraction of height): below it stays clear for a bottom caption of up to 3 lines
+)
 
 
-def code_card(src: Path, marker: str, n: int, out: Path, title: str, w: int = 1080, h: int = 1920,
-              text_w: int | None = None) -> tuple[Path, str, list[float]]:
+def code_card(
+    src: Path, marker: str, n: int, out: Path, title: str, w: int = 1080, h: int = 1920, text_w: int | None = None
+) -> tuple[Path, str, list[float]]:
     """Up to ``n`` real lines of a file (from the first containing ``marker``), drawn as an editor screenshot with
     line numbers; long lines soft-wrap like an editor would (the text itself is verbatim). ``text_w`` narrows the wrap
     column (prose cards) so a push-in can zoom while keeping whole lines in frame.
@@ -79,6 +106,7 @@ def code_card(src: Path, marker: str, n: int, out: Path, title: str, w: int = 10
     says which lines are shown). Returns the image, the shown line span and the text's bounding box as fractions
     [x0, y0, x1, y1] of the card (promo/lint.py checks captions against it)."""
     import textwrap
+
     first, lines = find_lines(src, marker, n)
     img = Image.new("RGB", (w, h), (18, 20, 28))
     d = ImageDraw.Draw(img)
@@ -94,9 +122,10 @@ def code_card(src: Path, marker: str, n: int, out: Path, title: str, w: int = 10
     step, limit = int(size * 1.45), int(TEXT_BOTTOM * h)
     y, shown, right = 170, 0, 0.0
     for num, line in enumerate(lines, start=first):
-        parts = textwrap.wrap(line.expandtabs(4), cols, drop_whitespace=False, replace_whitespace=False,
-                              subsequent_indent="  ") or [""]
-        if shown and y + len(parts) * step > limit:   # whole lines only; always show at least one
+        parts = textwrap.wrap(
+            line.expandtabs(4), cols, drop_whitespace=False, replace_whitespace=False, subsequent_indent="  "
+        ) or [""]
+        if shown and y + len(parts) * step > limit:  # whole lines only; always show at least one
             break
         for j, part in enumerate(parts):
             if j == 0:
@@ -122,6 +151,7 @@ def day_bpm(seed: int) -> int:
 def _vivid_fraction(im: Image.Image) -> float:
     """Share of pixels that are clearly coloured (HSV saturation > 0.35 and value > 0.2)."""
     import numpy as np
+
     hsv = np.asarray(im.convert("RGB").resize((64, 64)).convert("HSV"))
     return float(((hsv[..., 1] > 89) & (hsv[..., 2] > 51)).mean())
 
@@ -133,14 +163,21 @@ def make_key_image(a: Path, candidates: list[Path], seed: int) -> Path | None:
     a dull one (under 8 percent clearly coloured pixels) is skipped, so the palette is fresh each day but never grey.
     """
     from funkbox.media import ffmpeg_exe
+
     frames: list[Image.Image] = []
     for c in candidates:
         try:
             if c.suffix.lower() == ".mp4":
                 exe = ffmpeg_exe()
                 tmp = a / "_key_frame.png"
-                if not exe or subprocess.run([exe, "-y", "-v", "error", "-ss", "1", "-i", str(c), "-frames:v", "1",
-                                              str(tmp)], capture_output=True).returncode or not tmp.is_file():
+                if (
+                    not exe
+                    or subprocess.run(
+                        [exe, "-y", "-v", "error", "-ss", "1", "-i", str(c), "-frames:v", "1", str(tmp)],
+                        capture_output=True,
+                    ).returncode
+                    or not tmp.is_file()
+                ):
                     continue
                 with Image.open(tmp) as im:
                     frames.append(im.convert("RGB").copy())
@@ -167,21 +204,52 @@ def build(day: Path, seed: int) -> dict:
     man: dict = {"day": day.name, "seed": seed, "assets": []}
 
     def add(kind, path, note, **kw):
-        man["assets"].append({"id": Path(path).stem, "kind": kind, "path": Path(path).relative_to(day).as_posix(),
-                              "note": note, **kw})
+        man["assets"].append(
+            {"id": Path(path).stem, "kind": kind, "path": Path(path).relative_to(day).as_posix(), "note": note, **kw}
+        )
 
     for preset in rng.sample(PRESETS, 2):
         s = rng.randint(1, 999)
-        r = subprocess.run([sys.executable, "-m", "funkbox", "loop", "render", "--preset", preset, "--seed", str(s),
-                            "--width", "720", "--height", "1280", "--seconds", "4", "--no-png", "--set", "text=", "--name",
-                            f"loop-{preset}", "--out-dir", str(a)], cwd=ROOT, capture_output=True, text=True)
+        r = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "funkbox",
+                "loop",
+                "render",
+                "--preset",
+                preset,
+                "--seed",
+                str(s),
+                "--width",
+                "720",
+                "--height",
+                "1280",
+                "--seconds",
+                "4",
+                "--no-png",
+                "--set",
+                "text=",
+                "--name",
+                f"loop-{preset}",
+                "--out-dir",
+                str(a),
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+        )
         if r.returncode == 0 and (a / f"loop-{preset}.mp4").is_file():
             add("video", a / f"loop-{preset}.mp4", f"seamless shader loop, preset {preset} seed {s}, 4 s", seconds=4)
         else:
             print(f"loop {preset} failed: {r.stderr[-400:]}", file=sys.stderr)
     shutil.copy2(ROOT / "examples/mimic/preview.mp4", a / "demo-ad.mp4")
-    add("video", a / "demo-ad.mp4", "the GLOWMOP demo ad made with funkbox (23 s, 9:16, has its own captions)",
-        seconds=23.4)
+    add(
+        "video",
+        a / "demo-ad.mp4",
+        "the GLOWMOP demo ad made with funkbox (23 s, 9:16, has its own captions)",
+        seconds=23.4,
+    )
     for sid, (rel, note) in STILLS.items():
         dst = a / f"{sid}{Path(rel).suffix}"
         shutil.copy2(ROOT / rel, dst)
@@ -194,22 +262,31 @@ def build(day: Path, seed: int) -> dict:
         except (OSError, ValueError) as e:
             print(f"card {cid} skipped: {e}", file=sys.stderr)
             continue
-        add("image", path, f"{note} ({rel} lines {span}, verbatim). Its text fills text_rect (top part); a caption "
+        add(
+            "image",
+            path,
+            f"{note} ({rel} lines {span}, verbatim). Its text fills text_rect (top part); a caption "
             "must not cover or sit beside it: anchor captions at the bottom, and push in only where lint allows",
-            size=[1080, 1920], source=f"{rel}:{span}", text_rect=box)
+            size=[1080, 1920],
+            source=f"{rel}:{span}",
+            text_rect=box,
+        )
     cands = [a / f"{sid}.jpg" for sid in ("scene-dog", "scene-machine") if (a / f"{sid}.jpg").is_file()]
-    cands += [day / x["path"] for x in man["assets"]
-              if x["kind"] == "video" and x["id"].startswith("loop-")]
+    cands += [day / x["path"] for x in man["assets"] if x["kind"] == "video" and x["id"].startswith("loop-")]
     key = make_key_image(a, cands, seed)
     if key is not None:
         add("image", key, "the day's key image: its colours are the day's palette (reel brand.from)")
         man["key_image"] = key.relative_to(day).as_posix()
     import music
+
     bpm = day_bpm(seed)
     man["bpm"] = bpm
-    add("music", music.write(a / "music.mp3", 30.0, float(bpm), seed),
+    add(
+        "music",
+        music.write(a / "music.mp3", 30.0, float(bpm), seed),
         f"seeded music bed, {bpm} BPM, 30 s (leave audio.bpm out of reel.json: the grid is detected from this file)",
-        bpm=bpm)
+        bpm=bpm,
+    )
     (day / "assets.json").write_text(json.dumps(man, indent=2) + "\n", encoding="utf-8")
     return man
 
@@ -217,6 +294,7 @@ def build(day: Path, seed: int) -> dict:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="build a promo day's asset pack")
     import state
+
     ap.add_argument("day", nargs="?", default=str(state.DAYS / dt.datetime.now(dt.timezone.utc).date().isoformat()))
     ap.add_argument("--seed", type=int, default=None)
     x = ap.parse_args()

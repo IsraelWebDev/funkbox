@@ -1,4 +1,5 @@
 """v3.2 S5: the stills MCP server over stdio (every tool), the CLI, and the install wiring."""
+
 import asyncio
 import json
 import os
@@ -18,7 +19,15 @@ from mcp import ClientSession, StdioServerParameters  # noqa: E402
 from mcp.client.stdio import stdio_client  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-TOOLS = {"poster_presets", "poster_render", "poster_preview", "poster_variations", "image_edit", "loop_still", "poster_export_ora"}
+TOOLS = {
+    "poster_presets",
+    "poster_render",
+    "poster_preview",
+    "poster_variations",
+    "image_edit",
+    "loop_still",
+    "poster_export_ora",
+}
 
 
 def text(res):
@@ -30,11 +39,19 @@ def kinds(res):
 
 
 def poster(photo):
-    return {"version": 1, "name": "mcpposter", "canvas": {"width": 320, "height": 400}, "casual": True, "seed": 4,
-            "layers": [{"id": "bg", "type": "shader", "shader": "shaders/fbm_flow.frag", "palette": "vapor"},
-                       {"id": "pic", "type": "image", "path": str(photo), "opacity": 0.6, "blend": "overlay"},
-                       {"id": "head", "type": "text", "text": "Hello stills", "x": 0.1, "y": 0.1, "size": 0.1}],
-            "export": {"formats": ["png", "ora"]}}
+    return {
+        "version": 1,
+        "name": "mcpposter",
+        "canvas": {"width": 320, "height": 400},
+        "casual": True,
+        "seed": 4,
+        "layers": [
+            {"id": "bg", "type": "shader", "shader": "shaders/fbm_flow.frag", "palette": "vapor"},
+            {"id": "pic", "type": "image", "path": str(photo), "opacity": 0.6, "blend": "overlay"},
+            {"id": "head", "type": "text", "text": "Hello stills", "x": 0.1, "y": 0.1, "size": 0.1},
+        ],
+        "export": {"formats": ["png", "ora"]},
+    }
 
 
 def env():
@@ -50,7 +67,9 @@ def test_every_tool_over_stdio(gl, work):
     doc = poster(photo)
 
     async def scenario():
-        params = StdioServerParameters(command=sys.executable, args=["-m", "funkbox", "serve"], env=env(), cwd=str(ROOT))
+        params = StdioServerParameters(
+            command=sys.executable, args=["-m", "funkbox", "serve"], env=env(), cwd=str(ROOT)
+        )
         async with stdio_client(params) as (r, w):
             async with ClientSession(r, w) as s:
                 init = await s.initialize()
@@ -74,7 +93,9 @@ def test_every_tool_over_stdio(gl, work):
                 assert kinds(r) == ["text", "image"] and "320x400" in t and "mcp-r1.png" in t and "mcp-r1.ora" in t
                 png = Path([l.split(": ", 1)[1] for l in t.splitlines() if l.startswith("png: ")][0])
                 assert Image.open(png).size == (320, 400)
-                assert (png.parent / "mcp-r1.text_audit.json").is_file() and (png.parent / "mcp-r1.poster.json").is_file()
+                assert (png.parent / "mcp-r1.text_audit.json").is_file() and (
+                    png.parent / "mcp-r1.poster.json"
+                ).is_file()
 
                 # a sidecar path renders again
                 side = png.parent / "mcp-r1.poster.json"
@@ -84,16 +105,31 @@ def test_every_tool_over_stdio(gl, work):
                 r = await call("poster_variations", {"poster": doc, "vary": {"seed": [1, 2, 3]}, "name": "mcp-v"})
                 assert kinds(r) == ["text", "image"] and "3 variants" in text(r) and "mcp-v-sheet.png" in text(r)
 
-                r = await call("image_edit", {"path": str(photo), "ops": [{"op": "crop", "aspect": "1:1"},
-                                                                          {"op": "adjust", "saturation": 0.2}], "name": "mcp"})
+                r = await call(
+                    "image_edit",
+                    {
+                        "path": str(photo),
+                        "ops": [{"op": "crop", "aspect": "1:1"}, {"op": "adjust", "saturation": 0.2}],
+                        "name": "mcp",
+                    },
+                )
                 t = text(r)
                 assert kinds(r) == ["text", "image"] and "photo-mcp.png" in t and "compare" in t
                 assert photo.is_file()
 
-                r = await call("loop_still", {"recipe_or_shader": "shaders/warp.frag", "t": 0.3, "preset": "square", "name": "mcp-st"})
+                r = await call(
+                    "loop_still",
+                    {"recipe_or_shader": "shaders/warp.frag", "t": 0.3, "preset": "square", "name": "mcp-st"},
+                )
                 assert kinds(r) == ["text", "image"] and "1080x1080" in text(r)
-                r = await call("loop_still", {"recipe_or_shader": "vec4 effect(vec2 p){ return vec4(p, 0.5, 1.0); }",
-                                              "preset": "square", "name": "mcp-st2"})
+                r = await call(
+                    "loop_still",
+                    {
+                        "recipe_or_shader": "vec4 effect(vec2 p){ return vec4(p, 0.5, 1.0); }",
+                        "preset": "square",
+                        "name": "mcp-st2",
+                    },
+                )
                 assert "ERROR" not in text(r)
 
                 r = await call("poster_export_ora", {"poster": doc, "name": "mcp-ora"})
@@ -108,14 +144,23 @@ def test_every_tool_over_stdio(gl, work):
                 bad["casual"] = False
                 t = text(await call("poster_render", {"poster": bad}))
                 assert t.startswith("ERROR") and "casual" in t
-                assert text(await call("image_edit", {"path": "/etc/hostname", "ops": [{"op": "flip", "axis": "h"}]})).startswith("ERROR")
+                assert text(
+                    await call("image_edit", {"path": "/etc/hostname", "ops": [{"op": "flip", "axis": "h"}]})
+                ).startswith("ERROR")
                 assert text(await call("loop_still", {"recipe_or_shader": "nope.frag"})).startswith("ERROR")
+
     asyncio.run(scenario())
 
 
 def cli(*args, cwd=ROOT):
-    return subprocess.run([sys.executable, "-m", "funkbox", *map(str, args)], cwd=cwd, env=env(),
-                          capture_output=True, text=True, timeout=300)
+    return subprocess.run(
+        [sys.executable, "-m", "funkbox", *map(str, args)],
+        cwd=cwd,
+        env=env(),
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
 
 
 def test_cli_verbs(gl, work):
@@ -134,7 +179,20 @@ def test_cli_verbs(gl, work):
     assert r.returncode == 0 and (work / "o" / "cv-sheet.png").is_file(), r.stderr
     r = cli("image", "edit", photo, "--ops", '[{"op":"flip","axis":"h"}]', "--out", work / "e", "--name", "x")
     assert r.returncode == 0 and (work / "e" / "photo-x.png").is_file(), r.stderr
-    r = cli("loop", "still", "--shader", "shaders/warp.frag", "--canvas", "square", "--t", "0.2", "--out", work / "s", "--name", "w")
+    r = cli(
+        "loop",
+        "still",
+        "--shader",
+        "shaders/warp.frag",
+        "--canvas",
+        "square",
+        "--t",
+        "0.2",
+        "--out",
+        work / "s",
+        "--name",
+        "w",
+    )
     assert r.returncode == 0 and (work / "s" / "w.png").is_file(), r.stderr
     bad = work / "bad.poster.json"
     bad.write_text(json.dumps({"version": 1, "layers": []}))
@@ -145,11 +203,16 @@ def test_cli_verbs(gl, work):
 def test_install_wires_the_one_server(capsys):
     sys.path.insert(0, str(ROOT))
     import install
+
     assert install.SERVER_KEYS == ("funkbox", "gimp")
     e = install.server_entries(ROOT, ())["funkbox"]
     assert e["args"][0].endswith("funkbox.py") and e["args"][1] == "serve" and "FUNK_HOME" in e["env"]
-    assert install.main(["--dry-run", "--register", "desktop", "--config", str(ROOT / "out" / "dry-cfg.json"),
-                         "--no-selftest"]) == 0
+    assert (
+        install.main(
+            ["--dry-run", "--register", "desktop", "--config", str(ROOT / "out" / "dry-cfg.json"), "--no-selftest"]
+        )
+        == 0
+    )
     assert "funkbox" in capsys.readouterr().out
     plugin = json.loads((ROOT / ".mcp.json").read_text())["mcpServers"]["funkbox"]
     assert plugin["args"][-2].endswith("/funkbox.py") and plugin["env"]["FUNK_HOME"] == "${CLAUDE_PLUGIN_ROOT}"
@@ -159,10 +222,13 @@ def test_install_wires_the_one_server(capsys):
 def test_demo_poster_renders_with_exact_copy(gl, work):
     import subprocess as sp
     from funkbox.stills import render
+
     ex = ROOT / "examples" / "stills"
-    sp.run([sys.executable, str(ex / "make_assets.py"), "--dest", str(work / "inputs")], check=True, capture_output=True)
+    sp.run(
+        [sys.executable, str(ex / "make_assets.py"), "--dest", str(work / "inputs")], check=True, capture_output=True
+    )
     doc = json.loads((ex / "glowmop_poster.poster.json").read_text())
-    for lay in doc["layers"]:                                     # point the poster at the freshly generated assets
+    for lay in doc["layers"]:  # point the poster at the freshly generated assets
         for k in ("path", "image"):
             if str(lay.get(k, "")).startswith("inputs/"):
                 lay[k] = str(work / lay[k])
@@ -174,4 +240,4 @@ def test_demo_poster_renders_with_exact_copy(gl, work):
     assert all(a["text_exact"] for a in r.audit)
     src = json.loads((ex / "glowmop_poster.poster.json").read_text())
     texts = [l for l in src["layers"] if l["type"] == "text"]
-    assert texts and all("copy_id" in l and "text" not in l for l in texts) and "casual" not in src      # copy ids only
+    assert texts and all("copy_id" in l and "text" not in l for l in texts) and "casual" not in src  # copy ids only

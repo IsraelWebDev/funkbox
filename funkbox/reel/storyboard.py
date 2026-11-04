@@ -1,5 +1,6 @@
 """One still per shot (at its midpoint) + the end card, as a contact sheet with the shot ID,
 duration and copy IDs printed BELOW each frame (never on it). The agent iterates on this."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -29,8 +30,9 @@ def _labels(plan: R.Plan, sp: ShotSpan) -> list[str]:
     return [f"{sh.id}  {sp.duration:.2f}s  {sh.source.kind}", f"{cap}{vo}", f"{mid}  in:{sh.transition_in}"]
 
 
-def storyboard(plan: R.Plan, out: str | Path | None = None, tile_w: int = 270, cols: int | None = None,
-               depth_mode: str = "cached") -> Image.Image:
+def storyboard(
+    plan: R.Plan, out: str | Path | None = None, tile_w: int = 270, cols: int | None = None, depth_mode: str = "cached"
+) -> Image.Image:
     """Contact sheet PNG. Frames are taken at each shot's midpoint."""
     reel = plan.reel
     tile_h = round(tile_w * reel.settings.height / reel.settings.width) // 2 * 2
@@ -58,7 +60,12 @@ def storyboard(plan: R.Plan, out: str | Path | None = None, tile_w: int = 270, c
             y = PAD + (i // cols) * (tile_h + label_h + PAD)
             sheet.paste(Image.fromarray(fr), (x, y))
             for k, line in enumerate(_labels(plan, sp)):
-                d.text((x + 2, y + tile_h + 4 + k * (fs + 4)), line, font=font, fill=(235, 235, 235) if k == 0 else (170, 175, 185))
+                d.text(
+                    (x + 2, y + tile_h + 4 + k * (fs + 4)),
+                    line,
+                    font=font,
+                    fill=(235, 235, 235) if k == 0 else (170, 175, 185),
+                )
     finally:
         r.release()
     if out is not None:

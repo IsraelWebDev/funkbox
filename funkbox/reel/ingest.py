@@ -7,6 +7,7 @@ when it is the only such image) -> product/, everything else -> shots/.
 Files from the inbox are MOVED; files from any other path the user names are COPIED and the source is
 never touched. Nothing is ever deleted.
 """
+
 from __future__ import annotations
 
 import io
@@ -35,7 +36,7 @@ PRODUCT_HINTS = ("product", "bottle", "pack")
 BORDER_BAND = 0.04
 BORDER_SHARE = 0.92
 BORDER_DE = 12.0
-CUTOUT_MIN_SCORE = 0.85            # below this the tool says so and suggests the GIMP route
+CUTOUT_MIN_SCORE = 0.85  # below this the tool says so and suggests the GIMP route
 HOLE_MAX = 0.02
 STRENGTH = {"name": 3, "alpha": 2, "border": 1}
 
@@ -47,8 +48,8 @@ STRENGTH = {"name": 3, "alpha": 2, "border": 1}
 class Img:
     src: Path
     sha: str
-    im: Image.Image                  # exif-transposed, downscaled (RGB or RGBA)
-    changed: bool                    # transposed or downscaled (so the original is kept in _orig)
+    im: Image.Image  # exif-transposed, downscaled (RGB or RGBA)
+    changed: bool  # transposed or downscaled (so the original is kept in _orig)
     name_hint: bool = False
     has_alpha: bool = False
     uniform: bool = False
@@ -125,13 +126,21 @@ def cutout_quality(rgba: Image.Image, src_size: tuple[int, int], touches_edge: b
         problems.append(f"{holes:.0%} of the product is see-through holes (white areas cut away?)")
     if touches_edge:
         problems.append("the subject touches the photo edge (it may be cropped)")
-    return {"score": round(score, 3), "touches_edge": touches_edge, "holes": round(holes, 3),
-            "coverage": round(coverage, 3), "ok": not problems, "problems": problems}
+    return {
+        "score": round(score, 3),
+        "touches_edge": touches_edge,
+        "holes": round(holes, 3),
+        "coverage": round(coverage, 3),
+        "ok": not problems,
+        "problems": problems,
+    }
 
 
-GIMP_ADVICE = ("Use the GIMP route: open product/original.* in GIMP (the funk-studio GIMP MCP can do it), remove "
-               "the background (Select by Colour or Foreground Select), and export a PNG with alpha to "
-               "product/product.png. Keep the label pixels untouched.")
+GIMP_ADVICE = (
+    "Use the GIMP route: open product/original.* in GIMP (the funk-studio GIMP MCP can do it), remove "
+    "the background (Select by Colour or Foreground Select), and export a PNG with alpha to "
+    "product/product.png. Keep the label pixels untouched."
+)
 
 
 def build_product_png(source_im: Image.Image, dest: Path, tmp_dir: Path) -> dict:
@@ -194,29 +203,38 @@ class IngestResult:
 
     def text(self) -> str:
         c = self.counts
-        out = [f"ingested into {self.project!r} from {self.source} "
-               f"({'moved' if self.moved else 'copied; the source is untouched'}): "
-               + ", ".join(f"{k} {v}" for k, v in c.items() if v) or "nothing"]
+        out = [
+            f"ingested into {self.project!r} from {self.source} "
+            f"({'moved' if self.moved else 'copied; the source is untouched'}): "
+            + ", ".join(f"{k} {v}" for k, v in c.items() if v)
+            or "nothing"
+        ]
         pr = self.product
         st = pr.get("status")
         if st == "set":
             q = pr.get("cutout", {})
-            out.append(f"product: {pr['file']} (chosen by {pr['source']}); cut-out score {q.get('score')} "
-                       f"[{'OK' if q.get('ok') else 'POOR'}], touches edge: {q.get('touches_edge')}, "
-                       f"holes: {q.get('holes')}")
+            out.append(
+                f"product: {pr['file']} (chosen by {pr['source']}); cut-out score {q.get('score')} "
+                f"[{'OK' if q.get('ok') else 'POOR'}], touches edge: {q.get('touches_edge')}, "
+                f"holes: {q.get('holes')}"
+            )
             for pb in q.get("problems", []):
                 out.append(f"  cut-out problem: {pb}")
             if q.get("advice"):
                 out.append("  " + q["advice"])
         elif st == "ambiguous":
-            out.append("product: AMBIGUOUS, several equally likely candidates; do not guess. Ask the user which "
-                       "is the product, then call project_set_product(project, file) with one of: "
-                       + ", ".join(pr["candidates"]))
+            out.append(
+                "product: AMBIGUOUS, several equally likely candidates; do not guess. Ask the user which "
+                "is the product, then call project_set_product(project, file) with one of: "
+                + ", ".join(pr["candidates"])
+            )
         elif st == "kept":
             out.append(f"product: unchanged ({pr['file']}); new product-like images were kept in product/alt/")
         else:
-            out.append("product: none found. Add a product photo (name it product.jpg, or use a PNG with "
-                       "transparency) or call project_set_product(project, file).")
+            out.append(
+                "product: none found. Add a product photo (name it product.jpg, or use a PNG with "
+                "transparency) or call project_set_product(project, file)."
+            )
         for i in self.items:
             out.append(f"  {i.kind:8s} {Path(i.src).name} -> {i.dest}" + (f"  ({i.note})" if i.note else ""))
         for d in self.duplicates:
@@ -332,8 +350,10 @@ def ingest(slug: str, source: str | Path | None = None, move: bool = True) -> In
             dest = _unique(d / "brand", _safe_name(f.stem), ext)
             _put(f, dest, do_move)
             res.items.append(Item(str(f), dest.relative_to(d).as_posix(), "logo", "SVG"))
-            res.warnings.append(f"{f.name}: SVG logos are not rasterised here; convert it to PNG and drop it in "
-                                f"the inbox again (it is not used until then)")
+            res.warnings.append(
+                f"{f.name}: SVG logos are not rasterised here; convert it to PNG and drop it in "
+                f"the inbox again (it is not used until then)"
+            )
             index[sha] = dest.relative_to(d).as_posix()
         elif ext in IMAGE:
             try:
@@ -344,8 +364,7 @@ def ingest(slug: str, source: str | Path | None = None, move: bool = True) -> In
             if "logo" in lname:
                 _ingest_logo(d, f, sha, im, changed, do_move, res, index)
                 continue
-            img = Img(f, sha, im, changed, name_hint=any(h in lname for h in PRODUCT_HINTS),
-                      has_alpha=_real_alpha(im))
+            img = Img(f, sha, im, changed, name_hint=any(h in lname for h in PRODUCT_HINTS), has_alpha=_real_alpha(im))
             if not img.has_alpha:
                 img.uniform = border_uniform_share(im) >= BORDER_SHARE
             imgs.append(img)
@@ -362,12 +381,15 @@ def ingest(slug: str, source: str | Path | None = None, move: bool = True) -> In
     res.counts["unsupported"] = len(res.unsupported)
     res.contact_sheet = contact_sheet(d, res)
     if not any(res.counts[k] for k in kinds):
-        res.warnings.append("nothing was ingested" + (f"; the inbox {inbox} is empty" if from_inbox and not todo else ""))
+        res.warnings.append(
+            "nothing was ingested" + (f"; the inbox {inbox} is empty" if from_inbox and not todo else "")
+        )
     return res
 
 
-def _ingest_logo(d: Path, f: Path, sha: str, im: Image.Image, changed: bool, do_move: bool, res: IngestResult,
-                 index: dict) -> None:
+def _ingest_logo(
+    d: Path, f: Path, sha: str, im: Image.Image, changed: bool, do_move: bool, res: IngestResult, index: dict
+) -> None:
     dest = d / "brand" / "logo.png"
     note = ""
     if dest.exists():
@@ -382,8 +404,9 @@ def _ingest_logo(d: Path, f: Path, sha: str, im: Image.Image, changed: bool, do_
     res.items.append(Item(str(f), dest.relative_to(d).as_posix(), "logo", note))
 
 
-def _ingest_images(d: Path, slug: str, meta: dict, imgs: list[Img], do_move: bool, res: IngestResult,
-                   index: dict) -> None:
+def _ingest_images(
+    d: Path, slug: str, meta: dict, imgs: list[Img], do_move: bool, res: IngestResult, index: dict
+) -> None:
     n_uniform = sum(1 for i in imgs if i.uniform)
     cands: list[tuple[int, str, Img]] = []
     for i in imgs:
@@ -435,28 +458,39 @@ def _ingest_images(d: Path, slug: str, meta: dict, imgs: list[Img], do_move: boo
         else:
             dest = _unique(d / "shots", _safe_name(img.src.stem), img.src.suffix.lower())
             put_orig_and_processed(img, dest)
-            res.items.append(Item(str(img.src), dest.relative_to(d).as_posix(), "shot",
-                                  "downscaled/rotated; original in shots/_orig" if img.changed else ""))
+            res.items.append(
+                Item(
+                    str(img.src),
+                    dest.relative_to(d).as_posix(),
+                    "shot",
+                    "downscaled/rotated; original in shots/_orig" if img.changed else "",
+                )
+            )
     if already and cands:
         res.product = {"status": "kept", "file": "product/product.png"}
         res.warnings.append("the project already has a product; use project_set_product to replace it")
     elif chosen is not None:
         res.product = meta["product"] | {"status": "set"}
     elif tied:
-        res.product = {"status": "ambiguous",
-                       "candidates": sorted(str(x.relative_to(d)) for x in (d / "product" / "candidates").glob("*"))}
+        res.product = {
+            "status": "ambiguous",
+            "candidates": sorted(str(x.relative_to(d)) for x in (d / "product" / "candidates").glob("*")),
+        }
         meta["product"] = None
     elif meta.get("product") and (d / "product" / "product.png").exists():
         res.product = {"status": "kept", "file": "product/product.png"}
     else:
         res.product = {"status": "none"}
         if imgs:
-            res.warnings.append("no product image detected; name the file product.jpg, use a PNG with transparency, "
-                                "or call project_set_product")
+            res.warnings.append(
+                "no product image detected; name the file product.jpg, use a PNG with transparency, "
+                "or call project_set_product"
+            )
 
 
-def _set_product_from(d: Path, slug: str, meta: dict, img: Img, why: str, do_move: bool, res: IngestResult,
-                      index: dict) -> None:
+def _set_product_from(
+    d: Path, slug: str, meta: dict, img: Img, why: str, do_move: bool, res: IngestResult, index: dict
+) -> None:
     ext = img.src.suffix.lower()
     orig = d / "product" / f"original{ext}"
     if orig.exists():
@@ -464,9 +498,10 @@ def _set_product_from(d: Path, slug: str, meta: dict, img: Img, why: str, do_mov
     _put(img.src, orig, do_move)
     q = build_product_png(img.im, d / "product" / "product.png", d / "out")
     index[img.sha] = str(orig.relative_to(d))
-    meta["product"] = {"file": "product/product.png", "original": str(orig.relative_to(d)), "source": why,
-                       "cutout": q}
-    res.items.append(Item(str(img.src), "product/product.png", "product", f"chosen by {why}; original kept as {orig.name}"))
+    meta["product"] = {"file": "product/product.png", "original": str(orig.relative_to(d)), "source": why, "cutout": q}
+    res.items.append(
+        Item(str(img.src), "product/product.png", "product", f"chosen by {why}; original kept as {orig.name}")
+    )
 
 
 def set_product(slug: str, file: str) -> dict:
@@ -481,8 +516,9 @@ def set_product(slug: str, file: str) -> dict:
             cand = p
             break
     if cand is None:
-        raise P.ProjectError(f"no file {file!r} in project {slug!r}; use a path like product/candidates/name.png "
-                             f"or shots/name.jpg")
+        raise P.ProjectError(
+            f"no file {file!r} in project {slug!r}; use a path like product/candidates/name.png or shots/name.jpg"
+        )
     if cand.suffix.lower() not in IMAGE:
         raise P.ProjectError(f"{cand.name} is not an image")
     im, _ = _load_image(cand)
@@ -490,8 +526,12 @@ def set_product(slug: str, file: str) -> dict:
     if not keep.exists() and cand.resolve() != keep.resolve():
         shutil.copy2(cand, keep)
     q = build_product_png(im, d / "product" / "product.png", d / "out")
-    meta["product"] = {"file": "product/product.png", "original": str(keep.relative_to(d)), "source": "manual",
-                       "cutout": q}
+    meta["product"] = {
+        "file": "product/product.png",
+        "original": str(keep.relative_to(d)),
+        "source": "manual",
+        "cutout": q,
+    }
     P.save_meta(slug, meta)
     return meta["product"]
 
@@ -502,8 +542,26 @@ def set_product(slug: str, file: str) -> dict:
 def _video_frame(p: Path, size: int) -> Image.Image | None:
     try:
         ff = require_ffmpeg()
-        r = subprocess.run([ff, "-loglevel", "error", "-ss", "0.3", "-i", str(p), "-frames:v", "1", "-f", "image2pipe",
-                            "-vcodec", "png", "-"], capture_output=True, timeout=20)
+        r = subprocess.run(
+            [
+                ff,
+                "-loglevel",
+                "error",
+                "-ss",
+                "0.3",
+                "-i",
+                str(p),
+                "-frames:v",
+                "1",
+                "-f",
+                "image2pipe",
+                "-vcodec",
+                "png",
+                "-",
+            ],
+            capture_output=True,
+            timeout=20,
+        )
         if r.returncode == 0 and r.stdout:
             return Image.open(io.BytesIO(r.stdout)).convert("RGB")
     except Exception:  # noqa: BLE001
@@ -536,7 +594,7 @@ def contact_sheet(d: Path, res: IngestResult, tile: int = 220) -> Path | None:
                 thumb.load()
                 if thumb.mode in ("RGBA", "LA", "P"):
                     bg = Image.new("RGB", thumb.size, (200, 200, 200))
-                    for yy in range(0, thumb.height, 24):             # checkerboard shows transparency
+                    for yy in range(0, thumb.height, 24):  # checkerboard shows transparency
                         for xx in range(0, thumb.width, 24):
                             if (xx // 24 + yy // 24) % 2:
                                 ImageDraw.Draw(bg).rectangle((xx, yy, xx + 23, yy + 23), fill=(150, 150, 150))
@@ -559,10 +617,16 @@ def contact_sheet(d: Path, res: IngestResult, tile: int = 220) -> Path | None:
             thumb.thumbnail((tile, tile))
             t.paste(thumb, ((tile - thumb.width) // 2, (tile - thumb.height) // 2))
         elif ext in AUDIO:
-            ImageDraw.Draw(t).text((tile // 2, tile // 2), "AUDIO", font=font_(28, bold=False), fill=(240, 240, 240), anchor="mm")
+            ImageDraw.Draw(t).text(
+                (tile // 2, tile // 2), "AUDIO", font=font_(28, bold=False), fill=(240, 240, 240), anchor="mm"
+            )
         sheet.paste(t, (x, y))
-        dr.text((x + 2, y + tile + 4), it.kind.upper() + (f" ({it.note.split(';')[0]})" if it.note and it.kind == "product" else ""),
-                font=font, fill=(235, 235, 235))
+        dr.text(
+            (x + 2, y + tile + 4),
+            it.kind.upper() + (f" ({it.note.split(';')[0]})" if it.note and it.kind == "product" else ""),
+            font=font,
+            fill=(235, 235, 235),
+        )
         dr.text((x + 2, y + tile + 4 + fs + 4), "-> " + it.dest[-30:], font=font, fill=(160, 170, 190))
     out = d / "out" / "ingest-contact.png"
     out.parent.mkdir(parents=True, exist_ok=True)

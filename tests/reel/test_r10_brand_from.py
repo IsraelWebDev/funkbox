@@ -1,4 +1,5 @@
 """brand.from: colours resolved from an image (or one frame of an mp4) with the reel.brand helpers."""
+
 import subprocess
 
 import pytest
@@ -30,7 +31,7 @@ def test_yellow_image_keeps_vivid_primary_and_dark_text(tmp_path):
     assert chosen["text"] == "#111111"
     assert B.contrast(chosen["text"], chosen["primary"]) >= 4.5
     r, g, b = B.hex_to_rgb(chosen["primary"])
-    assert max(r, g) - min(r, g, b) > 60          # still a vivid colour, not a grey
+    assert max(r, g) - min(r, g, b) > 60  # still a vivid colour, not a grey
 
 
 def test_deterministic(tmp_path):
@@ -55,6 +56,7 @@ def test_missing_file_warns_and_keeps_fallback(tmp_path):
 def test_good_file_adds_no_warning(tmp_path):
     # resolve_path only admits files inside the funkbox folders, so the image goes under the inputs folder
     from funkbox import config as C
+
     d = C.get().inputs / "test_brand_from" / tmp_path.name
     d.mkdir(parents=True, exist_ok=True)
     try:
@@ -64,21 +66,38 @@ def test_good_file_adds_no_warning(tmp_path):
         assert chosen is not None and warnings == []
     finally:
         import shutil
+
         shutil.rmtree(d, ignore_errors=True)
 
 
 def test_mp4_frame_works_or_skips(tmp_path):
     from funkbox.media import ffmpeg_exe
+
     ff = ffmpeg_exe()
-    if not ff:                                    # no ffmpeg on this machine
+    if not ff:  # no ffmpeg on this machine
         pytest.skip("ffmpeg not available")
     mp4 = tmp_path / "blue.mp4"
-    r = subprocess.run([ff, "-y", "-loglevel", "error", "-f", "lavfi", "-i",
-                        "color=c=0x1e5adc:s=240x426:d=1.5", "-c:v", "libx264",
-                        "-pix_fmt", "yuv420p", str(mp4)], capture_output=True)
+    r = subprocess.run(
+        [
+            ff,
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=0x1e5adc:s=240x426:d=1.5",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(mp4),
+        ],
+        capture_output=True,
+    )
     if r.returncode != 0 or not mp4.exists():
         pytest.skip("could not make a test mp4")
     chosen = B.brand_from_file(mp4)
     assert chosen is not None
     assert B.contrast(chosen["text"], chosen["primary"]) >= 4.5
-    assert not list(tmp_path.glob("*.png"))      # the temp frame never lands next to the video
+    assert not list(tmp_path.glob("*.png"))  # the temp frame never lands next to the video

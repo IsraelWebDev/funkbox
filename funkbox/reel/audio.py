@@ -5,6 +5,7 @@ scoring a comb against the onset envelope. The mix is one ffmpeg filtergraph per
 (music at ``music_gain_db``, VO delayed to its start times, music ducked while VO plays, end card
 muted, then two-pass ``loudnorm``).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -30,7 +31,7 @@ SR_VO = 22050
 STUB_SEC_PER_CHAR = 0.06
 DUCK_RAMP = 0.15
 TARGET_TP = -1.5
-LIMITER_CEIL = 0.708         # -3 dBFS sample peak: headroom for inter-sample peaks and loudnorm's trim
+LIMITER_CEIL = 0.708  # -3 dBFS sample peak: headroom for inter-sample peaks and loudnorm's trim
 END_FADE = 0.3
 
 
@@ -61,6 +62,7 @@ def kokoro_files() -> tuple[Path, Path]:
 
 def _has(mod: str) -> bool:
     import importlib.util
+
     return importlib.util.find_spec(mod) is not None
 
 
@@ -76,6 +78,7 @@ def resolve_voice(voice: str | None = None) -> str:
     """The voice a reel will speak with: its ``audio.voice`` ("kokoro:<id>" or "piper"), else FUNK_VOICE, else
     Kokoro's af_heart when installed, else Piper."""
     import os
+
     want = voice or os.environ.get("FUNK_VOICE") or ""
     if want:
         return want
@@ -83,7 +86,7 @@ def resolve_voice(voice: str | None = None) -> str:
 
 
 def tts_mode(voice: str | None = None) -> str:
-    """"kokoro" | "piper" | "stub" | "none". REEL_TTS=stub|off forces a mode; the stub is for tests only."""
+    """ "kokoro" | "piper" | "stub" | "none". REEL_TTS=stub|off forces a mode; the stub is for tests only."""
     forced = _config().reel_tts
     if forced in ("stub", "off", "none"):
         return "stub" if forced == "stub" else "none"
@@ -108,6 +111,7 @@ def _voice():
     global _VOICE
     if _VOICE is None:
         from piper import PiperVoice
+
         onnx, cfg = voice_files()
         _VOICE = PiperVoice.load(onnx, cfg)
     return _VOICE
@@ -117,12 +121,13 @@ def _kokoro():
     global _KOKORO
     if _KOKORO is None:
         from kokoro_onnx import Kokoro
+
         model, voices = kokoro_files()
         _KOKORO = Kokoro(str(model), str(voices))
     return _KOKORO
 
 
-SENTENCE_PAUSE = 0.32       # seconds of silence after a sentence inside one line (". ", "! ", "? ")
+SENTENCE_PAUSE = 0.32  # seconds of silence after a sentence inside one line (". ", "! ", "? ")
 _SENTENCE_END = re.compile(r"[.!?\u2026][\"'\u201d)\]]*(?=\s)")
 _NOT_AN_END = re.compile(r"(\b[A-Za-z]\.)+$|\b(Mr|Mrs|Ms|Dr|St|vs|etc|No|Jr|Sr)\.$")
 
@@ -133,9 +138,9 @@ def sentences(text: str) -> list[str]:
     text = text.strip()
     out, start = [], 0
     for m in _SENTENCE_END.finditer(text):
-        if m.group()[0] == "." and _NOT_AN_END.search(text[start:m.start() + 1]):
+        if m.group()[0] == "." and _NOT_AN_END.search(text[start : m.start() + 1]):
             continue
-        out.append(text[start:m.end()].strip())
+        out.append(text[start : m.end()].strip())
         start = m.end()
     out.append(text[start:].strip())
     return [p for p in out if p]
@@ -147,14 +152,16 @@ def _trim(y: np.ndarray, sr: int, floor: float = 0.01) -> np.ndarray:
     if not loud.size:
         return y
     pad = int(0.03 * sr)
-    return y[max(0, loud[0] - pad): loud[-1] + pad]
+    return y[max(0, loud[0] - pad) : loud[-1] + pad]
 
 
 def _kokoro_wav(text: str, voice_id: str, speed: float, path: Path, pause: float = SENTENCE_PAUSE) -> None:
     lang = "en-gb" if voice_id.startswith("b") else "en-us"
     k = _kokoro()
     if voice_id not in k.get_voices():
-        raise RuntimeError(f"Kokoro has no voice {voice_id!r}; try {', '.join(v.split(':')[1] for v in APPROVED_VOICES)}")
+        raise RuntimeError(
+            f"Kokoro has no voice {voice_id!r}; try {', '.join(v.split(':')[1] for v in APPROVED_VOICES)}"
+        )
     parts, sr = [], 24000
     for i, sent in enumerate(sentences(text) or [text]):
         a, sr = k.create(sent, voice=voice_id, speed=speed, lang=lang)
@@ -202,8 +209,11 @@ def synthesize(deck: CopyDeck, copy_id: str, voice: str | None = None, speed: fl
         raise RuntimeError(f"voiceover needs a TTS voice: {tts_unavailable_reason(voice)}")
     text = deck.say(copy_id)
     onnx, _ = voice_files()
-    ident = {"piper": f"piper:{onnx.name}", "stub": "stub",
-             "kokoro": f"{resolve_voice(voice)}@{speed:g}:p{SENTENCE_PAUSE:g}:{kokoro_files()[0].name}"}[mode]
+    ident = {
+        "piper": f"piper:{onnx.name}",
+        "stub": "stub",
+        "kokoro": f"{resolve_voice(voice)}@{speed:g}:p{SENTENCE_PAUSE:g}:{kokoro_files()[0].name}",
+    }[mode]
     key = hashlib.sha1((ident + "\n" + text).encode("utf-8")).hexdigest()
     out = funk_out() / "cache" / "tts" / f"{key}.wav"
     if out.exists():
@@ -250,7 +260,21 @@ class BeatInfo:
 
 
 def decode_mono(path: str | Path, sr: int = 22050) -> np.ndarray:
-    cmd = [require_ffmpeg(), "-loglevel", "error", "-i", str(path), "-vn", "-ac", "1", "-ar", str(sr), "-f", "s16le", "-"]
+    cmd = [
+        require_ffmpeg(),
+        "-loglevel",
+        "error",
+        "-i",
+        str(path),
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        str(sr),
+        "-f",
+        "s16le",
+        "-",
+    ]
     r = subprocess.run(cmd, capture_output=True)
     if r.returncode != 0:
         raise RuntimeError(f"cannot decode {path}: {r.stderr.decode('utf-8', 'replace').strip()[:300]}")
@@ -270,7 +294,7 @@ def onset_envelope(y: np.ndarray, sr: int, n_fft: int = 1024, hop: int = 256) ->
     lm = np.log1p(20.0 * mag)
     flux = np.maximum(0.0, np.diff(lm, axis=0)).sum(axis=1)
     flux = np.concatenate([[0.0], flux])
-    flux -= np.convolve(flux, np.ones(31) / 31, mode="same")           # local mean removal
+    flux -= np.convolve(flux, np.ones(31) / 31, mode="same")  # local mean removal
     flux = np.maximum(flux, 0.0)
     m = flux.max()
     return (flux / m if m > 0 else flux).astype(np.float32), sr / hop
@@ -286,7 +310,7 @@ def estimate_tempo(env: np.ndarray, fps: float, lo: float = 70.0, hi: float = 18
     ac /= ac[0] + 1e-12
     lags = np.arange(int(fps * 60 / hi), int(fps * 60 / lo) + 1)
     bpms = 60.0 * fps / lags
-    prior = np.exp(-0.5 * (np.log2(bpms / 120.0) / 1.0) ** 2)           # mild preference for ~120 BPM
+    prior = np.exp(-0.5 * (np.log2(bpms / 120.0) / 1.0) ** 2)  # mild preference for ~120 BPM
     best = lags[int(np.argmax(ac[lags] * prior))]
     bpm0 = 60.0 * fps / best
     # refine: comb score over a fine BPM grid
@@ -349,7 +373,10 @@ def music_file(reel: Reel) -> Path | None:
     import hashlib
     from funkbox.config import funk_out
     from funkbox.music.score import render as render_music
-    out = funk_out() / "music" / f"{p.name[:-len('.music.json')]}-{hashlib.sha256(p.read_bytes()).hexdigest()[:16]}.wav"
+
+    out = (
+        funk_out() / "music" / f"{p.name[: -len('.music.json')]}-{hashlib.sha256(p.read_bytes()).hexdigest()[:16]}.wav"
+    )
     if not out.is_file():
         render_music(p, out)
     return out
@@ -370,7 +397,7 @@ def beat_grid_for(reel: Reel) -> list[float] | None:
     if not reel.audio.music:
         return None
     bpm = _score_bpm(reel)
-    if bpm:                                            # a score knows its own tempo
+    if bpm:  # a score knows its own tempo
         return fixed_grid(bpm, reel.audio.beat_offset)
     p = resolve_path(reel.audio.music, reel.base_dir)
     key = (str(p), p.stat().st_mtime_ns)
@@ -400,8 +427,9 @@ def _duck_expr(intervals: list[tuple[float, float]], duck_db: float) -> str | No
     return f"1-{1 - g:.5f}*{m}"
 
 
-def mix_graph(plan, music: Path | None, clips: list[tuple[Path, float]], total: float,
-              loudnorm: str | None) -> tuple[list[str], str]:
+def mix_graph(
+    plan, music: Path | None, clips: list[tuple[Path, float]], total: float, loudnorm: str | None
+) -> tuple[list[str], str]:
     """Return (ffmpeg input args, filtergraph). ``clips`` = [(wav, start_seconds)]."""
     reel = plan.reel
     a = reel.audio
@@ -445,8 +473,17 @@ def mix_graph(plan, music: Path | None, clips: list[tuple[Path, float]], total: 
 def _run_graph(args: list[str], graph: str, out: list[str], work: Path) -> str:
     script = work / "mix.filtergraph"
     script.write_text(graph, encoding="utf-8")
-    cmd = [require_ffmpeg(), "-y", "-hide_banner", "-nostats", *args, *filter_script_args(script),
-           "-map", "[out]", *out]
+    cmd = [
+        require_ffmpeg(),
+        "-y",
+        "-hide_banner",
+        "-nostats",
+        *args,
+        *filter_script_args(script),
+        "-map",
+        "[out]",
+        *out,
+    ]
     r = subprocess.run(cmd, capture_output=True)
     err = r.stderr.decode("utf-8", "replace")
     if r.returncode != 0:
@@ -481,17 +518,20 @@ def build_mix(plan, out_dir: Path, name: str) -> Path | None:
     gain = target - float(meas["input_i"])
     for _ in range(4):
         pre = f"volume={gain:.3f}dB,alimiter=limit={LIMITER_CEIL}:attack=5:release=50:level=false"
-        args, g = mix_graph(plan, music, clips, total,
-                            pre + f",loudnorm=I={target}:TP={TARGET_TP}:LRA=50:print_format=json")
+        args, g = mix_graph(
+            plan, music, clips, total, pre + f",loudnorm=I={target}:TP={TARGET_TP}:LRA=50:print_format=json"
+        )
         meas = _loudnorm_json(_run_graph(args, g, ["-f", "null", "-"], work))
         err = target - float(meas["input_i"])
         if abs(err) < 0.1:
             break
         gain += err
     lra = min(50.0, max(11.0, math.ceil(float(meas["input_lra"]) + 1.0)))
-    ln = (f"loudnorm=I={target}:TP={TARGET_TP}:LRA={lra:g}:measured_I={float(meas['input_i'])}:"
-          f"measured_TP={float(meas['input_tp'])}:measured_LRA={float(meas['input_lra'])}:"
-          f"measured_thresh={float(meas['input_thresh'])}:offset={float(meas['target_offset'])}:linear=true")
+    ln = (
+        f"loudnorm=I={target}:TP={TARGET_TP}:LRA={lra:g}:measured_I={float(meas['input_i'])}:"
+        f"measured_TP={float(meas['input_tp'])}:measured_LRA={float(meas['input_lra'])}:"
+        f"measured_thresh={float(meas['input_thresh'])}:offset={float(meas['target_offset'])}:linear=true"
+    )
     args, g = mix_graph(plan, music, clips, total, pre + "," + ln)
     _run_graph(args, g, ["-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", str(out)], work)
     return out

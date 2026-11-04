@@ -3,6 +3,7 @@
 NOTHING may be printed to stdout in a server process: stdout is the MCP protocol. Logs go to stderr.
 Importing this module needs the ``mcp`` package; the CLI never imports it.
 """
+
 from __future__ import annotations
 
 import functools
@@ -28,6 +29,7 @@ def png(img: PILImage.Image, max_side: int = 900) -> Image:
     img = img.copy()
     if img.mode == "RGBA":
         from funkbox.stills.edit import checker_flatten
+
         img = checker_flatten(img)
     elif img.mode != "RGB":
         img = img.convert("RGB")
@@ -43,6 +45,7 @@ def _error_text(e: BaseException) -> str | None:
     from funkbox.gl.shader import ShaderError
     from funkbox.reel.schema import ReelError
     from funkbox.stills.schema import PosterError
+
     if isinstance(e, GLUnavailable):
         return f"ERROR: no OpenGL context available. {e}"
     if isinstance(e, (ReelError, PosterError)):
@@ -64,12 +67,14 @@ def _handle(fn: Callable, e: Exception) -> str:
 
 def safe(fn: Callable) -> Callable:
     """Tools never raise: they return a readable ``ERROR: ...`` string instead of a traceback."""
+
     @functools.wraps(fn)
     def wrapper(*a, **k):
         try:
             return fn(*a, **k)
         except Exception as e:  # noqa: BLE001
             return _handle(fn, e)
+
     return wrapper
 
 
@@ -80,6 +85,7 @@ def safe_async(fn: Callable) -> Callable:
             return await fn(*a, **k)
         except Exception as e:  # noqa: BLE001
             return _handle(fn, e)
+
     return wrapper
 
 

@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -22,17 +21,31 @@ def layout_boxes(res):
     d = P.project_dir(res.slug)
     reel, deck = res.report.reel, res.report.deck
     from funkbox.config import resolve_path
+
     fonts = captions.Fonts(resolve_path(reel.brand.font_caption, d), resolve_path(reel.brand.font_display, d))
     out = []
     W, H = reel.settings.width, reel.settings.height
     for sh in reel.shots:
         if sh.caption and sh.product:
-            lay = captions.layout_block(sh.caption.copy_id, deck.text(sh.caption.copy_id),
-                                        captions.load_style(sh.caption.style), fonts, reel.brand, W, H,
-                                        anchor=sh.caption.anchor, safe_area="reels")
+            lay = captions.layout_block(
+                sh.caption.copy_id,
+                deck.text(sh.caption.copy_id),
+                captions.load_style(sh.caption.style),
+                fonts,
+                reel.brand,
+                W,
+                H,
+                anchor=sh.caption.anchor,
+                safe_area="reels",
+            )
             asp = collision.image_aspect(resolve_path(sh.product.image, d))
-            out.append((sh.id, collision.caption_box(lay),
-                        collision.product_box(sh.product.x, sh.product.y, sh.product.height, asp, W, H)))
+            out.append(
+                (
+                    sh.id,
+                    collision.caption_box(lay),
+                    collision.product_box(sh.product.x, sh.product.y, sh.product.height, asp, W, H),
+                )
+            )
     return out
 
 
@@ -78,7 +91,7 @@ def test_auto_reel_is_deterministic_and_editable(penv):
     a = autoreel.auto_reel("demo").path.read_text()
     b = autoreel.auto_reel("demo").path.read_text()
     assert a == b
-    assert json.loads(a)["copy"] == "copy.json"               # relative: the reel lives in the project folder
+    assert json.loads(a)["copy"] == "copy.json"  # relative: the reel lives in the project folder
 
 
 def test_filler_funk2_is_used_and_reported_when_fewer_than_4_visuals(penv, gl):
@@ -96,33 +109,33 @@ def test_filler_funk2_is_used_and_reported_when_fewer_than_4_visuals(penv, gl):
     rec = json.loads((d / "funk2" / "filler-1.json").read_text())
     assert "text" not in rec
     from funkbox.reel import render
+
     plan = render.prepare(str(res.path))
     sid = next(s.id for s in plan.reel.shots if s.source.kind == "funk2")
     r = render.Renderer(plan.reel, plan.deck, plan.spans, width=135, height=240, depth_mode="off")
     try:
-        import numpy as np
         fr = r.still(sid, 0.3)
     finally:
         r.release()
     Image.fromarray(fr).save(penv / "filler.png")
     px = fr.reshape(-1, 3).astype(float)
-    assert (px.max(1) - px.min(1)).mean() > 15                  # coloured, not grey
+    assert (px.max(1) - px.min(1)).mean() > 15  # coloured, not grey
 
 
 def test_no_filler_and_the_clip_share_follows_the_assets(penv):
-    synth.make_project(scenes=2, clips=6)          # 8 visuals -> no filler; 6 of them clips (75%)
+    synth.make_project(scenes=2, clips=6)  # 8 visuals -> no filler; 6 of them clips (75%)
     res = autoreel.auto_reel("demo")
     assert res.stats["filler"] == 0
     shots = res.report.reel.shots
     n_clip = sum(1 for s in shots if s.source.kind == "video")
     assert n_clip == min(6, int(0.75 * len(shots))) and n_clip > 0.4 * len(shots)
     assert any("share follows the assets" in n for n in res.notes)
-    assert shots[0].source.kind == "video"          # mostly clips: the hook can be a clip too
+    assert shots[0].source.kind == "video"  # mostly clips: the hook can be a clip too
 
 
 def test_clip_share_and_product_every_are_parameters(penv):
     synth.make_project(scenes=2, clips=6)
-    shots = autoreel.auto_reel("demo", clip_share=0.4).report.reel.shots         # the v4.0 behaviour
+    shots = autoreel.auto_reel("demo", clip_share=0.4).report.reel.shots  # the v4.0 behaviour
     assert sum(1 for s in shots if s.source.kind == "video") <= 0.4 * len(shots)
     shots = autoreel.auto_reel("demo", clip_share=1.0, product_every=0).report.reel.shots
     assert all(s.source.kind == "video" for s in shots) and not any(s.product for s in shots)
@@ -140,7 +153,7 @@ def test_auto_reel_formats_and_fixed_bpm(penv):
     assert reel.audio.snap_cuts_to_beats
     beat = 60 / 110
     cuts = [sp.start for sp in res.report.spans if sp.kind == "shot"][1:]
-    assert sum(abs(c / beat - round(c / beat)) < 0.07 for c in cuts) >= len(cuts) * 0.6   # most cuts on the grid
+    assert sum(abs(c / beat - round(c / beat)) < 0.07 for c in cuts) >= len(cuts) * 0.6  # most cuts on the grid
 
 
 def test_calm_pace_uses_longer_shots_and_crossfades(penv):
@@ -160,7 +173,7 @@ def test_copy_must_be_approved(penv):
         autoreel.auto_reel("demo")
     r = approval.propose_copy("demo", synth.COPY_LINES)
     with pytest.raises(ReelError, match="needs approved copy"):
-        autoreel.auto_reel("demo")                             # a draft is not enough
+        autoreel.auto_reel("demo")  # a draft is not enough
     approval.approve("demo", r["draft_sha256"], "chat")
     assert autoreel.auto_reel("demo").report.ok
     cj = P.project_dir("demo") / "copy.json"
@@ -202,12 +215,21 @@ def test_no_product_still_builds(penv):
 
 # ---- the collision rule -----------------------------------------------------
 def collide_reel(caption_anchor="bottom", product_y=0.8, product_h=0.38):
-    return {"version": 3, "settings": {"width": 1080, "height": 1920, "fps": 30},
-            "brand": {"primary": "#c8102e", "secondary": "#1a1a1a", "text": "#ffffff"}, "copy": "copy.json",
-            "shots": [{"id": "s1", "source": {"color": "#202020"}, "duration": 1.5,
-                       "product": {"image": "product/product.png", "x": 0.5, "y": product_y, "height": product_h},
-                       "caption": {"copy_id": "tackle", "style": "red-box", "reveal": "none",
-                                   "anchor": caption_anchor}}]}
+    return {
+        "version": 3,
+        "settings": {"width": 1080, "height": 1920, "fps": 30},
+        "brand": {"primary": "#c8102e", "secondary": "#1a1a1a", "text": "#ffffff"},
+        "copy": "copy.json",
+        "shots": [
+            {
+                "id": "s1",
+                "source": {"color": "#202020"},
+                "duration": 1.5,
+                "product": {"image": "product/product.png", "x": 0.5, "y": product_y, "height": product_h},
+                "caption": {"copy_id": "tackle", "style": "red-box", "reveal": "none", "anchor": caption_anchor},
+            }
+        ],
+    }
 
 
 def test_validator_rejects_caption_product_overlap_over_8_percent(penv):
@@ -233,22 +255,35 @@ def test_resolver_flips_anchor_then_shrinks_then_errors(penv):
     d = P.project_dir("demo")
     deck = autoreel.copydeck.load_copy(d / "copy.json")
     from funkbox.config import resolve_path
-    fonts = captions.Fonts(resolve_path("fonts/Oswald-SemiBold.ttf", d), resolve_path("fonts/DMSerifDisplay-Regular.ttf", d))
+
+    fonts = captions.Fonts(
+        resolve_path("fonts/Oswald-SemiBold.ttf", d), resolve_path("fonts/DMSerifDisplay-Regular.ttf", d)
+    )
     from funkbox.reel.schema import Brand
+
     asp = collision.image_aspect(d / "product" / "product.png")
     # 1. bottom collides with a low product -> flips to top
-    sh = {"id": "s1", "caption": {"copy_id": "tackle", "style": "red-box", "reveal": "none", "anchor": "bottom"},
-          "product": {"x": 0.5, "y": 0.78, "height": 0.38}}
+    sh = {
+        "id": "s1",
+        "caption": {"copy_id": "tackle", "style": "red-box", "reveal": "none", "anchor": "bottom"},
+        "product": {"x": 0.5, "y": 0.78, "height": 0.38},
+    }
     autoreel._resolve_collision(sh, deck, "red-box", fonts, Brand(), asp)
     assert sh["caption"]["anchor"] == "top" and sh["product"]["height"] == 0.38
     # 2. a tall product collides at both anchors -> shrunk once to 0.85x, then fits
-    sh = {"id": "s2", "caption": {"copy_id": "tackle", "style": "red-box", "reveal": "none", "anchor": "top"},
-          "product": {"x": 0.5, "y": 0.86, "height": 0.60}}
+    sh = {
+        "id": "s2",
+        "caption": {"copy_id": "tackle", "style": "red-box", "reveal": "none", "anchor": "top"},
+        "product": {"x": 0.5, "y": 0.86, "height": 0.60},
+    }
     autoreel._resolve_collision(sh, deck, "red-box", fonts, Brand(), asp)
     assert sh["product"]["height"] == pytest.approx(0.51, abs=1e-3)
     # 3. still colliding after one shrink -> error
-    sh = {"id": "s3", "caption": {"copy_id": "tackle", "style": "red-box", "reveal": "none", "anchor": "top"},
-          "product": {"x": 0.5, "y": 0.9, "height": 0.9}}
+    sh = {
+        "id": "s3",
+        "caption": {"copy_id": "tackle", "style": "red-box", "reveal": "none", "anchor": "top"},
+        "product": {"x": 0.5, "y": 0.9, "height": 0.9},
+    }
     with pytest.raises(ReelError, match="collides with the product"):
         autoreel._resolve_collision(sh, deck, "red-box", fonts, Brand(), asp)
 
@@ -258,6 +293,7 @@ def test_storyboard_of_the_auto_reel(penv, gl):
     res = autoreel.auto_reel("demo")
     from funkbox.reel import render
     from funkbox.reel.storyboard import storyboard
+
     plan = render.prepare(str(res.path))
     sb = storyboard(plan, P.project_dir("demo") / "out" / "demo-storyboard.png", tile_w=200)
     assert len(plan.spans) == len(res.report.reel.shots) + 1 and sb.width >= 4 * 200

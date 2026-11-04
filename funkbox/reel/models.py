@@ -1,4 +1,5 @@
 """`funkbox reel setup-models`: the ONLY place that downloads anything (plain HTTPS, no token)."""
+
 from __future__ import annotations
 
 import hashlib
@@ -29,10 +30,15 @@ def status() -> dict[str, dict]:
         files = []
         for f in m["files"]:
             p = models_dir() / f["dest"]
-            files.append({"file": f["dest"], "present": p.exists(),
-                          "hash_ok": p.exists() and sha256_file(p) == f["sha256"]})
-        out[key] = {"name": m["name"], "license": m["license"], "files": files,
-                    "ready": all(x["hash_ok"] for x in files)}
+            files.append(
+                {"file": f["dest"], "present": p.exists(), "hash_ok": p.exists() and sha256_file(p) == f["sha256"]}
+            )
+        out[key] = {
+            "name": m["name"],
+            "license": m["license"],
+            "files": files,
+            "ready": all(x["hash_ok"] for x in files),
+        }
     return out
 
 
@@ -55,8 +61,7 @@ def _download(url: str, dest: Path, expect: str, size: int) -> None:
     _log("")
     if h.hexdigest() != expect:
         part.unlink(missing_ok=True)
-        raise RuntimeError(f"SHA-256 mismatch for {dest.name}: got {h.hexdigest()}, expected {expect}. "
-                           f"File discarded.")
+        raise RuntimeError(f"SHA-256 mismatch for {dest.name}: got {h.hexdigest()}, expected {expect}. File discarded.")
     part.replace(dest)
 
 
@@ -78,6 +83,11 @@ def setup_models(only: list[str] | None = None, force: bool = False) -> list[dic
             _log(f"  {f['dest']}: SHA-256 OK ({f['sha256'][:16]}...)")
         _log(f"  LICENCE: {m['license']}")
         _log(f"  {m['license_note']}")
-        report.append({"model": key, "license": m["license"], "files": [
-            {"file": f["dest"], "sha256": f["sha256"]} for f in m["files"]]})
+        report.append(
+            {
+                "model": key,
+                "license": m["license"],
+                "files": [{"file": f["dest"], "sha256": f["sha256"]} for f in m["files"]],
+            }
+        )
     return report

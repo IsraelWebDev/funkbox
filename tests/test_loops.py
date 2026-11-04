@@ -1,4 +1,5 @@
 """funkbox.loops: the eight presets are v2 recipes; each renders, loops seamlessly and is deterministic."""
+
 import numpy as np
 import pytest
 
@@ -14,8 +15,18 @@ def small(name, seed=1, **kw):
 
 
 def test_eight_presets_are_v2_recipes():
-    assert sorted(presets.LOOKS) == sorted(["acid-plasma", "pop-moire", "liquid-disco", "hypno-tunnel",
-                                            "lava-lamp", "op-art", "frozen-kaleido", "party-poster"])
+    assert sorted(presets.LOOKS) == sorted(
+        [
+            "acid-plasma",
+            "pop-moire",
+            "liquid-disco",
+            "hypno-tunnel",
+            "lava-lamp",
+            "op-art",
+            "frozen-kaleido",
+            "party-poster",
+        ]
+    )
     assert presets.DEFAULT_PRESET in presets.LOOKS
     for name, d in presets.PRESETS.items():
         rec = Recipe2.from_dict(d)
@@ -35,8 +46,8 @@ def test_preset_renders_loops_and_is_deterministic(gl, name):
     finally:
         e.release()
     assert a.shape == (SZ, SZ, 3) and a.std() > 3
-    assert np.array_equal(a, b)                       # same seed, same pixels
-    assert not np.array_equal(a, c) or name == "op-art"   # another seed changes the look (op-art is seed-light)
+    assert np.array_equal(a, b)  # same seed, same pixels
+    assert not np.array_equal(a, c) or name == "op-art"  # another seed changes the look (op-art is seed-light)
 
 
 def test_overrides_and_random_looks():
@@ -52,4 +63,4 @@ def test_resample_keeps_look_controls():
     rec = small("liquid-disco")
     assert rec.layers[0].params["u_kaleido"] == 6
     resample_params(rec)
-    assert rec.layers[0].params == {"u_kaleido": 6, "k_spin": 1}   # zoom 0 is the default
+    assert rec.layers[0].params == {"u_kaleido": 6, "k_spin": 1}  # zoom 0 is the default

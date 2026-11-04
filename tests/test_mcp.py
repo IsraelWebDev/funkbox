@@ -20,11 +20,15 @@ vec4 effect(vec2 p) {
 """
 BAD = "// one\nvec4 effect(vec2 p) {\n  return vec4(nope, 0.0, 0.0, 1.0);\n}\n"
 ITIME = "vec4 effect(vec2 p) { return vec4(vec3(0.5 + 0.5 * sin(6.0 * p.x + iTime * 1.3)), 1.0); }\n"
-RECIPE = {"settings": {"width": 64, "height": 64, "fps": 10, "seconds": 0.5, "seed": 3},
-          "palette": {"name": "vapor", "cycles": 1},
-          "layers": [{"type": "shader", "shader": "shaders/warp.frag"},
-                     {"type": "v1", "effect": "blobs", "blend": "add", "opacity": 0.4}],
-          "post": [{"name": "chroma", "px": 2}]}
+RECIPE = {
+    "settings": {"width": 64, "height": 64, "fps": 10, "seconds": 0.5, "seed": 3},
+    "palette": {"name": "vapor", "cycles": 1},
+    "layers": [
+        {"type": "shader", "shader": "shaders/warp.frag"},
+        {"type": "v1", "effect": "blobs", "blend": "add", "opacity": 0.4},
+    ],
+    "post": [{"name": "chroma", "px": 2}],
+}
 
 
 def kinds(res):
@@ -52,8 +56,16 @@ def test_every_tool(gl, tmp_path):
 
     async def scenario(s):
         tools = {t.name for t in (await s.list_tools()).tools}
-        assert {"loop_gl_info", "loop_list", "loop_write_shader", "loop_get_shader", "loop_preview",
-                "loop_sheet", "loop_render", "loop_still"} <= tools
+        assert {
+            "loop_gl_info",
+            "loop_list",
+            "loop_write_shader",
+            "loop_get_shader",
+            "loop_preview",
+            "loop_sheet",
+            "loop_render",
+            "loop_still",
+        } <= tools
         res = {}
 
         async def call(name, args=None):
@@ -86,7 +98,7 @@ def test_every_tool(gl, tmp_path):
         r = await call("loop_preview", {"recipe": RECIPE, "size": 96})
         assert kinds(r) == ["text", "image"] and "layer 0: shader shaders/warp.frag" in text(r)
         r = await call("loop_preview", {"recipe": {"layers": [{"type": "shader", "shader": "shaders/plasma.frag"}]}})
-        assert kinds(r) == ["text", "image"] and "540x540 30fps 4s seed=1" in text(r)   # defaults
+        assert kinds(r) == ["text", "image"] and "540x540 30fps 4s seed=1" in text(r)  # defaults
         r = await call("loop_sheet", {"recipe": RECIPE, "seeds": "1-4"})
         assert kinds(r) == ["text", "image"] and "saved" in text(r)
         assert list(out.glob("sheet-*.png"))
@@ -106,8 +118,9 @@ def test_every_tool(gl, tmp_path):
         assert text(r).startswith("ERROR") and "line 3" in text(r) and "Traceback" not in text(r)
         r = await call("loop_preview", {"recipe": {"layers": [{"type": "image", "path": "/etc/hostname"}]}})
         assert text(r).startswith("ERROR")
-        r = await call("loop_render", {"recipe": {"layers": [{"type": "shader", "source": ITIME}],
-                                              "settings": RECIPE["settings"]}})
+        r = await call(
+            "loop_render", {"recipe": {"layers": [{"type": "shader", "source": ITIME}], "settings": RECIPE["settings"]}}
+        )
         assert "NOT RENDERED" in text(r)
 
     asyncio.run(_session(home, out, scenario))

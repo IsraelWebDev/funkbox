@@ -1,4 +1,5 @@
 """Contact sheets: a grid of images with a small caption under each (Pillow only)."""
+
 from __future__ import annotations
 
 from PIL import Image, ImageDraw
@@ -9,8 +10,9 @@ BG = (24, 24, 28)
 FG = (225, 225, 230)
 
 
-def contact_sheet(images: list[Image.Image], labels: list[str] | None = None, tile: int = 360,
-                  cols: int | None = None, pad: int = 12) -> Image.Image:
+def contact_sheet(
+    images: list[Image.Image], labels: list[str] | None = None, tile: int = 360, cols: int | None = None, pad: int = 12
+) -> Image.Image:
     """Grid of ``images`` (each fitted into a ``tile`` x ``tile`` cell, aspect kept), captions below."""
     if not images:
         raise ValueError("contact sheet needs at least one image")

@@ -4,6 +4,7 @@ The caption box and the product box must not overlap by more than 8% of the CAPT
 static layout boxes (caption: the full final block; product: x/y bottom-centre anchor, height fraction,
 image aspect), before any camera movement.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

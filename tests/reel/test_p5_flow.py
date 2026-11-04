@@ -8,7 +8,6 @@ import time
 from pathlib import Path
 
 import pytest
-from PIL import Image
 
 import synth
 from funkbox.reel import project as P, shortcuts
@@ -19,8 +18,19 @@ from mcp import ClientSession, StdioServerParameters, types  # noqa: E402
 from mcp.client.stdio import stdio_client  # noqa: E402
 
 V3_TOOLS = {"reel_copy_lines", "reel_validate", "reel_storyboard", "reel_still", "reel_render", "reel_templates"}
-V31_TOOLS = {"project_new", "project_list", "project_ingest", "project_set_product", "project_brand", "project_set_brand",
-             "project_propose_copy", "project_approve_copy", "project_copy_diff", "project_auto_reel", "project_render"}
+V31_TOOLS = {
+    "project_new",
+    "project_list",
+    "project_ingest",
+    "project_set_product",
+    "project_brand",
+    "project_set_brand",
+    "project_propose_copy",
+    "project_approve_copy",
+    "project_copy_diff",
+    "project_auto_reel",
+    "project_render",
+}
 
 
 @pytest.fixture
@@ -39,8 +49,14 @@ def n_images(res):
 
 
 async def session(penv, fn, elicit=None):
-    env = {**os.environ, "FUNK_OUT": str(penv / "out"), "FUNK_PROJECTS": str(penv / "projects"),
-           "FUNK_INBOX": str(penv / "inbox"), "REEL_DEPTH": "stub", "REEL_TTS": "stub"}
+    env = {
+        **os.environ,
+        "FUNK_OUT": str(penv / "out"),
+        "FUNK_PROJECTS": str(penv / "projects"),
+        "FUNK_INBOX": str(penv / "inbox"),
+        "REEL_DEPTH": "stub",
+        "REEL_TTS": "stub",
+    }
     params = StdioServerParameters(command=sys.executable, args=["-m", "funkbox", "serve"], env=env, cwd=str(ROOT))
     async with stdio_client(params) as (r, w):
         kw = {"elicitation_callback": elicit} if elicit else {}
@@ -55,9 +71,10 @@ def test_tool_surface_and_the_only_copy_writer():
     # through project_approve_copy
     assert not re.search(r"\.write_text\(|\.write_bytes\(|(?<![.\w])open\(|shutil\.|os\.replace|os\.rename", src)
     assert len(re.findall(r"approval\.approve\(", src)) == 1
-    body = src[src.index("async def project_approve_copy"):]
+    body = src[src.index("async def project_approve_copy") :]
     assert "approval.approve(" in body.split("\n\n\n", 1)[0]
     from funkbox import server
+
     ins = server.INSTRUCTIONS
     assert ins.count(". ") >= 4 and "never invent copy" in ins and "project_approve_copy" in ins
 
@@ -65,9 +82,12 @@ def test_tool_surface_and_the_only_copy_writer():
 def test_stdio_tool_list_is_exact(penv):
     async def go(s):
         return {t.name for t in (await s.list_tools()).tools}
+
     names = asyncio.run(session(penv, go))
     assert V3_TOOLS | V31_TOOLS <= names, (V3_TOOLS | V31_TOOLS) - names
-    assert not any(w in n for n in V3_TOOLS | V31_TOOLS for w in ("write", "save", "edit", "update", "add_copy", "set_copy"))
+    assert not any(
+        w in n for n in V3_TOOLS | V31_TOOLS for w in ("write", "save", "edit", "update", "add_copy", "set_copy")
+    )
 
 
 def test_whole_flow_over_stdio_to_a_draft_render_and_the_text_audit_passes(penv, gl):
@@ -75,10 +95,13 @@ def test_whole_flow_over_stdio_to_a_draft_render_and_the_text_audit_passes(penv,
     inbox = penv / "inbox"
     inbox.mkdir(parents=True, exist_ok=True)
     synth.mixed_folder(inbox, with_product_jpg=False, n_scenes=3)
-    lines = {"hook": {"text": "LOOK CLOSER.\nTIME FOR A CLEAN?", "say": "Look closer. Time for a clean?"},
-             "body1": {"text": "TOUGH ON STAINS."},
-             "end_head": {"text": "Deep\nCleaning\nPower"}, "end_sub": {"text": "PROFESSIONAL RESULTS"},
-             "url": {"text": "GLOWMOP.EXAMPLE"}}
+    lines = {
+        "hook": {"text": "LOOK CLOSER.\nTIME FOR A CLEAN?", "say": "Look closer. Time for a clean?"},
+        "body1": {"text": "TOUGH ON STAINS."},
+        "end_head": {"text": "Deep\nCleaning\nPower"},
+        "end_sub": {"text": "PROFESSIONAL RESULTS"},
+        "url": {"text": "GLOWMOP.EXAMPLE"},
+    }
     shown = []
 
     async def click_approve(context, params):
@@ -93,8 +116,9 @@ def test_whole_flow_over_stdio_to_a_draft_render_and_the_text_audit_passes(penv,
         r["ingest"], r["ingest_img"] = txt(ing), n_images(ing)
         b = await s.call_tool("project_brand", {"project": "glowmop"})
         r["brand"], r["brand_img"] = txt(b), n_images(b)
-        p = await s.call_tool("project_propose_copy", {"project": "glowmop", "lines": lines,
-                                               "pronounce": {"GLOWMOP": "glow mop"}})
+        p = await s.call_tool(
+            "project_propose_copy", {"project": "glowmop", "lines": lines, "pronounce": {"GLOWMOP": "glow mop"}}
+        )
         r["propose"] = txt(p)
         # nothing is renderable before approval
         r["auto_early"] = txt(await s.call_tool("project_auto_reel", {"project": "glowmop"}))
@@ -149,6 +173,7 @@ def test_project_arg_conflicts_and_missing_reel(penv, gl):
         d = txt(await s.call_tool("reel_copy_lines", {"project": "demo"}))
         e = txt(await s.call_tool("project_render", {"project": "nope"}))
         return a, b, c, d, e
+
     a, b, c, d, e = asyncio.run(session(penv, go))
     assert "no reel yet" in a and "either reel or project" in b and "project=<name>" in c
     assert "LOCKED and intact" in d and "ERROR" in e
@@ -156,11 +181,22 @@ def test_project_arg_conflicts_and_missing_reel(penv, gl):
 
 # ------------------------------------------------------------------ CLI parity
 def cli(penv, *args, stdin=""):
-    env = {**os.environ, "FUNK_PROJECTS": str(penv / "projects"), "FUNK_INBOX": str(penv / "inbox"),
-           "REEL_DEPTH": "stub", "REEL_TTS": "stub"}
+    env = {
+        **os.environ,
+        "FUNK_PROJECTS": str(penv / "projects"),
+        "FUNK_INBOX": str(penv / "inbox"),
+        "REEL_DEPTH": "stub",
+        "REEL_TTS": "stub",
+    }
     env["PYTHONPATH"] = str(ROOT)
-    return subprocess.run([sys.executable, "-m", "funkbox", *map(str, args)], input=stdin, capture_output=True,
-                          text=True, env=env, cwd=penv)
+    return subprocess.run(
+        [sys.executable, "-m", "funkbox", *map(str, args)],
+        input=stdin,
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=penv,
+    )
 
 
 def test_cli_has_the_same_verbs(penv, gl):
@@ -169,17 +205,27 @@ def test_cli_has_the_same_verbs(penv, gl):
     assert r.returncode == 0 and "glow-mop" in r.stdout, r.stderr
     r = cli(penv, "project", "ingest", "glow-mop", "--source", ext)
     assert r.returncode == 0 and "product: product/product.png" in r.stdout, r.stderr
-    assert (ext / "track.mp3").exists()                                    # external source untouched
+    assert (ext / "track.mp3").exists()  # external source untouched
     r = cli(penv, "project", "brand", "glow-mop")
     assert r.returncode == 0 and "primary #" in r.stdout, r.stderr
     r = cli(penv, "project", "set-brand", "glow-mop", "--primary", "#b00020")
     assert r.returncode == 0 and "#b00020" in r.stdout, r.stderr
     f = penv / "lines.json"
-    f.write_text(json.dumps({"hook": {"text": "HELLO THERE."}, "b1": {"text": "ONE MORE LINE."},
-                             "end_head": {"text": "Big\nSale"}, "end_sub": {"text": "TODAY ONLY"},
-                             "url": {"text": "GLOWMOP.EXAMPLE"}}))
+    f.write_text(
+        json.dumps(
+            {
+                "hook": {"text": "HELLO THERE."},
+                "b1": {"text": "ONE MORE LINE."},
+                "end_head": {"text": "Big\nSale"},
+                "end_sub": {"text": "TODAY ONLY"},
+                "url": {"text": "GLOWMOP.EXAMPLE"},
+            }
+        )
+    )
     r = cli(penv, "project", "propose-copy", "glow-mop", "--file", f)
-    assert r.returncode == 0 and "VERBATIM" in r.stdout and "project approve-copy glow-mop --from-draft" in r.stdout, r.stderr
+    assert r.returncode == 0 and "VERBATIM" in r.stdout and "project approve-copy glow-mop --from-draft" in r.stdout, (
+        r.stderr
+    )
     r = cli(penv, "project", "auto", "glow-mop")
     assert r.returncode == 1 and "needs approved copy" in r.stderr
     r = cli(penv, "project", "approve-copy", "glow-mop", "--from-draft", "--stdin", stdin="y\n")
@@ -198,12 +244,19 @@ def test_cli_has_the_same_verbs(penv, gl):
 
 def test_make_shortcuts_windows_script_and_posix_commands(penv, monkeypatch):
     from pathlib import PureWindowsPath
-    monkeypatch.setattr(shortcuts, "targets", lambda: [("funk inbox", PureWindowsPath(r"C:\dev\funkbox\inbox")),
-                                                       ("funk projects", PureWindowsPath(r"C:\dev\funkbox\projects"))])
+
+    monkeypatch.setattr(
+        shortcuts,
+        "targets",
+        lambda: [
+            ("funk inbox", PureWindowsPath(r"C:\dev\funkbox\inbox")),
+            ("funk projects", PureWindowsPath(r"C:\dev\funkbox\projects")),
+        ],
+    )
     out = "\n".join(shortcuts.make_shortcuts(dry_run=True, platform="win32"))
     assert "WScript.Shell" in out and "'funk inbox.lnk'" in out and "'funk projects.lnk'" in out
     assert r"$l.TargetPath = 'C:\dev\funkbox\inbox'" in out and "GetFolderPath('Desktop')" in out
     assert "'" not in shortcuts._ps_quote("a").strip("'")
     assert shortcuts._ps_quote("it's") == "'it''s'"
     posix = "\n".join(shortcuts.make_shortcuts(dry_run=True, platform="linux"))
-    assert 'ln -sfn' in posix and "funk inbox" in posix and "funk projects" in posix and "Not Windows" in posix
+    assert "ln -sfn" in posix and "funk inbox" in posix and "funk projects" in posix and "Not Windows" in posix

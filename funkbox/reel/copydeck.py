@@ -4,6 +4,7 @@
 ``pronounce`` substitutions apply to TTS input only. Tools may read the deck; nothing in funk
 writes it (there is deliberately no write API here).
 """
+
 from __future__ import annotations
 
 import json
@@ -37,8 +38,9 @@ class CopyDeck:
         ln = self.lines[copy_id]
         raw = ln.say if ln.say is not None else re.sub(r"\s*\n\s*", " ", ln.text)
         for word in sorted(self.pronounce, key=len, reverse=True):
-            raw = re.sub(r"(?<![A-Za-z0-9])" + re.escape(word) + r"(?![A-Za-z0-9])",
-                         lambda _m, w=word: self.pronounce[w], raw)
+            raw = re.sub(
+                r"(?<![A-Za-z0-9])" + re.escape(word) + r"(?![A-Za-z0-9])", lambda _m, w=word: self.pronounce[w], raw
+            )
         return raw
 
 

@@ -6,6 +6,7 @@ picture (a contact sheet when n > 1) or None when nothing was generated (a size 
 the inputs folder, so recipes and posters can use them as ``inputs/<name>.png``. The MCP tools (``image_*``)
 and the CLI (``funkbox image``) are thin wrappers. Settings come from ``funkbox.config`` at call time.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -19,6 +20,7 @@ from PIL import Image as PILImage
 
 from funkbox import config
 from funkbox.studio import apps, sdcore
+
 
 @dataclass
 class ImageResult:
@@ -55,8 +57,14 @@ def _fake_generate(body: dict) -> dict:
     inputs.mkdir(parents=True, exist_ok=True)
     path = inputs / (sdcore.safe_name(body.get("name", ""), "stub-" + uuid.uuid4().hex[:8]) + ".png")
     im.save(path)
-    res = {"ok": True, "path": str(path), "seconds": round(time.perf_counter() - t0, 2), "width": w,
-           "height": h, "steps": body["steps"]}
+    res = {
+        "ok": True,
+        "path": str(path),
+        "seconds": round(time.perf_counter() - t0, 2),
+        "width": w,
+        "height": h,
+        "steps": body["steps"],
+    }
     if body.get("steps_note"):
         res["steps_note"] = body["steps_note"]
     return res
@@ -72,21 +80,26 @@ def _slow_gate(w: int, h: int, confirm_slow: bool) -> str | None:
     """The warning to return INSTEAD of generating when this size has not been compiled yet."""
     warn = apps.sizes.warning(w, h)
     if warn and not confirm_slow:
-        return (f"NOT STARTED: {warn}. Tell the user, then call again with confirm_slow=true. "
-                "(512x512 'square' stays warm.)")
+        return (
+            f"NOT STARTED: {warn}. Tell the user, then call again with confirm_slow=true. "
+            "(512x512 'square' stays warm.)"
+        )
     return None
 
 
 def _seeds(seed: int, n: int) -> list[int]:
-    base = int(seed) if int(seed) >= 0 else (0 if config.get().fake_sd else random.randrange(2 ** 31))
+    base = int(seed) if int(seed) >= 0 else (0 if config.get().fake_sd else random.randrange(2**31))
     return [base + i for i in range(n)]
 
 
 def _result(results: list[dict], prompt: str, base_name: str, extra: str = "") -> ImageResult:
     from funkbox.stills.sheet import contact_sheet
+
     paths = [Path(r["path"]) for r in results]
-    lines = [f"  seed {r['seed']}: {p}  (loop / poster image path: {_rel(p)})  {r['width']}x{r['height']} in {r['seconds']}s"
-             for r, p in zip(results, paths)]
+    lines = [
+        f"  seed {r['seed']}: {p}  (loop / poster image path: {_rel(p)})  {r['width']}x{r['height']} in {r['seconds']}s"
+        for r, p in zip(results, paths)
+    ]
     notes = sorted({r["steps_note"] for r in results if r.get("steps_note")})
     head = f"saved {len(paths)} image(s) for {prompt!r}" if len(paths) > 1 else f"saved {paths[0]}"
     text = "\n".join([head] + lines + notes + ([extra] if extra else []))
@@ -101,8 +114,16 @@ def _result(results: list[dict], prompt: str, base_name: str, extra: str = "") -
     return ImageResult(text + f"\ncontact sheet: {sp}", sheet, 1000)
 
 
-def generate(prompt: str, aspect: str = "square", seed: int = -1, n: int = 1, negative_prompt: str = "",
-             name: str = "", steps: int = 1, confirm_slow: bool = False) -> ImageResult:
+def generate(
+    prompt: str,
+    aspect: str = "square",
+    seed: int = -1,
+    n: int = 1,
+    negative_prompt: str = "",
+    name: str = "",
+    steps: int = 1,
+    confirm_slow: bool = False,
+) -> ImageResult:
     """Text-to-image with FastSD (SD-Turbo, OpenVINO on the iGPU); auto-starts FastSD. Aspect presets:
     square 512x512, portrait 512x768, landscape 768x512, story 512x896, wide 896x512. n=2-8 returns variations
     (seeds seed, seed+1, ... or random) as a contact sheet plus one file each in the inputs folder. seed -1 =
@@ -129,8 +150,15 @@ def generate(prompt: str, aspect: str = "square", seed: int = -1, n: int = 1, ne
     return _result(results, prompt, base)
 
 
-def restyle(path: str, prompt: str, strength: float = 0.5, aspect: str | None = None, seed: int = -1,
-            name: str = "", confirm_slow: bool = False) -> ImageResult:
+def restyle(
+    path: str,
+    prompt: str,
+    strength: float = 0.5,
+    aspect: str | None = None,
+    seed: int = -1,
+    name: str = "",
+    confirm_slow: bool = False,
+) -> ImageResult:
     """img2img: re-render an existing picture (a file in inputs/, out/ or the funkbox folder) following `prompt`.
     strength 0.05 stays close to the original, 0.95 nearly ignores it. aspect None picks the preset closest to the
     picture's shape (it is cover-cropped to that size). SD-Turbo needs steps*strength >= 1, so steps are raised
@@ -146,8 +174,9 @@ def restyle(path: str, prompt: str, strength: float = 0.5, aspect: str | None = 
         return ImageResult(gate)
     sd = _seeds(seed, 1)[0]
     nm = sdcore.safe_name(name, f"{src.stem[:40]}-restyle")
-    body = sdcore.build_request(prompt, aspect, seed=sd, steps=1, name=nm, mode="img2img", init_image=src,
-                                strength=strength, roots=apps.roots())
+    body = sdcore.build_request(
+        prompt, aspect, seed=sd, steps=1, name=nm, mode="img2img", init_image=src, strength=strength, roots=apps.roots()
+    )
     res = _run_generate(body)
     res["seed"] = sd
     return _result([res], prompt, nm, f"restyled {_rel(src)} at strength {strength:g}")
@@ -169,8 +198,11 @@ def upscale(path: str, name: str = "") -> ImageResult:
     else:
         res = apps.fastsd.upscale({"path": str(src), "factor": 2, "name": nm})
     dest = Path(res["path"])
-    return ImageResult(f"saved {dest}\nimage path: {_rel(dest)}\n{res['width']}x{res['height']} (2x of {src.name}); "
-                       f"method: {res['method']}", PILImage.open(dest))
+    return ImageResult(
+        f"saved {dest}\nimage path: {_rel(dest)}\n{res['width']}x{res['height']} (2x of {src.name}); "
+        f"method: {res['method']}",
+        PILImage.open(dest),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -187,8 +219,11 @@ def add_cli(sub) -> None:
     p.add_argument("--name", default="")
     p.add_argument("--steps", type=int, default=1)
     p.add_argument("--confirm-slow", action="store_true", help="allow a size that costs a 2-3 min model recompile")
-    p.set_defaults(fn=lambda a: _show(generate(a.prompt, a.aspect, a.seed, a.n, a.negative_prompt, a.name,
-                                               a.steps, a.confirm_slow)))
+    p.set_defaults(
+        fn=lambda a: _show(
+            generate(a.prompt, a.aspect, a.seed, a.n, a.negative_prompt, a.name, a.steps, a.confirm_slow)
+        )
+    )
     p = ap.add_parser("restyle", help="img2img: re-render a picture in a new style")
     p.add_argument("path")
     p.add_argument("prompt")
@@ -197,8 +232,7 @@ def add_cli(sub) -> None:
     p.add_argument("--seed", type=int, default=-1)
     p.add_argument("--name", default="")
     p.add_argument("--confirm-slow", action="store_true")
-    p.set_defaults(fn=lambda a: _show(restyle(a.path, a.prompt, a.strength, a.aspect, a.seed, a.name,
-                                              a.confirm_slow)))
+    p.set_defaults(fn=lambda a: _show(restyle(a.path, a.prompt, a.strength, a.aspect, a.seed, a.name, a.confirm_slow)))
     p = ap.add_parser("upscale", help="2x upscale (FastSD's upscaler, else LANCZOS + unsharp)")
     p.add_argument("path")
     p.add_argument("--name", default="")

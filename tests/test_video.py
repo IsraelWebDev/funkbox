@@ -1,10 +1,10 @@
 """Video tools: probe, scene cuts, trim, burned-in subtitles with exact text."""
+
 import json
 import subprocess
 
 import numpy as np
 import pytest
-from PIL import Image
 
 from funkbox.media import require_ffmpeg
 from funkbox.video import clip
@@ -17,8 +17,9 @@ def work(tmp_path, monkeypatch):
     return tmp_path
 
 
-def make_clip(path, colours=((220, 30, 40), (245, 245, 245), (20, 20, 120)), each=1.0, size="320x180", fps=25,
-              audio=True):
+def make_clip(
+    path, colours=((220, 30, 40), (245, 245, 245), (20, 20, 120)), each=1.0, size="320x180", fps=25, audio=True
+):
     """Solid colour shots of ``each`` seconds: cuts at 1.0 and 2.0 s."""
     ins, fil = [], []
     for i, c in enumerate(colours):
@@ -55,8 +56,8 @@ def test_scenes_find_the_cuts_and_give_reel_sources(work):
     data = json.loads(files["scenes"].read_text())
     assert len(data["sources"]) == 3 and files["sheet"].exists()
     sheet = np.asarray(res.sheet)
-    assert sheet[40, 120, 0] > 180 and sheet[40, 120, 1] < 80 and sheet[40, 360].min() > 200   # red, then white
-    merged = clip.scenes(p, min_shot=1.5, sheet=False)                       # too-short shots merge
+    assert sheet[40, 120, 0] > 180 and sheet[40, 120, 1] < 80 and sheet[40, 360].min() > 200  # red, then white
+    merged = clip.scenes(p, min_shot=1.5, sheet=False)  # too-short shots merge
     assert len(merged.shots) == 1
     with pytest.raises(clip.VideoError, match="threshold"):
         clip.scenes(p, threshold=2)
@@ -68,7 +69,7 @@ def test_trim_accurate_and_never_overwrites(work):
     i = clip.info(t)
     assert i.duration == pytest.approx(0.8, abs=0.08) and i.audio
     first = np.asarray(clip.frame_at(t, 0.05))
-    assert first.mean() > 200                                                 # starts inside the white shot
+    assert first.mean() > 200  # starts inside the white shot
     t2 = clip.trim(p, 1.2, 2.0)
     assert t2 != t and t2.name.endswith("-2.mp4") and p.stat().st_size > 0
     fast = clip.trim(p, 0.0, duration=1.0, accurate=False, name="fast")
@@ -89,13 +90,18 @@ def test_srt_parsing():
 
 def test_subtitles_are_burned_in_only_during_their_cue(work):
     p = make_clip(work / "c.mp4", colours=((40, 40, 40),) * 3, size="640x360")
-    res = clip.subtitles(p, cues=[{"start": 0.5, "end": 1.5, "text": "EXACT WORDS"},
-                                  {"start": 2.0, "end": 2.8, "text": "שלום עולם"}], style="red-box")
+    res = clip.subtitles(
+        p,
+        cues=[{"start": 0.5, "end": 1.5, "text": "EXACT WORDS"}, {"start": 2.0, "end": 2.8, "text": "שלום עולם"}],
+        style="red-box",
+    )
     audit = json.loads(res.audit.read_text(encoding="utf-8"))
     assert [a["text"] for a in audit] == ["EXACT WORDS", "שלום עולם"] and all(a["text_exact"] for a in audit)
+
     def red(t):
         a = np.asarray(clip.frame_at(res.path, t, 640)).astype(int)
         return ((a[..., 0] > 150) & (a[..., 1] < 80)).sum()
+
     assert red(0.2) == 0 and red(1.0) > 500 and red(1.8) == 0 and red(2.4) > 300
     assert clip.info(res.path).audio
     with pytest.raises(clip.VideoError, match="style"):

@@ -7,9 +7,11 @@ import os
 import time
 import traceback
 
-_log_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                         if "__file__" in globals() else ".",
-                         "out", "gimp_start.log")
+_log_path = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) if "__file__" in globals() else ".",
+    "out",
+    "gimp_start.log",
+)
 
 
 def _log(msg):
@@ -22,9 +24,10 @@ def _log(msg):
 
 try:
     from gi.repository import Gimp
+
     _pdb = Gimp.get_pdb()
     _proc = None
-    for _i in range(240):                       # up to ~120 s (first run queries plug-ins)
+    for _i in range(240):  # up to ~120 s (first run queries plug-ins)
         _proc = _pdb.lookup_procedure("plug-in-mcp-server")
         if _proc is not None:
             break
@@ -35,7 +38,7 @@ try:
     _cfg = _proc.create_config()
     _cfg.set_property("run-mode", Gimp.RunMode.NONINTERACTIVE)
     _log("starting MCP server")
-    _proc.run(_cfg)                            # blocks: the plug-in's GLib loop serves MCP clients
+    _proc.run(_cfg)  # blocks: the plug-in's GLib loop serves MCP clients
 except Exception:
     _log("FAILED:\n" + traceback.format_exc())
     raise

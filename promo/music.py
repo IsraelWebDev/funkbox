@@ -7,6 +7,7 @@ Same recipe as examples/mimic/make_music.py (kick, off-beat hats, clap on 2 and 
 tempo, length and seed are parameters, and the seed picks one of several chord progressions, so every day
 sounds a little different and every file is reproducible.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -18,10 +19,10 @@ import numpy as np
 
 SR = 44100
 PROGRESSIONS = [  # (chords as MIDI triads, bass roots)
-    ([(57, 60, 64), (53, 57, 60), (55, 59, 62), (52, 55, 59)], [45, 41, 43, 40]),    # Am F G Em
-    ([(60, 64, 67), (55, 59, 62), (57, 60, 64), (53, 57, 60)], [48, 43, 45, 41]),    # C G Am F
-    ([(62, 65, 69), (58, 62, 65), (60, 64, 67), (57, 60, 64)], [50, 46, 48, 45]),    # Dm Bb C Am
-    ([(64, 67, 71), (60, 64, 67), (62, 66, 69), (59, 62, 66)], [52, 48, 50, 47]),    # Em C D Bm
+    ([(57, 60, 64), (53, 57, 60), (55, 59, 62), (52, 55, 59)], [45, 41, 43, 40]),  # Am F G Em
+    ([(60, 64, 67), (55, 59, 62), (57, 60, 64), (53, 57, 60)], [48, 43, 45, 41]),  # C G Am F
+    ([(62, 65, 69), (58, 62, 65), (60, 64, 67), (57, 60, 64)], [50, 46, 48, 45]),  # Dm Bb C Am
+    ([(64, 67, 71), (60, 64, 67), (62, 66, 69), (59, 62, 66)], [52, 48, 50, 47]),  # Em C D Bm
 ]
 
 
@@ -32,13 +33,13 @@ def _env(n: int, attack: float, decay: float) -> np.ndarray:
 
 def _tone(freq: float, n: int) -> np.ndarray:
     ph = (np.arange(n) * freq / SR) % 1.0
-    return 2.0 * ph - 1.0                                  # saw
+    return 2.0 * ph - 1.0  # saw
 
 
 def _lowpass(x: np.ndarray, a: float) -> np.ndarray:
     y = np.empty_like(x)
     acc = 0.0
-    for i, v in enumerate(x):                              # short buffers only (one note)
+    for i, v in enumerate(x):  # short buffers only (one note)
         acc += a * (v - acc)
         y[i] = acc
     return y
@@ -68,12 +69,15 @@ def synth(seconds: float, bpm: float, seed: int) -> np.ndarray:
     hat = (hat - np.concatenate([[0], hat[:-1]])) * _env(len(hat), 0.001, 0.02)
     clap = rng.standard_normal(int(0.25 * SR)) * _env(int(0.25 * SR), 0.002, 0.06)
     note_n = int(beat / 2 * SR)
-    plucks = {r: _lowpass(_tone(_midi(r), note_n), 0.08) * _env(note_n, 0.003, 0.12) for r in set(roots) | {x + 12 for x in roots}}
+    plucks = {
+        r: _lowpass(_tone(_midi(r), note_n), 0.08) * _env(note_n, 0.003, 0.12)
+        for r in set(roots) | {x + 12 for x in roots}
+    }
     bar_n = int(4 * beat * SR)
     pads = []
     for ch in chords:
         p = sum(_tone(_midi(m), bar_n) + 0.5 * _tone(_midi(m) * 1.004, bar_n) for m in ch) / 6.0
-        sm = np.convolve(p, np.ones(40) / 40, mode="same")            # cheap low-pass for long buffers
+        sm = np.convolve(p, np.ones(40) / 40, mode="same")  # cheap low-pass for long buffers
         pads.append(sm * np.minimum(1.0, np.arange(bar_n) / (0.25 * SR)))
     for bar in range(bars):
         t0 = bar * 4 * beat
@@ -109,6 +113,7 @@ def write(out: Path, seconds: float, bpm: float, seed: int) -> Path:
     if out.suffix.lower() == ".wav":
         return wav
     from funkbox.media import require_ffmpeg
+
     subprocess.run([require_ffmpeg(), "-y", "-loglevel", "error", "-i", str(wav), "-b:a", "160k", str(out)], check=True)
     wav.unlink()
     return out

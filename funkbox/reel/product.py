@@ -3,6 +3,7 @@
 The label stays exact: the only changes to product pixels are scaling and ONE global per-channel
 affine transform in Lab space (strength ``match_color``), which ``invert`` undoes (tested).
 """
+
 from __future__ import annotations
 
 from collections import OrderedDict
@@ -16,11 +17,12 @@ from .motion import Camera
 from .schema import ProductSpec
 
 GAIN_LIMITS = (0.85, 1.15)
-RING = 0.15                      # background ring around the product, fraction of its size
+RING = 0.15  # background ring around the product, fraction of its size
 
-_M = np.array([[0.4124564, 0.3575761, 0.1804375],
-               [0.2126729, 0.7151522, 0.0721750],
-               [0.0193339, 0.1191920, 0.9503041]], dtype=np.float32)
+_M = np.array(
+    [[0.4124564, 0.3575761, 0.1804375], [0.2126729, 0.7151522, 0.0721750], [0.0193339, 0.1191920, 0.9503041]],
+    dtype=np.float32,
+)
 _WHITE = np.array([0.95047, 1.0, 1.08883], dtype=np.float32)
 _MI = np.linalg.inv(_M).astype(np.float32)
 
@@ -45,7 +47,7 @@ def lab_to_srgb(lab: np.ndarray) -> np.ndarray:
     fy = (L + 16.0) / 116.0
     fx, fz = fy + a / 500.0, fy - b / 200.0
     f = np.stack([fx, fy, fz], axis=-1)
-    xyz = np.where(f ** 3 > 0.008856, f ** 3, (f - 16.0 / 116.0) / 7.787).astype(np.float32) * _WHITE
+    xyz = np.where(f**3 > 0.008856, f**3, (f - 16.0 / 116.0) / 7.787).astype(np.float32) * _WHITE
     lin = np.clip(xyz @ _MI.T, 0.0, 1.0)
     c = np.where(lin <= 0.0031308, 12.92 * lin, 1.055 * np.power(lin, 1 / 2.4) - 0.055)
     return np.clip(c * 255.0, 0.0, 255.0).astype(np.float32)
@@ -54,9 +56,10 @@ def lab_to_srgb(lab: np.ndarray) -> np.ndarray:
 @dataclass(frozen=True)
 class ColorTransform:
     """Per-channel affine in Lab: lab' = gain * lab + bias."""
+
     gain: tuple[float, float, float] = (1.0, 1.0, 1.0)
     bias: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    applied: float = 0.0            # strength actually used (<= match_color; see compute_transform)
+    applied: float = 0.0  # strength actually used (<= match_color; see compute_transform)
 
     @property
     def identity(self) -> bool:
@@ -85,7 +88,7 @@ def _clipped_fraction(lab: np.ndarray, max_over: float = 1.2) -> float:
     L, a, b = lab[..., 0], lab[..., 1], lab[..., 2]
     fy = (L + 16.0) / 116.0
     f = np.stack([fy + a / 500.0, fy, fy - b / 200.0], axis=-1)
-    xyz = np.where(f ** 3 > 0.008856, f ** 3, (f - 16.0 / 116.0) / 7.787) * _WHITE
+    xyz = np.where(f**3 > 0.008856, f**3, (f - 16.0 / 116.0) / 7.787) * _WHITE
     lin = xyz @ _MI.T
     c = np.where(lin <= 0.0031308, 12.92 * lin, 1.055 * np.power(np.maximum(lin, 1e-9), 1 / 2.4) - 0.055) * 255.0
     over = np.maximum(-c, c - 255.0)
@@ -101,11 +104,12 @@ def _fit(lp, mp, sp, mb, sb, k: float) -> ColorTransform:
         new_mean = mp[c] + k * (mb[c] - mp[c])
         gain.append(round(g, 5))
         bias.append(round(float(new_mean - g * mp[c]), 4))
-    return ColorTransform(tuple(gain), tuple(bias), round(k, 4))      # type: ignore[arg-type]
+    return ColorTransform(tuple(gain), tuple(bias), round(k, 4))  # type: ignore[arg-type]
 
 
-def compute_transform(sprite_rgb: np.ndarray, sprite_alpha: np.ndarray, bg_rgb: np.ndarray,
-                      strength: float, max_clipped: float = 0.001) -> ColorTransform:
+def compute_transform(
+    sprite_rgb: np.ndarray, sprite_alpha: np.ndarray, bg_rgb: np.ndarray, strength: float, max_clipped: float = 0.001
+) -> ColorTransform:
     """Move the product's per-channel Lab mean/std towards the background's by ``strength`` (0..1).
 
     ``strength`` is a CAP: the strength actually applied is backed off until at most
@@ -142,7 +146,7 @@ class Placement:
     y0: int
     w: int
     h: int
-    scale: float            # camera scale applied on top of spec.height
+    scale: float  # camera scale applied on top of spec.height
 
     @property
     def box(self) -> tuple[int, int, int, int]:
@@ -181,7 +185,7 @@ class ProductCompositor:
             return hit
         sh, sw = self.src.shape[:2]
         if (pl.w, pl.h) == (sw, sh):
-            rgba = self.src                                 # scale 1: not resampled at all
+            rgba = self.src  # scale 1: not resampled at all
         else:
             rgba = np.asarray(_premul_resize(self.src, (pl.w, pl.h)))
         rgb, a = rgba[..., :3], rgba[..., 3]
@@ -204,7 +208,7 @@ class ProductCompositor:
         X0, Y0, X1, Y1 = max(0, x0 - mx), max(0, y0 - my), min(self.fw, x1 + mx), min(self.fh, y1 + my)
         region = bg_frame[Y0:Y1, X0:X1].copy()
         ring = np.ones(region.shape[:2], bool)
-        ring[max(0, y0 - Y0):max(0, y1 - Y0), max(0, x0 - X0):max(0, x1 - X0)] = False
+        ring[max(0, y0 - Y0) : max(0, y1 - Y0), max(0, x0 - X0) : max(0, x1 - X0)] = False
         self.transform = compute_transform(rgb, a, region[ring], self.spec.match_color)
         self._sprites.clear()
         return self.transform
@@ -221,6 +225,7 @@ class ProductCompositor:
         cw, ch = w + 2 * pad, max(8, int(0.16 * h))
         m = Image.new("L", (cw, ch), 0)
         from PIL import ImageDraw
+
         ImageDraw.Draw(m).ellipse((pad + 0.08 * w, ch * 0.25, pad + 0.92 * w, ch * 0.75), fill=255)
         contact = np.asarray(_gauss(m, ch * 0.14), dtype=np.float32) / 255.0
         # drop shadow: blurred silhouette offset by 6% of the height
@@ -273,7 +278,7 @@ def _mul(out: np.ndarray, mask: np.ndarray, x0: int, y0: int, opacity: float) ->
     if c is None:
         return
     X0, Y0, X1, Y1, sx, sy = c
-    m = mask[sy:sy + (Y1 - Y0), sx:sx + (X1 - X0)]
+    m = mask[sy : sy + (Y1 - Y0), sx : sx + (X1 - X0)]
     out[Y0:Y1, X0:X1] *= (1.0 - opacity * m)[..., None]
 
 
@@ -282,8 +287,8 @@ def _over(out: np.ndarray, rgb: np.ndarray, a: np.ndarray, x0: int, y0: int) -> 
     if c is None:
         return
     X0, Y0, X1, Y1, sx, sy = c
-    al = a[sy:sy + (Y1 - Y0), sx:sx + (X1 - X0)].astype(np.float32)[..., None] / 255.0
-    fg = rgb[sy:sy + (Y1 - Y0), sx:sx + (X1 - X0)].astype(np.float32)
+    al = a[sy : sy + (Y1 - Y0), sx : sx + (X1 - X0)].astype(np.float32)[..., None] / 255.0
+    fg = rgb[sy : sy + (Y1 - Y0), sx : sx + (X1 - X0)].astype(np.float32)
     out[Y0:Y1, X0:X1] = out[Y0:Y1, X0:X1] * (1.0 - al) + fg * al
 
 

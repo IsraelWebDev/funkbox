@@ -1,4 +1,5 @@
 """GL context factory. One cached context per process."""
+
 from __future__ import annotations
 
 import os
@@ -44,8 +45,7 @@ def _attempts(choice: str) -> list[tuple[str, dict, dict | None]]:
     elif choice == "software":
         labels = ("egl-software", "default-software")
     else:
-        raise GLUnavailable(
-            f"unknown FUNK_GL_BACKEND {choice!r}; use 'egl', 'default' or 'software'")
+        raise GLUnavailable(f"unknown FUNK_GL_BACKEND {choice!r}; use 'egl', 'default' or 'software'")
     return [a for a in _all_attempts() if a[0] in labels]
 
 
@@ -94,8 +94,7 @@ def create_context(prefer: str | None = None) -> moderngl.Context:
         if software or _is_software_renderer(renderer):
             SOFTWARE = True
         if software and not _NOTICE_SHOWN:
-            print("funkbox: no GPU OpenGL available; using software OpenGL (slower)",
-                  file=sys.stderr)
+            print("funkbox: no GPU OpenGL available; using software OpenGL (slower)", file=sys.stderr)
             _NOTICE_SHOWN = True
         _CTX = ctx
         return _CTX
@@ -136,8 +135,7 @@ def probe() -> list[Probe]:
             ctx.release()
         except Exception:  # noqa: BLE001
             pass
-        results.append(Probe(label, True, renderer,
-                             is_software_attempt or _is_software_renderer(renderer)))
+        results.append(Probe(label, True, renderer, is_software_attempt or _is_software_renderer(renderer)))
     return results
 
 

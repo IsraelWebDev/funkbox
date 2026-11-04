@@ -10,6 +10,7 @@ Forces OpenVINO + SD-Turbo + tiny autoencoder on the Intel iGPU (DEVICE=GPU).
 Copy this file AND sdcore.py into the fastsdcpu folder (install.py does); run with
 fastsdcpu\\env\\Scripts\\python.exe.
 """
+
 import os
 import sys
 import threading
@@ -19,7 +20,7 @@ from pathlib import Path
 
 os.environ.setdefault("DEVICE", "GPU")
 here = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, here)             # sdcore.py sits next to this file
+sys.path.insert(0, here)  # sdcore.py sits next to this file
 os.chdir(os.path.join(here, "src"))
 sys.path.insert(0, os.getcwd())
 os.makedirs("results", exist_ok=True)
@@ -70,8 +71,8 @@ class StudioGen(BaseModel):
     steps: int = Field(1, ge=1, le=sdcore.MAX_STEPS)
     seed: int = -1
     name: str = ""
-    mode: str = "txt2img"                         # "txt2img" | "img2img"
-    init_image: str = ""                          # img2img: a file inside STUDIO_OUT or the funkbox roots
+    mode: str = "txt2img"  # "txt2img" | "img2img"
+    init_image: str = ""  # img2img: a file inside STUDIO_OUT or the funkbox roots
     strength: float = Field(0.5, ge=sdcore.STRENGTH_MIN, le=sdcore.STRENGTH_MAX)
 
 
@@ -143,12 +144,13 @@ def studio_upscale(req: StudioUp) -> dict:
     im = Image.open(src).convert("RGB")
     out, method = None, "lanczos+unsharp"
     with _lock:
-        try:                                         # FastSD's EDSR ONNX x2 upscaler (CPU)
+        try:  # FastSD's EDSR ONNX x2 upscaler (CPU)
             from backend.upscale.edsr_upscale_onnx import upscale_edsr_2x
+
             cand = upscale_edsr_2x(str(src))
             if cand is not None and cand.size == (im.width * 2, im.height * 2):
                 out, method = cand.convert("RGB"), "fastsd-edsr"
-        except Exception:                            # noqa: BLE001 - any failure falls back
+        except Exception:  # noqa: BLE001 - any failure falls back
             out = None
     if out is None:
         out = sdcore.upscale_lanczos(im)

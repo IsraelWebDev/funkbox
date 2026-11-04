@@ -7,6 +7,7 @@ Windows wheels are not). Without it Pillow lays characters out left to right, so
 digits need. ``shown(line)`` applies it only when Pillow cannot. Text is still wrapped and audited in logical order;
 only the drawing call gets the visual string. (Arabic also needs letter joining: use a Pillow with libraqm.)
 """
+
 from __future__ import annotations
 
 import unicodedata
@@ -19,8 +20,9 @@ MIRROR = {"(": ")", ")": "(", "[": "]", "]": "[", "{": "}", "}": "{", "<": ">", 
 def pillow_has_raqm() -> bool:
     try:
         from PIL import features
+
         return bool(features.check("raqm"))
-    except Exception:                                  # pragma: no cover - very old Pillow
+    except Exception:  # pragma: no cover - very old Pillow
         return False
 
 
@@ -32,7 +34,7 @@ def _kind(ch: str) -> str:
         return "L"
     if b in ("EN", "AN"):
         return "N"
-    return "-"                                          # neutral or weak: decided by its neighbours
+    return "-"  # neutral or weak: decided by its neighbours
 
 
 def is_rtl(text: str) -> bool:
@@ -94,7 +96,7 @@ def visual(line: str) -> str:
     lv = levels(line)
     chars = [MIRROR.get(c, c) if lv[i] % 2 else c for i, c in enumerate(line)]
     order = list(range(len(chars)))
-    for level in range(max(lv), 0, -1):                 # L2: reverse every run at this level or higher
+    for level in range(max(lv), 0, -1):  # L2: reverse every run at this level or higher
         i = 0
         while i < len(order):
             if lv[order[i]] >= level:

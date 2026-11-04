@@ -4,6 +4,7 @@ A poster is plain JSON (see docs/stills.md). ``check(doc)`` returns every proble
 ``parse(doc)`` raises ``PosterError`` carrying the whole list, or returns a ``Doc`` with the
 canvas resolved and every layer given an id.
 """
+
 from __future__ import annotations
 
 import copy
@@ -35,8 +36,22 @@ EXPORTS = ("png", "jpg", "webp", "ora", "svg", "pdf")
 MAX_LAYERS = 64
 MAX_DEPTH = 8
 
-DOC_KEYS = {"version", "name", "canvas", "project", "casual", "copy", "brand", "seed", "layers", "post", "export",
-            "motion", "glyphs", "min_text"}
+DOC_KEYS = {
+    "version",
+    "name",
+    "canvas",
+    "project",
+    "casual",
+    "copy",
+    "brand",
+    "seed",
+    "layers",
+    "post",
+    "export",
+    "motion",
+    "glyphs",
+    "min_text",
+}
 COMMON = {"id", "type", "blend", "opacity", "mask", "adjust", "filters", "visible", "clip", "resize"}
 RESIZE_RULES = ("fill", "fit", "top", "bottom", "left", "right", "top-left", "top-right", "bottom-left", "bottom-right")
 TYPE_KEYS: dict[str, set[str]] = {
@@ -45,9 +60,31 @@ TYPE_KEYS: dict[str, set[str]] = {
     "gradient": {"stops", "kind", "angle", "cx", "cy", "radius", "dither"},
     "shader": {"shader", "source", "source_sha256", "recipe", "t", "palette", "cycles", "params", "seed"},
     "product": {"image", "x", "y", "height", "shadow", "match_color", "effects"},
-    "text": {"copy_id", "text", "style", "size", "x", "y", "max_width", "color", "align", "line_height", "effects",
-             "arc", "rotate_deg", "skew_x", "skew_y", "wrap", "letter_spacing", "runs", "on_path", "path_units",
-             "path_offset", "path_shift", "font"},
+    "text": {
+        "copy_id",
+        "text",
+        "style",
+        "size",
+        "x",
+        "y",
+        "max_width",
+        "color",
+        "align",
+        "line_height",
+        "effects",
+        "arc",
+        "rotate_deg",
+        "skew_x",
+        "skew_y",
+        "wrap",
+        "letter_spacing",
+        "runs",
+        "on_path",
+        "path_units",
+        "path_offset",
+        "path_shift",
+        "font",
+    },
     "group": {"layers"},
     "border": {"px", "color"},
     "shape": {"kind", "points", "fill", "stroke", "stroke_px", "width", "cap", "d", "fill_rule", "units"},
@@ -56,8 +93,12 @@ TYPE_KEYS: dict[str, set[str]] = {
 ADJUST_KEYS = {"brightness", "contrast", "saturation", "hue", "levels", "temperature", "invert"}
 FILTER_KEYS = ("blur", "sharpen", "posterize", "halftone", "duotone", "pixelate", "chroma", "vignette")
 EFFECT_KEYS = {"shadow", "stroke", "glow"}
-MASK_KEYS = {"none": set(), "radial": {"cx", "cy", "radius", "feather", "invert"},
-             "linear": {"angle", "position", "feather", "invert"}, "image": {"path", "invert"}}
+MASK_KEYS = {
+    "none": set(),
+    "radial": {"cx", "cy", "radius", "feather", "invert"},
+    "linear": {"angle", "position", "feather", "invert"},
+    "image": {"path", "invert"},
+}
 PRE_OPS = ("crop", "resize", "rotate", "flip", "remove_background", "trim_even")
 
 
@@ -71,7 +112,7 @@ class PosterError(ValueError):
 
 @dataclass
 class Doc:
-    raw: dict                         # deep copy, ids filled in
+    raw: dict  # deep copy, ids filled in
     width: int
     height: int
     background: str
@@ -107,7 +148,7 @@ def _num(v: Any, lo: float | None = None, hi: float | None = None) -> bool:
 def canvas_size(canvas: Any, errs: list[str] | None = None) -> tuple[int, int]:
     errs = errs if errs is not None else []
     if not isinstance(canvas, dict):
-        errs.append("canvas: must be an object like {\"preset\": \"insta-portrait\", \"background\": \"#101014\"}")
+        errs.append('canvas: must be an object like {"preset": "insta-portrait", "background": "#101014"}')
         return 0, 0
     bad = set(canvas) - {"preset", "width", "height", "background"}
     if bad:
@@ -126,7 +167,7 @@ def canvas_size(canvas: Any, errs: list[str] | None = None) -> tuple[int, int]:
     if not (MIN_SIZE_OK(w) and MIN_SIZE_OK(h)):
         errs.append(f"canvas: width and height must be {MIN_SIDE}..{MAX_SIDE} (got {w}x{h})")
         return 0, 0
-    return w - w % 2, h - h % 2          # the GPU engine works on even sizes
+    return w - w % 2, h - h % 2  # the GPU engine works on even sizes
 
 
 def MIN_SIZE_OK(v: int) -> bool:
@@ -138,7 +179,7 @@ def _check_mask(m: Any, where: str, errs: list[str]) -> None:
     if m is None:
         return
     if not isinstance(m, dict) or m.get("type") not in MASK_KEYS:
-        errs.append(f"{where}.mask: must be {{\"type\": none|radial|linear|image, ...}}")
+        errs.append(f'{where}.mask: must be {{"type": none|radial|linear|image, ...}}')
         return
     t = m["type"]
     bad = set(m) - {"type"} - MASK_KEYS[t]
@@ -166,8 +207,13 @@ def _check_adjust(a: Any, where: str, errs: list[str]) -> None:
     bad = set(a) - ADJUST_KEYS
     if bad:
         errs.append(f"{where}.adjust: unknown keys {sorted(bad)}; have {sorted(ADJUST_KEYS)}")
-    rng = {"brightness": (-1, 1), "contrast": (-1, 1), "saturation": (-1, 2), "hue": (-360, 360),
-           "temperature": (-1, 1)}
+    rng = {
+        "brightness": (-1, 1),
+        "contrast": (-1, 1),
+        "saturation": (-1, 2),
+        "hue": (-360, 360),
+        "temperature": (-1, 1),
+    }
     for k, (lo, hi) in rng.items():
         if k in a and not _num(a[k], lo, hi):
             errs.append(f"{where}.adjust.{k}: must be a number in {lo}..{hi}")
@@ -175,9 +221,16 @@ def _check_adjust(a: Any, where: str, errs: list[str]) -> None:
         errs.append(f"{where}.adjust.invert: must be true or false")
     if "levels" in a:
         lv = a["levels"]
-        if not (isinstance(lv, list) and len(lv) == 3 and all(_num(x) for x in lv)
-                and 0 <= lv[0] < lv[1] <= 1 and 0.1 <= lv[2] <= 10):
-            errs.append(f"{where}.adjust.levels: must be [black, white, gamma] with 0 <= black < white <= 1, gamma 0.1..10")
+        if not (
+            isinstance(lv, list)
+            and len(lv) == 3
+            and all(_num(x) for x in lv)
+            and 0 <= lv[0] < lv[1] <= 1
+            and 0.1 <= lv[2] <= 10
+        ):
+            errs.append(
+                f"{where}.adjust.levels: must be [black, white, gamma] with 0 <= black < white <= 1, gamma 0.1..10"
+            )
 
 
 def _check_filters(f: Any, where: str, errs: list[str]) -> None:
@@ -189,8 +242,15 @@ def _check_filters(f: Any, where: str, errs: list[str]) -> None:
     bad = set(f) - set(FILTER_KEYS)
     if bad:
         errs.append(f"{where}.filters: unknown keys {sorted(bad)}; have {list(FILTER_KEYS)}")
-    rng = {"blur": (0, 64), "sharpen": (0, 3), "posterize": (2, 16), "halftone": (3, 40), "pixelate": (2, 128),
-           "chroma": (0, 24), "vignette": (0, 1.5)}
+    rng = {
+        "blur": (0, 64),
+        "sharpen": (0, 3),
+        "posterize": (2, 16),
+        "halftone": (3, 40),
+        "pixelate": (2, 128),
+        "chroma": (0, 24),
+        "vignette": (0, 1.5),
+    }
     for k, (lo, hi) in rng.items():
         if k in f and not _num(f[k], lo, hi):
             errs.append(f"{where}.filters.{k}: must be a number in {lo}..{hi}")
@@ -232,7 +292,7 @@ def _check_pre(pre: Any, where: str, errs: list[str]) -> None:
         return
     for i, op in enumerate(pre):
         if not (isinstance(op, dict) and op.get("op") in PRE_OPS):
-            errs.append(f"{where}.pre[{i}]: must be {{\"op\": {'|'.join(PRE_OPS)}, ...}}")
+            errs.append(f'{where}.pre[{i}]: must be {{"op": {"|".join(PRE_OPS)}, ...}}')
 
 
 def _check_layers(layers: Any, where: str, errs: list[str], seen: set[str], depth: int) -> None:
@@ -305,6 +365,7 @@ def _check_typography(lay: dict, w: str, errs: list[str]) -> None:
                     errs.append(f"{w}: runs[{i}].all must be true or false")
     if "on_path" in lay:
         from .vpath import PathError, parse
+
         try:
             if not isinstance(lay["on_path"], str):
                 raise PathError("must be SVG path data (text)")
@@ -339,12 +400,12 @@ def _check_type(t: str, lay: dict, w: str, errs: list[str], seen: set[str], dept
     elif t == "gradient":
         st = lay.get("stops")
         if not (isinstance(st, list) and 2 <= len(st) <= 8):
-            errs.append(f"{w}: gradient needs `stops`: 2..8 colours or {{\"pos\", \"color\"}} objects")
+            errs.append(f'{w}: gradient needs `stops`: 2..8 colours or {{"pos", "color"}} objects')
         else:
             for j, s in enumerate(st):
                 c = s.get("color") if isinstance(s, dict) else s
                 if not is_color(c):
-                    errs.append(f"{w}: stops[{j}] must be a colour (#rrggbb[aa]) or {{\"pos\": 0..1, \"color\": ...}}")
+                    errs.append(f'{w}: stops[{j}] must be a colour (#rrggbb[aa]) or {{"pos": 0..1, "color": ...}}')
                 if isinstance(s, dict) and "pos" in s and not _num(s["pos"], 0, 1):
                     errs.append(f"{w}: stops[{j}].pos must be 0..1")
         if lay.get("kind", "linear") not in ("linear", "radial"):
@@ -374,7 +435,9 @@ def _check_type(t: str, lay: dict, w: str, errs: list[str], seen: set[str], dept
     elif t == "text":
         has_id, has_lit = "copy_id" in lay, "text" in lay
         if has_id == has_lit:
-            errs.append(f"{w}: text layer needs exactly one of `copy_id` (approved copy) or `text` (literal, casual docs only)")
+            errs.append(
+                f"{w}: text layer needs exactly one of `copy_id` (approved copy) or `text` (literal, casual docs only)"
+            )
         if has_id and not (isinstance(lay["copy_id"], str) and ID_RE.match(lay["copy_id"])):
             errs.append(f"{w}: copy_id must be a copy-deck line id")
         if has_lit and (not isinstance(lay["text"], str) or not lay["text"]):
@@ -385,8 +448,16 @@ def _check_type(t: str, lay: dict, w: str, errs: list[str], seen: set[str], dept
             errs.append(f"{w}: align must be left, center or right")
         if "color" in lay and not is_color(lay["color"], alpha=False):
             errs.append(f"{w}: color must be #rrggbb or brand.primary|secondary|text")
-        for k, lo, hi in (("size", 0.01, 0.5), ("x", -1, 2), ("y", -1, 2), ("max_width", 0.05, 2),
-                          ("line_height", 0.7, 3), ("rotate_deg", -360, 360), ("skew_x", -60, 60), ("skew_y", -60, 60)):
+        for k, lo, hi in (
+            ("size", 0.01, 0.5),
+            ("x", -1, 2),
+            ("y", -1, 2),
+            ("max_width", 0.05, 2),
+            ("line_height", 0.7, 3),
+            ("rotate_deg", -360, 360),
+            ("skew_x", -60, 60),
+            ("skew_y", -60, 60),
+        ):
             if k in lay and not _num(lay[k], lo, hi):
                 errs.append(f"{w}: {k} must be a number in {lo}..{hi}")
         if "wrap" in lay and not isinstance(lay["wrap"], bool):
@@ -394,12 +465,14 @@ def _check_type(t: str, lay: dict, w: str, errs: list[str], seen: set[str], dept
         if "wrap" in lay and lay["wrap"] is False and "\n" in str(lay.get("text", "")):
             errs.append(f"{w}: wrap false needs text without line breaks")
         if "arc" in lay and not (_num(lay["arc"], -20, 20) and abs(float(lay["arc"])) >= 0.05):
-            errs.append(f"{w}: arc is the radius of the bend in canvas widths: -20..-0.05 (a frown) or 0.05..20 "
-                        "(a smile)")
+            errs.append(
+                f"{w}: arc is the radius of the bend in canvas widths: -20..-0.05 (a frown) or 0.05..20 (a smile)"
+            )
         _check_typography(lay, w, errs)
         _check_effects(lay.get("effects"), w, errs)
     elif t == "shape":
         from .shapes import check_shape
+
         check_shape(lay, w, errs, is_color, _num)
     elif t == "svg":
         if not isinstance(lay.get("path"), str) or not lay["path"].lower().endswith(".svg"):
@@ -462,9 +535,13 @@ def check(doc: Any) -> list[str]:
         errs.append(f"unsupported poster version {doc.get('version')!r} (this is version 1)")
     canvas_size(doc.get("canvas"), errs)
     cv = doc.get("canvas")
-    if isinstance(cv, dict) and "background" in cv and cv["background"] != "transparent" \
-            and not is_color(cv["background"], alpha=False):
-        errs.append("canvas.background: must be #rrggbb or \"transparent\"")
+    if (
+        isinstance(cv, dict)
+        and "background" in cv
+        and cv["background"] != "transparent"
+        and not is_color(cv["background"], alpha=False)
+    ):
+        errs.append('canvas.background: must be #rrggbb or "transparent"')
     if "project" in doc and not (isinstance(doc["project"], str) and SLUG_RE.match(doc["project"])):
         errs.append("project: must be a project slug (lowercase letters, digits, dashes)")
     if "casual" in doc and not isinstance(doc["casual"], bool):
@@ -479,10 +556,18 @@ def check(doc: Any) -> list[str]:
         errs.append("name: must match " + ID_RE.pattern)
     br = doc.get("brand")
     if br is not None:
-        if not isinstance(br, dict) or set(br) - {"primary", "secondary", "text", "font_caption", "font_display",
-                                                  "font_fallback"}:
-            errs.append("brand: only primary, secondary, text (colours) and font_caption, font_display, "
-                        "font_fallback (font file paths or names like 'Rubik:700')")
+        if not isinstance(br, dict) or set(br) - {
+            "primary",
+            "secondary",
+            "text",
+            "font_caption",
+            "font_display",
+            "font_fallback",
+        }:
+            errs.append(
+                "brand: only primary, secondary, text (colours) and font_caption, font_display, "
+                "font_fallback (font file paths or names like 'Rubik:700')"
+            )
         else:
             for k in ("primary", "secondary", "text"):
                 if k in br and not (isinstance(br[k], str) and HEX_RE.match(br[k]) and len(br[k]) == 7):
@@ -494,7 +579,7 @@ def check(doc: Any) -> list[str]:
         errs.append(f"too many layers (limit {MAX_LAYERS})")
     post = doc.get("post", [])
     if not (isinstance(post, list) and all(isinstance(p, dict) and isinstance(p.get("name"), str) for p in post)):
-        errs.append("post: must be a list of {\"name\": ..., <param>: value} (grain, vignette, chroma, ...)")
+        errs.append('post: must be a list of {"name": ..., <param>: value} (grain, vignette, chroma, ...)')
     ex = doc.get("export", {})
     if not isinstance(ex, dict) or set(ex) - {"formats", "jpg_quality"}:
         errs.append("export: only `formats` and `jpg_quality`")
@@ -506,17 +591,20 @@ def check(doc: Any) -> list[str]:
             errs.append("export.jpg_quality: 30..100")
     mt = doc.get("min_text")
     if mt is not None and not (isinstance(mt, (int, float)) and not isinstance(mt, bool) and 0.012 <= mt <= 0.032):
-        errs.append("min_text: 0.012..0.032 (the smallest text, x canvas height; 0.032 unless the poster says otherwise)")
+        errs.append(
+            "min_text: 0.012..0.032 (the smallest text, x canvas height; 0.032 unless the poster says otherwise)"
+        )
     gl = doc.get("glyphs")
     if gl is not None:
         from funkbox.lettering import check_glyphset
+
         if not isinstance(gl, dict) or not gl:
             errs.append("glyphs: an object {name: {base, weight, chars}}")
         else:
             for name, spec in gl.items():
                 check_glyphset(name, spec, errs)
     names = set(gl) if isinstance(gl, dict) else set()
-    for lay in (all_layers(doc.get("layers") or []) if not errs and isinstance(doc.get("layers"), list) else []):
+    for lay in all_layers(doc.get("layers") or []) if not errs and isinstance(doc.get("layers"), list) else []:
         if not isinstance(lay, dict):
             continue
         fonts = [lay.get("font")] + [r.get("font") for r in lay.get("runs") or [] if isinstance(r, dict)]
@@ -524,9 +612,10 @@ def check(doc: Any) -> list[str]:
             if isinstance(f, str) and f.startswith("glyphs:") and f[7:] not in names:
                 errs.append(f"layer {lay.get('id')!r}: font {f!r} names no entry in `glyphs` (have {sorted(names)})")
         if "font" in lay and not (isinstance(lay["font"], str) and lay["font"].strip()):
-            errs.append(f"layer {lay.get('id')!r}: font is a font name, a font file or \"glyphs:<name>\"")
+            errs.append(f'layer {lay.get("id")!r}: font is a font name, a font file or "glyphs:<name>"')
     if "motion" in doc and not errs:
         from .motion import check as check_motion
+
         errs += check_motion(doc)
     return errs
 
@@ -569,8 +658,18 @@ def parse(doc: Any) -> Doc:
     w, h = canvas_size(raw["canvas"])
     _fill_ids(raw["layers"], {l["id"] for l in all_layers(raw["layers"]) if "id" in l})
     ex = raw.get("export", {})
-    return Doc(raw=raw, width=w, height=h, background=raw["canvas"].get("background", "#000000"),
-               seed=int(raw.get("seed", 1)), project=raw.get("project"), casual=bool(raw.get("casual", False)),
-               copy_path=raw.get("copy"), brand=dict(raw.get("brand") or {}), name=raw.get("name", "poster"),
-               exports=list(ex.get("formats", ["png"])), jpg_quality=int(ex.get("jpg_quality", 92)),
-               post=[dict(p) for p in raw.get("post", [])])
+    return Doc(
+        raw=raw,
+        width=w,
+        height=h,
+        background=raw["canvas"].get("background", "#000000"),
+        seed=int(raw.get("seed", 1)),
+        project=raw.get("project"),
+        casual=bool(raw.get("casual", False)),
+        copy_path=raw.get("copy"),
+        brand=dict(raw.get("brand") or {}),
+        name=raw.get("name", "poster"),
+        exports=list(ex.get("formats", ["png"])),
+        jpg_quality=int(ex.get("jpg_quality", 92)),
+        post=[dict(p) for p in raw.get("post", [])],
+    )

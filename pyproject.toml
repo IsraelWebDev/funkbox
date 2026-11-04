@@ -25,6 +25,7 @@ reel = [
 dev = [
   "pytest",
   "pypdf",
+  "ruff==0.17.3",
 ]
 
 [project.scripts]
@@ -38,3 +39,15 @@ package = false
 # must never be collected (gimp-mcp's call argparse at import time and abort the whole run)
 testpaths = ["tests"]
 norecursedirs = ["vendor", "out", "projects", "inbox", "inputs", "models", ".venv", ".git", "node_modules"]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["vendor", "out", "projects", "inbox", "inputs", "models", "examples", "promo/secrets"]
+
+[tool.ruff.lint]
+# Syntax errors and pyflakes findings (unused imports and names, redefinitions). Layout is the formatter's job.
+select = ["E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest fixtures are passed as arguments that shadow module-level fixture names: not a redefinition.
+"tests/**" = ["F811", "F841"]

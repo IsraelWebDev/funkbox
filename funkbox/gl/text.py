@@ -1,4 +1,5 @@
 """PIL text overlay: port of v1 `_text` (auto-fit, \\n handling, per-letter wobble)."""
+
 from __future__ import annotations
 
 import math
@@ -34,7 +35,8 @@ def draw_text(arr: np.ndarray, theta: float, spec: TextSpec) -> np.ndarray:
             dy = spec.wobble * math.sin(2 * theta + i * 0.7 + li)
             y = y0 + li * line_h + dy
             draw.text((x + off, y + off), ch, font=font, fill=spec.shadow)
-            draw.text((x, y), ch, font=font, fill=spec.color,
-                      stroke_width=max(1, font.size // 22), stroke_fill="#000000")
+            draw.text(
+                (x, y), ch, font=font, fill=spec.color, stroke_width=max(1, font.size // 22), stroke_fill="#000000"
+            )
             x += draw.textlength(ch, font=font)
     return np.asarray(im)

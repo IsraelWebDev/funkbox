@@ -1,5 +1,6 @@
 """Every relative link and image in the tracked Markdown points at a file that git actually tracks
 (a link to an ignored file is a 404 on GitHub even though it works locally)."""
+
 import re
 import subprocess
 from pathlib import Path, PurePosixPath
@@ -19,7 +20,7 @@ def tracked() -> set[str]:
 
 def test_markdown_links_resolve_to_tracked_files():
     files = tracked()
-    dirs = {p.as_posix() for f in files for p in PurePosixPath(f).parents}          # "/" on Windows too
+    dirs = {p.as_posix() for f in files for p in PurePosixPath(f).parents}  # "/" on Windows too
     bad = []
     for md in sorted(f for f in files if f.endswith(".md")):
         text = (ROOT / md).read_text(encoding="utf-8", errors="replace")
@@ -29,7 +30,7 @@ def test_markdown_links_resolve_to_tracked_files():
             path = target.split("#")[0]
             if not path:
                 continue
-            rel = (Path(md).parent / path)
+            rel = Path(md).parent / path
             norm = str(Path(*[p for p in rel.parts if p != "."]))
             parts = []
             for part in Path(norm).parts:

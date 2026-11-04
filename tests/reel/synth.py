@@ -1,4 +1,5 @@
 """Synthetic project inputs for the v3.1 tests (no external files)."""
+
 from __future__ import annotations
 
 import subprocess
@@ -12,6 +13,7 @@ LABEL_RED = (200, 16, 46)
 
 def _ff():
     from funkbox.media import ffmpeg_exe
+
     return ffmpeg_exe()
 
 
@@ -37,8 +39,14 @@ def scene(path: Path, seed: int, size=(480, 640)) -> None:
     rng = np.random.default_rng(seed)
     w, h = size
     yy, xx = np.mgrid[0:h, 0:w]
-    base = np.stack([128 + 100 * np.sin(xx / (30 + seed * 7) + seed), 128 + 100 * np.sin(yy / (40 + seed * 5)),
-                     128 + 100 * np.sin((xx + yy) / (50 + seed * 3))], -1)
+    base = np.stack(
+        [
+            128 + 100 * np.sin(xx / (30 + seed * 7) + seed),
+            128 + 100 * np.sin(yy / (40 + seed * 5)),
+            128 + 100 * np.sin((xx + yy) / (50 + seed * 3)),
+        ],
+        -1,
+    )
     base += rng.normal(0, 18, base.shape)
     im = Image.fromarray(np.clip(base, 0, 255).astype(np.uint8))
     d = ImageDraw.Draw(im)
@@ -52,14 +60,45 @@ def scene(path: Path, seed: int, size=(480, 640)) -> None:
 def sine(path: Path, seconds=2.0, hz=440) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     codec = ["-c:a", "libmp3lame"] if path.suffix == ".mp3" else []
-    subprocess.run([_ff(), "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"sine=frequency={hz}:duration={seconds}",
-                    *codec, str(path)], check=True)
+    subprocess.run(
+        [
+            _ff(),
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            f"sine=frequency={hz}:duration={seconds}",
+            *codec,
+            str(path),
+        ],
+        check=True,
+    )
 
 
 def clip(path: Path, w=240, h=426, seconds=1.5) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run([_ff(), "-y", "-loglevel", "error", "-f", "lavfi", "-i", f"testsrc2=size={w}x{h}:rate=15",
-                    "-t", str(seconds), "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path)], check=True)
+    subprocess.run(
+        [
+            _ff(),
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            f"testsrc2=size={w}x{h}:rate=15",
+            "-t",
+            str(seconds),
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(path),
+        ],
+        check=True,
+    )
 
 
 def logo(path: Path) -> None:
@@ -98,10 +137,20 @@ COPY_LINES = {
 }
 
 
-def make_project(slug="demo", scenes=3, clips=1, music=True, product=True, logo_file=True, approve=True,
-                 lines=None, inbox: Path | None = None):
+def make_project(
+    slug="demo",
+    scenes=3,
+    clips=1,
+    music=True,
+    product=True,
+    logo_file=True,
+    approve=True,
+    lines=None,
+    inbox: Path | None = None,
+):
     """A complete synthetic project via the real tools (env FUNK_PROJECTS/FUNK_INBOX must already be set)."""
     from funkbox.reel import approval, brand, ingest, project as P
+
     P.new_project(slug)
     inbox = inbox or P.inbox_dir()
     inbox.mkdir(parents=True, exist_ok=True)

@@ -19,6 +19,7 @@ is typed, the shapes are drawn.
   descenders, below 0 for ascenders. ``strokes`` are centrelines drawn as square-ended bars ``weight`` thick with
   mitred corners (a stroke whose last point equals its first is closed); ``d`` is SVG path data for filled shapes.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -27,8 +28,8 @@ import math
 from pathlib import Path
 
 UPEM = 1000
-CAP = 700                       # font units per cap-height unit
-GAP = 0.12                      # space after each glyph, in cap heights
+CAP = 700  # font units per cap-height unit
+GAP = 0.12  # space after each glyph, in cap heights
 SPACE = 0.42
 
 
@@ -46,9 +47,9 @@ def thickness(weight: int) -> float:
 def block_glyphs(t: float) -> dict[str, dict]:
     """The built-in block face for bar thickness ``t``: {char: {"width", "strokes"}}."""
     h = t / 2
-    T, B = h, 1 - h                                       # centrelines of top and bottom bars
-    D = 1.42                                              # descender bottom
-    A = -0.42                                             # ascender top (lamed)
+    T, B = h, 1 - h  # centrelines of top and bottom bars
+    D = 1.42  # descender bottom
+    A = -0.42  # ascender top (lamed)
     g: dict[str, dict] = {}
 
     def add(chars: str, w: float, *strokes):
@@ -82,20 +83,29 @@ def block_glyphs(t: float) -> dict[str, dict]:
     add("ע", 0.9, [("R", "T"), ("R", 0.52), ("L", "B")], [("L", "T"), ("L", 0.46), (0.52, 0.72)])
     add("פ", 0.85, [("L", 0.46), ("L", "T"), ("R", "T"), ("R", "B"), ("L", "B")])
     add("ף", 0.7, [("L", 0.46), ("L", "T"), ("R", "T"), ("R", D)])
-    add("צ", 0.88, [("L", "T"), ("L", 0.46), ("R", "B")], [("R", "T"), ("R", 0.34), (0.55, 0.58)],
-        [("L", "B"), ("R", "B")])
+    add(
+        "צ",
+        0.88,
+        [("L", "T"), ("L", 0.46), ("R", "B")],
+        [("R", "T"), ("R", 0.34), (0.55, 0.58)],
+        [("L", "B"), ("R", "B")],
+    )
     add("ץ", 0.8, [("L", "T"), ("L", 0.44), (0.5, 0.72), (0.5, D)], [("R", "T"), ("R", 0.34), (0.56, 0.56)])
     add("ק", 0.85, [("L", "T"), ("R", "T"), ("R", "B")], [("L", 0.42), ("L", D)])
     add("ר", 0.75, [("L", "T"), ("R", "T"), ("R", "B")])
     add("ש", 0.95, [("L", "T"), ("L", "B"), ("R", "B"), ("R", "T")], [(0.5, "T"), (0.5, 0.62)])
     add("ת", 0.9, [("L", "T"), ("R", "T"), ("R", "B")], [(0.26, "T"), (0.26, "B"), ("L", "B")])
     add("׳'’", 0.3, [("R", "T"), ("L", 0.36)])
-    add("״\"”“", 0.56, [(0.24, "T"), ("L", 0.36)], [("R", "T"), (0.32, 0.36)])
+    add('״"”“', 0.56, [(0.24, "T"), ("L", 0.36)], [("R", "T"), (0.32, 0.36)])
 
     # Latin capitals (lowercase maps to them), digits, punctuation
     add("A", 0.82, [("L", "B"), ("L", "T"), ("R", "T"), ("R", "B")], [("L", 0.52), ("R", 0.52)])
-    add("B", 0.82, [("L", "B"), ("L", "T"), (0.68, "T"), (0.68, 0.5), ("L", 0.5)], [("L", 0.5), ("R", 0.5), ("R", "B"),
-                                                                                   ("L", "B")])
+    add(
+        "B",
+        0.82,
+        [("L", "B"), ("L", "T"), (0.68, "T"), (0.68, 0.5), ("L", 0.5)],
+        [("L", 0.5), ("R", 0.5), ("R", "B"), ("L", "B")],
+    )
     add("C", 0.78, [("R", "T"), ("L", "T"), ("L", "B"), ("R", "B")])
     add("D", 0.84, [("L", "T"), (0.6, "T"), ("R", 0.3), ("R", 0.7), (0.6, "B"), ("L", "B"), ("L", "T")])
     add("E", 0.74, [("R", "T"), ("L", "T"), ("L", "B"), ("R", "B")], [("L", 0.5), (0.62, 0.5)])
@@ -139,8 +149,11 @@ def block_glyphs(t: float) -> dict[str, dict]:
     add("-־–", 0.6, [("L", 0.55), ("R", 0.55)])
     add("+", 0.7, [("L", 0.55), ("R", 0.55)], [(0.35, 0.3), (0.35, 0.8)])
     add("/", 0.6, [("R", "T"), ("L", "B")])
-    add("&", 0.86, [("R", "B"), ("L", 0.3), ("L", "T"), (0.6, "T"), (0.6, 0.36), ("L", 0.66), ("L", "B"), (0.7, "B"),
-                    ("R", 0.62)])
+    add(
+        "&",
+        0.86,
+        [("R", "B"), ("L", 0.3), ("L", "T"), (0.6, "T"), (0.6, 0.36), ("L", 0.66), ("L", "B"), (0.7, "B"), ("R", 0.62)],
+    )
     add("(", 0.36, [("R", -0.06), ("L", 0.12), ("L", 0.88), ("R", 1.06)])
     add(")", 0.36, [("L", -0.06), ("R", 0.12), ("R", 0.88), ("L", 1.06)])
     for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
@@ -160,18 +173,20 @@ def _v(v, size: float, lo: float, hi: float) -> float:
 def _polygons(glyph: dict, t: float) -> list[list[tuple[float, float]]]:
     """A glyph's filled polygons in the y-down cap box."""
     from funkbox.stills.shapes import bar_polygons
+
     out: list[list[tuple[float, float]]] = []
     for s in glyph.get("strokes") or []:
         pts = [tuple(map(float, p)) for p in s]
         closed = len(pts) > 3 and math.dist(pts[0], pts[-1]) < 1e-6
         if closed:
             pts = pts[:-1] + [pts[0], pts[1]]
-        else:                       # square ends on straight bars; a diagonal ends flush, so it never pokes out
+        else:  # square ends on straight bars; a diagonal ends flush, so it never pokes out
             pts[0] = _extend(pts[1], pts[0], t / 2)
             pts[-1] = _extend(pts[-2], pts[-1], t / 2)
         out += bar_polygons(pts, t / 2, "butt")
     if glyph.get("d"):
         from funkbox.stills.vpath import parse
+
         out += [pts for pts, _ in parse(glyph["d"], 0.004)]
     return out
 
@@ -195,6 +210,7 @@ def build_font(glyphs: dict[str, dict], t: float, family: str, out: Path) -> Pat
     """Write a TrueType font of ``glyphs`` (strokes ``t`` thick) to ``out``."""
     from fontTools.fontBuilder import FontBuilder
     from fontTools.pens.ttGlyphPen import TTGlyphPen
+
     order = [".notdef", "space"]
     cmap = {0x20: "space", 0xA0: "space"}
     shapes: dict[str, tuple[float, list]] = {}
@@ -226,20 +242,22 @@ def build_font(glyphs: dict[str, dict], t: float, family: str, out: Path) -> Pat
         glyf[name] = pen.glyph()
         metrics[name] = (adv, 0)
     fb.setupGlyf(glyf)
-    for name in order:                                    # left side bearing = xMin of the glyph
+    for name in order:  # left side bearing = xMin of the glyph
         g = glyf[name]
         metrics[name] = (metrics[name][0], getattr(g, "xMin", 0) if g.numberOfContours else 0)
     fb.setupHorizontalMetrics(metrics)
     asc, desc = round(1.5 * CAP), -round(0.5 * CAP)
     fb.setupHorizontalHeader(ascent=asc, descent=desc)
     fb.setupNameTable({"familyName": family, "styleName": "Regular"})
-    fb.setupOS2(sTypoAscender=asc, sTypoDescender=desc, usWinAscent=asc, usWinDescent=-desc, sxHeight=CAP,
-                sCapHeight=CAP)
+    fb.setupOS2(
+        sTypoAscender=asc, sTypoDescender=desc, usWinAscent=asc, usWinDescent=-desc, sxHeight=CAP, sCapHeight=CAP
+    )
     fb.setupPost()
-    try:                            # one clean outline per glyph (bars and mitres merged): no seams when filled
+    try:  # one clean outline per glyph (bars and mitres merged): no seams when filled
         from fontTools.ttLib.removeOverlaps import removeOverlaps
+
         removeOverlaps(fb.font)
-    except ImportError:             # skia-pathops missing: overlapping contours still fill correctly (nonzero)
+    except ImportError:  # skia-pathops missing: overlapping contours still fill correctly (nonzero)
         pass
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_suffix(".part")
@@ -250,12 +268,13 @@ def build_font(glyphs: dict[str, dict], t: float, family: str, out: Path) -> Pat
 
 def _cache() -> Path:
     from funkbox.fonts import cache_dir
+
     d = cache_dir() / "lettering"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-VERSION = 2                     # bump when the built-in face changes, so cached fonts are rebuilt
+VERSION = 2  # bump when the built-in face changes, so cached fonts are rebuilt
 
 
 def block_font(weight: int = 700) -> Path:
@@ -270,16 +289,16 @@ def block_font(weight: int = 700) -> Path:
 def check_glyphset(name: str, spec, errs: list[str]) -> None:
     w = f"glyphs.{name}"
     if not isinstance(spec, dict) or set(spec) - {"base", "weight", "chars"}:
-        errs.append(f"{w}: {{base: \"block\" or none, weight: 100..900, chars: {{char: glyph}}}}")
+        errs.append(f'{w}: {{base: "block" or none, weight: 100..900, chars: {{char: glyph}}}}')
         return
     if spec.get("base") not in (None, "block"):
-        errs.append(f"{w}.base: \"block\" (the built-in face) or leave it out")
+        errs.append(f'{w}.base: "block" (the built-in face) or leave it out')
     wt = spec.get("weight", 700)
     if not (isinstance(wt, int) and 100 <= wt <= 900):
         errs.append(f"{w}.weight: 100..900")
     chars = spec.get("chars", {})
     if not isinstance(chars, dict) or (not chars and not spec.get("base")):
-        errs.append(f"{w}.chars: an object of {{\"char\": {{width, strokes | d}}}}")
+        errs.append(f'{w}.chars: an object of {{"char": {{width, strokes | d}}}}')
         return
     for ch, gl in chars.items():
         wc = f"{w}.chars[{ch!r}]"
@@ -287,18 +306,21 @@ def check_glyphset(name: str, spec, errs: list[str]) -> None:
             errs.append(f"{wc}: one character per glyph")
             continue
         if not isinstance(gl, dict) or set(gl) - {"width", "strokes", "d"} or not (gl.get("strokes") or gl.get("d")):
-            errs.append(f"{wc}: {{width, strokes: [[[x, y], ...], ...]}} and/or {{d: \"svg path\"}}")
+            errs.append(f'{wc}: {{width, strokes: [[[x, y], ...], ...]}} and/or {{d: "svg path"}}')
             continue
         if not (isinstance(gl.get("width", 0.8), (int, float)) and 0.05 <= gl.get("width", 0.8) <= 3):
             errs.append(f"{wc}.width: 0.05..3 cap heights")
         for s in gl.get("strokes") or []:
-            if not (isinstance(s, list) and len(s) >= 2 and all(isinstance(p, list) and len(p) == 2 and
-                                                                all(isinstance(v, (int, float)) for v in p)
-                                                                for p in s)):
+            if not (
+                isinstance(s, list)
+                and len(s) >= 2
+                and all(isinstance(p, list) and len(p) == 2 and all(isinstance(v, (int, float)) for v in p) for p in s)
+            ):
                 errs.append(f"{wc}.strokes: each stroke is a list of at least two [x, y] points")
                 break
         if gl.get("d"):
             from funkbox.stills.vpath import PathError, parse
+
             try:
                 parse(gl["d"])
             except PathError as e:

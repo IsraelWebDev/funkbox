@@ -37,7 +37,7 @@ def test_auto_box_keeps_a_bright_yellow_and_switches_the_text_to_dark():
     brand = Brand()
     frame = np.full((120, 200, 3), (250, 215, 60), np.uint8)
     box, text = C.auto_box(frame, brand, (255, 255, 255))
-    assert box[0] > 200 and box[1] > 170                      # still yellow, not darkened to olive
+    assert box[0] > 200 and box[1] > 170  # still yellow, not darkened to olive
     assert text == (17, 17, 17) and contrast(box, text) >= 4.5
 
 
@@ -67,12 +67,24 @@ def test_load_style_auto_box():
 
 
 def green_reel():
-    return {"copy": "inputs/brand/copy.json", "settings": {"width": W, "height": H, "fps": FPS},
-            "shots": [{"id": "c", "source": {"color": "#1d7a1d"}, "duration": 1.0,
-                       "caption": {"copy_id": "tackle", "style": "auto-box", "reveal": "none", "anchor": "bottom"}}],
-            "end_card": {"template": "brand-split", "duration": 2.0,
-                         "copy": {"headline": "end_head", "sub": "end_sub", "url": "url"},
-                         "product": "inputs/brand/bottle.png"}}
+    return {
+        "copy": "inputs/brand/copy.json",
+        "settings": {"width": W, "height": H, "fps": FPS},
+        "shots": [
+            {
+                "id": "c",
+                "source": {"color": "#1d7a1d"},
+                "duration": 1.0,
+                "caption": {"copy_id": "tackle", "style": "auto-box", "reveal": "none", "anchor": "bottom"},
+            }
+        ],
+        "end_card": {
+            "template": "brand-split",
+            "duration": 2.0,
+            "copy": {"headline": "end_head", "sub": "end_sub", "url": "url"},
+            "product": "inputs/brand/bottle.png",
+        },
+    }
 
 
 def test_render_picks_a_green_box_from_a_solid_green_frame(demo, gl):
@@ -85,8 +97,8 @@ def test_render_picks_a_green_box_from_a_solid_green_frame(demo, gl):
         assert lay.style.box.startswith("#") and lay.style.box != "auto"
         box_rgb = C.hex_rgb(lay.style.box)
         assert box_rgb[1] > box_rgb[0] and box_rgb[1] > box_rgb[2]
-        fr = r.shot_frame(span, FPS // 2)                       # caption fully revealed
-        px = fr[lay.y0 + 1, lay.x0 + 1]                          # inside the box padding
+        fr = r.shot_frame(span, FPS // 2)  # caption fully revealed
+        px = fr[lay.y0 + 1, lay.x0 + 1]  # inside the box padding
         assert int(px[1]) > int(px[0]) and int(px[1]) > int(px[2])
     finally:
         r.release()

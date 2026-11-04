@@ -15,6 +15,7 @@ catchup handles the two ways a day can be left unfinished:
 - YouTube went out but the X post did not: X only needs the logged YouTube link, so no video is needed.
 Anything older than KEEP_DAYS is dropped instead: a stale angle should not post late.
 """
+
 from __future__ import annotations
 
 import datetime as dt
@@ -112,8 +113,11 @@ def _age(day: str, today: dt.date) -> int | None:
 def owed(today: dt.date, store: Store | None) -> list[str]:
     """Promo days with something left to post: a saved video, or a YouTube post whose X post never went out."""
     days = set(store.days() if store else [])
-    days |= {e["day"] for e in post.history() if e.get("platform") == "youtube" and e.get("ok") and e.get("day")
-             and not post.posted_day("x", e["day"])}
+    days |= {
+        e["day"]
+        for e in post.history()
+        if e.get("platform") == "youtube" and e.get("ok") and e.get("day") and not post.posted_day("x", e["day"])
+    }
     return sorted(d for d in days if (_age(d, today) or 0) >= 0)
 
 
@@ -122,7 +126,7 @@ def catchup(today: str | None = None) -> list[str]:
     notes: list[str] = []
     try:
         store = open_store()
-    except PendingError as e:                              # store unreachable: the X catch-up still works
+    except PendingError as e:  # store unreachable: the X catch-up still works
         store, notes = None, [f"saved videos unavailable: {e}"]
     for d in owed(today_d, store):
         folder = state.DAYS / d
@@ -135,7 +139,7 @@ def catchup(today: str | None = None) -> list[str]:
             notes.append(f"{d}: no committed review, skipped")
             continue
         if post.posted_day("youtube", d):
-            platforms = ["x"]                              # only the short post is owed; it needs no video
+            platforms = ["x"]  # only the short post is owed; it needs no video
         else:
             platforms = ["youtube", "x"]
             try:

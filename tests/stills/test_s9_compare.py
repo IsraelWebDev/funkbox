@@ -1,4 +1,5 @@
 """Compare a render with a reference: scores, worst regions, palette, sheet."""
+
 import numpy as np
 import pytest
 from PIL import Image, ImageDraw
@@ -27,7 +28,7 @@ def test_a_colour_change_is_found_where_it_is_and_called_colour():
     worst = res.cells[0]
     assert worst["row"] == 3 and worst["differs"] == "colour"
     assert res.scores["colour"] < 99 and res.scores["overall"] < 99
-    assert any(p["color"] and p["delta_e"] > 12 for p in res.palette)            # the blue bar has no match
+    assert any(p["color"] and p["delta_e"] > 12 for p in res.palette)  # the blue bar has no match
     assert "reference colours not matched" in res.summary()
 
 
@@ -55,9 +56,10 @@ def test_sheet_and_report_are_written(tmp_path, monkeypatch):
     assert res.sheet.width > 2 * res.sheet.height
     paths = compare.write(res, tmp_path, "t")
     import json
+
     rep = json.loads(paths["report"].read_text())
     assert set(rep) == {"scores", "cells", "palette", "notes"} and len(rep["cells"]) == 16
     # the heat map (third panel) is red somewhere
     a = np.asarray(Image.open(paths["sheet"]))
-    third = a[:, 2 * a.shape[1] // 3:]
+    third = a[:, 2 * a.shape[1] // 3 :]
     assert ((third[..., 0] > 200) & (third[..., 1] < 80)).sum() > 50

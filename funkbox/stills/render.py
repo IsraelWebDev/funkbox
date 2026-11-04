@@ -1,4 +1,5 @@
 """Render poster documents: layers -> RGBA rasters -> GPU fx -> masks -> GPU compositing -> post -> files."""
+
 from __future__ import annotations
 
 import copy
@@ -31,7 +32,7 @@ class RenderError(ValueError):
 class LayerOut:
     id: str
     type: str
-    rgba: np.ndarray                  # canvas-sized, straight alpha, fx and mask baked in
+    rgba: np.ndarray  # canvas-sized, straight alpha, fx and mask baked in
     blend: str
     opacity: float
     visible: bool = True
@@ -43,15 +44,15 @@ class Rendered:
     width: int
     height: int
     layers: list[LayerOut]
-    flat: np.ndarray                  # composite before the poster-level post passes (HxWx3)
-    image: np.ndarray                 # final (HxWx3 uint8)
+    flat: np.ndarray  # composite before the poster-level post passes (HxWx3)
+    image: np.ndarray  # final (HxWx3 uint8)
     background: tuple[int, int, int]
     audit: list[dict] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-    resolved: dict = field(default_factory=dict)      # the sidecar document
-    alpha: np.ndarray | None = None                   # HxW uint8 when canvas.background is "transparent"
+    resolved: dict = field(default_factory=dict)  # the sidecar document
+    alpha: np.ndarray | None = None  # HxW uint8 when canvas.background is "transparent"
     info: dict = field(default_factory=dict)
-    base_dir: Path | None = None                      # where relative files (fonts, svgs) were found
+    base_dir: Path | None = None  # where relative files (fonts, svgs) were found
 
     @property
     def pil(self) -> Image.Image:
@@ -72,16 +73,30 @@ class Rendered:
 # --------------------------------------------------------------------------- #
 def make_context(doc: Doc, base_dir: str | Path | None, w: int, h: int, scale: float) -> RCtx:
     from funkbox.reel import project as P
+
     base = Path(base_dir) if base_dir else None
     bd: dict = dict(doc.brand)
     if doc.project:
         base = P.project_dir(doc.project)
         bd = {**(P.load_meta(doc.project).get("brand") or {})}
-    brand = Brand(**{k: v for k, v in bd.items() if k in ("primary", "secondary", "text", "font_caption", "font_display",
-                                                       "font_fallback")})
-    return RCtx(w=w, h=h, scale=scale, base_dir=base, brand=brand, seed=doc.seed, full=(doc.width, doc.height),
-                glyphs=dict(doc.raw.get("glyphs") or {}),
-                min_text=float(doc.raw.get("min_text", 0.032)))
+    brand = Brand(
+        **{
+            k: v
+            for k, v in bd.items()
+            if k in ("primary", "secondary", "text", "font_caption", "font_display", "font_fallback")
+        }
+    )
+    return RCtx(
+        w=w,
+        h=h,
+        scale=scale,
+        base_dir=base,
+        brand=brand,
+        seed=doc.seed,
+        full=(doc.width, doc.height),
+        glyphs=dict(doc.raw.get("glyphs") or {}),
+        min_text=float(doc.raw.get("min_text", 0.032)),
+    )
 
 
 def scaled_size(doc: Doc, scale: float) -> tuple[int, int]:
@@ -113,8 +128,10 @@ def _shader_recipe(lay: dict, ctx: RCtx, gl: glmod.GL, index: int, doc_seed: int
         d["settings"] = st
         rec = Recipe2.from_dict(d, base_dir=bd)
         if rec.text and rec.text.text:
-            raise RenderError(f"shader layer {lay['id']!r}: the recipe draws text; remove its `text` block "
-                              "(poster text comes only from text layers)")
+            raise RenderError(
+                f"shader layer {lay['id']!r}: the recipe draws text; remove its `text` block "
+                "(poster text comes only from text layers)"
+            )
         rr = resolve_recipe(rec)
         res["recipe"] = rr.to_dict()
         res["recipe"]["settings"]["width"], res["recipe"]["settings"]["height"] = gl.w, gl.h
@@ -124,10 +141,15 @@ def _shader_recipe(lay: dict, ctx: RCtx, gl: glmod.GL, index: int, doc_seed: int
         layer["source"] = lay["source"]
     else:
         layer["shader"] = lay["shader"]
-    rec = Recipe2.from_dict({"version": 2, "settings": {"width": gl.w, "height": gl.h, "fps": 30, "seconds": 4,
-                                                        "seed": seed},
-                             "palette": {"name": lay.get("palette", "acid"), "cycles": int(lay.get("cycles", 1))},
-                             "layers": [layer]}, base_dir=ctx.base_dir)
+    rec = Recipe2.from_dict(
+        {
+            "version": 2,
+            "settings": {"width": gl.w, "height": gl.h, "fps": 30, "seconds": 4, "seed": seed},
+            "palette": {"name": lay.get("palette", "acid"), "cycles": int(lay.get("cycles", 1))},
+            "layers": [layer],
+        },
+        base_dir=ctx.base_dir,
+    )
     rr = resolve_recipe(rec)
     sl = rr.layers[0]
     res["source"] = sl.source
@@ -160,8 +182,14 @@ class _Run:
         """Raster -> fx -> mask for one layer (``backdrop()`` reads the composite so far, for colour matching)."""
         key = None
         if self.cache is not None and not (lay["type"] == "product" and lay.get("match_color", 0) > 0):
-            key = json.dumps({k: v for k, v in lay.items() if k not in ("opacity", "blend", "visible")},
-                             sort_keys=True, default=str) + f"|{index}|{self.ctx.w}x{self.ctx.h}"
+            key = (
+                json.dumps(
+                    {k: v for k, v in lay.items() if k not in ("opacity", "blend", "visible")},
+                    sort_keys=True,
+                    default=str,
+                )
+                + f"|{index}|{self.ctx.w}x{self.ctx.h}"
+            )
             hit = self.cache.get(key)
             if hit is not None:
                 rgba, res, entry = hit
@@ -172,7 +200,7 @@ class _Run:
         n_audit = len(self.audit)
         rgba = self._layer_rgba(lay, index, backdrop)
         if key is not None:
-            if len(self.cache) > 96:                     # animations: keep the layers that stay still
+            if len(self.cache) > 96:  # animations: keep the layers that stay still
                 self.cache.clear()
             entry = self.audit[-1] if len(self.audit) > n_audit and lay["type"] == "text" else None
             self.cache[key] = (rgba, self.resolved_layers[lay["id"]], entry)
@@ -203,17 +231,19 @@ class _Run:
             self.audit.append(entry)
         elif t == "shape":
             from .shapes import raster_shape
+
             rgba = raster_shape(lay, ctx)
         elif t == "svg":
             from .shapes import raster_svg
+
             rgba = raster_svg(lay, ctx)
         elif t == "group":
             rgba = self.group(lay)
-        else:                                            # pragma: no cover - schema rejects it
+        else:  # pragma: no cover - schema rejects it
             raise RenderError(f"unknown layer type {t!r}")
         rgba = gl.apply(rgba, fx.steps(lay.get("adjust"), lay.get("filters"), ctx.scale))
         rgba = raster.apply_mask(rgba, raster.mask_alpha(lay.get("mask"), ctx))
-        if lay.get("clip"):                              # show this layer only where the named shape is
+        if lay.get("clip"):  # show this layer only where the named shape is
             rgba = raster.apply_mask(rgba, self.clip_alpha(lay["clip"]))
         self.resolved_layers[lay["id"]] = res
         return rgba
@@ -226,6 +256,7 @@ class _Run:
         cache = self.__dict__.setdefault("_clips", {})
         if layer_id not in cache:
             from .shapes import raster_shape, raster_svg
+
             tgt = next(l for l in schema.all_layers(self.doc.layers) if l.get("id") == layer_id)
             rgba = (raster_shape if tgt["type"] == "shape" else raster_svg)(tgt, self.ctx)
             cache[layer_id] = rgba[..., 3].astype(np.float32) / 255.0
@@ -250,8 +281,9 @@ def _bg(doc: Doc, ctx: RCtx) -> tuple[int, int, int, int]:
     return raster.rgba_of(doc.background, ctx.brand)[:3] + (255,)
 
 
-def render_document(doc_in: Any, base_dir: str | Path | None = None, scale: float = 1.0,
-                    cache: dict | None = None) -> Rendered:
+def render_document(
+    doc_in: Any, base_dir: str | Path | None = None, scale: float = 1.0, cache: dict | None = None
+) -> Rendered:
     """Render a poster document (dict, JSON text or a parsed Doc). ``scale`` < 1 renders a faster preview.
     ``cache`` (a dict kept across calls) reuses layers whose settings did not change: animation frames."""
     doc = doc_in if isinstance(doc_in, Doc) else schema.parse(doc_in)
@@ -259,7 +291,7 @@ def render_document(doc_in: Any, base_dir: str | Path | None = None, scale: floa
     ctx = make_context(doc, base_dir, w, h, w / doc.width)
     gl = glmod.get_gl(w, h)
     run = _Run(doc, ctx, gl, cache)
-    run._deck = text.preflight(doc, ctx)             # copy rules first: nothing is drawn if they fail
+    run._deck = text.preflight(doc, ctx)  # copy rules first: nothing is drawn if they fail
     bg = _bg(doc, ctx)
     base = np.empty((gl.h, gl.w, 4), np.uint8)
     base[:] = bg
@@ -270,8 +302,9 @@ def render_document(doc_in: Any, base_dir: str | Path | None = None, scale: floa
             if lay.get("visible", True) is False:
                 continue
             rgba = run.layer_rgba(lay, i, lambda: comp.read()[..., :3])
-            outs.append(LayerOut(lay["id"], lay["type"], rgba, lay.get("blend", "normal"),
-                                 float(lay.get("opacity", 1.0))))
+            outs.append(
+                LayerOut(lay["id"], lay["type"], rgba, lay.get("blend", "normal"), float(lay.get("opacity", 1.0)))
+            )
             comp.add(rgba, outs[-1].blend, outs[-1].opacity)
         flat_rgba = comp.read()
     finally:
@@ -281,8 +314,9 @@ def render_document(doc_in: Any, base_dir: str | Path | None = None, scale: floa
     image = gl.post(flat, doc.post, doc.seed)
     resolved = copy.deepcopy(doc.raw)
     _inline(resolved["layers"], run.resolved_layers)
-    return Rendered(doc, w, h, outs, flat, image, bg[:3], run.audit, ctx.warnings, resolved, alpha, ctx.info,
-                    ctx.base_dir)
+    return Rendered(
+        doc, w, h, outs, flat, image, bg[:3], run.audit, ctx.warnings, resolved, alpha, ctx.info, ctx.base_dir
+    )
 
 
 def _inline(layers: list[dict], res: dict[str, dict]) -> None:
@@ -302,8 +336,7 @@ def fence_out(out_dir: str | Path) -> Path:
     p = Path(out_dir).expanduser().resolve()
     roots = allowed_roots()
     if not any(p == r or p.is_relative_to(r) for r in roots):
-        raise ValueError(f"output folder {out_dir} is outside the allowed folders "
-                         f"({', '.join(str(r) for r in roots)})")
+        raise ValueError(f"output folder {out_dir} is outside the allowed folders ({', '.join(str(r) for r in roots)})")
     return p
 
 
@@ -341,9 +374,11 @@ def write_outputs(r: Rendered, out_dir: str | Path, name: str, formats: list[str
                 continue
         elif f == "ora":
             from . import ora
+
             ora.write_ora(r, p)
         elif f in ("svg", "pdf"):
             from . import vector
+
             r.info.setdefault("vector", {})[f] = rep = vector.export(r, p)
             r.warnings += [f"{f}: {w}" for w in rep["warnings"]]
         paths[f] = p

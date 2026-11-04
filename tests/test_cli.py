@@ -18,23 +18,39 @@ def run(*args, out=None, env_extra=None, **kw):
         env.setdefault("FUNK_GL_BACKEND", "egl")
     if out is not None:
         env["FUNK_OUT"] = str(out)
-    return subprocess.run([sys.executable, "-m", "funkbox", *map(str, args)], capture_output=True, text=True,
-                          cwd=ROOT, env=env, **kw)
+    return subprocess.run(
+        [sys.executable, "-m", "funkbox", *map(str, args)], capture_output=True, text=True, cwd=ROOT, env=env, **kw
+    )
 
 
 def count_frames(mp4: Path) -> int:
     probe = shutil.which("ffprobe")
     if probe:
-        r = subprocess.run([probe, "-v", "error", "-count_frames", "-select_streams", "v:0",
-                            "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", str(mp4)],
-                           capture_output=True, text=True, check=True)
+        r = subprocess.run(
+            [
+                probe,
+                "-v",
+                "error",
+                "-count_frames",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=nb_read_frames",
+                "-of",
+                "csv=p=0",
+                str(mp4),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
         return int(r.stdout.strip().splitlines()[0])
     from funkbox.media import ffmpeg_exe
+
     ff = ffmpeg_exe()
     if not ff:
         pytest.skip("no ffprobe or ffmpeg")
-    r = subprocess.run([ff, "-i", str(mp4), "-map", "0:v:0", "-f", "null", "-"],
-                       capture_output=True, text=True)
+    r = subprocess.run([ff, "-i", str(mp4), "-map", "0:v:0", "-f", "null", "-"], capture_output=True, text=True)
     return int(re.findall(r"frame=\s*(\d+)", r.stderr)[-1])
 
 
@@ -47,19 +63,45 @@ def test_render_shader_makes_mp4_with_15_frames(gl, tmp_path):
     assert count_frames(mp4) == 15
     for ext in ("png", "json"):
         assert (tmp_path / f"plasma-s1.{ext}").exists()
-    assert not (tmp_path / "plasma-s1.gif").exists()      # GIF is opt-in (slow on busy loops)
-    r = run("loop", "render", "--shader", "shaders/plasma.frag", "--size", "64", "--seconds", "0.5",
-            "--gif", "--name", "withgif", out=tmp_path)
+    assert not (tmp_path / "plasma-s1.gif").exists()  # GIF is opt-in (slow on busy loops)
+    r = run(
+        "loop",
+        "render",
+        "--shader",
+        "shaders/plasma.frag",
+        "--size",
+        "64",
+        "--seconds",
+        "0.5",
+        "--gif",
+        "--name",
+        "withgif",
+        out=tmp_path,
+    )
     assert r.returncode == 0, r.stderr
     assert (tmp_path / "withgif.gif").exists()
 
 
 def test_sidecar_reproduces_render(gl, tmp_path):
-    a = run("loop", "render", "--shader", "shaders/warp.frag", "--size", "48", "--seconds", "0.3",
-            "--seed", "5", "--no-gif", "--no-mp4", out=tmp_path)
+    a = run(
+        "loop",
+        "render",
+        "--shader",
+        "shaders/warp.frag",
+        "--size",
+        "48",
+        "--seconds",
+        "0.3",
+        "--seed",
+        "5",
+        "--no-gif",
+        "--no-mp4",
+        out=tmp_path,
+    )
     assert a.returncode == 0, a.stderr
-    b = run("loop", "still", "--recipe", tmp_path / "warp-s5.json", "--t", "0", "-o", tmp_path / "again.png",
-            out=tmp_path)
+    b = run(
+        "loop", "still", "--recipe", tmp_path / "warp-s5.json", "--t", "0", "-o", tmp_path / "again.png", out=tmp_path
+    )
     assert b.returncode == 0, b.stderr
     p1 = Image.open(tmp_path / "warp-s5.png").convert("RGB")
     p2 = Image.open(tmp_path / "again.png").convert("RGB")
@@ -88,20 +130,29 @@ def test_render_refuses_a_broken_loop(gl, tmp_path):
 
 
 def test_usage_errors_exit_2(tmp_path):
-    assert run("loop").returncode == 2                                  # no verb
+    assert run("loop").returncode == 2  # no verb
     assert run("loop", "render", "--recipe", "a.json", "--shader", "shaders/plasma.frag").returncode == 2
     assert run("loop", "render", "--shader", "shaders/plasma.frag", "--post", "nope=1").returncode == 2
     assert run("nonsense").returncode == 2
 
 
 def test_sheet_and_still(gl, tmp_path):
-    r = run("loop", "sheet", "--shader", "shaders/voronoi_pop.frag", "--seeds", "1-6", "--tile", "64",
-            "-o", tmp_path / "s.png")
+    r = run(
+        "loop",
+        "sheet",
+        "--shader",
+        "shaders/voronoi_pop.frag",
+        "--seeds",
+        "1-6",
+        "--tile",
+        "64",
+        "-o",
+        tmp_path / "s.png",
+    )
     assert r.returncode == 0, r.stderr
     im = Image.open(tmp_path / "s.png")
     assert im.size == (3 * 64, 2 * 64)
-    tiles = [im.crop(((i % 3) * 64, (i // 3) * 64, (i % 3) * 64 + 64, (i // 3) * 64 + 64)).tobytes()
-             for i in range(6)]
+    tiles = [im.crop(((i % 3) * 64, (i // 3) * 64, (i % 3) * 64 + 64, (i // 3) * 64 + 64)).tobytes() for i in range(6)]
     assert len(set(tiles)) == 6
     r = run("loop", "still", "--recipe", "examples/disco_cat.json", "--size", "96", "-o", tmp_path / "c.png")
     assert r.returncode == 0, r.stderr
@@ -129,6 +180,7 @@ def test_list_and_doctor():
 def test_render_with_audio(gl, tmp_path):
     import wave
     import numpy as np
+
     inp = tmp_path / "in"
     inp.mkdir()
     t = np.arange(11025) / 22050
@@ -137,13 +189,39 @@ def test_render_with_audio(gl, tmp_path):
         w.writeframes((0.5 * np.sin(2 * np.pi * 100 * t) * 32767).astype("<i2").tobytes())
     frag = tmp_path / "react.frag"
     frag.write_text("vec4 effect(vec2 p){ return vec4(vec3(iAudio.x), 1.0); }\n")
-    r = run("loop", "render", "--shader", frag, "--audio", inp / "a.wav", "--size", "32", "--fps", "10",
-            "--no-gif", out=tmp_path / "o", env_extra={"FUNK_INPUTS": str(inp)})
+    r = run(
+        "loop",
+        "render",
+        "--shader",
+        frag,
+        "--audio",
+        inp / "a.wav",
+        "--size",
+        "32",
+        "--fps",
+        "10",
+        "--no-gif",
+        out=tmp_path / "o",
+        env_extra={"FUNK_INPUTS": str(inp)},
+    )
     assert r.returncode == 0, r.stderr
     assert "warning" in r.stderr and "audio" in r.stderr
-    assert "5 frames 32x32" in r.stdout                  # 0.5 s of audio at 10 fps
+    assert "5 frames 32x32" in r.stdout  # 0.5 s of audio at 10 fps
     probe = shutil.which("ffprobe")
     if probe:
-        o = subprocess.run([probe, "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0",
-                            str(tmp_path / "o" / "react-s1.mp4")], capture_output=True, text=True, check=True)
+        o = subprocess.run(
+            [
+                probe,
+                "-v",
+                "error",
+                "-show_entries",
+                "stream=codec_type",
+                "-of",
+                "csv=p=0",
+                str(tmp_path / "o" / "react-s1.mp4"),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
         assert "audio" in o.stdout

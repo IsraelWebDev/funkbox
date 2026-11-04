@@ -53,15 +53,17 @@ def test_parallax_moves_bottom_rows_more_than_top(mgl):
 
 def test_no_pixels_from_outside_the_source(mgl):
     src = mgl.upload(noise_image(), depth.stub_depth(480, 270))
-    extremes = [Motion(type="parallax", orbit_deg=30, push=0.5, dof=1.0),
-                Motion(type="parallax", orbit_deg=-30, push=0.0),
-                Motion(type="parallax", orbit_deg=3, push=0.08)]
+    extremes = [
+        Motion(type="parallax", orbit_deg=30, push=0.5, dof=1.0),
+        Motion(type="parallax", orbit_deg=-30, push=0.0),
+        Motion(type="parallax", orbit_deg=3, push=0.08),
+    ]
     for m in extremes:
         for t in (0.0, 0.25, 0.5, 0.75, 1.0):
             f = mgl.render(src, motion.camera(m, t))
             assert (f[..., 3] == 255).all(), (m, t)
         assert motion.max_source_extent(lambda t, m=m: motion.camera(m, t)) <= 0.5
-    kb = Motion(type="kenburns", zoom=(1.0, 1.2), pan=((-0.4, -0.4), (0.4, 0.4)))     # absurd pan: clamped
+    kb = Motion(type="kenburns", zoom=(1.0, 1.2), pan=((-0.4, -0.4), (0.4, 0.4)))  # absurd pan: clamped
     for t in (0.0, 0.5, 1.0):
         assert (mgl.render(src, motion.camera(kb, t))[..., 3] == 255).all()
     assert motion.max_source_extent(lambda t: motion.camera(kb, t)) <= 0.5 + 1e-9
@@ -76,10 +78,10 @@ def test_kenburns_zoom_and_identity(mgl):
     img = noise_image()
     src = mgl.upload(img)
     still = mgl.render(src, motion.camera(Motion(type="none"), 0.5))
-    assert np.abs(still[..., :3].astype(int) - img.astype(int)).max() <= 1           # identity, upright
+    assert np.abs(still[..., :3].astype(int) - img.astype(int)).max() <= 1  # identity, upright
     kb = Motion(type="kenburns", zoom=(1.0, 1.5))
     last = mgl.render(src, motion.camera(kb, 1.0))
-    center = img[480 // 4: 480 * 3 // 4, 270 // 4: 270 * 3 // 4]                      # 1.5x zoom ~ central 2/3
+    center = img[480 // 4 : 480 * 3 // 4, 270 // 4 : 270 * 3 // 4]  # 1.5x zoom ~ central 2/3
     assert last[..., :3].std() > 0 and center.shape[0] > 0
     f0 = mgl.render(src, motion.camera(kb, 0.0))
     assert np.abs(f0[..., :3].astype(int) - img.astype(int)).max() <= 1
@@ -111,15 +113,36 @@ def test_still_cli_renders_a_png(demo, work):
     from pathlib import Path
 
     from conftest import make_plain_reel
+
     reel = make_plain_reel(demo)
     (demo / "plain.reel.json").write_text(json.dumps(reel))
     out = work / "still.png"
     root = Path(__file__).resolve().parents[2]
     env = {**os.environ, "REEL_DEPTH": "stub", "PYTHONPATH": str(root)}
-    r = subprocess.run([sys.executable, "-m", "funkbox", "reel", "still", str(demo / "plain.reel.json"),
-                        "--shot", "s1", "--t", "0.5", "--width", "270", "-o", str(out)], capture_output=True, text=True, env=env)
+    r = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "funkbox",
+            "reel",
+            "still",
+            str(demo / "plain.reel.json"),
+            "--shot",
+            "s1",
+            "--t",
+            "0.5",
+            "--width",
+            "270",
+            "-o",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
     assert r.returncode == 0, r.stderr
     from PIL import Image
+
     im = Image.open(out)
     assert im.size == (270, 480)
 
@@ -127,21 +150,28 @@ def test_still_cli_renders_a_png(demo, work):
 @pytest.mark.skipif(not depth.available(), reason="depth model not installed (funkbox reel setup-models)")
 def test_real_depth_model_output_range(demo):
     d = depth.estimate_depth(demo / "inputs/shots/shot1.png")
-    assert d.shape == (480, 270) and d.dtype == np.float32 and 0.0 <= d.min() and d.max() <= 1.0 and d.max() - d.min() > 0.5
+    assert (
+        d.shape == (480, 270)
+        and d.dtype == np.float32
+        and 0.0 <= d.min()
+        and d.max() <= 1.0
+        and d.max() - d.min() > 0.5
+    )
 
 
 def test_parallax_without_depth_degrades_to_kenburns(demo, gl, monkeypatch):
-    import json
 
     from funkbox.reel import render
     from funkbox.reel.validate import validate
+
     monkeypatch.delenv("REEL_DEPTH", raising=False)
     from conftest import make_plain_reel
+
     rep = validate(make_plain_reel(demo), demo)
     assert rep.ok, rep.errors
     r = render.Renderer(rep.reel, rep.deck, rep.spans, width=270, height=480, depth_mode="off")
     try:
-        fr = r.still("s1", 0.5)             # s1 is a parallax shot; no depth -> must not fail
+        fr = r.still("s1", 0.5)  # s1 is a parallax shot; no depth -> must not fail
     finally:
         r.release()
     assert fr.shape == (480, 270, 3)

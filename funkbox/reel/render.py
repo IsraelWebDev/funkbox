@@ -1,4 +1,5 @@
 """Frame composition and encoding: shot -> source+motion -> product -> caption -> transition."""
+
 from __future__ import annotations
 
 import json
@@ -32,7 +33,7 @@ from .timeline import ShotSpan, resolve_transitions
 DRAFT_WIDTH, DRAFT_FPS = 540, 24
 TRANSITION_SECONDS = {"flash": 0.0, "push": 0.25, "crossfade": 0.3, "zoom-punch": 0.2}
 FLASH_FRAMES = 3
-_UNSET = object()                  # "not computed yet" (None is a real beat-period result: no beat grid)
+_UNSET = object()  # "not computed yet" (None is a real beat-period result: no beat grid)
 
 
 def _log(*a) -> None:
@@ -47,25 +48,27 @@ def hex_rgb(h: str) -> tuple[int, int, int]:
 # Video source: stream-decoded through ffmpeg (never loads a whole clip into RAM)
 # --------------------------------------------------------------------------- #
 class VideoStream:
-    def __init__(self, path: Path, w: int, h: int, fps: int, trim: tuple[float, float] | None,
-                 loop: bool, fit: str = "cover"):
+    def __init__(
+        self, path: Path, w: int, h: int, fps: int, trim: tuple[float, float] | None, loop: bool, fit: str = "cover"
+    ):
         self.path, self.w, self.h, self.fps, self.trim, self.loop, self.fit = path, w, h, fps, trim, loop, fit
         self.proc: subprocess.Popen | None = None
-        self.pos = 0                       # frames consumed
+        self.pos = 0  # frames consumed
         self.last: np.ndarray | None = None
         self.eof = False
 
     def _open(self) -> None:
         self.close()
         ff = require_ffmpeg()
-        if self.fit == "native":              # framing.py crops/scales each frame itself
+        if self.fit == "native":  # framing.py crops/scales each frame itself
             vf = f"fps={self.fps},scale={self.w}:{self.h}"
         elif self.fit == "contain":
-            vf = (f"fps={self.fps},scale={self.w}:{self.h}:force_original_aspect_ratio=decrease,"
-                  f"pad={self.w}:{self.h}:(ow-iw)/2:(oh-ih)/2:black")
+            vf = (
+                f"fps={self.fps},scale={self.w}:{self.h}:force_original_aspect_ratio=decrease,"
+                f"pad={self.w}:{self.h}:(ow-iw)/2:(oh-ih)/2:black"
+            )
         else:
-            vf = (f"fps={self.fps},scale={self.w}:{self.h}:force_original_aspect_ratio=increase,"
-                  f"crop={self.w}:{self.h}")
+            vf = f"fps={self.fps},scale={self.w}:{self.h}:force_original_aspect_ratio=increase,crop={self.w}:{self.h}"
         cmd = [ff, "-loglevel", "error"]
         if self.loop:
             cmd += ["-stream_loop", "-1"]
@@ -75,7 +78,7 @@ class VideoStream:
         if self.trim:
             cmd += ["-t", f"{self.trim[1] - self.trim[0]:.3f}"]
         cmd += ["-vf", vf, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
-        self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=10 ** 7)
+        self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=10**7)
         self.pos, self.eof = 0, False
 
     def _next(self) -> np.ndarray | None:
@@ -118,10 +121,10 @@ class VideoStream:
 # --------------------------------------------------------------------------- #
 @dataclass
 class _GridCell:
-    rect: tuple[int, int, int, int]                   # x, y, w, h in the output frame
-    size: tuple[int, int]                             # source pixels
+    rect: tuple[int, int, int, int]  # x, y, w, h in the output frame
+    size: tuple[int, int]  # source pixels
     video: VideoStream
-    label: captions_mod.Layout | None = None          # laid out for the cell, not the frame
+    label: captions_mod.Layout | None = None  # laid out for the cell, not the frame
 
 
 @dataclass
@@ -144,8 +147,17 @@ class _ShotState:
 class Renderer:
     """Composes frames of a reel. Holds one GL context's worth of state; release() when done."""
 
-    def __init__(self, reel: Reel, deck: CopyDeck, spans: list[ShotSpan], *, width: int | None = None,
-                 height: int | None = None, fps: int | None = None, depth_mode: str = "auto"):
+    def __init__(
+        self,
+        reel: Reel,
+        deck: CopyDeck,
+        spans: list[ShotSpan],
+        *,
+        width: int | None = None,
+        height: int | None = None,
+        fps: int | None = None,
+        depth_mode: str = "auto",
+    ):
         st = reel.settings
         self.reel, self.deck, self.spans = reel, deck, spans
         self.src_fps = st.fps
@@ -156,18 +168,19 @@ class Renderer:
         self.h -= self.h % 2
         self.depth_mode = depth_mode
         self.motion = motionmod.MotionGL(self.w, self.h)
-        self._transitions = resolve_transitions(reel.shots)      # "auto" resolved once, here, for every shot
+        self._transitions = resolve_transitions(reel.shots)  # "auto" resolved once, here, for every shot
         self._state: dict[int, _ShotState] = {}
         self._funk_engine = None
         self._last_frames: dict[int, np.ndarray] = {}
-        self.audit: dict | None = None            # set to {} to record every drawn string
+        self.audit: dict | None = None  # set to {} to record every drawn string
         self._fonts: captions_mod.Fonts | None = None
         self._endcard: endcard_mod.EndCardRenderer | None = None
-        self._beat_period_cache: object = _UNSET     # beat period for grid staggers, computed on first use
-        if self.fps != self.src_fps:                 # rescale the timeline to the render fps
+        self._beat_period_cache: object = _UNSET  # beat period for grid staggers, computed on first use
+        if self.fps != self.src_fps:  # rescale the timeline to the render fps
             sc = self.fps / self.src_fps
-            self.spans = [replace(s, start_frame=round(s.start_frame * sc), end_frame=round(s.end_frame * sc))
-                          for s in spans]
+            self.spans = [
+                replace(s, start_frame=round(s.start_frame * sc), end_frame=round(s.end_frame * sc)) for s in spans
+            ]
         self.total_frames = self.spans[-1].end_frame
 
     # ---------------------------------------------------------------- lookup
@@ -214,15 +227,20 @@ class Renderer:
             want = sh.motion.type == "parallax"
             d = depthmod.get_depth(path, self.depth_mode) if want else None
             if want and d is None:
-                motionmod._warn(f"shot {sh.id}: no depth available (mode={self.depth_mode}; {depthmod.unavailable_reason() or 'model ok but not used'}); "
-                                f"parallax falls back to Ken Burns")
+                motionmod._warn(
+                    f"shot {sh.id}: no depth available (mode={self.depth_mode}; {depthmod.unavailable_reason() or 'model ok but not used'}); "
+                    f"parallax falls back to Ken Burns"
+                )
             stt.parallax_ok = d is not None
             if src.fit == "contain":
                 stt.image = self._contained(path, d)
             else:
                 stt.image = self.motion.load(path, d)
-        mode = "parallax" if (sh.motion.type == "parallax" and stt.parallax_ok) else (
-            "kenburns" if sh.motion.type in ("kenburns", "parallax") else "none")
+        mode = (
+            "parallax"
+            if (sh.motion.type == "parallax" and stt.parallax_ok)
+            else ("kenburns" if sh.motion.type in ("kenburns", "parallax") else "none")
+        )
         cam = motionmod.camera(sh.motion, t, mode)
         return self.motion.render(stt.image, cam)[..., :3]
 
@@ -233,8 +251,11 @@ class Renderer:
 
     def _window(self, sh: Shot, span: ShotSpan, local: int, sw: int, sh_px: int) -> framing.Window:
         u, dur = self._frame_u(span, local)
-        cam = motionmod.camera(sh.motion, local / max(1, span.end_frame - span.start_frame), "kenburns") \
-            if sh.motion.type == "kenburns" else None
+        cam = (
+            motionmod.camera(sh.motion, local / max(1, span.end_frame - span.start_frame), "kenburns")
+            if sh.motion.type == "kenburns"
+            else None
+        )
         return framing.window_for(sh.motion, sh.source, u, dur, sw, sh_px, self.w, self.h, cam)
 
     def _windowed_video(self, span: ShotSpan, sh: Shot, stt: _ShotState, local: int) -> np.ndarray:
@@ -261,10 +282,11 @@ class Renderer:
     def _beat_period(self) -> float | None:
         if not (self.reel.audio.bpm or self.reel.audio.music):
             return None
-        if self._beat_period_cache is not _UNSET:       # music is analysed once per render, not once per grid shot
+        if self._beat_period_cache is not _UNSET:  # music is analysed once per render, not once per grid shot
             return self._beat_period_cache
         from . import audio
-        beats = audio.beat_grid_for(self.reel)          # a broken beat grid is an error here too, as in validate
+
+        beats = audio.beat_grid_for(self.reel)  # a broken beat grid is an error here too, as in validate
         self._beat_period_cache = timeline_mod.beat_period(beats) if beats and len(beats) >= 2 else None
         return self._beat_period_cache
 
@@ -278,12 +300,21 @@ class Renderer:
             cw, ch = rect[2], rect[3]
             path = self._res(c.video)
             dw, dh = framing.decode_size(framing.probe_video(path))
-            k = min(1.0, 2.0 * max(cw, ch) / max(dw, dh))            # no need to decode far above the cell
+            k = min(1.0, 2.0 * max(cw, ch) / max(dw, dh))  # no need to decode far above the cell
             dw, dh = max(2, int(dw * k) // 2 * 2), max(2, int(dh * k) // 2 * 2)
             gc = _GridCell(rect, (dw, dh), VideoStream(path, dw, dh, self.fps, None, False, "native"))
             if c.label:
-                gc.label = grid_mod.layout_label(c.label, self.deck.text(c.label), c.label_style, self.fonts(),
-                                                 self.reel.brand, rect, self.w, self.h, self.reel.settings.safe_area)
+                gc.label = grid_mod.layout_label(
+                    c.label,
+                    self.deck.text(c.label),
+                    c.label_style,
+                    self.fonts(),
+                    self.reel.brand,
+                    rect,
+                    self.w,
+                    self.h,
+                    self.reel.settings.safe_area,
+                )
             cells.append(gc)
         pad = sh.source.pad
         stagger = grid_mod.stagger_seconds(g, self._beat_period()) if g.reveal == "sequence" else 0.0
@@ -300,26 +331,28 @@ class Renderer:
         for i, (c, gc) in enumerate(zip(g.cells, gs.cells)):
             since = t - grid_mod.arrival(g, i, gs.stagger)
             ps = grid_mod.pose(g, since, gc.rect[3])
-            if ps is None:                                  # not arrived yet: neither the cell nor its label
+            if ps is None:  # not arrived yet: neither the cell nor its label
                 continue
             alpha, dy = ps
             x, y, cw, ch = gc.rect
             frm = gc.video.frame(max(0, int(round(since * self.fps))))
             win = framing.window(framing.FULL, gc.size[0], gc.size[1], cw, ch, fit=c.fit)
             tile = framing.draw(frm, win, cw, ch, src.pad)
-            if gc.label is not None:                        # the label arrives with its cell (reveal "none")
+            if gc.label is not None:  # the label arrives with its cell (reveal "none")
                 spr = captions_mod.render_caption(gc.label, "none", since, None, span.duration)
                 if spr is not None:
                     if note and self.audit is not None:
-                        self._note("grid_label", span, "grid_label", str(i), c.label, span.start_frame + local,
-                                   gc.label, spr)
+                        self._note(
+                            "grid_label", span, "grid_label", str(i), c.label, span.start_frame + local, gc.label, spr
+                        )
                     tile = spr.over(tile)
             # the cell drops in from above inside its own slot (clipped to it: it never covers a neighbour)
             part = tile[-dy:] if dy < 0 else tile
-            dst = canvas[y:y + part.shape[0], x:x + cw]
-            canvas[y:y + part.shape[0], x:x + cw] = (
-                part if alpha >= 1.0 else np.clip(dst * (1.0 - alpha) + part * alpha + 0.5, 0, 255).astype(np.uint8))
-        if sh.motion.type in ("kenburns", "frame"):         # the shot's motion moves the whole composed grid
+            dst = canvas[y : y + part.shape[0], x : x + cw]
+            canvas[y : y + part.shape[0], x : x + cw] = (
+                part if alpha >= 1.0 else np.clip(dst * (1.0 - alpha) + part * alpha + 0.5, 0, 255).astype(np.uint8)
+            )
+        if sh.motion.type in ("kenburns", "frame"):  # the shot's motion moves the whole composed grid
             return framing.draw(canvas, self._window(sh, span, local, self.w, self.h), self.w, self.h, src.pad)
         return canvas
 
@@ -330,8 +363,11 @@ class Renderer:
         t = local / max(1, span.end_frame - span.start_frame)
         if sh.source.kind != "image" or framing.needs_windowing_image(sh.source, sh.motion):
             return motionmod.camera(sh.motion, t, "none")
-        mode = "parallax" if (sh.motion.type == "parallax" and stt is not None and stt.parallax_ok) else (
-            "kenburns" if sh.motion.type in ("kenburns", "parallax") else "none")
+        mode = (
+            "parallax"
+            if (sh.motion.type == "parallax" and stt is not None and stt.parallax_ok)
+            else ("kenburns" if sh.motion.type in ("kenburns", "parallax") else "none")
+        )
         return motionmod.camera(sh.motion, t, mode)
 
     def _contained(self, path: Path, d: np.ndarray | None) -> motionmod.SourceTex:
@@ -344,14 +380,15 @@ class Renderer:
         dd = None
         if d is not None:
             dd = np.zeros((self.h, self.w), np.float32)
-            dd[oy:oy + nh, ox:ox + nw] = np.asarray(Image.fromarray(d, mode="F").resize((nw, nh), Image.BILINEAR))
+            dd[oy : oy + nh, ox : ox + nw] = np.asarray(Image.fromarray(d, mode="F").resize((nw, nh), Image.BILINEAR))
         return self.motion.upload(np.asarray(canvas), dd)
 
     def _funk2_frame(self, stt: _ShotState, path: str, local: int) -> np.ndarray:
         from funkbox.gl.engine import Engine
+
         if stt.funk2 is None:
             rec = load_recipe(self._res(path))
-            rec.text = None                              # text only ever comes from the copy deck
+            rec.text = None  # text only ever comes from the copy deck
             rec.settings.width, rec.settings.height = self.w, self.h
             stt.funk2 = rec
         if self._funk_engine is None:
@@ -377,7 +414,8 @@ class Renderer:
         pc = stt.extra.get("product")
         if pc is None:
             pc = stt.extra["product"] = product_mod.ProductCompositor(
-                self._res(sh.product.image), sh.product, self.w, self.h)
+                self._res(sh.product.image), sh.product, self.w, self.h
+            )
             if sh.product.match_color > 0:
                 bg0 = self._source_frame(span, 0)
                 pc.fit_transform(bg0, self.camera_for(span, 0))
@@ -416,17 +454,37 @@ class Renderer:
             if style.box == "auto":
                 text_c = captions_mod.colour(style.color, self.reel.brand) or (255, 255, 255)
                 box_rgb, text_rgb = captions_mod.auto_box(fr, self.reel.brand, text_c)
-                style = replace(style, box="#{:02x}{:02x}{:02x}".format(*box_rgb),
-                                color="#{:02x}{:02x}{:02x}".format(*text_rgb))
+                style = replace(
+                    style, box="#{:02x}{:02x}{:02x}".format(*box_rgb), color="#{:02x}{:02x}{:02x}".format(*text_rgb)
+                )
             anchor = c.anchor
             if anchor == "auto":
+
                 def lay_for(a: str, w: int, h: int, sa: str, _c=c, _s=style) -> captions_mod.Layout:
-                    return captions_mod.layout_block(_c.copy_id, self.deck.text(_c.copy_id), _s, self.fonts(),
-                                                     self.reel.brand, w, h, anchor=a, safe_area=sa)
+                    return captions_mod.layout_block(
+                        _c.copy_id,
+                        self.deck.text(_c.copy_id),
+                        _s,
+                        self.fonts(),
+                        self.reel.brand,
+                        w,
+                        h,
+                        anchor=a,
+                        safe_area=sa,
+                    )
+
                 anchor = captions_mod.pick_anchor(fr, lay_for, self.w, self.h, self.reel.settings.safe_area)
             lay = stt.extra["caption"] = captions_mod.layout_block(
-                c.copy_id, self.deck.text(c.copy_id), style, self.fonts(),
-                self.reel.brand, self.w, self.h, anchor=anchor, safe_area=self.reel.settings.safe_area)
+                c.copy_id,
+                self.deck.text(c.copy_id),
+                style,
+                self.fonts(),
+                self.reel.brand,
+                self.w,
+                self.h,
+                anchor=anchor,
+                safe_area=self.reel.settings.safe_area,
+            )
         return lay
 
     def caption_sprite(self, span: ShotSpan, local: int) -> captions_mod.Sprite | None:
@@ -443,34 +501,61 @@ class Renderer:
         if spr is None:
             return fr
         if self.audit is not None:
-            self._note("caption", span, "caption", "main", self.reel.shots[span.index].caption.copy_id,
-                       span.start_frame + local, self.caption_layout(span), spr)
+            self._note(
+                "caption",
+                span,
+                "caption",
+                "main",
+                self.reel.shots[span.index].caption.copy_id,
+                span.start_frame + local,
+                self.caption_layout(span),
+                spr,
+            )
         return spr.over(fr)
 
     def endcard(self) -> endcard_mod.EndCardRenderer:
         if self._endcard is None:
-            self._endcard = endcard_mod.EndCardRenderer(self.reel, self.deck, self.w, self.h, self.fonts(),
-                                                        self._res)
+            self._endcard = endcard_mod.EndCardRenderer(self.reel, self.deck, self.w, self.h, self.fonts(), self._res)
         return self._endcard
 
     def _end_frame(self, span: ShotSpan, local: int) -> np.ndarray:
         def note(it, spr):
             if self.audit is not None:
                 self._note("end_card", span, it.slot, it.instance, it.copy_id, span.start_frame + local, it.lay, spr)
+
         return self.endcard().frame(local / self.fps, note)
 
     # ---- exactness audit
-    def _note(self, kind: str, span: ShotSpan, slot: str, instance: str, copy_id: str, gframe: int,
-              lay: captions_mod.Layout, spr: captions_mod.Sprite) -> None:
+    def _note(
+        self,
+        kind: str,
+        span: ShotSpan,
+        slot: str,
+        instance: str,
+        copy_id: str,
+        gframe: int,
+        lay: captions_mod.Layout,
+        spr: captions_mod.Sprite,
+    ) -> None:
         assert self.audit is not None
         key = f"{span.id}/{slot}/{instance}"
         e = self.audit.get(key)
         scale = self.src_fps / self.fps
         f0 = int(round(gframe * scale))
         if e is None:
-            e = self.audit[key] = {"kind": kind, "shot": span.id, "slot": slot, "instance": instance,
-                                   "copy_id": copy_id, "first_frame": f0, "last_frame": f0, "chars": -1,
-                                   "text": "", "complete_frame": None, "drawn_lines": []}
+            e = self.audit[key] = {
+                "kind": kind,
+                "shot": span.id,
+                "slot": slot,
+                "instance": instance,
+                "copy_id": copy_id,
+                "first_frame": f0,
+                "last_frame": f0,
+                "chars": -1,
+                "text": "",
+                "complete_frame": None,
+                "drawn_lines": [],
+            }
         e["last_frame"] = f0
         if spr.n > e["chars"] or e["chars"] < 0:
             e["chars"] = spr.n
@@ -532,7 +617,7 @@ class Renderer:
         if off <= 0:
             return cur
         out = np.empty_like(cur)
-        out[:off] = prev[self.h - off:]
+        out[:off] = prev[self.h - off :]
         out[off:] = cur[: self.h - off]
         return out
 
@@ -584,6 +669,7 @@ def prepare(src, base_dir=None, fmt: str | None = None) -> Plan:
     Raises ReelError listing problems."""
     from .schema import ReelError
     from .validate import validate
+
     rep = validate(src, base_dir, fmt=fmt)
     if not rep.ok or rep.reel is None or rep.deck is None:
         raise ReelError(rep.errors or ["invalid reel"])
@@ -600,17 +686,19 @@ class RenderOutput:
     width: int
     height: int
     fps: int
-    seconds: float                    # wall time
-    duration: float                   # reel length in seconds
+    seconds: float  # wall time
+    duration: float  # reel length in seconds
     shots: int
     audit_ok: bool | None = None
     warnings: list[str] = field(default_factory=list)
     end_card: bool = True
 
     def report_line(self) -> str:
-        return (f"{self.duration:.2f}s, {self.shots} shots{' + end card' if self.end_card else ''}, "
-                f"{self.width}x{self.height} @ {self.fps} fps, "
-                f"{self.frames} frames rendered in {self.seconds:.1f}s")
+        return (
+            f"{self.duration:.2f}s, {self.shots} shots{' + end card' if self.end_card else ''}, "
+            f"{self.width}x{self.height} @ {self.fps} fps, "
+            f"{self.frames} frames rendered in {self.seconds:.1f}s"
+        )
 
 
 def draft_size(reel: Reel) -> tuple[int, int]:
@@ -618,9 +706,20 @@ def draft_size(reel: Reel) -> tuple[int, int]:
     return w, round(w * reel.settings.height / reel.settings.width) // 2 * 2
 
 
-def render_reel(src, name: str, *, base_dir=None, out_dir: str | Path | None = None, draft: bool = False,
-                audit: bool = False, depth_mode: str | None = None, with_audio: bool = True,
-                gif: bool = False, progress: bool = False, plan: Plan | None = None) -> RenderOutput:
+def render_reel(
+    src,
+    name: str,
+    *,
+    base_dir=None,
+    out_dir: str | Path | None = None,
+    draft: bool = False,
+    audit: bool = False,
+    depth_mode: str | None = None,
+    with_audio: bool = True,
+    gif: bool = False,
+    progress: bool = False,
+    plan: Plan | None = None,
+) -> RenderOutput:
     """Render a reel to ``<out_dir>/<name>.mp4`` (+ poster PNG, optional text audit JSON).
 
     ``draft``: 540 px wide, 24 fps, no depth model (parallax degrades to Ken Burns).
@@ -642,6 +741,7 @@ def render_reel(src, name: str, *, base_dir=None, out_dir: str | Path | None = N
         r.audit = {}
     paths: dict[str, str] = {}
     try:
+
         def gen() -> Iterator[np.ndarray]:
             n = r.total_frames
             for f in range(n):
@@ -671,8 +771,19 @@ def render_reel(src, name: str, *, base_dir=None, out_dir: str | Path | None = N
         frames, W, Hh = r.total_frames, r.w, r.h
     finally:
         r.release()
-    return RenderOutput(paths, frames, W, Hh, fps, time.perf_counter() - t0, frames / fps, len(reel.shots),
-                        audit_ok, plan.report.warnings if plan.report is not None else [], reel.end_card is not None)
+    return RenderOutput(
+        paths,
+        frames,
+        W,
+        Hh,
+        fps,
+        time.perf_counter() - t0,
+        frames / fps,
+        len(reel.shots),
+        audit_ok,
+        plan.report.warnings if plan.report is not None else [],
+        reel.end_card is not None,
+    )
 
 
 def _build_audio(plan: Plan, out_dir: Path, name: str, fps: int) -> Path | None:
@@ -704,13 +815,20 @@ def _audit_json(r: Renderer, plan: Plan, name: str, out_dir: Path) -> dict:
     incomplete = [f"{e['shot']}/{e['slot']}/{e['instance']}" for e in entries if e["complete_frame"] is None]
     ok = not missing and not inexact
     deck = str(plan.deck.path)
-    try:                                   # relative to the audit file, so audits can be committed and shared
+    try:  # relative to the audit file, so audits can be committed and shared
         deck = os.path.relpath(deck, out_dir).replace(os.sep, "/")
-    except ValueError:                     # another drive on Windows
+    except ValueError:  # another drive on Windows
         pass
-    doc = {"reel": name, "copy_deck": deck, "fps": plan.reel.settings.fps,
-           "ok": ok, "missing": missing, "inexact": inexact, "never_fully_typed": incomplete,
-           "entries": entries}
+    doc = {
+        "reel": name,
+        "copy_deck": deck,
+        "fps": plan.reel.settings.fps,
+        "ok": ok,
+        "missing": missing,
+        "inexact": inexact,
+        "never_fully_typed": incomplete,
+        "entries": entries,
+    }
     path = out_dir / f"{name}.text_audit.json"
     path.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return {"path": str(path), "ok": ok}
@@ -720,6 +838,7 @@ def render_formats(src, name: str, *, base_dir=None, fmt: str | None = None, **k
     """Render ``fmt``, or every format the reel declares (``<name>-<format>.mp4``), or just the reel's own size
     when it declares none. ``kw`` goes to render_reel (draft, audit, out_dir, ...)."""
     from .validate import formats_of
+
     ids: list[str | None] = [fmt] if fmt else (formats_of(src, base_dir) or [None])
     outs = []
     for f in ids:

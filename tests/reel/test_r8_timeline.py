@@ -1,5 +1,6 @@
 """The shared timeline editor: plain-words diffs, validated saves with backup and log, conflicts, thumbnails,
 external edits picked up, the page itself."""
+
 import json
 import shutil
 import time
@@ -12,16 +13,28 @@ from funkbox.reel import editor
 
 
 def test_describe_changes_in_plain_words():
-    old = {"shots": [{"id": "a", "duration": "beats:1"}, {"id": "b", "duration": 1.0,
-                                                           "source": {"video": "v.mp4", "trim": [1, 2]}},
-                     {"id": "c"}, {"id": "d"}], "audio": {"bpm": 100}}
-    new = {"shots": [{"id": "b", "duration": 1.0, "source": {"video": "v.mp4", "trim": [1.5, 2]}},
-                     {"id": "a", "duration": "beats:2"}, {"id": "e", "source": {"image": "x.jpg"}}, {"id": "c"}],
-           "audio": {"bpm": 110}}
+    old = {
+        "shots": [
+            {"id": "a", "duration": "beats:1"},
+            {"id": "b", "duration": 1.0, "source": {"video": "v.mp4", "trim": [1, 2]}},
+            {"id": "c"},
+            {"id": "d"},
+        ],
+        "audio": {"bpm": 100},
+    }
+    new = {
+        "shots": [
+            {"id": "b", "duration": 1.0, "source": {"video": "v.mp4", "trim": [1.5, 2]}},
+            {"id": "a", "duration": "beats:2"},
+            {"id": "e", "source": {"image": "x.jpg"}},
+            {"id": "c"},
+        ],
+        "audio": {"bpm": 110},
+    }
     ch = editor.describe_changes(old, new)
     assert "deleted 'd'" in ch and "added 'e' at position 3 (x.jpg)" in ch
     assert "moved 'b' from position 2 to 1" in ch
-    assert "'a': duration \"beats:1\" -> \"beats:2\"" in ch and "'b': source.trim [1, 2] -> [1.5, 2]" in ch
+    assert '\'a\': duration "beats:1" -> "beats:2"' in ch and "'b': source.trim [1, 2] -> [1.5, 2]" in ch
     assert "audio changed" in ch
     assert editor.describe_changes(old, old) == []
 
@@ -44,8 +57,9 @@ def reel_file(demo, work):
 
 
 def http(url, data=None):
-    req = urllib.request.Request(url, data=json.dumps(data).encode() if data is not None else None,
-                                 headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(
+        url, data=json.dumps(data).encode() if data is not None else None, headers={"Content-Type": "application/json"}
+    )
     try:
         with urllib.request.urlopen(req, timeout=120) as r:
             return r.status, r.read(), r.headers.get("Content-Type")
@@ -56,6 +70,7 @@ def http(url, data=None):
 def pumped(ed, fn):
     """Run ``fn`` (HTTP calls) on a thread while this thread, which owns the GL context, runs the editor's GL work."""
     import threading
+
     box = {}
 
     def go():
@@ -63,6 +78,7 @@ def pumped(ed, fn):
             box["ok"] = fn()
         except BaseException as e:
             box["err"] = e
+
     t = threading.Thread(target=go)
     t.start()
     while t.is_alive():
@@ -93,7 +109,7 @@ def _scenario(ed, reel_file):
         assert code == 200 and ctype == "image/jpeg" and jpg[:2] == b"\xff\xd8", jpg[:300]
 
         new = json.loads(json.dumps(st["reel"]))
-        new["shots"].insert(0, new["shots"].pop(2))                      # drag the third shot to the front
+        new["shots"].insert(0, new["shots"].pop(2))  # drag the third shot to the front
         new["shots"][1]["duration"] = "beats:3"
         code, body, _ = http(ed.url + "api/save", {"base_mtime": st["mtime"], "reel": new})
         st2 = json.loads(body)
@@ -102,7 +118,7 @@ def _scenario(ed, reel_file):
         log = [json.loads(l) for l in ed.log_path.read_text().splitlines()]
         assert log[-1]["by"] == "timeline" and f"moved '{ids[2]}' from position 3 to 1" in log[-1]["changes"]
 
-        stale = {"base_mtime": st["mtime"], "reel": new}                  # saving on an old version: refused
+        stale = {"base_mtime": st["mtime"], "reel": new}  # saving on an old version: refused
         code, body, _ = http(ed.url + "api/save", stale)
         assert code == 409
 

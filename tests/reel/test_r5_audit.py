@@ -1,6 +1,5 @@
 import json
 
-import pytest
 
 from conftest import make_plain_reel
 from funkbox.reel import render
@@ -51,13 +50,17 @@ def test_audit_catches_text_that_differs_from_the_deck(demo, gl, work, monkeypat
     try:
         r.audit = {}
         span = r.span_for_shot("s3")
-        r.caption_layout(span)                                   # layout made from the genuine text
+        r.caption_layout(span)  # layout made from the genuine text
         cid = plan.reel.shots[2].caption.copy_id
         from dataclasses import replace
+
         stt = r._state[span.index]
         lay = stt.extra["caption"]
-        stt.extra["caption"] = replace(lay, text=lay.text.replace("GLOWMOP", "GLOW MOP"),
-                                       lines=[(s, min(e, len(lay.text.replace("GLOWMOP", "GLOW MOP")))) for s, e in lay.lines])
+        stt.extra["caption"] = replace(
+            lay,
+            text=lay.text.replace("GLOWMOP", "GLOW MOP"),
+            lines=[(s, min(e, len(lay.text.replace("GLOWMOP", "GLOW MOP")))) for s, e in lay.lines],
+        )
         for k in range(0, 25):
             r.shot_frame(span, k)
         rep = r.audit_report()
@@ -69,7 +72,7 @@ def test_audit_catches_text_that_differs_from_the_deck(demo, gl, work, monkeypat
 
 def test_audit_reports_missing_entries(demo, gl, work, monkeypatch):
     monkeypatch.setenv("REEL_DEPTH", "stub")
-    d = small_reel(demo, 0.5)           # too short for typewriters: captions start but never finish
+    d = small_reel(demo, 0.5)  # too short for typewriters: captions start but never finish
     out = render.render_reel(d, "short", base_dir=demo, out_dir=work, audit=True, with_audio=False)
     doc = json.loads((work / "short.text_audit.json").read_text())
     assert doc["never_fully_typed"]

@@ -23,13 +23,17 @@ def small_demo_reel(demo):
 
 def test_full_demo_renders_draft_in_container(demo, gl, work):
     from funkbox.reel import render
+
     d = small_demo_reel(demo)
     d["settings"] = {"width": 1080, "height": 1920, "fps": 30, "safe_area": "reels"}
     out = render.render_reel(d, "draft", base_dir=demo, out_dir=work, draft=True, audit=True)
     assert (out.width, out.height, out.fps) == (540, 960, 24)
     assert out.audit_ok is True
-    probe = subprocess.run([__import__("funkbox.media", fromlist=["x"]).ffmpeg_exe(), "-hide_banner", "-i", out.paths["mp4"]],
-                           capture_output=True, text=True).stderr
+    probe = subprocess.run(
+        [__import__("funkbox.media", fromlist=["x"]).ffmpeg_exe(), "-hide_banner", "-i", out.paths["mp4"]],
+        capture_output=True,
+        text=True,
+    ).stderr
     assert "540x960" in probe and "24 fps" in probe and "Audio: aac" in probe
     assert abs(out.duration - 25.0) < 1.5, out.duration
     print(out.report_line())
@@ -38,6 +42,7 @@ def test_full_demo_renders_draft_in_container(demo, gl, work):
 def test_storyboard_has_one_tile_per_shot_plus_end_card(demo, gl, work):
     from funkbox.reel import render
     from funkbox.reel.storyboard import storyboard
+
     plan = render.prepare(small_demo_reel(demo), demo)
     sb = storyboard(plan, work / "sb.png", tile_w=135)
     assert len(plan.spans) == 13 and plan.spans[-1].kind == "end"
@@ -47,7 +52,9 @@ def test_storyboard_has_one_tile_per_shot_plus_end_card(demo, gl, work):
     # every tile area is populated (not blank); labels live below the frame
     for i in range(13):
         x = 10 + (i % cols) * (135 + 10)
-        y = 10 + (i // cols) * (tile_h + sb.height // 40 * 0 + (sb.height - 10 - rows * 10 - rows * tile_h) // rows + 10)
+        y = 10 + (i // cols) * (
+            tile_h + sb.height // 40 * 0 + (sb.height - 10 - rows * 10 - rows * tile_h) // rows + 10
+        )
         tile = sb.crop((x, y, x + 135, y + tile_h)).convert("L")
         assert tile.getextrema()[1] - tile.getextrema()[0] > 20
 
@@ -58,8 +65,10 @@ def test_cli_validate_still_storyboard_beats_cutout(demo, gl, work):
     reel.write_text(json.dumps(small_demo_reel(demo)))
 
     def run(*a):
-        return subprocess.run([sys.executable, "-m", "funkbox", "reel", *map(str, a)], capture_output=True,
-                              text=True, env=env, cwd=work)
+        return subprocess.run(
+            [sys.executable, "-m", "funkbox", "reel", *map(str, a)], capture_output=True, text=True, env=env, cwd=work
+        )
+
     r = run("validate", reel)
     assert r.returncode == 0 and "OK" in r.stdout, r.stderr
     r = run("storyboard", reel, "-o", work / "sb.png", "--tile", 120)
@@ -79,6 +88,7 @@ def test_cli_validate_still_storyboard_beats_cutout(demo, gl, work):
 
 def test_setup_models_checks_hashes(work, monkeypatch):
     from funkbox.reel import models
+
     st = models.status()
     assert set(st) == {"depth", "voice", "kokoro"}
     man = models.models_manifest()
@@ -89,10 +99,16 @@ def test_setup_models_checks_hashes(work, monkeypatch):
     monkeypatch.setenv("FUNK_MODELS", str(work))
     import http.server
     import threading
+
     class H(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
-            self.send_response(200); self.end_headers(); self.wfile.write(b"not the model")
-        def log_message(self, *a): pass
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"not the model")
+
+        def log_message(self, *a):
+            pass
+
     srv = http.server.HTTPServer(("127.0.0.1", 0), H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     with pytest.raises(RuntimeError, match="SHA-256 mismatch"):
@@ -103,13 +119,30 @@ def test_setup_models_checks_hashes(work, monkeypatch):
 
 EXPECTED_TOOLS = {"reel_copy_lines", "reel_validate", "reel_storyboard", "reel_still", "reel_render", "reel_templates"}
 # v3.1 "projects" adds these (the draft -> approve -> lock flow is the ONLY way copy changes; see test_p3/test_p5)
-V31_TOOLS = {"project_new", "project_list", "project_ingest", "project_set_product", "project_brand", "project_set_brand",
-             "project_propose_copy", "project_approve_copy", "project_copy_diff", "project_auto_reel", "project_render"}
+V31_TOOLS = {
+    "project_new",
+    "project_list",
+    "project_ingest",
+    "project_set_product",
+    "project_brand",
+    "project_set_brand",
+    "project_propose_copy",
+    "project_approve_copy",
+    "project_copy_diff",
+    "project_auto_reel",
+    "project_render",
+}
 
 
 async def _session(home, out, fn):
-    env = {**os.environ, "FUNK_OUT": str(out), "FUNK_HOME": str(home), "FUNK_INPUTS": str(home / "inputs"),
-           "REEL_DEPTH": "stub", "REEL_TTS": "stub"}
+    env = {
+        **os.environ,
+        "FUNK_OUT": str(out),
+        "FUNK_HOME": str(home),
+        "FUNK_INPUTS": str(home / "inputs"),
+        "REEL_DEPTH": "stub",
+        "REEL_TTS": "stub",
+    }
     if sys.platform == "linux" and "DISPLAY" not in env:
         env.setdefault("FUNK_GL_BACKEND", "egl")
     params = StdioServerParameters(command=sys.executable, args=["-m", "funkbox", "serve"], env=env, cwd=str(ROOT))
@@ -121,10 +154,11 @@ async def _session(home, out, fn):
 
 def test_mcp_every_tool_and_no_write_tool(demo, gl, work):
     import shutil
+
     home = work / "home"
     shutil.copytree(demo, home / "examples_demo")
     shutil.copytree(ROOT / "fonts", home / "fonts")
-    shutil.copytree(ROOT / "shaders", home / "shaders")           # funk2 recipes reference shaders/ under FUNK_HOME
+    shutil.copytree(ROOT / "shaders", home / "shaders")  # funk2 recipes reference shaders/ under FUNK_HOME
     d = small_demo_reel(demo)
     for k in ("copy",):
         d[k] = "examples_demo/" + d[k]
@@ -146,7 +180,11 @@ def test_mcp_every_tool_and_no_write_tool(demo, gl, work):
         names = {t.name for t in tools.tools}
         assert EXPECTED_TOOLS | V31_TOOLS <= names, names
         assert not any(w in n for n in EXPECTED_TOOLS for w in ("write", "save", "set", "edit", "update", "add_copy"))
-        assert not any(w in n for n in EXPECTED_TOOLS | V31_TOOLS for w in ("write", "save", "edit", "update", "add_copy", "set_copy"))
+        assert not any(
+            w in n
+            for n in EXPECTED_TOOLS | V31_TOOLS
+            for w in ("write", "save", "edit", "update", "add_copy", "set_copy")
+        )
         init = s.get_server_capabilities() if hasattr(s, "get_server_capabilities") else None
         res = {}
         res["copy"] = await s.call_tool("reel_copy_lines", {"path": "examples_demo/inputs/brand/copy.json"})
@@ -163,7 +201,7 @@ def test_mcp_every_tool_and_no_write_tool(demo, gl, work):
     res = asyncio.run(_session(home, out, go))
     for k, v in res.items():
         assert not v.is_error, (k, v)
-    txt = lambda r: "\n".join(c.text for c in r.content if c.type == "text")          # noqa: E731
+    txt = lambda r: "\n".join(c.text for c in r.content if c.type == "text")  # noqa: E731
     assert '"LOOK CLOSER.\\nTIME FOR A CLEAN?"' in txt(res["copy"])
     assert "brand-split" in txt(res["tpl"])
     assert txt(res["val"]).startswith("OK")
@@ -177,6 +215,7 @@ def test_mcp_every_tool_and_no_write_tool(demo, gl, work):
 
 def test_server_instructions_forbid_inventing_copy():
     from funkbox import server
+
     assert "never invent copy" in server.INSTRUCTIONS and "ask the user to add it to copy.json" in server.INSTRUCTIONS
 
 
@@ -186,11 +225,13 @@ def test_storyboard_tiny_tiles_use_the_ad_layout(gl, tmp_path):
     from funkbox.reel import render as R, storyboard as SB
     import json, sys
     from pathlib import Path
+
     root = Path(__file__).resolve().parents[2]
     sys.path.insert(0, str(root / "examples" / "reel_demo"))
     import make_assets
     from funkbox import config
-    demo = config.funk_out() / "test_sb_tiny" / "demo"        # inside the path fence
+
+    demo = config.funk_out() / "test_sb_tiny" / "demo"  # inside the path fence
     make_assets.make(demo, 270, 480)
     d = json.loads((demo / "demo.reel.json").read_text())
     d["settings"] = {"width": 540, "height": 960, "fps": 10, "safe_area": "reels"}

@@ -23,3 +23,17 @@ jobs:
             grep -E "^(FAILED|ERROR) " pytest.txt | head -30 | sed 's/^/::error title=pytest::/'
             exit 1
           }
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Ruff (version pinned in pyproject.toml, so the formatter output is stable)
+        run: pip install ruff==0.17.3
+      - name: Lint
+        run: ruff check .
+      - name: Format
+        run: ruff format --check .

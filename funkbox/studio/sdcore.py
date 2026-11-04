@@ -5,6 +5,7 @@ Used by three callers, so the rules live in exactly one place:
   * ``funkbox/studio`` (request building, the size tracker, and the ``STUDIO_FAKE_SD`` test stub),
   * the tests (no FastSD, no network, no models).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -24,8 +25,8 @@ ASPECTS: dict[str, tuple[int, int]] = {
     "wide": (896, 512),
 }
 STRENGTH_MIN, STRENGTH_MAX = 0.05, 0.95
-MAX_STEPS = 20                     # ceil(1 / 0.05)
-SLOW_SIZE_MINUTES = "2-3"          # one OpenVINO recompile per new size on the laptop
+MAX_STEPS = 20  # ceil(1 / 0.05)
+SLOW_SIZE_MINUTES = "2-3"  # one OpenVINO recompile per new size on the laptop
 NAME_RE = re.compile(r"[^A-Za-z0-9_\-]")
 UPSCALE_FACTOR = 2
 
@@ -40,8 +41,10 @@ class SDError(ValueError):
 def aspect_size(aspect: str) -> tuple[int, int]:
     key = (aspect or "square").strip().lower()
     if key not in ASPECTS:
-        raise SDError(f"unknown aspect {aspect!r}; use one of {', '.join(ASPECTS)} "
-                      f"({', '.join(f'{k} {w}x{h}' for k, (w, h) in ASPECTS.items())})")
+        raise SDError(
+            f"unknown aspect {aspect!r}; use one of {', '.join(ASPECTS)} "
+            f"({', '.join(f'{k} {w}x{h}' for k, (w, h) in ASPECTS.items())})"
+        )
     return ASPECTS[key]
 
 
@@ -74,8 +77,10 @@ class SizeTracker:
     def warning(self, w: int, h: int) -> str | None:
         if not self.is_new(w, h):
             return None
-        return (f"first image at {w}x{h} will take ~{SLOW_SIZE_MINUTES} min (the iGPU model is recompiled once "
-                f"per size, then that size is fast until the size changes again)")
+        return (
+            f"first image at {w}x{h} will take ~{SLOW_SIZE_MINUTES} min (the iGPU model is recompiled once "
+            f"per size, then that size is fast until the size changes again)"
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -99,8 +104,10 @@ def fence_path(path: str | Path, roots: list[Path]) -> Path:
         raise SDError(f"cannot resolve {path!s}: {e}") from None
     rr = [Path(r).expanduser().resolve() for r in roots]
     if not any(rp == r or rp.is_relative_to(r) for r in rr):
-        raise SDError(f"path {path!s} resolves outside the allowed folders ({', '.join(str(r) for r in rr)}); "
-                      "put the image in the inputs folder")
+        raise SDError(
+            f"path {path!s} resolves outside the allowed folders ({', '.join(str(r) for r in rr)}); "
+            "put the image in the inputs folder"
+        )
     if not rp.is_file():
         raise SDError(f"image not found: {path!s}")
     return rp
@@ -111,10 +118,20 @@ def safe_name(name: str, fallback: str) -> str:
     return n or fallback
 
 
-def build_request(prompt: str, aspect: str = "square", *, seed: int = -1, steps: int = 1, negative_prompt: str = "",
-                  name: str = "", mode: str = "txt2img", init_image: str | Path | None = None,
-                  strength: float = 0.5, roots: list[Path] | None = None,
-                  size: tuple[int, int] | None = None) -> dict:
+def build_request(
+    prompt: str,
+    aspect: str = "square",
+    *,
+    seed: int = -1,
+    steps: int = 1,
+    negative_prompt: str = "",
+    name: str = "",
+    mode: str = "txt2img",
+    init_image: str | Path | None = None,
+    strength: float = 0.5,
+    roots: list[Path] | None = None,
+    size: tuple[int, int] | None = None,
+) -> dict:
     """The body for POST /studio/generate. Raises SDError before anything is sent."""
     if not isinstance(prompt, str) or not prompt.strip():
         raise SDError("prompt must be a non-empty string")
@@ -122,8 +139,15 @@ def build_request(prompt: str, aspect: str = "square", *, seed: int = -1, steps:
         raise SDError(f"mode must be txt2img or img2img (got {mode!r})")
     w, h = size if size else aspect_size(aspect)
     w, h = round64(w), round64(h)
-    body: dict = {"prompt": prompt, "negative_prompt": negative_prompt or "", "width": w, "height": h,
-                  "seed": int(seed), "name": name or "", "mode": mode}
+    body: dict = {
+        "prompt": prompt,
+        "negative_prompt": negative_prompt or "",
+        "width": w,
+        "height": h,
+        "seed": int(seed),
+        "name": name or "",
+        "mode": mode,
+    }
     steps = int(steps)
     if not 1 <= steps <= MAX_STEPS:
         raise SDError(f"steps must be 1..{MAX_STEPS}")
@@ -166,8 +190,9 @@ def upscale_lanczos(im: Image.Image) -> Image.Image:
 # --------------------------------------------------------------------------- #
 # the STUDIO_FAKE_SD stub: deterministic procedural pictures, no FastSD, no models
 # --------------------------------------------------------------------------- #
-def fake_image(prompt: str, w: int, h: int, seed: int = 0, init: Image.Image | None = None,
-               strength: float = 0.5) -> Image.Image:
+def fake_image(
+    prompt: str, w: int, h: int, seed: int = 0, init: Image.Image | None = None, strength: float = 0.5
+) -> Image.Image:
     """Smooth colour fields and soft blobs seeded from sha256(prompt) and ``seed``.
 
     img2img: blends toward the (cover-resized) init image, so strength 0.05 stays close to it and

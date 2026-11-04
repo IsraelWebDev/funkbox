@@ -1,4 +1,5 @@
 """Shot timing: explicit seconds, VO-driven ``auto``, beat-grid ``beats:N`` and beat snapping."""
+
 from __future__ import annotations
 
 import bisect
@@ -9,10 +10,10 @@ from dataclasses import dataclass
 
 from .schema import BEATS_RE, Reel
 
-VO_LEAD = 0.1          # VO clip starts this long after its shot starts
-VO_TAIL = 0.35         # a shot is at least VO length + this long
+VO_LEAD = 0.1  # VO clip starts this long after its shot starts
+VO_TAIL = 0.35  # a shot is at least VO length + this long
 AUTO_MIN = 1.0
-AUTO_NO_VO = 1.5       # `auto` with no voiceover line
+AUTO_NO_VO = 1.5  # `auto` with no voiceover line
 SNAP_WINDOW = 0.25
 SNAP_MIN_SHOT = 0.6
 END_MIN = 0.5
@@ -55,12 +56,12 @@ def resolve_transitions(shots) -> list[str]:
 @dataclass(frozen=True)
 class ShotSpan:
     id: str
-    kind: str                 # "shot" | "end"
+    kind: str  # "shot" | "end"
     index: int
-    start: float              # seconds, a whole number of frames
+    start: float  # seconds, a whole number of frames
     end: float
     start_frame: int
-    end_frame: int            # exclusive
+    end_frame: int  # exclusive
     vo_id: str | None = None
     vo_start: float | None = None
     vo_dur: float | None = None
@@ -89,8 +90,9 @@ def _vo_len(reel: Reel, shot, vo_durations: dict[str, float]) -> float | None:
     return float(vo_durations[shot.vo])
 
 
-def build_timeline(reel: Reel, vo_durations: dict[str, float] | None = None,
-                   beats: list[float] | None = None) -> list[ShotSpan]:
+def build_timeline(
+    reel: Reel, vo_durations: dict[str, float] | None = None, beats: list[float] | None = None
+) -> list[ShotSpan]:
     """Absolute [start, end) for every shot plus the end card, rounded to whole frames.
 
     ``vo_durations`` maps copy id -> seconds of speech. ``beats`` is the music beat grid (seconds).
@@ -116,14 +118,18 @@ def build_timeline(reel: Reel, vo_durations: dict[str, float] | None = None,
             m = BEATS_RE.match(d)
             assert m
             if period is None:
-                raise TimelineError(f"shot {sh.id}: duration {d!r} needs a beat grid "
-                                    f"(set audio.bpm, or audio.music to detect one, or use seconds)")
+                raise TimelineError(
+                    f"shot {sh.id}: duration {d!r} needs a beat grid "
+                    f"(set audio.bpm, or audio.music to detect one, or use seconds)"
+                )
             dur = float(m.group(1)) * period
         else:
             dur = float(d)
         if v is not None and dur < need - 1e-6:
-            raise TimelineError(f"shot {sh.id}: duration {dur:.2f}s is shorter than its voiceover line "
-                                f"{sh.vo!r} ({v:.2f}s) + {VO_TAIL}s padding = {need:.2f}s")
+            raise TimelineError(
+                f"shot {sh.id}: duration {dur:.2f}s is shorter than its voiceover line "
+                f"{sh.vo!r} ({v:.2f}s) + {VO_TAIL}s padding = {need:.2f}s"
+            )
         nominal.append(dur)
         minimum.append(max(need, 0.0))
 
@@ -137,7 +143,7 @@ def build_timeline(reel: Reel, vo_durations: dict[str, float] | None = None,
             nxt_end = cuts[k + 1] if k < n else cuts[k] + (reel.end_card.duration if reel.end_card else END_MIN)
             nxt_min = floor[k] if k < n else END_MIN
             i = bisect.bisect_left(beats, cuts[k])
-            near = sorted(beats[max(0, i - 2): i + 2], key=lambda b: abs(b - cuts[k]))
+            near = sorted(beats[max(0, i - 2) : i + 2], key=lambda b: abs(b - cuts[k]))
             for cand in near:
                 if abs(cand - cuts[k]) > SNAP_WINDOW:
                     break
@@ -155,13 +161,23 @@ def build_timeline(reel: Reel, vo_durations: dict[str, float] | None = None,
         s_f, e_f = fr[i], fr[i + 1]
         start = s_f / fps
         v = vo[i]
-        spans.append(ShotSpan(sh.id, "shot", i, start, e_f / fps, s_f, e_f,
-                              sh.vo if v is not None else None,
-                              start + VO_LEAD if v is not None else None, v))
+        spans.append(
+            ShotSpan(
+                sh.id,
+                "shot",
+                i,
+                start,
+                e_f / fps,
+                s_f,
+                e_f,
+                sh.vo if v is not None else None,
+                start + VO_LEAD if v is not None else None,
+                v,
+            )
+        )
     if reel.end_card:
         e_frames = max(1, round(reel.end_card.duration * fps))
-        spans.append(ShotSpan("end_card", "end", n, fr[n] / fps, (fr[n] + e_frames) / fps,
-                              fr[n], fr[n] + e_frames))
+        spans.append(ShotSpan("end_card", "end", n, fr[n] / fps, (fr[n] + e_frames) / fps, fr[n], fr[n] + e_frames))
     return spans
 
 

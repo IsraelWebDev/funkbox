@@ -26,7 +26,7 @@ def frame(busy_rows=()):
 
 
 def test_pick_anchor_takes_the_emptiest_region():
-    assert C.pick_anchor(frame([(370, 450), (200, 280)]), lay_for, W, H) == "top"          # bottom and middle busy
+    assert C.pick_anchor(frame([(370, 450), (200, 280)]), lay_for, W, H) == "top"  # bottom and middle busy
     assert C.pick_anchor(frame([(30, 110), (370, 450)]), lay_for, W, H) == "center"
     assert C.pick_anchor(frame([(30, 110), (200, 280)]), lay_for, W, H) == "bottom"
 
@@ -39,9 +39,20 @@ def test_pick_anchor_ties_go_bottom_and_is_deterministic():
 
 
 def reel_with(anchor="auto", transition="auto"):
-    return {"version": 3, "settings": {"width": 1080, "height": 1920, "fps": 30}, "copy": "copy.json",
-            "shots": [{"id": "a", "source": {"color": "#222222"}, "duration": 1, "transition_in": transition,
-                       "caption": {"copy_id": "c", "style": "red-box", "anchor": anchor}}]}
+    return {
+        "version": 3,
+        "settings": {"width": 1080, "height": 1920, "fps": 30},
+        "copy": "copy.json",
+        "shots": [
+            {
+                "id": "a",
+                "source": {"color": "#222222"},
+                "duration": 1,
+                "transition_in": transition,
+                "caption": {"copy_id": "c", "style": "red-box", "anchor": anchor},
+            }
+        ],
+    }
 
 
 def test_schema_accepts_auto_and_still_rejects_other_values():
@@ -63,7 +74,7 @@ def test_auto_transitions_cut_first_never_repeat_and_are_stable():
     assert out[0] == "cut" and all(t in AUTO_TRANSITIONS for t in out[1:])
     assert all(a != b for a, b in zip(out[1:], out[2:]))
     assert out == resolve_transitions(shots(ids))
-    assert len(set(out[1:])) > 1                                   # different shot ids can differ
+    assert len(set(out[1:])) > 1  # different shot ids can differ
     other = resolve_transitions(shots([f"x{i}" for i in range(12)]))
     assert out != other
 
@@ -77,18 +88,31 @@ def test_lint_demands_an_explicit_anchor_on_code_card_shots(tmp_path, monkeypatc
     import sys
     from pathlib import Path
     from PIL import Image
+
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "promo"))
     import lint
+
     day = tmp_path / "2026-11-03"
     (day / "assets").mkdir(parents=True)
     Image.new("RGB", (1080, 1920), (18, 20, 28)).save(day / "assets" / "card.png")
     (day / "copy.json").write_text(json.dumps({"lines": {"c": {"text": "CAPTIONS MATCH\nYOUR COPY"}}}))
-    (day / "assets.json").write_text(json.dumps({"assets": [{"path": "assets/card.png",
-                                                             "text_rect": [0.02, 0.09, 0.7, 0.56]}]}))
+    (day / "assets.json").write_text(
+        json.dumps({"assets": [{"path": "assets/card.png", "text_rect": [0.02, 0.09, 0.7, 0.56]}]})
+    )
     monkeypatch.setenv("FUNK_INPUTS", str(tmp_path))
-    reel = {"version": 3, "settings": {"width": 1080, "height": 1920, "fps": 30, "safe_area": "reels"},
-            "copy": "copy.json", "shots": [{"id": "card", "source": {"image": "assets/card.png"}, "duration": 2,
-                                            "caption": {"copy_id": "c", "style": "red-box", "anchor": "auto"}}]}
+    reel = {
+        "version": 3,
+        "settings": {"width": 1080, "height": 1920, "fps": 30, "safe_area": "reels"},
+        "copy": "copy.json",
+        "shots": [
+            {
+                "id": "card",
+                "source": {"image": "assets/card.png"},
+                "duration": 2,
+                "caption": {"copy_id": "c", "style": "red-box", "anchor": "auto"},
+            }
+        ],
+    }
     (day / "reel.json").write_text(json.dumps(reel))
     assert "explicit caption anchor" in lint.caption_problems(day)[0]
     reel["shots"][0]["caption"]["anchor"] = "bottom"

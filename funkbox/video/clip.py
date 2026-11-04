@@ -10,6 +10,7 @@ subtitles whose text is exactly what you wrote.
 
 Inputs are never modified and outputs never overwrite anything: a name that exists gets -2, -3 ...
 """
+
 from __future__ import annotations
 
 import json
@@ -40,12 +41,15 @@ class Info:
     codec: str
 
     def text(self) -> str:
-        return (f"{self.path.name}: {self.duration:.2f}s, {self.width}x{self.height} @ {self.fps:g} fps, "
-                f"{self.codec}, {'with' if self.audio else 'no'} audio")
+        return (
+            f"{self.path.name}: {self.duration:.2f}s, {self.width}x{self.height} @ {self.fps:g} fps, "
+            f"{self.codec}, {'with' if self.audio else 'no'} audio"
+        )
 
 
 def _src(path) -> Path:
     from funkbox.config import resolve_path
+
     return resolve_path(str(path))
 
 
@@ -78,13 +82,21 @@ def info(path) -> Info:
         raise VideoError(f"{p.name}: not a video ffmpeg can read")
     dur = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
     fps = re.search(r"(\d+(?:\.\d+)?) fps", err) or re.search(r"(\d+(?:\.\d+)?) tbr", err)
-    return Info(p, dur, int(v.group(2)), int(v.group(3)), float(fps.group(1)) if fps else 0.0,
-                bool(re.search(r"Stream #\S+.*?: Audio:", err)), v.group(1))
+    return Info(
+        p,
+        dur,
+        int(v.group(2)),
+        int(v.group(3)),
+        float(fps.group(1)) if fps else 0.0,
+        bool(re.search(r"Stream #\S+.*?: Audio:", err)),
+        v.group(1),
+    )
 
 
 def _out_path(src: Path, out_dir, name: str, suffix: str = ".mp4") -> Path:
     from funkbox.config import funk_out
     from funkbox.stills.render import NAME_RE, fence_out
+
     if not NAME_RE.match(name):
         raise VideoError(f"bad output name {name!r}: use 1-60 of letters, digits, _ and -")
     d = fence_out(out_dir or (funk_out() / "video"))
@@ -140,11 +152,27 @@ def scenes(path, threshold: float = 0.3, min_shot: float = 0.25, sheet: bool = T
 
 
 def frame_at(path: Path, t: float, width: int = 256) -> Image.Image:
-    r = _run(["-ss", f"{max(0.0, t):.3f}", "-i", str(path), "-frames:v", "1", "-vf", f"scale={width}:-2",
-              "-f", "image2pipe", "-vcodec", "png", "-"])
+    r = _run(
+        [
+            "-ss",
+            f"{max(0.0, t):.3f}",
+            "-i",
+            str(path),
+            "-frames:v",
+            "1",
+            "-vf",
+            f"scale={width}:-2",
+            "-f",
+            "image2pipe",
+            "-vcodec",
+            "png",
+            "-",
+        ]
+    )
     if r.returncode != 0 or not r.stdout:
         raise VideoError(f"{path.name}: no frame at {t:.2f}s")
     import io
+
     return Image.open(io.BytesIO(r.stdout)).convert("RGB")
 
 
@@ -167,8 +195,11 @@ def _sheet(inf: Info, shots, cols: int = 8, tw: int = 240) -> Image.Image:
 def write_scenes(res: Scenes, out_dir=None, name: str = "") -> dict[str, Path]:
     name = name or _default_name(res.path, "scenes")
     js = _out_path(res.path, out_dir, name, ".scenes.json")
-    js.write_text(json.dumps({"video": str(res.path), "shots": [list(s) for s in res.shots],
-                              "sources": res.sources()}, indent=2) + "\n", encoding="utf-8")
+    js.write_text(
+        json.dumps({"video": str(res.path), "shots": [list(s) for s in res.shots], "sources": res.sources()}, indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
     res.files = {"scenes": js}
     if res.sheet is not None:
         img = js.with_name(js.name.replace(".scenes.json", ".scenes.jpg"))
@@ -191,8 +222,11 @@ def trim(path, start, end=None, out_dir=None, name: str = "", accurate: bool = T
     b = min(b, inf.duration)
     out = _out_path(inf.path, out_dir, name or _default_name(inf.path, f"{a:g}-{b:g}s".replace(".", "_")))
     args = ["-ss", f"{a:.3f}", "-i", str(inf.path), "-t", f"{b - a:.3f}"]
-    args += (["-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac",
-              "-b:a", "192k"] if accurate else ["-c", "copy", "-avoid_negative_ts", "make_zero"])
+    args += (
+        ["-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k"]
+        if accurate
+        else ["-c", "copy", "-avoid_negative_ts", "make_zero"]
+    )
     r = _run([*args, "-movflags", "+faststart", "-y", str(out)])
     if r.returncode != 0:
         out.unlink(missing_ok=True)
@@ -217,7 +251,7 @@ def parse_srt(text: str) -> list[Cue]:
         if k is None:
             continue
         a, b = (x.strip().split(" ")[0] for x in lines[k].split("-->"))
-        body = "\n".join(lines[k + 1:]).strip()
+        body = "\n".join(lines[k + 1 :]).strip()
         if body:
             cues.append(Cue(seconds(a), seconds(b), body))
     return cues
@@ -248,14 +282,23 @@ class Subtitled:
     cues: int
 
 
-def subtitles(path, cues=None, srt=None, style: str = "lower-third", anchor: str = "bottom", out_dir=None,
-              name: str = "", brand: dict | None = None) -> Subtitled:
+def subtitles(
+    path,
+    cues=None,
+    srt=None,
+    style: str = "lower-third",
+    anchor: str = "bottom",
+    out_dir=None,
+    name: str = "",
+    brand: dict | None = None,
+) -> Subtitled:
     """Burn cues into a copy of the video with funkbox's caption styles (red-box, bold-pop, lower-third).
     Each cue is laid out like a reel caption (wrapped on spaces, never shrunk below the minimum, Hebrew right to
     left) and a text audit records every string drawn."""
     import tempfile
     from funkbox.reel import captions
     from funkbox.reel.schema import Brand
+
     inf = info(path)
     cs = _cues(cues, srt)
     if style not in captions.list_styles():
@@ -281,17 +324,45 @@ def subtitles(path, cues=None, srt=None, style: str = "lower-third", anchor: str
             inputs += ["-i", str(png)]
             k = len(inputs) // 2
             tag = f"v{k}"
-            chain.append(f"[{last}][{k}:v]overlay={spr.x}:{spr.y}:enable='between(t,{c.start:.3f},{c.end:.3f})'"
-                         f"[{tag}]")
+            chain.append(f"[{last}][{k}:v]overlay={spr.x}:{spr.y}:enable='between(t,{c.start:.3f},{c.end:.3f})'[{tag}]")
             last = tag
             rebuilt = lay.reconstruct(spr.drawn)
-            audit.append({"cue": i + 1, "start": c.start, "end": c.end, "text": c.text, "drawn_lines": spr.drawn,
-                          "text_exact": rebuilt == c.text})
+            audit.append(
+                {
+                    "cue": i + 1,
+                    "start": c.start,
+                    "end": c.end,
+                    "text": c.text,
+                    "drawn_lines": spr.drawn,
+                    "text_exact": rebuilt == c.text,
+                }
+            )
         script = Path(td) / "graph.txt"
         script.write_text(";".join(chain) if chain else "[0:v]null[v0]", encoding="utf-8")
-        args = ["-i", str(inf.path), *inputs, *filter_script_args(script), "-map", f"[{last if chain else 'v0'}]",
-                "-map", "0:a?", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
-                "-c:a", "copy", "-movflags", "+faststart", "-y", str(out)]
+        args = [
+            "-i",
+            str(inf.path),
+            *inputs,
+            *filter_script_args(script),
+            "-map",
+            f"[{last if chain else 'v0'}]",
+            "-map",
+            "0:a?",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "medium",
+            "-crf",
+            "18",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "copy",
+            "-movflags",
+            "+faststart",
+            "-y",
+            str(out),
+        ]
         r = _run(args)
     if r.returncode != 0:
         out.unlink(missing_ok=True)

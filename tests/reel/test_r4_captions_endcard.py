@@ -1,5 +1,4 @@
 import json
-import re
 
 import numpy as np
 import pytest
@@ -13,12 +12,24 @@ W, H, FPS = 540, 960, 30
 
 
 def cap_reel(copy_id="tackle", reveal="typewriter", style="red-box", anchor="bottom", duration=3.0, deck_extra=None):
-    return {"copy": "inputs/brand/copy.json", "settings": {"width": W, "height": H, "fps": FPS},
-            "shots": [{"id": "c", "source": {"color": "#204060"}, "duration": duration,
-                       "caption": {"copy_id": copy_id, "style": style, "reveal": reveal, "anchor": anchor}}],
-            "end_card": {"template": "brand-split", "duration": 5.0,
-                         "copy": {"headline": "end_head", "sub": "end_sub", "url": "url"},
-                         "product": "inputs/brand/bottle.png"}}
+    return {
+        "copy": "inputs/brand/copy.json",
+        "settings": {"width": W, "height": H, "fps": FPS},
+        "shots": [
+            {
+                "id": "c",
+                "source": {"color": "#204060"},
+                "duration": duration,
+                "caption": {"copy_id": copy_id, "style": style, "reveal": reveal, "anchor": anchor},
+            }
+        ],
+        "end_card": {
+            "template": "brand-split",
+            "duration": 5.0,
+            "copy": {"headline": "end_head", "sub": "end_sub", "url": "url"},
+            "product": "inputs/brand/bottle.png",
+        },
+    }
 
 
 def make_renderer(demo, reel):
@@ -37,19 +48,19 @@ def test_typewriter_frame_k_is_exactly_the_text_prefix(demo, gl, copy_id):
         cps = lay.style.cps
         for k in range(0, 60):
             t = k / FPS - C.CAPTION_DELAY
-            if t < lay.style.scale_in:               # during the 0.15 s box scale-in the layer is animated
+            if t < lay.style.scale_in:  # during the 0.15 s box scale-in the layer is animated
                 continue
             n = min(len(text), int(np.floor(t * cps)))
             spr = C.render_caption(lay, "typewriter", t)
             # independent definition of "the first n characters on the final layout"
-            strings = [text[s:min(e, n)].rstrip() if n > s else None for s, e in lay.lines]
+            strings = [text[s : min(e, n)].rstrip() if n > s else None for s, e in lay.lines]
             direct = C.draw_block(lay, strings)
             assert (spr is None) == (direct is None)
             if spr is None:
                 continue
             a, b = spr.layer(W, H), direct.layer(W, H)
             assert np.array_equal(a, b), f"frame {k}: layer differs from direct prefix render"
-            assert lay.reconstruct(spr.drawn) == text[:n].rstrip()      # drawn strings ARE the prefix
+            assert lay.reconstruct(spr.drawn) == text[:n].rstrip()  # drawn strings ARE the prefix
             # and the full pipeline composites exactly that sprite over the shot's source
             fr = r.shot_frame(span, k)
             base = np.full((H, W, 3), (0x20, 0x40, 0x60), np.uint8)
@@ -64,7 +75,7 @@ def test_typewriter_reveals_one_character_at_a_time_and_box_grows(demo, gl):
         lay = r.caption_layout(r.span_for_shot("c"))
         widths = []
         for n in range(1, len(lay.text) + 1):
-            strings = [lay.text[s:min(e, n)].rstrip() if n > s else None for s, e in lay.lines]
+            strings = [lay.text[s : min(e, n)].rstrip() if n > s else None for s, e in lay.lines]
             spr = C.draw_block(lay, strings)
             widths.append(spr.rgba.shape[1])
         assert widths == sorted(widths) and widths[-1] > widths[2]
@@ -74,22 +85,28 @@ def test_typewriter_reveals_one_character_at_a_time_and_box_grows(demo, gl):
         r.release()
 
 
-@pytest.mark.parametrize("text", [
-    "TACKLE CARPET CLEANING WITH GLOWMOP.",
-    "GIVE YOUR CARPET THE ATTENTION IT NEEDS, EVERY SINGLE DAY OF THE WEEK.",
-    "LOOK CLOSER.\nTIME FOR A CLEAN?",
-    "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z",
-    "Pneumonoultramicroscopic dust.",
-])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "TACKLE CARPET CLEANING WITH GLOWMOP.",
+        "GIVE YOUR CARPET THE ATTENTION IT NEEDS, EVERY SINGLE DAY OF THE WEEK.",
+        "LOOK CLOSER.\nTIME FOR A CLEAN?",
+        "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z",
+        "Pneumonoultramicroscopic dust.",
+    ],
+)
 @pytest.mark.parametrize("width", [540, 720, 1080])
 def test_wrapping_never_splits_words(text, width):
-    fonts = C.Fonts(__import__("pathlib").Path("fonts/Oswald-SemiBold.ttf").resolve(),
-                    __import__("pathlib").Path("fonts/DMSerifDisplay-Regular.ttf").resolve())
+    fonts = C.Fonts(
+        __import__("pathlib").Path("fonts/Oswald-SemiBold.ttf").resolve(),
+        __import__("pathlib").Path("fonts/DMSerifDisplay-Regular.ttf").resolve(),
+    )
     from funkbox.reel.schema import Brand
+
     lay = C.layout_block("t", text, C.load_style("red-box"), fonts, Brand(), width, width * 16 // 9)
     words = [text[s:e].split() for s, e in lay.lines]
-    assert [w for ws in words for w in ws] == text.split()               # every word intact, in order
-    for (s, e) in lay.lines:                                              # lines are contiguous slices of the text
+    assert [w for ws in words for w in ws] == text.split()  # every word intact, in order
+    for s, e in lay.lines:  # lines are contiguous slices of the text
         assert text[s:e] == text[s:e].strip()
     assert all(lay.font.getlength(text[s:e]) <= lay.style.max_width * width - 2 * lay.pad + 1e-6 for s, e in lay.lines)
 
@@ -98,6 +115,7 @@ def test_no_hyphenation_added():
     from pathlib import Path
 
     from funkbox.reel.schema import Brand
+
     fonts = C.Fonts(Path("fonts/Oswald-SemiBold.ttf").resolve(), Path("fonts/DMSerifDisplay-Regular.ttf").resolve())
     text = "EXTRAORDINARILY LONG WORDS WRAP ONLY ON SPACES"
     lay = C.layout_block("t", text, C.load_style("red-box"), fonts, Brand(), 540, 960)
@@ -106,10 +124,13 @@ def test_no_hyphenation_added():
 
 def test_text_that_cannot_fit_is_a_validator_error_naming_the_copy_id(demo, work):
     import shutil
+
     d = work
     shutil.copytree(demo / "inputs", d / "inputs")
     deck = json.loads((d / "inputs/brand/copy.json").read_text())
-    deck["lines"]["toolong"] = {"text": "SUPERCALIFRAGILISTICEXPIALIDOCIOUSNESS OF " + "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"}
+    deck["lines"]["toolong"] = {
+        "text": "SUPERCALIFRAGILISTICEXPIALIDOCIOUSNESS OF " + "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"
+    }
     (d / "inputs/brand/copy.json").write_text(json.dumps(deck))
     reel = cap_reel("toolong")
     rep = validate(reel, d)
@@ -121,9 +142,11 @@ def test_min_size_is_never_undercut():
     from pathlib import Path
 
     from funkbox.reel.schema import Brand
+
     fonts = C.Fonts(Path("fonts/Oswald-SemiBold.ttf").resolve(), Path("fonts/DMSerifDisplay-Regular.ttf").resolve())
-    lay = C.layout_block("t", "GIVE YOUR CARPET THE ATTENTION IT NEEDS. " * 3, C.load_style("red-box"), fonts,
-                         Brand(), 540, 960)
+    lay = C.layout_block(
+        "t", "GIVE YOUR CARPET THE ATTENTION IT NEEDS. " * 3, C.load_style("red-box"), fonts, Brand(), 540, 960
+    )
     assert lay.px >= int(np.ceil(C.MIN_SIZE * 960))
 
 
@@ -221,23 +244,31 @@ def test_centered_logo_template_renders(demo, gl, work):
 
 def test_caption_templates_hold_no_free_text():
     from funkbox.reel.schema import scan_forbidden
-    from pathlib import Path
+
     for p in list((C.TEMPLATES / "captions").glob("*.json")) + list((C.TEMPLATES / "endcards").glob("*.json")):
         assert scan_forbidden(json.loads(p.read_text())) == [], p
 
 
 def test_logo_clean_template_white_logo_and_url_once(demo, gl, work):
-    reel = cap_reel()          # keeps end_card.product: a template without a "product" block must ignore it
+    reel = cap_reel()  # keeps end_card.product: a template without a "product" block must ignore it
     reel["brand"] = {"logo": "inputs/brand/logo.png"}
-    reel["end_card"] = {"template": "logo-clean", "duration": 4.0, "product": "inputs/brand/bottle.png",
-                        "copy": {"headline": "end_head", "sub": "end_sub", "url": "url"}}
+    reel["end_card"] = {
+        "template": "logo-clean",
+        "duration": 4.0,
+        "product": "inputs/brand/bottle.png",
+        "copy": {"headline": "end_head", "sub": "end_sub", "url": "url"},
+    }
     r = make_renderer(demo, reel)
     try:
         span = r.spans[-1]
         r.audit = {}
         for k in range(0, span.end_frame - span.start_frame, 3):
             fr = r.shot_frame(span, k)
-        assert {(e["slot"], e["instance"]) for e in r.audit_report()} == {("headline", "main"), ("sub", "main"), ("url", "main")}
+        assert {(e["slot"], e["instance"]) for e in r.audit_report()} == {
+            ("headline", "main"),
+            ("sub", "main"),
+            ("url", "main"),
+        }
         ec = r.endcard()
         assert tuple(ec.static[2, 2]) == (255, 255, 255) and tuple(ec.static[H - 3, W - 3]) == (255, 255, 255)
         arr, x, y = ec.logo

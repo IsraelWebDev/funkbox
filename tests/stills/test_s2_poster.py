@@ -1,4 +1,5 @@
 """v3.2 S2: poster core (canvas, layer types, blend, opacity, masks, product, shader layers, groups)."""
+
 import copy
 import json
 from pathlib import Path
@@ -44,8 +45,14 @@ def imgs(work):
 
 # ------------------------------------------------------------------ schema
 def test_presets_and_custom_canvas():
-    assert schema.PRESETS == {"square": (1080, 1080), "insta-portrait": (1080, 1350), "story": (1080, 1920),
-                              "landscape": (1920, 1080), "twitter": (1600, 900), "a4-150dpi": (1240, 1754)}
+    assert schema.PRESETS == {
+        "square": (1080, 1080),
+        "insta-portrait": (1080, 1350),
+        "story": (1080, 1920),
+        "landscape": (1920, 1080),
+        "twitter": (1600, 900),
+        "a4-150dpi": (1240, 1754),
+    }
     for name, (w, h) in schema.PRESETS.items():
         d = schema.parse({"canvas": {"preset": name}, "layers": [{"type": "solid", "color": "#000000"}]})
         assert (d.width, d.height) == (w, h)
@@ -56,15 +63,31 @@ def test_presets_and_custom_canvas():
 
 
 def test_schema_reports_every_problem_with_the_layer_named():
-    errs = schema.check({"canvas": {"preset": "nope"}, "colour": 1,
-                         "layers": [{"id": "a", "type": "image", "blend": "dodge", "opacity": 2, "paht": "x"},
-                                    {"id": "a", "type": "solid", "color": "red"},
-                                    {"type": "wobble"},
-                                    {"id": "t", "type": "text", "copy_id": "hook", "text": "both"}]})
+    errs = schema.check(
+        {
+            "canvas": {"preset": "nope"},
+            "colour": 1,
+            "layers": [
+                {"id": "a", "type": "image", "blend": "dodge", "opacity": 2, "paht": "x"},
+                {"id": "a", "type": "solid", "color": "red"},
+                {"type": "wobble"},
+                {"id": "t", "type": "text", "copy_id": "hook", "text": "both"},
+            ],
+        }
+    )
     joined = "\n".join(errs)
-    for frag in ("canvas.preset 'nope'", "unknown top-level keys ['colour']", "unknown blend 'dodge'",
-                 "opacity must be 0..1", "unknown keys ['paht']", "image layer needs `path`", "duplicate layer id 'a'",
-                 "solid layer needs `color`", "unknown layer type 'wobble'", "exactly one of `copy_id`"):
+    for frag in (
+        "canvas.preset 'nope'",
+        "unknown top-level keys ['colour']",
+        "unknown blend 'dodge'",
+        "opacity must be 0..1",
+        "unknown keys ['paht']",
+        "image layer needs `path`",
+        "duplicate layer id 'a'",
+        "solid layer needs `color`",
+        "unknown layer type 'wobble'",
+        "exactly one of `copy_id`",
+    ):
         assert frag in joined, frag
     with pytest.raises(schema.PosterError) as e:
         schema.parse({"layers": []})
@@ -72,8 +95,15 @@ def test_schema_reports_every_problem_with_the_layer_named():
 
 
 def test_ids_are_filled_and_unique():
-    d = schema.parse(doc([{"type": "solid", "color": "#000000"}, {"type": "solid", "color": "#111111"},
-                          {"type": "group", "layers": [{"type": "solid", "color": "#222222"}]}]))
+    d = schema.parse(
+        doc(
+            [
+                {"type": "solid", "color": "#000000"},
+                {"type": "solid", "color": "#111111"},
+                {"type": "group", "layers": [{"type": "solid", "color": "#222222"}]},
+            ]
+        )
+    )
     ids = [l["id"] for l in schema.all_layers(d.layers)]
     assert len(ids) == len(set(ids)) == 4
 
@@ -83,8 +113,14 @@ def test_ids_are_filled_and_unique():
 @pytest.mark.parametrize("opacity", [1.0, 0.6])
 def test_blend_modes_match_numpy_within_2_levels(imgs, mode, opacity):
     work, a, b = imgs
-    r = render.render_document(doc([{"id": "base", "type": "image", "path": str(a)},
-                                    {"id": "top", "type": "image", "path": str(b), "blend": mode, "opacity": opacity}]))
+    r = render.render_document(
+        doc(
+            [
+                {"id": "base", "type": "image", "path": str(a)},
+                {"id": "top", "type": "image", "path": str(b), "blend": mode, "opacity": opacity},
+            ]
+        )
+    )
     A = np.asarray(Image.open(a).convert("RGB"))
     B = np.asarray(Image.open(b).convert("RGBA"))
     bb, ss, sa = rgb01(A), rgb01(B[..., :3]), rgb01(B[..., 3:4])
@@ -98,19 +134,31 @@ def test_every_blend_mode_is_funkgls_own(imgs, gl):
     """Same pixels as funkgl's Engine blending two image layers: the compositor reuses blend.glsl."""
     from funkbox.gl.engine import Engine
     from funkbox.gl.recipe import BLEND_MODES, Recipe2
+
     work, a, b = imgs
     opaque = assets.save_noise(work / "c.png", 128, 96, 3)
     eng = Engine(128, 96)
     try:
         for mode in BLEND_MODES:
-            rec = Recipe2.from_dict({"version": 2, "settings": {"width": 128, "height": 96, "seed": 1},
-                                     "layers": [{"type": "image", "path": str(a), "fit": "stretch"},
-                                                {"type": "image", "path": str(opaque), "fit": "stretch",
-                                                 "blend": mode, "opacity": 0.7}]})
+            rec = Recipe2.from_dict(
+                {
+                    "version": 2,
+                    "settings": {"width": 128, "height": 96, "seed": 1},
+                    "layers": [
+                        {"type": "image", "path": str(a), "fit": "stretch"},
+                        {"type": "image", "path": str(opaque), "fit": "stretch", "blend": mode, "opacity": 0.7},
+                    ],
+                }
+            )
             want = eng.render(rec, 0)
-            got = render.render_document(doc([{"type": "image", "path": str(a), "fit": "stretch"},
-                                              {"type": "image", "path": str(opaque), "fit": "stretch",
-                                               "blend": mode, "opacity": 0.7}])).image
+            got = render.render_document(
+                doc(
+                    [
+                        {"type": "image", "path": str(a), "fit": "stretch"},
+                        {"type": "image", "path": str(opaque), "fit": "stretch", "blend": mode, "opacity": 0.7},
+                    ]
+                )
+            ).image
             assert np.abs(got.astype(int) - want.astype(int)).max() <= 1, mode
     finally:
         eng.release()
@@ -118,7 +166,9 @@ def test_every_blend_mode_is_funkgls_own(imgs, gl):
 
 def test_background_and_solid_and_hidden(imgs):
     work, a, b = imgs
-    r = render.render_document(doc([{"id": "hide", "type": "solid", "color": "#ff0000", "visible": False}], bg="#336699"))
+    r = render.render_document(
+        doc([{"id": "hide", "type": "solid", "color": "#ff0000", "visible": False}], bg="#336699")
+    )
     assert (r.image == np.array([0x33, 0x66, 0x99], np.uint8)).all() and r.layers == []
     r = render.render_document(doc([{"type": "solid", "color": "#ff000080"}], bg="#000000"))
     assert abs(int(r.image[0, 0, 0]) - 128) <= 1 and r.image[0, 0, 1] == 0
@@ -127,29 +177,66 @@ def test_background_and_solid_and_hidden(imgs):
 # ------------------------------------------------------------------ masks
 def test_radial_mask_centre_is_more_opaque_than_the_edge(imgs):
     work, a, b = imgs
-    r = render.render_document(doc([{"id": "m", "type": "solid", "color": "#ffffff",
-                                     "mask": {"type": "radial", "feather": 0.35}}], w=200, h=200))
+    r = render.render_document(
+        doc(
+            [{"id": "m", "type": "solid", "color": "#ffffff", "mask": {"type": "radial", "feather": 0.35}}],
+            w=200,
+            h=200,
+        )
+    )
     al = r.layers[0].rgba[..., 3]
     assert al[100, 100] == 255 and al[0, 0] == 0 and al[100, 0] <= 2 and al[100, 100] > al[100, 5]
-    assert al[100, 100] > al[100, 195] and np.all(np.diff(al[100, 100:].astype(int)) <= 0)     # monotone fall-off
-    inv = render.render_document(doc([{"id": "m", "type": "solid", "color": "#ffffff",
-                                       "mask": {"type": "radial", "feather": 0.35, "invert": True}}], w=200, h=200))
+    assert al[100, 100] > al[100, 195] and np.all(np.diff(al[100, 100:].astype(int)) <= 0)  # monotone fall-off
+    inv = render.render_document(
+        doc(
+            [
+                {
+                    "id": "m",
+                    "type": "solid",
+                    "color": "#ffffff",
+                    "mask": {"type": "radial", "feather": 0.35, "invert": True},
+                }
+            ],
+            w=200,
+            h=200,
+        )
+    )
     assert inv.layers[0].rgba[100, 100, 3] == 0 and inv.layers[0].rgba[0, 0, 3] == 255
 
 
 def test_linear_and_image_masks(imgs):
     work, a, b = imgs
-    r = render.render_document(doc([{"type": "solid", "color": "#ffffff",
-                                     "mask": {"type": "linear", "angle": 90, "position": 0.5, "feather": 0.2}}]))
+    r = render.render_document(
+        doc(
+            [
+                {
+                    "type": "solid",
+                    "color": "#ffffff",
+                    "mask": {"type": "linear", "angle": 90, "position": 0.5, "feather": 0.2},
+                }
+            ]
+        )
+    )
     al = r.layers[0].rgba[..., 3]
-    assert al[0, 10] == 255 and al[-1, 10] == 0 and 100 < al[48, 10] < 160           # opaque top, clear bottom
-    r = render.render_document(doc([{"type": "solid", "color": "#ffffff",
-                                     "mask": {"type": "linear", "angle": 0, "position": 0.5, "feather": 0.0}}]))
+    assert al[0, 10] == 255 and al[-1, 10] == 0 and 100 < al[48, 10] < 160  # opaque top, clear bottom
+    r = render.render_document(
+        doc(
+            [
+                {
+                    "type": "solid",
+                    "color": "#ffffff",
+                    "mask": {"type": "linear", "angle": 0, "position": 0.5, "feather": 0.0},
+                }
+            ]
+        )
+    )
     al = r.layers[0].rgba[..., 3]
     assert al[10, 5] == 255 and al[10, 120] == 0
     g = np.tile(np.linspace(0, 255, 128).astype(np.uint8), (96, 1))
     Image.fromarray(g).save(work / "m.png")
-    r = render.render_document(doc([{"type": "solid", "color": "#ffffff", "mask": {"type": "image", "path": str(work / "m.png")}}]))
+    r = render.render_document(
+        doc([{"type": "solid", "color": "#ffffff", "mask": {"type": "image", "path": str(work / "m.png")}}])
+    )
     al = r.layers[0].rgba[..., 3].astype(int)
     assert np.abs(al - g.astype(int)).max() <= 1
 
@@ -165,13 +252,22 @@ def test_image_fit_modes_and_placement(work):
     contain = render.render_document(doc([{"type": "image", "path": p, "fit": "contain"}], w=100, h=100)).layers[0].rgba
     assert contain[0, 50, 3] == 0 and contain[50, 50, 3] == 255 and contain[99, 50, 3] == 0
     assert (contain[..., 3] == 255).sum() == 100 * 50
-    small = render.render_document(doc([{"type": "image", "path": p, "fit": "contain", "scale": 0.5, "x": 0.25, "y": 0.25}],
-                                       w=100, h=100)).layers[0].rgba
+    small = (
+        render.render_document(
+            doc([{"type": "image", "path": p, "fit": "contain", "scale": 0.5, "x": 0.25, "y": 0.25}], w=100, h=100)
+        )
+        .layers[0]
+        .rgba
+    )
     ys, xs = np.nonzero(small[..., 3])
     assert xs.min() >= 0 and xs.max() < 50 and ys.max() < 50
-    rot = render.render_document(doc([{"type": "image", "path": p, "fit": "contain", "rotate_deg": 90}], w=100, h=100)).layers[0].rgba
+    rot = (
+        render.render_document(doc([{"type": "image", "path": p, "fit": "contain", "rotate_deg": 90}], w=100, h=100))
+        .layers[0]
+        .rgba
+    )
     ys, xs = np.nonzero(rot[..., 3] > 128)
-    assert (ys.max() - ys.min()) > (xs.max() - xs.min())                                  # now taller than wide
+    assert (ys.max() - ys.min()) > (xs.max() - xs.min())  # now taller than wide
     stretch = render.render_document(doc([{"type": "image", "path": p, "fit": "stretch"}], w=100, h=100)).layers[0].rgba
     assert stretch[..., 3].min() == 255
 
@@ -183,20 +279,33 @@ def test_image_at_canvas_size_is_not_resampled(imgs):
 
 
 def test_gradients(imgs):
-    r = render.render_document(doc([{"id": "g", "type": "gradient", "stops": ["#00000000", "#000000cc"], "angle": 90}],
-                                   w=64, h=200))
+    r = render.render_document(
+        doc([{"id": "g", "type": "gradient", "stops": ["#00000000", "#000000cc"], "angle": 90}], w=64, h=200)
+    )
     al = r.layers[0].rgba[..., 3].astype(int)
-    assert al[0].max() <= 2 and abs(al[-1].min() - 0xcc) <= 2 and np.all(np.diff(al.mean(axis=1)) >= -0.5)
+    assert al[0].max() <= 2 and abs(al[-1].min() - 0xCC) <= 2 and np.all(np.diff(al.mean(axis=1)) >= -0.5)
     r = render.render_document(doc([{"type": "gradient", "stops": ["#ff0000", "#0000ff"], "angle": 0}], w=200, h=64))
     px = r.layers[0].rgba
     assert px[10, 0, 0] > 250 and px[10, 199, 2] > 250 and abs(int(px[10, 100, 0]) - 127) <= 3
-    r = render.render_document(doc([{"type": "gradient", "kind": "radial", "stops": [{"pos": 0, "color": "#ffffff"},
-                                                                                     {"pos": 1, "color": "#000000"}]}],
-                                   w=100, h=100))
+    r = render.render_document(
+        doc(
+            [
+                {
+                    "type": "gradient",
+                    "kind": "radial",
+                    "stops": [{"pos": 0, "color": "#ffffff"}, {"pos": 1, "color": "#000000"}],
+                }
+            ],
+            w=100,
+            h=100,
+        )
+    )
     px = r.layers[0].rgba
     assert px[50, 50, 0] > 240 and px[0, 0, 0] < 5
     # premultiplied interpolation: a transparent stop does not tint the middle
-    r = render.render_document(doc([{"type": "gradient", "stops": ["#ff000000", "#0000ffff"], "angle": 0}], w=100, h=64))
+    r = render.render_document(
+        doc([{"type": "gradient", "stops": ["#ff000000", "#0000ffff"], "angle": 0}], w=100, h=64)
+    )
     mid = r.layers[0].rgba[32, 50]
     assert mid[0] < 8 and mid[2] > 240
 
@@ -205,23 +314,41 @@ def test_groups_nest_blend_and_opacity(imgs):
     work, a, b = imgs
     child = {"type": "image", "path": str(b), "blend": "multiply"}
     flat = render.render_document(doc([{"type": "image", "path": str(a)}, {**child, "opacity": 0.5}])).image
-    grp = render.render_document(doc([{"type": "image", "path": str(a)},
-                                      {"type": "group", "opacity": 0.5, "blend": "normal", "layers": [child]}])).image
+    grp = render.render_document(
+        doc(
+            [{"type": "image", "path": str(a)}, {"type": "group", "opacity": 0.5, "blend": "normal", "layers": [child]}]
+        )
+    ).image
     # group = child multiplied over a TRANSPARENT backdrop (isolated), so it is plain `normal` inside
-    iso = render.render_document(doc([{"type": "image", "path": str(a)}, {**{"type": "image", "path": str(b)}, "opacity": 0.5}])).image
+    iso = render.render_document(
+        doc([{"type": "image", "path": str(a)}, {**{"type": "image", "path": str(b)}, "opacity": 0.5}])
+    ).image
     assert np.abs(grp.astype(int) - iso.astype(int)).max() <= 2
     assert not np.array_equal(flat, grp)
-    grp2 = render.render_document(doc([{"type": "image", "path": str(a)},
-                                       {"type": "group", "blend": "multiply", "opacity": 0.5,
-                                        "layers": [{"type": "image", "path": str(b)}]}])).image
-    assert np.abs(grp2.astype(int) - flat.astype(int)).max() <= 2           # group blend/opacity == the layer's own
+    grp2 = render.render_document(
+        doc(
+            [
+                {"type": "image", "path": str(a)},
+                {"type": "group", "blend": "multiply", "opacity": 0.5, "layers": [{"type": "image", "path": str(b)}]},
+            ]
+        )
+    ).image
+    assert np.abs(grp2.astype(int) - flat.astype(int)).max() <= 2  # group blend/opacity == the layer's own
 
 
 # ------------------------------------------------------------------ product (reel R3 equivalence)
 def prod_doc(work, **over):
     make = assets.make_bottle(work / "bottle.png")
-    lay = {"id": "bottle", "type": "product", "image": str(make), "x": 0.5, "y": 0.9, "height": 700 / 960,
-           "shadow": 0.0, "match_color": 0.0}
+    lay = {
+        "id": "bottle",
+        "type": "product",
+        "image": str(make),
+        "x": 0.5,
+        "y": 0.9,
+        "height": 700 / 960,
+        "shadow": 0.0,
+        "match_color": 0.0,
+    }
     lay.update(over)
     return doc([lay], w=540, h=960, bg="#303a48")
 
@@ -231,11 +358,11 @@ def test_product_pixels_are_untouched_without_colour_match(work, gl):
     src = np.asarray(Image.open(work / "bottle.png").convert("RGBA"))
     x0 = 270 - 150
     y0 = round(0.9 * 960 - 700)
-    region = r.image[y0:y0 + 700, x0:x0 + 300]
+    region = r.image[y0 : y0 + 700, x0 : x0 + 300]
     opaque = src[..., 3] == 255
     assert opaque.sum() > 50000
-    assert np.array_equal(region[opaque], src[..., :3][opaque])                 # byte-identical label pixels
-    layer = r.layers[0].rgba[y0:y0 + 700, x0:x0 + 300]
+    assert np.array_equal(region[opaque], src[..., :3][opaque])  # byte-identical label pixels
+    layer = r.layers[0].rgba[y0 : y0 + 700, x0 : x0 + 300]
     assert np.array_equal(layer[..., 3][opaque], src[..., 3][opaque])
 
 
@@ -250,44 +377,54 @@ def test_product_colour_match_is_one_invertible_transform(work, gl):
     assert tr is not None and not tr.identity
     src = np.asarray(Image.open(work / "bottle.png").convert("RGBA"))
     x0, y0, w, h = info["placement"]
-    region = rgba[y0:y0 + h, x0:x0 + w]
+    region = rgba[y0 : y0 + h, x0 : x0 + w]
     opaque = src[..., 3] == 255
     raw_diff = np.abs(region[..., :3].astype(int) - src[..., :3].astype(int)).max(axis=-1)[opaque]
-    assert raw_diff.mean() > 1.0                                                  # the match really changed pixels
+    assert raw_diff.mean() > 1.0  # the match really changed pixels
     inv = RP.invert_transform(region[..., :3], tr)
     d3 = np.abs(inv - src[..., :3].astype(np.float32)).max(axis=-1)
-    assert (d3[opaque] <= 3).mean() >= 0.99                                       # ...and it is undone by the inverse
+    assert (d3[opaque] <= 3).mean() >= 0.99  # ...and it is undone by the inverse
 
 
 def test_product_layer_equals_reels_compositor(work, gl):
     """Shadow + sprite as a normal-blended layer reproduces reel's frame compositing."""
     from funkbox.reel.motion import Camera
     from funkbox.reel.schema import ProductSpec
+
     dd = prod_doc(work, shadow=0.7, height=0.5)
     r = render.render_document(dd)
     spec = ProductSpec(image=str(work / "bottle.png"), x=0.5, y=0.9, height=0.5, depth=0.5, shadow=0.7, match_color=0.0)
     pc = RP.ProductCompositor(work / "bottle.png", spec, 540, 960)
     bg = np.empty((960, 540, 3), np.uint8)
-    bg[:] = (0x30, 0x3a, 0x48)
+    bg[:] = (0x30, 0x3A, 0x48)
     want = pc.draw(bg, Camera(mode="kenburns", zoom=1.0))
     assert np.abs(r.image.astype(int) - want.astype(int)).max() <= 2
 
 
 def test_product_effects_only_add_pixels_behind(work, gl):
     plain = render.render_document(prod_doc(work, shadow=0.0))
-    fx = render.render_document(prod_doc(work, shadow=0.0, effects={"glow": 0.8, "stroke": {"opacity": 1, "width": 0.01, "color": "#ff00ff"}}))
+    fx = render.render_document(
+        prod_doc(work, shadow=0.0, effects={"glow": 0.8, "stroke": {"opacity": 1, "width": 0.01, "color": "#ff00ff"}})
+    )
     src = np.asarray(Image.open(work / "bottle.png").convert("RGBA"))
     x0, y0 = 120, round(0.9 * 960 - 700)
     opaque = src[..., 3] == 255
-    assert np.array_equal(fx.image[y0:y0 + 700, x0:x0 + 300][opaque], src[..., :3][opaque])
-    assert np.abs(fx.image.astype(int) - plain.image.astype(int)).max() > 20      # but something was added around it
+    assert np.array_equal(fx.image[y0 : y0 + 700, x0 : x0 + 300][opaque], src[..., :3][opaque])
+    assert np.abs(fx.image.astype(int) - plain.image.astype(int)).max() > 20  # but something was added around it
 
 
 # ------------------------------------------------------------------ shader layers, determinism, sidecar
 def test_shader_layer_is_deterministic_and_the_sidecar_reproduces_it(work, gl):
-    d = doc([{"id": "bg", "type": "shader", "shader": "shaders/fbm_flow.frag", "t": 0.3, "palette": "vapor"},
-             {"id": "g", "type": "gradient", "stops": ["#00000000", "#000000cc"]}], w=200, h=160, seed=5,
-            post=[{"name": "grain", "amount": 0.02}])
+    d = doc(
+        [
+            {"id": "bg", "type": "shader", "shader": "shaders/fbm_flow.frag", "t": 0.3, "palette": "vapor"},
+            {"id": "g", "type": "gradient", "stops": ["#00000000", "#000000cc"]},
+        ],
+        w=200,
+        h=160,
+        seed=5,
+        post=[{"name": "grain", "amount": 0.02}],
+    )
     p1 = render.render_poster(copy.deepcopy(d), work, "one")
     p2 = render.render_poster(copy.deepcopy(d), work, "two")
     a, b = Image.open(p1["png"]), Image.open(p2["png"])
@@ -310,8 +447,12 @@ def test_shader_layer_from_inline_source_and_funk2_recipe(work, gl):
     src = "vec4 effect(vec2 p) { return vec4(palette(0.5 + 0.5 * sin(4.0 * p.x + iPhase)), 1.0); }\n"
     r = render.render_document(doc([{"type": "shader", "source": src, "t": 0.25}]))
     assert r.image.std() > 1
-    rec = {"version": 2, "settings": {"width": 540, "height": 540, "seed": 3}, "palette": {"name": "sunset"},
-           "layers": [{"type": "shader", "shader": "shaders/plasma.frag"}]}
+    rec = {
+        "version": 2,
+        "settings": {"width": 540, "height": 540, "seed": 3},
+        "palette": {"name": "sunset"},
+        "layers": [{"type": "shader", "shader": "shaders/plasma.frag"}],
+    }
     r = render.render_document(doc([{"type": "shader", "recipe": rec, "t": 0.1}], w=96, h=64))
     assert r.image.shape == (64, 96, 3) and r.image.std() > 1
     bad = {**rec, "text": {"text": "HELLO"}}
@@ -322,7 +463,9 @@ def test_shader_layer_from_inline_source_and_funk2_recipe(work, gl):
 def test_post_passes_run_and_unknown_ones_are_refused(imgs):
     work, a, b = imgs
     plain = render.render_document(doc([{"type": "image", "path": str(a)}])).image
-    v = render.render_document(doc([{"type": "image", "path": str(a)}], post=[{"name": "vignette", "amount": 1.2}])).image
+    v = render.render_document(
+        doc([{"type": "image", "path": str(a)}], post=[{"name": "vignette", "amount": 1.2}])
+    ).image
     assert v[48, 64].astype(int).sum() >= v[0, 0].astype(int).sum() and not np.array_equal(plain, v)
     with pytest.raises(ValueError, match="unknown post pass"):
         render.render_document(doc([{"type": "image", "path": str(a)}], post=[{"name": "sparkle"}]))

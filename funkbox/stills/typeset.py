@@ -18,6 +18,7 @@ Text layer keys (all optional; a layer without them is drawn by the plain text p
 Mixed right-to-left and left-to-right inside one line keeps the paragraph's direction for the order of the styled
 pieces (each piece is shaped correctly); keep such lines in one run.
 """
+
 from __future__ import annotations
 
 import math
@@ -33,7 +34,7 @@ from .raster import RCtx, rgba_of
 from .schema import PosterError
 
 ADVANCED = ("letter_spacing", "runs", "on_path")
-SS = 4                                   # supersampling of the outline rasteriser
+SS = 4  # supersampling of the outline rasteriser
 
 
 def is_advanced(lay: dict) -> bool:
@@ -44,6 +45,7 @@ def use_outlines(lay: dict) -> bool:
     """Draw this layer with HarfBuzz outlines: it asks for typography, or Pillow has no libraqm (Windows wheels),
     whose basic layout has no kerning and no right-to-left."""
     from funkbox.bidi import pillow_has_raqm
+
     return is_advanced(lay) or not pillow_has_raqm()
 
 
@@ -51,7 +53,7 @@ def use_outlines(lay: dict) -> bool:
 class Piece:
     start: int
     end: int
-    font: object                         # vector.Shaper
+    font: object  # vector.Shaper
     px: float
     color: tuple[int, int, int, int]
 
@@ -59,6 +61,7 @@ class Piece:
 @dataclass
 class Set:
     """The typeset layer: outlines grouped by colour (canvas px, full resolution), and what was drawn."""
+
     by_color: list[tuple[tuple[int, int, int, int], list]] = field(default_factory=list)
     lines: list[tuple[int, int]] = field(default_factory=list)
     drawn: list[str] = field(default_factory=list)
@@ -72,9 +75,9 @@ class Set:
         for i, s in enumerate(self.drawn):
             out.append(s)
             if i + 1 < len(self.lines):
-                out.append(t[self.lines[i][1]: self.lines[i + 1][0]])
+                out.append(t[self.lines[i][1] : self.lines[i + 1][0]])
         if self.lines:
-            out.append(t[self.lines[-1][1]:])
+            out.append(t[self.lines[-1][1] :])
         return "".join(out)
 
 
@@ -83,6 +86,7 @@ def _attrs(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts, label: str):
     """Per character: (font path, scale, colour). Raises PosterError for a run that matches nothing or a font
     that lacks glyphs."""
     from funkbox import fonts as fontsmod
+
     which = lay.get("style", "caption")
     try:
         base = fonts.path_for(which, text)
@@ -108,6 +112,7 @@ def _attrs(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts, label: str):
                 path = fonts.path_for(f, m)
             else:
                 from .text import resolve_font
+
                 path = resolve_font(f, ctx)
                 miss = fontsmod.missing(path, m)
                 if miss:
@@ -136,6 +141,7 @@ def _rtl(text: str) -> bool:
 class _Line:
     def __init__(self, text: str, attrs, px: float, spacing: float):
         from .vector import Shaper
+
         self.text, self.attrs, self.px, self.spacing = text, attrs, px, spacing
         self.Shaper = Shaper
 
@@ -154,17 +160,17 @@ class _Line:
         """[(gid, x, y, advance, cluster)] for a piece, letter spacing included (after every cluster)."""
         hb = p.font.hb
         buf = hb.Buffer()
-        buf.add_str(self.text[p.start:p.end])
+        buf.add_str(self.text[p.start : p.end])
         buf.guess_segment_properties()
         hb.shape(p.font.font, buf, {})
         k = p.px / p.font.upem
         sp = self.spacing * p.px
-        out, pen, last = [], 0.0, None
+        out, pen = [], 0.0
         infos = list(zip(buf.glyph_infos, buf.glyph_positions))
         for n, (info, pos) in enumerate(infos):
             adv = pos.x_advance * k
             nxt = infos[n + 1][0].cluster if n + 1 < len(infos) else None
-            if sp and nxt != info.cluster:                     # the last glyph of a cluster carries the spacing
+            if sp and nxt != info.cluster:  # the last glyph of a cluster carries the spacing
                 adv += sp
             out.append((info.codepoint, pen + pos.x_offset * k, pos.y_offset * k, adv, info.cluster))
             pen += adv
@@ -172,7 +178,7 @@ class _Line:
 
     def width(self, s: int, e: int) -> float:
         w = sum(self.shaped(p)[1] for p in self.pieces(s, e))
-        return w - (self.spacing * self.px if self.spacing and e > s else 0.0)   # no tracking after the last letter
+        return w - (self.spacing * self.px if self.spacing and e > s else 0.0)  # no tracking after the last letter
 
     def glyphs(self, s: int, e: int, rtl: bool):
         """[(Piece, gid, x, y_off, advance)] laid out left to right from x = 0."""
@@ -222,6 +228,7 @@ def _wrap(line: _Line, text: str, frame_w: float, wrap: bool) -> tuple[list[tupl
 # --------------------------------------------------------------------------- path
 def _polyline(lay: dict, W: int, H: int) -> tuple[np.ndarray, np.ndarray]:
     from .vpath import parse
+
     px = lay.get("path_units", "fraction") == "px"
     sx, sy = (1.0, 1.0) if px else (W, H)
     tol = 0.25 / (1.0 if px else max(W, H))
@@ -248,6 +255,7 @@ def typeset(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> Set:
     """Lay out and outline ``text`` at full resolution (see the module doc). Raises PosterError when it cannot fit."""
     from .text import TEXT_SIZE
     from .vector import flatten, map_points, text_geometry
+
     W, H = ctx.full
     label = f"text layer {lay['id']!r}" + (f" (copy {lay['copy_id']!r})" if "copy_id" in lay else "")
     base, attrs = _attrs(lay, text, ctx, fonts, label)
@@ -266,6 +274,7 @@ def typeset(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> Set:
     px = max(min_px, int(round(float(lay.get("size", TEXT_SIZE)) * H)))
     align = lay.get("align", "left")
     from PIL import ImageFont
+
     while True:
         line = _Line(text, attrs, px, spacing)
         lines, fits = _wrap(line, text, frame_w, lay.get("wrap", True) and not on_path)
@@ -273,27 +282,36 @@ def typeset(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> Set:
         line_h = int(round(px * lh))
         block_h = len(lines) * line_h
         offs = [0.0 if align == "left" else (frame_w - w_) / (2 if align == "center" else 1) for w_ in widths]
-        inside = on_path or (x0 + min(offs, default=0) >= 0 and y0 >= 0 and
-                             x0 + max((o + w_ for o, w_ in zip(offs, widths)), default=0) <= W + 0.5
-                             and y0 + block_h <= H)
+        inside = on_path or (
+            x0 + min(offs, default=0) >= 0
+            and y0 >= 0
+            and x0 + max((o + w_ for o, w_ in zip(offs, widths)), default=0) <= W + 0.5
+            and y0 + block_h <= H
+        )
         if fits and inside:
             break
         if px <= min_px:
-            why = ("it is longer than the path" if on_path else "a word is wider than the line" if not fits else
-                   "the block runs outside the canvas; move x/y, widen max_width or shorten the text")
-            raise PosterError([f"{label}: text does not fit at the minimum size "
-                               f"({ctx.min_text} x canvas height = {min_px}px): {why}"])
+            why = (
+                "it is longer than the path"
+                if on_path
+                else "a word is wider than the line"
+                if not fits
+                else "the block runs outside the canvas; move x/y, widen max_width or shorten the text"
+            )
+            raise PosterError(
+                [f"{label}: text does not fit at the minimum size ({ctx.min_text} x canvas height = {min_px}px): {why}"]
+            )
         px = max(min_px, int(px * 0.94))
     bb = ImageFont.truetype(str(base), px).getbbox("H", anchor="ls")
-    cap_h = -bb[1] or round(0.7 * px)                  # lettering fonts may have no "H": use their cap height
-    out = Set(lines=lines, drawn=[text[s:e] for s, e in lines], px=px, text=text,
-              box=(x0, y0, frame_w, block_h))
+    cap_h = -bb[1] or round(0.7 * px)  # lettering fonts may have no "H": use their cap height
+    out = Set(lines=lines, drawn=[text[s:e] for s, e in lines], px=px, text=text, box=(x0, y0, frame_w, block_h))
     cmds_by: dict[tuple, list] = {}
 
     def add(piece: Piece, gid: int, f) -> None:
         k = piece.px / piece.font.upem
         cmds_by.setdefault(piece.color, []).extend(
-            map_points(piece.font.glyph(gid), lambda p: f((p[0] * k, -p[1] * k))))
+            map_points(piece.font.glyph(gid), lambda p: f((p[0] * k, -p[1] * k)))
+        )
 
     if on_path:
         start = float(lay.get("path_offset", 0.0)) * L[-1] + offs[0]
@@ -302,12 +320,13 @@ def typeset(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> Set:
             cx, cy, ang = _at(P, L, start + gx + adv / 2)
             ca, sa = math.cos(ang), math.sin(ang)
             # glyph frame: x along the path from the glyph's advance centre, y down from the baseline
-            nx, ny = sa, -ca                                    # left of the direction of travel (screen coords)
+            nx, ny = sa, -ca  # left of the direction of travel (screen coords)
             ox, oy = cx + nx * shift, cy + ny * shift
 
             def f(p, gy=gy, adv=adv, ox=ox, oy=oy, ca=ca, sa=sa):
-                u, v = p[0] - adv / 2, p[1] - gy                  # from the glyph's centre on the baseline
+                u, v = p[0] - adv / 2, p[1] - gy  # from the glyph's centre on the baseline
                 return ox + u * ca - v * sa, oy + u * sa + v * ca
+
             add(piece, gid, f)
     else:
         for i, (s, e) in enumerate(lines):
@@ -322,7 +341,7 @@ def typeset(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> Set:
             f = text_geometry((x0 + frame_w / 2, y0 + block_h / 2), **geo)
             cmds_by = {c: map_points(flatten(v) if "arc" in geo else v, f) for c, v in cmds_by.items()}
     base_col = rgba_of(lay.get("color", "brand.text"), ctx.brand)
-    order = sorted(cmds_by, key=lambda c: c != base_col)            # the base colour first, runs over it
+    order = sorted(cmds_by, key=lambda c: c != base_col)  # the base colour first, runs over it
     out.by_color = [(c, cmds_by[c]) for c in order]
     return out
 
@@ -331,6 +350,7 @@ def typeset(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> Set:
 def coverage(cmds: list, w: int, h: int, k: float = 1.0) -> np.ndarray:
     """Anti-aliased nonzero-winding coverage (0..1, h x w) of outline commands scaled by ``k``."""
     from .vector import flatten
+
     subs, cur = [], []
     for c in flatten(cmds, 0.2 / max(k, 1e-6)):
         if c[0] == "M":

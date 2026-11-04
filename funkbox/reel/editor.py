@@ -12,6 +12,7 @@ have unsaved changes, asks which to keep); changes made outside the page are log
 ``reel_timeline(..., action="changes")`` gives Claude the log in plain words ("moved 'clark' from 2 to 5", "'rim':
 duration beats:1 -> beats:2"), so it knows what you did before it changes anything.
 """
+
 from __future__ import annotations
 
 import copy
@@ -50,8 +51,10 @@ def describe_changes(old: dict, new: dict) -> list[str]:
     for i, s in enumerate(n):
         if s.get("id") not in oid:
             src = s.get("source", {})
-            out.append(f"added {_label(s, i)} at position {i + 1}"
-                       + (f" ({src.get('video') or src.get('image') or src.get('color')})" if src else ""))
+            out.append(
+                f"added {_label(s, i)} at position {i + 1}"
+                + (f" ({src.get('video') or src.get('image') or src.get('color')})" if src else "")
+            )
     kept_old = [s.get("id") for s in o if s.get("id") in nid]
     kept_new = [s.get("id") for s in n if s.get("id") in oid]
     if kept_old != kept_new:
@@ -98,23 +101,26 @@ class GLPump:
 
     def __init__(self):
         import queue
+
         self.q = queue.Queue()
 
     def __call__(self, fn, *a):
         from concurrent.futures import Future
+
         f = Future()
         self.q.put((f, fn, a))
         return f.result()
 
     def pump(self, timeout: float = 0.2) -> None:
         import queue
+
         try:
             f, fn, a = self.q.get(timeout=timeout)
         except queue.Empty:
             return
         try:
             f.set_result(fn(*a))
-        except BaseException as e:                 # handed back to the waiting request
+        except BaseException as e:  # handed back to the waiting request
             f.set_exception(e)
 
 
@@ -123,11 +129,12 @@ class Editor:
 
     def __init__(self, path: str | Path, run_gl: Callable | None = None, port: int = 0):
         from funkbox.config import resolve_path
+
         self.path = resolve_path(str(path))
         if not self.path.name.endswith(".reel.json"):
             raise ValueError("the timeline edits a *.reel.json file")
-        self.log_path = self.path.with_name(self.path.name[:-len(".reel.json")] + ".edits.jsonl")
-        self.pump = None if run_gl else GLPump()     # without a GL runner, whoever runs the editor pumps it
+        self.log_path = self.path.with_name(self.path.name[: -len(".reel.json")] + ".edits.jsonl")
+        self.pump = None if run_gl else GLPump()  # without a GL runner, whoever runs the editor pumps it
         self.run_gl = run_gl or self.pump
         self.lock = threading.RLock()
         self.snapshot, self.mtime = self._read()
@@ -181,26 +188,40 @@ class Editor:
     # ---- state
     def state(self) -> dict:
         from .validate import validate
+
         self.refresh()
         with self.lock:
             raw, mt = copy.deepcopy(self.snapshot), self.mtime
         rep = self.run_gl(lambda: validate(raw, str(self.path.parent)))
-        spans = [{"id": s.id, "kind": s.kind, "start": round(s.start, 3), "duration": round(s.duration, 3),
-                  "vo": s.vo_id} for s in rep.spans]
+        spans = [
+            {"id": s.id, "kind": s.kind, "start": round(s.start, 3), "duration": round(s.duration, 3), "vo": s.vo_id}
+            for s in rep.spans
+        ]
         copy_ids = sorted(rep.deck.lines) if rep.deck is not None else []
         beat = None
         if rep.reel is not None and rep.reel.audio.bpm:
             beat = 60.0 / rep.reel.audio.bpm
         elif rep.reel is not None:
             beat = _music_beat(rep.reel)
-        return {"path": str(self.path), "name": self.path.name, "mtime": str(mt), "reel": raw, "spans": spans,
-                "errors": rep.errors, "warnings": rep.warnings, "copy_ids": copy_ids, "beat": beat,
-                "total": round(rep.spans[-1].end, 3) if rep.spans else 0.0, "edits": self.edits(12),
-                "render": self.render_state}
+        return {
+            "path": str(self.path),
+            "name": self.path.name,
+            "mtime": str(mt),
+            "reel": raw,
+            "spans": spans,
+            "errors": rep.errors,
+            "warnings": rep.warnings,
+            "copy_ids": copy_ids,
+            "beat": beat,
+            "total": round(rep.spans[-1].end, 3) if rep.spans else 0.0,
+            "edits": self.edits(12),
+            "render": self.render_state,
+        }
 
     def save(self, base_mtime: str, new: dict, by: str = "timeline") -> tuple[int, dict]:
         """(http status, body). 409: the file changed since base_mtime; 422: the new reel is invalid."""
         from .validate import validate
+
         with self.lock:
             self.refresh()
             if str(self.mtime) != str(base_mtime):
@@ -232,10 +253,17 @@ class Editor:
         def go() -> bytes:
             from PIL import Image
             from . import render
+
             plan = render.prepare(raw, str(self.path.parent))
             st = plan.reel.settings
-            r = render.Renderer(plan.reel, plan.deck, plan.spans, width=THUMB_W,
-                                height=round(THUMB_W * st.height / st.width), depth_mode="off")
+            r = render.Renderer(
+                plan.reel,
+                plan.deck,
+                plan.spans,
+                width=THUMB_W,
+                height=round(THUMB_W * st.height / st.width),
+                depth_mode="off",
+            )
             try:
                 span = r.span_for_shot(shot_id)
                 fr = r.still(shot_id, span.duration / 2)
@@ -244,6 +272,7 @@ class Editor:
             b = io.BytesIO()
             Image.fromarray(fr).save(b, format="JPEG", quality=82)
             return b.getvalue()
+
         data = self.run_gl(go)
         with self.lock:
             self.thumbs[key] = data
@@ -252,6 +281,7 @@ class Editor:
     def source_frame(self, src: str, t: float) -> bytes:
         from funkbox.config import resolve_path
         from funkbox.video import clip
+
         p = resolve_path(src, str(self.path.parent))
         b = io.BytesIO()
         clip.frame_at(p, t, 320).save(b, format="JPEG", quality=80)
@@ -260,6 +290,7 @@ class Editor:
     def probe(self, src: str) -> dict:
         from funkbox.config import resolve_path
         from funkbox.video import clip
+
         i = clip.info(resolve_path(src, str(self.path.parent)))
         return {"duration": i.duration, "width": i.width, "height": i.height, "fps": i.fps}
 
@@ -274,14 +305,22 @@ class Editor:
         def job():
             from funkbox.config import funk_out
             from . import render
-            name = self.path.name[:-len(".reel.json")] + "-timeline"
+
+            name = self.path.name[: -len(".reel.json")] + "-timeline"
             try:
-                out = self.run_gl(lambda: render.render_reel(raw, name, base_dir=str(self.path.parent),
-                                                             out_dir=funk_out() / "timeline", draft=True))
-                self.render_state = {"status": "done", "file": Path(out.mp4).name,
-                                     "seconds": round(time.time() - self.render_state["started"], 1)}
-            except Exception as e:                       # shown on the page, not raised
+                out = self.run_gl(
+                    lambda: render.render_reel(
+                        raw, name, base_dir=str(self.path.parent), out_dir=funk_out() / "timeline", draft=True
+                    )
+                )
+                self.render_state = {
+                    "status": "done",
+                    "file": Path(out.mp4).name,
+                    "seconds": round(time.time() - self.render_state["started"], 1),
+                }
+            except Exception as e:  # shown on the page, not raised
                 self.render_state = {"status": "error", "error": str(e)[:500]}
+
         threading.Thread(target=job, daemon=True).start()
         return self.render_state
 
@@ -289,6 +328,7 @@ class Editor:
 def _music_beat(reel) -> float | None:
     try:
         from .audio import beat_grid_for
+
         g = beat_grid_for(reel)
         return round(g[1] - g[0], 4) if g and len(g) > 1 else None
     except Exception:
@@ -317,6 +357,7 @@ def _handler(ed: Editor):
             try:
                 if u.path == "/":
                     from .editor_page import PAGE
+
                     self._send(200, PAGE.encode("utf-8"), "text/html; charset=utf-8")
                 elif u.path == "/api/state":
                     self._json(200, ed.state())
@@ -332,7 +373,8 @@ def _handler(ed: Editor):
                     self._json(200, ed.render_state)
                 elif u.path.startswith("/media/"):
                     from funkbox.config import funk_out
-                    name = Path(u.path[len("/media/"):]).name
+
+                    name = Path(u.path[len("/media/") :]).name
                     p = funk_out() / "timeline" / name
                     if not (name.endswith(".mp4") and p.is_file()):
                         return self._json(404, {"error": "no such preview"})
@@ -358,12 +400,14 @@ def _handler(ed: Editor):
                     self._json(404, {"error": "not found"})
             except Exception as e:
                 self._json(500, {"error": str(e)[:500]})
+
     return H
 
 
 def open_editor(path: str | Path, run_gl: Callable | None = None, port: int = 0) -> Editor:
     """The running editor for this reel, started if needed (one per file per process)."""
     from funkbox.config import resolve_path
+
     key = str(resolve_path(str(path)))
     ed = _SERVERS.get(key)
     if ed is None or not ed.thread.is_alive():
@@ -374,13 +418,16 @@ def open_editor(path: str | Path, run_gl: Callable | None = None, port: int = 0)
 def changes_text(path: str | Path, last: int = 15) -> str:
     """The edit log in plain words, newest last, plus the current shot order."""
     from funkbox.config import resolve_path
+
     p = resolve_path(str(path))
-    logp = p.with_name(p.name[:-len(".reel.json")] + ".edits.jsonl")
+    logp = p.with_name(p.name[: -len(".reel.json")] + ".edits.jsonl")
     rows = []
     if logp.is_file():
         rows = [json.loads(l) for l in logp.read_text(encoding="utf-8").splitlines() if l.strip()][-last:]
     raw = json.loads(p.read_text(encoding="utf-8-sig"))
-    lines = [f"{p.name}: {len(raw.get('shots', []))} shots: " + ", ".join(str(s.get("id")) for s in raw.get("shots", []))]
+    lines = [
+        f"{p.name}: {len(raw.get('shots', []))} shots: " + ", ".join(str(s.get("id")) for s in raw.get("shots", []))
+    ]
     if not rows:
         lines.append("no edits logged yet")
     for r in rows:

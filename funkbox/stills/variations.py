@@ -1,4 +1,5 @@
 """Poster variations: re-render a poster with different seeds or layer properties and lay the results out as a sheet."""
+
 from __future__ import annotations
 
 import copy
@@ -64,7 +65,7 @@ def set_path(doc: dict, key: str, value: Any) -> None:
     else:
         raise VaryError(f"vary key {key!r}: use 'seed', 'layers.<id>.<property>', 'canvas.<key>' or 'post.<n>.<key>'")
     for p in path[:-1]:
-        if isinstance(node, list):                       # list items by index: layers.band.points.3.1
+        if isinstance(node, list):  # list items by index: layers.band.points.3.1
             node = _item(node, p, key)
             continue
         node = node.setdefault(p, {})
@@ -115,7 +116,7 @@ def expand(doc: dict, vary: dict) -> tuple[list[dict], list[str]]:
     if isinstance(vary, str):
         vary = json.loads(vary)
     if not isinstance(vary, dict) or not vary:
-        raise VaryError("vary must be an object like {\"seed\": [1, 2, 3]} or {\"layers.bg.palette\": [\"vapor\", \"acid\"]}")
+        raise VaryError('vary must be an object like {"seed": [1, 2, 3]} or {"layers.bg.palette": ["vapor", "acid"]}')
     lens = set()
     for k, v in vary.items():
         if not isinstance(v, list) or not v:
@@ -138,12 +139,19 @@ def expand(doc: dict, vary: dict) -> tuple[list[dict], list[str]]:
     return docs, labels
 
 
-def poster_variations(doc: dict, vary: dict, out_dir: str | Path | None = None, name: str = "var",
-                      base_dir: str | Path | None = None, scale: float = 1.0, write_files: bool = True) -> Variations:
+def poster_variations(
+    doc: dict,
+    vary: dict,
+    out_dir: str | Path | None = None,
+    name: str = "var",
+    base_dir: str | Path | None = None,
+    scale: float = 1.0,
+    write_files: bool = True,
+) -> Variations:
     """Render every variant. With ``write_files`` each gets ``<name>-<i>.png`` (+ sidecar and audit) in ``out_dir`` and
     the sheet is saved as ``<name>-sheet.png``; ``scale`` < 1 renders smaller (previews)."""
     docs, labels = expand(doc, vary)
-    for i, d in enumerate(docs):                                     # report every broken variant before rendering any
+    for i, d in enumerate(docs):  # report every broken variant before rendering any
         errs = schema.check(d)
         if errs:
             raise schema.PosterError([f"variant {i + 1} ({labels[i]}): {e}" for e in errs])
@@ -168,4 +176,5 @@ def _flat(im: Image.Image) -> Image.Image:
     if im.mode == "RGB":
         return im
     from .edit import checker_flatten
+
     return checker_flatten(im)

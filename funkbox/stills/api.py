@@ -1,4 +1,5 @@
 """Shared front door for the MCP server and the CLI: load a poster, preview it, make a still, check an .ora."""
+
 from __future__ import annotations
 
 import hashlib
@@ -49,11 +50,16 @@ def load_poster(poster: Any, project: str = "") -> tuple[dict, Path | None]:
 
 
 def describe(r: render.Rendered) -> str:
-    lines = [f"{r.width}x{r.height}" + (" (transparent)" if r.alpha is not None else "")
-             + f", {len(r.layers)} layers"]
+    lines = [f"{r.width}x{r.height}" + (" (transparent)" if r.alpha is not None else "") + f", {len(r.layers)} layers"]
     if r.audit:
-        lines.append(f"text audit: {len(r.audit)} string(s), " + ("all byte-equal to their source"
-                     if all(a.get("text_exact", True) for a in r.audit) else "MISMATCH, see the audit file"))
+        lines.append(
+            f"text audit: {len(r.audit)} string(s), "
+            + (
+                "all byte-equal to their source"
+                if all(a.get("text_exact", True) for a in r.audit)
+                else "MISMATCH, see the audit file"
+            )
+        )
     for k, v in r.info.items():
         lines.append(f"{k}: {json.dumps(v, ensure_ascii=False)}")
     lines += [f"warning: {w}" for w in r.warnings]
@@ -91,8 +97,9 @@ def make_still_doc(source: Any, t: float = 0.25, preset: str = "square", seed: i
     return {"version": 1, "canvas": {"preset": preset}, "seed": int(seed), "layers": [lay]}
 
 
-def funk_still(source: Any, t: float = 0.25, preset: str = "square", name: str = "",
-               out_dir: str | Path | None = None) -> tuple[dict[str, Path], render.Rendered]:
+def funk_still(
+    source: Any, t: float = 0.25, preset: str = "square", name: str = "", out_dir: str | Path | None = None
+) -> tuple[dict[str, Path], render.Rendered]:
     doc = make_still_doc(source, t, preset)
     if not name:
         name = "still-" + hashlib.sha256(json.dumps([doc, t], sort_keys=True, default=str).encode()).hexdigest()[:8]
@@ -106,4 +113,3 @@ def ora_report(path: str | Path) -> str:
     rows = [f"valid OpenRaster {info['w']}x{info['h']}, {len(info['layers'])} layers (top first):"]
     rows += [f"  {l['name']}  {l['op']}  opacity {l['opacity']:g}" for l in info["layers"]]
     return "\n".join(rows)
-

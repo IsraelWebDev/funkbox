@@ -16,6 +16,7 @@ this module before any dependency is installed.
 ``allowed_roots()`` and ``resolve_path()`` are the path fence: a recipe, reel or poster may name only
 files inside FUNK_HOME, FUNK_OUT, FUNK_INPUTS or FUNK_PROJECTS.
 """
+
 from __future__ import annotations
 
 import os
@@ -51,8 +52,8 @@ _SOURCES: dict[str, str] = {
 
 @dataclass(frozen=True)
 class Config:
-    root: Path              # the checkout: templates/, fonts/ and the vendor/ defaults live here
-    home: Path              # FUNK_HOME (default: root): shaders/, fonts/ and recipe-relative paths
+    root: Path  # the checkout: templates/, fonts/ and the vendor/ defaults live here
+    home: Path  # FUNK_HOME (default: root): shaders/, fonts/ and recipe-relative paths
     out: Path
     inputs: Path
     projects: Path
@@ -61,16 +62,16 @@ class Config:
     fastsd_dir: Path
     gimp_mcp_dir: Path
     gimp_exe: str | None
-    gl_backend: str         # "egl" | "default" | "software" | "" (default, EGL, then software)
+    gl_backend: str  # "egl" | "default" | "software" | "" (default, EGL, then software)
     fastsd_port: int
     gimp_port: int
     idle_min: float
     fastsd_device: str
-    fake_sd: bool           # STUDIO_FAKE_SD: the image tools use a deterministic stub (tests)
-    reel_depth: str         # REEL_DEPTH: stub|off|model|cached|"" (tests force "stub")
-    reel_tts: str           # REEL_TTS: stub|off|"" (tests force "stub")
+    fake_sd: bool  # STUDIO_FAKE_SD: the image tools use a deterministic stub (tests)
+    reel_depth: str  # REEL_DEPTH: stub|off|model|cached|"" (tests force "stub")
+    reel_tts: str  # REEL_TTS: stub|off|"" (tests force "stub")
     toml_path: Path
-    sources: tuple[tuple[str, str], ...]   # (field, "env" | "toml" | "default"), for `funkbox doctor`
+    sources: tuple[tuple[str, str], ...]  # (field, "env" | "toml" | "default"), for `funkbox doctor`
 
     # -- data folders ---------------------------------------------------------------------------
     @property
@@ -105,8 +106,9 @@ def read_toml(path: Path, strict: bool = False) -> dict[str, str]:
     text = path.read_text(encoding="utf-8-sig")
     try:
         import tomllib
+
         return {k: str(v) for k, v in tomllib.loads(text).items()}
-    except ImportError:     # Python 3.10: flat key = "value" lines are all we write
+    except ImportError:  # Python 3.10: flat key = "value" lines are all we write
         out: dict[str, str] = {}
         for m in re.finditer(r'^\s*([A-Za-z_]\w*)\s*=\s*(?:"((?:[^"\\]|\\.)*)"|\'([^\']*)\')', text, re.M):
             out[m.group(1)] = re.sub(r"\\(.)", r"\1", m.group(2)) if m.group(2) is not None else m.group(3)
@@ -165,7 +167,7 @@ def get(root: Path | str | None = None) -> Config:
         v = raw(name)
         if not v:
             return default
-        return Path(v).expanduser().resolve() if resolve else Path(v)    # app folders are used as written
+        return Path(v).expanduser().resolve() if resolve else Path(v)  # app folders are used as written
 
     def num(name: str, default: float, cast=float):
         v = raw(name)
@@ -177,9 +179,10 @@ def get(root: Path | str | None = None) -> Config:
     home = path("home", base.resolve())
     backend = (raw("gl_backend") or "").strip().lower()
     if not backend and _headless_linux():
-        backend = "egl"             # no display: software OpenGL (Mesa llvmpipe) through EGL
+        backend = "egl"  # no display: software OpenGL (Mesa llvmpipe) through EGL
     return Config(
-        root=base, home=home,
+        root=base,
+        home=home,
         out=path("out", home / "out"),
         inputs=path("inputs", home / "inputs"),
         projects=path("projects", home / "projects"),
@@ -196,7 +199,9 @@ def get(root: Path | str | None = None) -> Config:
         fake_sd=_truthy(raw("fake_sd") or ""),
         reel_depth=(raw("reel_depth") or "").strip().lower(),
         reel_tts=(raw("reel_tts") or "").strip().lower(),
-        toml_path=toml_path, sources=tuple(srcs))
+        toml_path=toml_path,
+        sources=tuple(srcs),
+    )
 
 
 # Short accessors (the old names), so call sites stay readable.
@@ -259,8 +264,10 @@ def resolve_path(p: str | Path, base_dir: str | Path | None = None) -> Path:
     # Fence first, existence second: an outside path is refused whether or not it exists,
     # so the error never reveals what exists outside the allowed folders.
     if not inside:
-        raise ValueError(f"path {p!s} resolves outside the allowed folders "
-                         f"({', '.join(str(r) for r in roots)}); put the file in the inputs folder (FUNK_INPUTS)")
+        raise ValueError(
+            f"path {p!s} resolves outside the allowed folders "
+            f"({', '.join(str(r) for r in roots)}); put the file in the inputs folder (FUNK_INPUTS)"
+        )
     for rc in inside:
         if rc.exists():
             return rc

@@ -22,6 +22,7 @@ and refresh_token to the token request, so this script sends only grant_type and
 BUFFER_AUTH=proxy: the same for Buffer, with a "Header" network secret (Authorization: Bearer <key>) for
 api.buffer.com; this script then sends no Authorization header.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -75,6 +76,7 @@ def caption_problems(cap: dict) -> list[str]:
 
 def video_problems(path: Path) -> list[str]:
     from funkbox.reel import framing
+
     try:
         info = framing.probe_video(path)
     except (ValueError, OSError) as e:
@@ -110,8 +112,9 @@ def posted_day(platform: str, day: str) -> dict | None:
 
 
 # --------------------------------------------------------------------------- http
-def _http(method: str, url: str, *, data: bytes | None = None, headers: dict | None = None,
-          timeout: float = 300) -> tuple[int, dict, bytes]:
+def _http(
+    method: str, url: str, *, data: bytes | None = None, headers: dict | None = None, timeout: float = 300
+) -> tuple[int, dict, bytes]:
     req = urllib.request.Request(url, data=data, method=method, headers=headers or {})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -137,15 +140,23 @@ def youtube_token_body() -> bytes:
     injected one makes the proxy refuse the request (502) instead of overriding it."""
     form = {"grant_type": "refresh_token"}
     if not yt_proxy():
-        form.update(client_id=os.environ["YT_CLIENT_ID"], client_secret=os.environ["YT_CLIENT_SECRET"],
-                    refresh_token=os.environ["YT_REFRESH_TOKEN"])
+        form.update(
+            client_id=os.environ["YT_CLIENT_ID"],
+            client_secret=os.environ["YT_CLIENT_SECRET"],
+            refresh_token=os.environ["YT_REFRESH_TOKEN"],
+        )
     return urllib.parse.urlencode(form).encode()
 
 
 def youtube_upload(video: Path, cap: dict) -> dict:
     tok = youtube_token_body()
-    st, _, body = _http("POST", "https://oauth2.googleapis.com/token", data=tok,
-                        headers={"Content-Type": "application/x-www-form-urlencoded"}, timeout=60)
+    st, _, body = _http(
+        "POST",
+        "https://oauth2.googleapis.com/token",
+        data=tok,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        timeout=60,
+    )
     if st != 200:
         raise PostError(f"YouTube token refresh failed ({st}): {_json(body).get('error_description') or _json(body)}")
     access = _json(body)["access_token"]
@@ -153,19 +164,37 @@ def youtube_upload(video: Path, cap: dict) -> dict:
     desc = yt.get("description", "")
     if "#shorts" not in (yt["title"] + desc).lower():
         desc = (desc + "\n\n#Shorts").strip()
-    meta = {"snippet": {"title": yt["title"], "description": desc, "tags": yt.get("tags", []), "categoryId": "28"},
-            "status": {"privacyStatus": yt.get("privacy", "public"), "selfDeclaredMadeForKids": False,
-                       "containsSyntheticMedia": True}}
+    meta = {
+        "snippet": {"title": yt["title"], "description": desc, "tags": yt.get("tags", []), "categoryId": "28"},
+        "status": {
+            "privacyStatus": yt.get("privacy", "public"),
+            "selfDeclaredMadeForKids": False,
+            "containsSyntheticMedia": True,
+        },
+    }
     size = video.stat().st_size
-    st, hdr, body = _http("POST", "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
-                          data=json.dumps(meta).encode(), timeout=60,
-                          headers={"Authorization": f"Bearer {access}", "Content-Type": "application/json; charset=UTF-8",
-                                   "X-Upload-Content-Type": "video/mp4", "X-Upload-Content-Length": str(size)})
+    st, hdr, body = _http(
+        "POST",
+        "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+        data=json.dumps(meta).encode(),
+        timeout=60,
+        headers={
+            "Authorization": f"Bearer {access}",
+            "Content-Type": "application/json; charset=UTF-8",
+            "X-Upload-Content-Type": "video/mp4",
+            "X-Upload-Content-Length": str(size),
+        },
+    )
     loc = {k.lower(): v for k, v in hdr.items()}.get("location")
     if st != 200 or not loc:
         raise PostError(f"YouTube upload session failed ({st}): {_json(body)}")
-    st, _, body = _http("PUT", loc, data=video.read_bytes(), timeout=900,
-                        headers={"Authorization": f"Bearer {access}", "Content-Type": "video/mp4"})
+    st, _, body = _http(
+        "PUT",
+        loc,
+        data=video.read_bytes(),
+        timeout=900,
+        headers={"Authorization": f"Bearer {access}", "Content-Type": "video/mp4"},
+    )
     if st not in (200, 201):
         raise PostError(f"YouTube upload failed ({st}): {_json(body)}")
     vid = _json(body).get("id")
@@ -174,7 +203,7 @@ def youtube_upload(video: Path, cap: dict) -> dict:
 
 # --------------------------------------------------------------------------- X and others, through Buffer
 BUFFER_API = "https://api.buffer.com"
-BUFFER_SERVICE = {"x": "twitter"}          # our platform name -> Buffer's channel "service"; others map to themselves
+BUFFER_SERVICE = {"x": "twitter"}  # our platform name -> Buffer's channel "service"; others map to themselves
 
 
 def buffer_proxy() -> bool:
@@ -190,8 +219,13 @@ def _gql(query: str, variables: dict | None = None) -> dict:
     headers = {"Content-Type": "application/json"}
     if not buffer_proxy():
         headers["Authorization"] = f"Bearer {os.environ['BUFFER_API_KEY']}"
-    st, _, body = _http("POST", BUFFER_API, data=json.dumps({"query": query, "variables": variables or {}}).encode(),
-                        headers=headers, timeout=60)
+    st, _, body = _http(
+        "POST",
+        BUFFER_API,
+        data=json.dumps({"query": query, "variables": variables or {}}).encode(),
+        headers=headers,
+        timeout=60,
+    )
     res = _json(body)
     if st != 200 or res.get("errors"):
         raise PostError(f"Buffer API failed ({st}): {res.get('errors') or res}")
@@ -200,12 +234,14 @@ def _gql(query: str, variables: dict | None = None) -> dict:
 
 def buffer_channel(service: str) -> dict:
     org = os.environ.get("BUFFER_ORG_ID") or next(
-        (o["id"] for o in _gql("query { account { organizations { id } } }")["account"]["organizations"]), None)
+        (o["id"] for o in _gql("query { account { organizations { id } } }")["account"]["organizations"]), None
+    )
     if not org:
         raise PostError("Buffer: the account has no organization")
     # ids are inlined as JSON strings rather than typed variables, so nothing depends on Buffer's scalar names
-    chans = _gql("query { channels(input: {organizationId: %s}) { id service name isQueuePaused } }"
-                 % json.dumps(org))["channels"]
+    chans = _gql("query { channels(input: {organizationId: %s}) { id service name isQueuePaused } }" % json.dumps(org))[
+        "channels"
+    ]
     match = [c for c in chans if c.get("service") == service]
     if not match:
         raise PostError(f"Buffer: no {service} channel connected (have {sorted({c.get('service') for c in chans})})")
@@ -216,8 +252,9 @@ def buffer_channel(service: str) -> dict:
 
 # Where pending.py keeps the reviewed video while it posts. Buffer only takes video by URL, so this works when the
 # state repo is public; PROMO_VIDEO_URL_BASE overrides it, and empty means X gets the Short's link instead.
-VIDEO_URL_BASE = os.environ.get("PROMO_VIDEO_URL_BASE", f"https://raw.githubusercontent.com/{state.STATE_REPO}/main/"
-                                if state.STATE_REPO else "")
+VIDEO_URL_BASE = os.environ.get(
+    "PROMO_VIDEO_URL_BASE", f"https://raw.githubusercontent.com/{state.STATE_REPO}/main/" if state.STATE_REPO else ""
+)
 REPO_URL = "https://github.com/IsraelWebDev/funkbox"
 
 
@@ -244,30 +281,48 @@ def short_text(platform: str, cap: dict, link: str) -> str:
 def buffer_post(platform: str, cap: dict, link: str, video_url: str | None = None) -> dict:
     ch = buffer_channel(BUFFER_SERVICE.get(platform, platform))
     extra = {"assets": [{"video": {"url": video_url}}]} if video_url else {}
-    data = _gql("""mutation($input: CreatePostInput!) { createPost(input: $input) {
+    data = _gql(
+        """mutation($input: CreatePostInput!) { createPost(input: $input) {
         ... on PostActionSuccess { post { id status externalLink } }
         ... on MutationError { message } } }""",
-                {"input": {"text": short_text(platform, cap, REPO_URL if video_url else link), "channelId": ch["id"],
-                           "schedulingType": "automatic", "mode": "shareNow", **extra}})["createPost"]
+        {
+            "input": {
+                "text": short_text(platform, cap, REPO_URL if video_url else link),
+                "channelId": ch["id"],
+                "schedulingType": "automatic",
+                "mode": "shareNow",
+                **extra,
+            }
+        },
+    )["createPost"]
     if not data.get("post"):
         raise PostError(f"Buffer refused the post: {data.get('message') or data}")
     post = data["post"]
-    for _ in range(12):                                   # shareNow publishes within seconds; wait for the link
+    for _ in range(12):  # shareNow publishes within seconds; wait for the link
         if post.get("externalLink") or post.get("status") in ("error", "sent"):
             break
         time.sleep(5)
         try:
-            post = {**post, **_gql("query { post(input: {id: %s}) { id status externalLink error { message } } }"
-                                   % json.dumps(post["id"]))["post"]}
+            post = {
+                **post,
+                **_gql(
+                    "query { post(input: {id: %s}) { id status externalLink error { message } } }"
+                    % json.dumps(post["id"])
+                )["post"],
+            }
         except PostError:
-            break                                         # the post went out; only the status lookup failed
+            break  # the post went out; only the status lookup failed
     if post.get("status") == "error":
         raise PostError(f"Buffer could not publish: {(post.get('error') or {}).get('message')}")
-    return {"id": post["id"], "url": post.get("externalLink") or f"buffer:{post['id']}", "via": "buffer",
-            "media": "video" if video_url else "link"}
+    return {
+        "id": post["id"],
+        "url": post.get("externalLink") or f"buffer:{post['id']}",
+        "via": "buffer",
+        "media": "video" if video_url else "link",
+    }
 
 
-PLATFORMS = ("youtube", "x")               # any other Buffer service name (bluesky, mastodon, threads, ...) works too
+PLATFORMS = ("youtube", "x")  # any other Buffer service name (bluesky, mastodon, threads, ...) works too
 
 
 def secrets_for(p: str) -> tuple[str, ...]:
@@ -282,7 +337,7 @@ def publish(p: str, video: Path, cap: dict, link: str | None, video_url: str | N
     if video_url:
         try:
             return buffer_post(p, cap, link, video_url)
-        except PostError as e:                            # the video was refused: the link still gets the post out
+        except PostError as e:  # the video was refused: the link still gets the post out
             print(f"{p}: native video refused ({e}); posting the link instead")
     return buffer_post(p, cap, link)
 
@@ -313,8 +368,13 @@ def run(day: Path, platforms: list[str], dry_run: bool = False, today: str | Non
             rc = 2
             continue
         text = cap.get("youtube", {}).get("title") if p == "youtube" else (cap.get(p) or cap["x"])["text"]
-        entry = {"date": today, "platform": p, "day": day.name, "title": text,
-                 "video_sha256": yt_done["video_sha256"] if linked_only else review.sha256(video)}
+        entry = {
+            "date": today,
+            "platform": p,
+            "day": day.name,
+            "title": text,
+            "video_sha256": yt_done["video_sha256"] if linked_only else review.sha256(video),
+        }
         prev = posted_day(p, day.name)
         if prev:
             print(f"{p}: this promo is already posted ({prev.get('url')}); skipped")
@@ -324,20 +384,24 @@ def run(day: Path, platforms: list[str], dry_run: bool = False, today: str | Non
             print(f"{p}: already posted today ({prev.get('url')}); skipped")
             continue
         link = None
-        if p != "youtube":                                # short posts link to this promo's Short, so it must exist
+        if p != "youtube":  # short posts link to this promo's Short, so it must exist
             yt = posted_day("youtube", day.name)
             link = yt.get("url") if yt else None
         missing = [k for k in secrets_for(p) if not os.environ.get(k)]
         if dry_run or missing:
             why = "dry run" if dry_run else f"not configured (set {', '.join(missing)})"
-            print(f"{p}: DRY RUN ({why}); would post {text!r}" + (f" + {link or '<the YouTube link>'}" if p != "youtube" else ""))
+            print(
+                f"{p}: DRY RUN ({why}); would post {text!r}"
+                + (f" + {link or '<the YouTube link>'}" if p != "youtube" else "")
+            )
             continue
         if p != "youtube" and not link:
             print(f"{p}: skipped, this promo has no YouTube post to link to yet")
             continue
         try:
-            res = publish(p, video, cap, link, None if p == "youtube" or linked_only else
-                          public_video_url(day.name, video))
+            res = publish(
+                p, video, cap, link, None if p == "youtube" or linked_only else public_video_url(day.name, video)
+            )
             entry.update(ok=True, **res)
             print(f"{p}: posted {res.get('url')}")
         except (PostError, OSError, KeyError) as e:

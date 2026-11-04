@@ -1,4 +1,5 @@
 """One poster, many sizes: backgrounds stretch, the design keeps its proportions, text stays exact."""
+
 import numpy as np
 import pytest
 
@@ -8,19 +9,45 @@ BRAND = {"font_display": "fonts/Rubik-Bold.ttf", "font_caption": "fonts/Oswald-S
 
 
 def doc(layers, w=600, h=600):
-    return {"version": 1, "canvas": {"width": w, "height": h, "background": "#ffffff"}, "casual": True,
-            "brand": BRAND, "layers": layers}
+    return {
+        "version": 1,
+        "canvas": {"width": w, "height": h, "background": "#ffffff"},
+        "casual": True,
+        "brand": BRAND,
+        "layers": layers,
+    }
 
 
 LAYERS = [
     {"id": "bg", "type": "solid", "color": "#203040"},
     {"id": "dot", "type": "shape", "kind": "ellipse", "points": [[0.3, 0.3], [0.7, 0.7]], "fill": "#ffcc00"},
-    {"id": "ring", "type": "shape", "kind": "path", "units": "px", "fill": "#ff0000",
-     "d": "M250,300 a50,50 0 1,0 100,0 a50,50 0 1,0 -100,0 Z"},
-    {"id": "title", "type": "text", "text": "SAME WORDS", "size": 0.08, "x": 0.1, "y": 0.05, "max_width": 0.8,
-     "align": "center", "color": "#ffffff"},
-    {"id": "foot", "type": "shape", "kind": "rect", "points": [[0.0, 0.9], [1.0, 1.0]], "fill": "#00ff88",
-     "resize": "bottom"},
+    {
+        "id": "ring",
+        "type": "shape",
+        "kind": "path",
+        "units": "px",
+        "fill": "#ff0000",
+        "d": "M250,300 a50,50 0 1,0 100,0 a50,50 0 1,0 -100,0 Z",
+    },
+    {
+        "id": "title",
+        "type": "text",
+        "text": "SAME WORDS",
+        "size": 0.08,
+        "x": 0.1,
+        "y": 0.05,
+        "max_width": 0.8,
+        "align": "center",
+        "color": "#ffffff",
+    },
+    {
+        "id": "foot",
+        "type": "shape",
+        "kind": "rect",
+        "points": [[0.0, 0.9], [1.0, 1.0]],
+        "fill": "#00ff88",
+        "resize": "bottom",
+    },
 ]
 
 
@@ -44,16 +71,16 @@ def test_a_story_keeps_circles_round_and_the_footer_at_the_bottom():
     assert not schema.check(d) and "resize" not in d["layers"][4]
     r = render.render_document(d)
     im = r.image.astype(int)
-    assert tuple(im[5, 5]) == (0x20, 0x30, 0x40)                     # the background fills the new canvas
+    assert tuple(im[5, 5]) == (0x20, 0x30, 0x40)  # the background fills the new canvas
     yellow = (im[..., 0] > 240) & (im[..., 1] > 180) & (im[..., 2] < 60)
     x0, y0, x1, y1 = _bbox(yellow)
     assert abs((x1 - x0) - (y1 - y0)) <= 2 and abs((x0 + x1) / 2 - 540) <= 2 and abs((y0 + y1) / 2 - 960) <= 2
     red = (im[..., 0] > 240) & (im[..., 1] < 40)
     rx0, ry0, rx1, ry1 = _bbox(red)
-    assert abs((rx1 - rx0) - 180) <= 3 and abs((ry0 + ry1) / 2 - 960) <= 2   # the px path scaled 1.8x, centred
+    assert abs((rx1 - rx0) - 180) <= 3 and abs((ry0 + ry1) / 2 - 960) <= 2  # the px path scaled 1.8x, centred
     green = (im[..., 1] > 240) & (im[..., 0] < 40)
     gx0, gy0, gx1, gy1 = _bbox(green)
-    assert gy1 == 1920 and gy0 == pytest.approx(1920 - 108, abs=2)       # pinned to the bottom edge
+    assert gy1 == 1920 and gy0 == pytest.approx(1920 - 108, abs=2)  # pinned to the bottom edge
     assert r.audit[0]["text"] == "SAME WORDS" and r.audit[0]["text_exact"]
 
 
@@ -69,11 +96,15 @@ def test_fit_to_content_fills_a_banner():
 
 def test_poster_sizes_writes_each_and_reports_the_ones_that_fail(tmp_path, monkeypatch):
     monkeypatch.setenv("FUNK_OUT", str(tmp_path))
-    sizes = ["story", "landscape", {"name": "fixed", "width": 800, "height": 400, "set": {"layers.title.y": 0.02}},
-             {"name": "tiny", "width": 64, "height": 640}]
+    sizes = [
+        "story",
+        "landscape",
+        {"name": "fixed", "width": 800, "height": 400, "set": {"layers.title.y": 0.02}},
+        {"name": "tiny", "width": 64, "height": 640},
+    ]
     res = resize.poster_sizes(doc(LAYERS), sizes, tmp_path, "p", formats=["png", "svg"])
     assert set(res.files) == {"story", "landscape", "fixed"} and "tiny" in res.errors
-    assert "title" in res.errors["tiny"]                              # its text would be too small
+    assert "title" in res.errors["tiny"]  # its text would be too small
     assert res.files["story"]["png"].name == "p-story.png" and res.files["fixed"]["svg"].exists()
     assert res.docs[2]["layers"][3]["y"] == 0.02
     assert all(a["text_exact"] for au in res.audits.values() for a in au)

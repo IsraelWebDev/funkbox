@@ -1,4 +1,5 @@
 """The six GLSL ports must reproduce the v1 numpy effects (same params, same frame), look controls included."""
+
 import numpy as np
 import pytest
 
@@ -34,8 +35,12 @@ LOOKS = [dict(), dict(kaleido=6, spin=1, zoom=0.15), dict(kaleido=0, spin=-1, zo
 def test_port_matches_v1(gl, effect, look):
     p = v1.EFFECTS[effect].sample(np.random.default_rng(3))
     ctl = {"u_kaleido": look.get("kaleido", 0), "k_spin": look.get("spin", 0), "u_zoom": look.get("zoom", 0.0)}
-    r = Recipe2(settings=Settings2(width=SZ, height=SZ, fps=12, seconds=2, seed=3), palette="vapor",
-                cycles=1, layers=[Layer(shader=f"shaders/{effect}.frag", params={**map_params(effect, p), **ctl})])
+    r = Recipe2(
+        settings=Settings2(width=SZ, height=SZ, fps=12, seconds=2, seed=3),
+        palette="vapor",
+        cycles=1,
+        layers=[Layer(shader=f"shaders/{effect}.frag", params={**map_params(effect, p), **ctl})],
+    )
     rc = v1.Look(effect=effect, palette="vapor", cycles=1, params=p, **look)
     eng = Engine(SZ, SZ, gl)
     try:

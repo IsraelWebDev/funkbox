@@ -1,4 +1,5 @@
 """GPU engine: renders layers + post passes into numpy frames."""
+
 from __future__ import annotations
 
 import math
@@ -56,7 +57,7 @@ class _Prog:
 
 @dataclass
 class _Prepared:
-    recipe: Recipe2                      # resolved
+    recipe: Recipe2  # resolved
     layer_progs: list[_Prog | None] = field(default_factory=list)
     layer_params: list[dict] = field(default_factory=list)
     post_progs: list[tuple[str, _Prog, dict]] = field(default_factory=list)
@@ -78,7 +79,7 @@ class Engine:
         self._vbo = c.buffer(np.array([-1, -1, 3, -1, -1, 3], dtype="f4").tobytes())
         self._tex: list[moderngl.Texture] = []
         self._fbo: list[moderngl.Framebuffer] = []
-        for _ in range(3):                      # A, B (ping-pong accumulation), L (layer)
+        for _ in range(3):  # A, B (ping-pong accumulation), L (layer)
             t = c.texture((self.w, self.h), 4)
             t.filter = (moderngl.LINEAR, moderngl.LINEAR)
             t.repeat_x = t.repeat_y = False
@@ -108,10 +109,9 @@ class Engine:
             return hit
         res = src.compile(self.ctx)
         if not res.ok:
-            msg = "; ".join((f"line {e['line']}: " if e["line"] else "") + e["message"]
-                            for e in res.errors)
+            msg = "; ".join((f"line {e['line']}: " if e["line"] else "") + e["message"] for e in res.errors)
             err = ShaderError(f"{what} failed to compile: {msg}")
-            err.errors = res.errors            # type: ignore[attr-defined]
+            err.errors = res.errors  # type: ignore[attr-defined]
             raise err
         assert res.program is not None
         vao = self.ctx.vertex_array(res.program, [(self._vbo, "2f", "p")])
@@ -145,8 +145,9 @@ class Engine:
             for k, v in pp.params.items():
                 kk = k if k.startswith("u_") else "u_" + k
                 if kk not in valid:
-                    raise ValueError(f"post pass {pp.name!r} has no parameter {k!r}; "
-                                     f"have {sorted(v_[2:] for v_ in valid)}")
+                    raise ValueError(
+                        f"post pass {pp.name!r} has no parameter {k!r}; have {sorted(v_[2:] for v_ in valid)}"
+                    )
                 vals[kk] = v
             prep.post_progs.append((pp.name, self._compile(src, f"post pass {pp.name}"), vals))
         if len(self._prepared) > 16:
@@ -164,13 +165,13 @@ class Engine:
         im = Image.open(p).convert("RGBA")
         out = self._upload(np.asarray(im), 4)
         res = (out, im.size)
-        for k in [k for k in self._img_cache if k[0] == key[0]]:    # stale mtime
+        for k in [k for k in self._img_cache if k[0] == key[0]]:  # stale mtime
             self._img_cache.pop(k)[0].release()
         self._img_cache[key] = res
         return res
 
     def _upload(self, arr: np.ndarray, comps: int, tex: moderngl.Texture | None = None):
-        arr = np.ascontiguousarray(arr[::-1])        # GL row 0 is the bottom
+        arr = np.ascontiguousarray(arr[::-1])  # GL row 0 is the bottom
         h, w = arr.shape[:2]
         if tex is None or tex.size != (w, h):
             if tex is not None:
@@ -183,7 +184,7 @@ class Engine:
     # ---------------------------------------------------------------- uniforms
     def _common(self, prog, rec: Recipe2, t: float, frame: int, lay: Layer | None = None) -> None:
         st = rec.settings
-        x = lay.extra if lay is not None else {}      # a layer may carry its own palette / cycles
+        x = lay.extra if lay is not None else {}  # a layer may carry its own palette / cycles
         a, b, c, d = (tuple(map(float, q)) for q in PALETTES[x.get("palette", rec.palette)])
         _set(prog, "iResolution", (float(self.w), float(self.h), 1.0))
         _set(prog, "iLoop", float(t))
@@ -230,7 +231,7 @@ class Engine:
                 _set(prog, p.name, float(v))
 
     def _bind(self, units: dict[int, moderngl.Texture | None], frame: int = 0) -> None:
-        if self._audio is not None:                       # iChannel3 = 512x1 log-spaced spectrum
+        if self._audio is not None:  # iChannel3 = 512x1 log-spaced spectrum
             if self._spec_tex is None:
                 self._spec_tex = self.ctx.texture((_audio.SPEC_BINS, 1), 1, dtype="f4")
                 self._spec_tex.filter = (moderngl.LINEAR, moderngl.LINEAR)
@@ -274,7 +275,7 @@ class Engine:
                     chans[k + 1] = self._load_image(cp, rec.base_dir)[0]
                 self._bind(chans, frame)
                 self._set_params(p.prog, prep.layer_params[i], p.src.params)
-            else:                                      # image layer
+            else:  # image layer
                 tex, size = self._load_image(lay.path or "", rec.base_dir)
                 fit, warp = _FIT.get(lay.fit, 0), float(lay.uv_warp)
                 self._bind({1: tex}, frame)

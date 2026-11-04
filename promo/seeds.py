@@ -11,6 +11,7 @@ The web search cannot read the owner's feed, so a seed is how a trend that lives
 the owner's pointer to a trend, not a licence: the review still checks the brief against REVIEW.md check 4, and a
 seed is fresh for FRESH_DAYS days after it was seen.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -66,8 +67,14 @@ def add(note: str, urls: list[str], seen: str | None = None, today: str | None =
         raise ValueError("seen is in the future")
     seeds = load()
     n = 1 + max([int(s["id"][3:]) for s in seeds if ID_RE.match(s.get("id", ""))] or [0])
-    seed = {"id": f"sd-{n:04d}", "added": today_d.isoformat(), "seen": seen_d.isoformat(), "note": note,
-            "urls": list(urls), "used": []}
+    seed = {
+        "id": f"sd-{n:04d}",
+        "added": today_d.isoformat(),
+        "seen": seen_d.isoformat(),
+        "note": note,
+        "urls": list(urls),
+        "used": [],
+    }
     save(seeds + [seed])
     return seed
 
@@ -113,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.cmd == "add":
             s = add(args.note, args.url, args.seen)
             print(json.dumps(s, ensure_ascii=False))
-            print("commit it: python promo/state.py commit \"seed\" seeds.jsonl")
+            print('commit it: python promo/state.py commit "seed" seeds.jsonl')
         elif args.cmd == "list":
             today = dt.date.today()
             for s in load():

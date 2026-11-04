@@ -8,6 +8,7 @@ iPhase; every use of it is multiplied by an integer so the loop is seamless.
 Every effect also takes three look controls (`fixed` params: never sampled from the seed, off by
 default): u_kaleido (mirror segments, 0 = off), k_spin (turns per loop) and u_zoom (breathing zoom).
 """
+
 from __future__ import annotations
 
 _XFORM = """
@@ -33,7 +34,9 @@ vec2 xform(vec2 q, float th) {
 
 _HEAD = "// Port of funk v1 effect '{name}': {blurb}\n"
 
-PLASMA = _HEAD.format(name="plasma", blurb="classic demoscene sine soup") + """\
+PLASMA = (
+    _HEAD.format(name="plasma", blurb="classic demoscene sine soup")
+    + """\
 uniform float u_k0;   // @param 4.0 10.0 7.0
 uniform float u_k1;   // @param 4.0 10.0 7.0
 uniform float u_k2;   // @param 4.0 10.0 7.0
@@ -51,8 +54,11 @@ vec4 effect(vec2 p) {
   return vec4(palette(f * 0.3 + 0.5), 1.0);
 }
 """
+)
 
-MOIRE = _HEAD.format(name="moire", blurb="two orbiting ring emitters interfering") + """\
+MOIRE = (
+    _HEAD.format(name="moire", blurb="two orbiting ring emitters interfering")
+    + """\
 uniform float u_k;    // @param 8.0 16.0 12.0
 uniform float u_ph;   // @param 0.0 6.2831853 3.0
 
@@ -69,8 +75,11 @@ vec4 effect(vec2 p) {
   return vec4(palette(x), 1.0);
 }
 """
+)
 
-WARP = _HEAD.format(name="warp", blurb="domain-warped liquid stripes") + """\
+WARP = (
+    _HEAD.format(name="warp", blurb="domain-warped liquid stripes")
+    + """\
 uniform float u_amp;      // @param 0.25 0.55 0.4
 uniform float u_freq;     // @param 2.0 4.5 3.0
 uniform float u_stripes;  // @param 6.0 14.0 10.0
@@ -90,8 +99,11 @@ vec4 effect(vec2 p) {
   return vec4(palette(x), 1.0);
 }
 """
+)
 
-TUNNEL = _HEAD.format(name="tunnel", blurb="infinite checkered wormhole") + """\
+TUNNEL = (
+    _HEAD.format(name="tunnel", blurb="infinite checkered wormhole")
+    + """\
 uniform float u_n;   // @param 1.5 3.5 2.5
 uniform int   u_m;   // @param 4 12 8
 
@@ -112,8 +124,11 @@ vec4 effect(vec2 p) {
   return vec4(palette(x) * shade, 1.0);
 }
 """
+)
 
-RINGS = _HEAD.format(name="rings", blurb="op-art concentric pulse with angular wobble") + """\
+RINGS = (
+    _HEAD.format(name="rings", blurb="op-art concentric pulse with angular wobble")
+    + """\
 uniform float u_k;      // @param 28.0 50.0 38.0
 uniform int   u_lobes;  // @param 3 8 5
 uniform float u_wob;    // @param 0.05 0.2 0.12
@@ -129,29 +144,34 @@ vec4 effect(vec2 p) {
   return vec4(palette(x), 1.0);
 }
 """
+)
 
 
 def _blobs() -> str:
     decl = ["uniform int   u_balls;   // @param 4 7 5"]
     for i in range(7):
-        decl += [f"uniform float u_ax{i};   // @param 0.3 0.8 0.55",
-                 f"uniform float u_ay{i};   // @param 0.3 0.8 0.55",
-                 f"uniform int   k_fx{i};   // @param 1 3 2",
-                 f"uniform int   k_fy{i};   // @param 1 3 2",
-                 f"uniform float u_ph{i};   // @param 0.0 6.2831853 3.0"]
+        decl += [
+            f"uniform float u_ax{i};   // @param 0.3 0.8 0.55",
+            f"uniform float u_ay{i};   // @param 0.3 0.8 0.55",
+            f"uniform int   k_fx{i};   // @param 1 3 2",
+            f"uniform int   k_fy{i};   // @param 1 3 2",
+            f"uniform float u_ph{i};   // @param 0.0 6.2831853 3.0",
+        ]
     arr = lambda pre: ", ".join(f"{pre}{i}" for i in range(7))  # noqa: E731
-    return _HEAD.format(name="blobs", blurb="lava-lamp metaballs on Lissajous orbits") + \
-        "\n".join(decl) + f"""
+    return (
+        _HEAD.format(name="blobs", blurb="lava-lamp metaballs on Lissajous orbits")
+        + "\n".join(decl)
+        + f"""
 
 vec4 effect(vec2 p) {{
   float th = iPhase;
   vec2 q = xform(vec2(p.x, -p.y), th);
   float u = q.x, v = q.y;
-  float ax[7] = float[7]({arr('u_ax')});
-  float ay[7] = float[7]({arr('u_ay')});
-  int   fx[7] = int[7]({arr('k_fx')});
-  int   fy[7] = int[7]({arr('k_fy')});
-  float ph[7] = float[7]({arr('u_ph')});
+  float ax[7] = float[7]({arr("u_ax")});
+  float ay[7] = float[7]({arr("u_ay")});
+  int   fx[7] = int[7]({arr("k_fx")});
+  int   fy[7] = int[7]({arr("k_fy")});
+  float ph[7] = float[7]({arr("u_ph")});
   float f = 0.0;
   for (int i = 0; i < 7; i++) {{
     if (i >= u_balls) break;
@@ -164,6 +184,7 @@ vec4 effect(vec2 p) {{
   return vec4(palette(x), 1.0);
 }}
 """
+    )
 
 
 def _with_look(src: str) -> str:
@@ -172,7 +193,14 @@ def _with_look(src: str) -> str:
     return head + "\n" + _XFORM.strip("\n") + "\n\nvec4 effect(vec2 p)" + tail
 
 
-PORTS: dict[str, str] = {name: _with_look(src) for name, src in {
-    "plasma": PLASMA, "moire": MOIRE, "warp": WARP, "tunnel": TUNNEL,
-    "blobs": _blobs(), "rings": RINGS,
-}.items()}
+PORTS: dict[str, str] = {
+    name: _with_look(src)
+    for name, src in {
+        "plasma": PLASMA,
+        "moire": MOIRE,
+        "warp": WARP,
+        "tunnel": TUNNEL,
+        "blobs": _blobs(),
+        "rings": RINGS,
+    }.items()
+}

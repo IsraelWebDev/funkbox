@@ -1,4 +1,5 @@
 """v3.1 P7: publication hygiene (no real brand, no personal data, no secrets, no big files)."""
+
 import re
 import subprocess
 from pathlib import Path
@@ -42,9 +43,11 @@ def test_gallery_is_small():
 
 
 def test_no_secrets():
-    rx = (r"sk-ant-[A-Za-z0-9_-]{10,}|sk-[A-Za-z0-9]{32,}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|"
-          r"AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{30,}|"
-          r"BEGIN [A-Z ]*PRIVATE KEY|(api[_-]?key|secret|token|password)\s*[:=]\s*['\"][A-Za-z0-9/+_-]{20,}['\"]")
+    rx = (
+        r"sk-ant-[A-Za-z0-9_-]{10,}|sk-[A-Za-z0-9]{32,}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|"
+        r"AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{30,}|"
+        r"BEGIN [A-Z ]*PRIVATE KEY|(api[_-]?key|secret|token|password)\s*[:=]\s*['\"][A-Za-z0-9/+_-]{20,}['\"]"
+    )
     assert not _scan(rx, skip=("test_p7_hygiene.py",))
 
 
@@ -61,12 +64,34 @@ def test_no_sandbox_or_user_home_paths():
 def test_license_notices_and_gitignore():
     assert "Copyright (c) 2026 funkbox contributors" in (ROOT / "LICENSE").read_text()
     n = (ROOT / "THIRD_PARTY_NOTICES.md").read_text()
-    for needle in ("webgl-noise", "Oswald", "DM Serif Display", "Depth-Anything-V2-Small", "ljspeech", "piper-tts",
-                   "FastSD CPU", "gimp-mcp", "GIMP", "GPL-3.0", "Apache-2.0"):
+    for needle in (
+        "webgl-noise",
+        "Oswald",
+        "DM Serif Display",
+        "Depth-Anything-V2-Small",
+        "ljspeech",
+        "piper-tts",
+        "FastSD CPU",
+        "gimp-mcp",
+        "GIMP",
+        "GPL-3.0",
+        "Apache-2.0",
+    ):
         assert needle in n, needle
     gi = (ROOT / ".gitignore").read_text().split()
-    for entry in ("out/", "inbox/", "projects/", "vendor/", "models/", ".venv/", "*.mp4", "*.gif", "*.wav",
-                  "funkbox.toml", "funkbox/studio/GIMP-MCP.cmd"):
+    for entry in (
+        "out/",
+        "inbox/",
+        "projects/",
+        "vendor/",
+        "models/",
+        ".venv/",
+        "*.mp4",
+        "*.gif",
+        "*.wav",
+        "funkbox.toml",
+        "funkbox/studio/GIMP-MCP.cmd",
+    ):
         assert entry in gi, entry
 
 

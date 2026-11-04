@@ -8,6 +8,7 @@ Rules (the exactness guarantee, same as reel):
     at the minimum size is an error naming the layer and the copy id;
   * every render records each drawn string, its source and its layer id (``<name>.text_audit.json``).
 """
+
 from __future__ import annotations
 
 import json
@@ -43,7 +44,7 @@ def deck_for(doc: Doc, ctx: RCtx) -> CopyDeck | None:
         cp = d / "copy.json"
         if cp.is_symlink() or not cp.is_file():
             raise PosterError([P.copy_lock_error(doc.project) or f"project {doc.project!r} has no approved copy.json"])
-        data = cp.read_bytes()                      # ONE read: the bytes that are hash-checked are the bytes drawn
+        data = cp.read_bytes()  # ONE read: the bytes that are hash-checked are the bytes drawn
         err = P.copy_lock_error(doc.project, data)
         if err:
             raise PosterError([err])
@@ -76,23 +77,31 @@ def preflight(doc: Doc, ctx: RCtx) -> CopyDeck | None:
         w = f"text layer {l['id']!r}"
         if "text" in l:
             if doc.project:
-                errs.append(f"{w}: literal text is not allowed in a project poster; use copy_id with the project's "
-                            "approved copy (project_propose_copy, then project_approve_copy)")
+                errs.append(
+                    f"{w}: literal text is not allowed in a project poster; use copy_id with the project's "
+                    "approved copy (project_propose_copy, then project_approve_copy)"
+                )
             elif not doc.casual:
-                errs.append(f"{w}: literal text is only allowed in casual posters; set \"casual\": true, or use copy_id "
-                            "with an approved copy deck (exact text is the default)")
+                errs.append(
+                    f'{w}: literal text is only allowed in casual posters; set "casual": true, or use copy_id '
+                    "with an approved copy deck (exact text is the default)"
+                )
         else:
             need_deck = True
             if not doc.project and not doc.copy_path:
-                errs.append(f"{w}: copy_id {l['copy_id']!r} needs a copy deck: put the poster in a project, or set "
-                            "\"copy\": \"<path to a copy.json>\"")
+                errs.append(
+                    f"{w}: copy_id {l['copy_id']!r} needs a copy deck: put the poster in a project, or set "
+                    '"copy": "<path to a copy.json>"'
+                )
     if errs:
         raise PosterError(errs)
     deck = deck_for(doc, ctx) if need_deck else None
     if deck is not None:
         for l in layers:
             if "copy_id" in l and l["copy_id"] not in deck.lines:
-                errs.append(f"text layer {l['id']!r}: unknown copy id {l['copy_id']!r}; the deck has {sorted(deck.lines)}")
+                errs.append(
+                    f"text layer {l['id']!r}: unknown copy id {l['copy_id']!r}; the deck has {sorted(deck.lines)}"
+                )
     if errs:
         raise PosterError(errs)
     return deck
@@ -110,11 +119,13 @@ def resolve_font(spec: str, ctx: RCtx):
     """A font setting in a poster: a name, a file, or "glyphs:<name>" (the poster's own lettering)."""
     if spec.startswith("glyphs:"):
         from funkbox.lettering import glyphset_font
+
         try:
             return glyphset_font(ctx.glyphs[spec[7:]])
         except KeyError:
             raise PosterError([f"font {spec!r}: the poster has no glyphs named {spec[7:]!r}"]) from None
     from funkbox import fonts as fontsmod
+
     return fontsmod.resolve(spec, ctx.base_dir)
 
 
@@ -149,7 +160,7 @@ def layout_text(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> tuple
             raise PosterError([f"{label}: {e}"]) from e
         if lay.get("wrap", True):
             lines, fits = captions.wrap(text, font, frame_w)
-        else:                                  # one line: shrink until it fits the width
+        else:  # one line: shrink until it fits the width
             lines, fits = [(0, len(text))], font.getlength(text) <= frame_w
         line_h = int(round(px * line_height))
         block_h = len(lines) * line_h
@@ -162,18 +173,39 @@ def layout_text(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> tuple
         if fits and inside:
             break
         if px <= min_px:
-            why = ("a word is wider than the line" if not fits else
-                   "the block runs outside the canvas; move x/y, widen max_width or shorten the text")
-            raise PosterError([f"{label}: text does not fit at the minimum size "
-                               f"({ctx.min_text} x canvas height = {min_px}px): {why}"])
+            why = (
+                "a word is wider than the line"
+                if not fits
+                else "the block runs outside the canvas; move x/y, widen max_width or shorten the text"
+            )
+            raise PosterError(
+                [f"{label}: text does not fit at the minimum size ({ctx.min_text} x canvas height = {min_px}px): {why}"]
+            )
         px = max(min_px, int(px * 0.94))
     bb = font.getbbox("H", anchor="ls")
-    if bb[1] == 0:                                     # no "H" in a lettering font: its cap height is 0.7 em
+    if bb[1] == 0:  # no "H" in a lettering font: its cap height is 0.7 em
         bb = (0, -round(0.7 * px), 0, 0)
-    st = captions.Style(font=which, size=px / H, padding=0.0, max_width=max_w, line_height=line_height, box=None,
-                        align="left")
-    lo = captions.Layout(lay.get("copy_id", "literal"), text, st, fonts, ctx.brand, px, 0, line_h, lines, widths,
-                         x0, y0, frame_w, block_h, -bb[1], (W, H))
+    st = captions.Style(
+        font=which, size=px / H, padding=0.0, max_width=max_w, line_height=line_height, box=None, align="left"
+    )
+    lo = captions.Layout(
+        lay.get("copy_id", "literal"),
+        text,
+        st,
+        fonts,
+        ctx.brand,
+        px,
+        0,
+        line_h,
+        lines,
+        widths,
+        x0,
+        y0,
+        frame_w,
+        block_h,
+        -bb[1],
+        (W, H),
+    )
     return lo, frame_w, x0
 
 
@@ -212,7 +244,9 @@ def draw_text(lay: dict, lo: captions.Layout, frame_w: int, ctx: RCtx) -> tuple[
     W, H = ctx.full
     px = lo.px
     fill = rgba_of(lay.get("color", "brand.text"), ctx.brand)[:3]
-    shadow = _fx(lay, "shadow", ctx, px, fill, {"opacity": 0.5, "dx": 0.04, "dy": 0.06, "blur": 0.05, "color": "#000000"})
+    shadow = _fx(
+        lay, "shadow", ctx, px, fill, {"opacity": 0.5, "dx": 0.04, "dy": 0.06, "blur": 0.05, "color": "#000000"}
+    )
     stroke = _fx(lay, "stroke", ctx, px, fill, {"width": 0.0, "opacity": 1.0, "color": "#000000"})
     glow = _fx(lay, "glow", ctx, px, fill, {"opacity": 0.5, "radius": 0.25, "color": None})
     sw = int(round(stroke["width"] * px)) if stroke else 0
@@ -231,9 +265,20 @@ def draw_text(lay: dict, lo: captions.Layout, frame_w: int, ctx: RCtx) -> tuple[
         x = margin + _line_x(lay, lo, i, frame_w)
         if line:
             from funkbox.bidi import shown
-            line = shown(line)                        # right-to-left in display order without libraqm
-            df.text((x, base), line, font=font, fill=(*fill, 255), anchor="ls", stroke_width=sw,
-                    stroke_fill=(*(stroke["rgb"] if stroke else fill), int(round(255 * (stroke or {}).get("opacity", 1.0)))))
+
+            line = shown(line)  # right-to-left in display order without libraqm
+            df.text(
+                (x, base),
+                line,
+                font=font,
+                fill=(*fill, 255),
+                anchor="ls",
+                stroke_width=sw,
+                stroke_fill=(
+                    *(stroke["rgb"] if stroke else fill),
+                    int(round(255 * (stroke or {}).get("opacity", 1.0))),
+                ),
+            )
             dm.text((x, base), line, font=font, fill=255, anchor="ls", stroke_width=sw)
     P = np.zeros((ch, cw, 3), np.float32)
     A = np.zeros((ch, cw), np.float32)
@@ -259,7 +304,7 @@ def draw_text(lay: dict, lo: captions.Layout, frame_w: int, ctx: RCtx) -> tuple[
     ox, oy = lo.x0 - margin, lo.y0 - margin
     X0, Y0, X1, Y1 = max(0, ox), max(0, oy), min(W, ox + cw), min(H, oy + ch)
     if X1 > X0 and Y1 > Y0:
-        canvas[Y0:Y1, X0:X1] = out_sprite[Y0 - oy:Y1 - oy, X0 - ox:X1 - ox]
+        canvas[Y0:Y1, X0:X1] = out_sprite[Y0 - oy : Y1 - oy, X0 - ox : X1 - ox]
     return canvas, drawn
 
 
@@ -275,13 +320,22 @@ def raster_text(lay: dict, ctx: RCtx, doc: Doc, deck: CopyDeck | None) -> tuple[
         source, text = "literal", lay["text"]
     fonts = layer_fonts(lay, ctx)
     from . import typeset
+
     if typeset.use_outlines(lay):
         ts = typeset.typeset(lay, text, ctx, fonts)
         rgba = draw_set(lay, ts, ctx)
         rebuilt = ts.reconstruct()
-        entry = {"layer": lay["id"], "source": source, "copy_id": lay.get("copy_id"), "text": rebuilt,
-                 "text_exact": rebuilt == text, "drawn_lines": ts.drawn, "font": lay.get("style", "caption"),
-                 "px": ts.px, "box": list(ts.box)}
+        entry = {
+            "layer": lay["id"],
+            "source": source,
+            "copy_id": lay.get("copy_id"),
+            "text": rebuilt,
+            "text_exact": rebuilt == text,
+            "drawn_lines": ts.drawn,
+            "font": lay.get("style", "caption"),
+            "px": ts.px,
+            "box": list(ts.box),
+        }
         typo = {k: lay[k] for k in ("letter_spacing", "on_path") if lay.get(k)}
         typo |= {"runs": [r["match"] for r in lay["runs"]]} if lay.get("runs") else {}
         if typo:
@@ -295,15 +349,27 @@ def raster_text(lay: dict, ctx: RCtx, doc: Doc, deck: CopyDeck | None) -> tuple[
     geo = {k: float(lay[k]) for k in ("rotate_deg", "skew_x", "skew_y") if lay.get(k)}
     if lay.get("arc"):
         geo["arc"] = float(lay["arc"]) * ctx.full[0]
-    if geo:                                    # bend/slant/rotate the shaped text about its box centre
+    if geo:  # bend/slant/rotate the shaped text about its box centre
         from .shapes import warp_text
+
         full = warp_text(full, (lo.x0 + frame_w / 2, lo.y0 + lo.box_h / 2), **geo)
     rebuilt = lo.reconstruct(drawn)
-    entry = {"layer": lay["id"], "source": source, "copy_id": lay.get("copy_id"), "text": rebuilt,
-             "text_exact": rebuilt == text, "drawn_lines": drawn, "font": lay.get("style", "caption"),
-             "px": lo.px, "box": [lo.x0, lo.y0, frame_w, lo.box_h],
-             **({"geometry": {k: lay[k] for k in ("arc", "rotate_deg", "skew_x", "skew_y") if lay.get(k)}}
-                if any(lay.get(k) for k in ("arc", "rotate_deg", "skew_x", "skew_y")) else {})}
+    entry = {
+        "layer": lay["id"],
+        "source": source,
+        "copy_id": lay.get("copy_id"),
+        "text": rebuilt,
+        "text_exact": rebuilt == text,
+        "drawn_lines": drawn,
+        "font": lay.get("style", "caption"),
+        "px": lo.px,
+        "box": [lo.x0, lo.y0, frame_w, lo.box_h],
+        **(
+            {"geometry": {k: lay[k] for k in ("arc", "rotate_deg", "skew_x", "skew_y") if lay.get(k)}}
+            if any(lay.get(k) for k in ("arc", "rotate_deg", "skew_x", "skew_y"))
+            else {}
+        ),
+    }
     if ctx.scale != 1.0 or (ctx.w, ctx.h) != ctx.full:
         full = _downscale(full, ctx.w, ctx.h)
     return full, entry
@@ -312,12 +378,14 @@ def raster_text(lay: dict, ctx: RCtx, doc: Doc, deck: CopyDeck | None) -> tuple[
 def draw_set(lay: dict, ts, ctx: RCtx) -> np.ndarray:
     """A typeset layer (typeset.Set) drawn at the render size with its effects: glow, shadow, stroke, then the fills."""
     from .typeset import coverage
+
     k = ctx.w / ctx.full[0]
     px = ts.px * k
     fills = [(col, coverage(cmds, ctx.w, ctx.h, k)) for col, cmds in ts.by_color]
     base = rgba_of(lay.get("color", "brand.text"), ctx.brand)
-    shadow = _fx(lay, "shadow", ctx, ts.px, base[:3], {"opacity": 0.5, "dx": 0.04, "dy": 0.06, "blur": 0.05,
-                                                     "color": "#000000"})
+    shadow = _fx(
+        lay, "shadow", ctx, ts.px, base[:3], {"opacity": 0.5, "dx": 0.04, "dy": 0.06, "blur": 0.05, "color": "#000000"}
+    )
     stroke = _fx(lay, "stroke", ctx, ts.px, base[:3], {"width": 0.0, "opacity": 1.0, "color": "#000000"})
     glow = _fx(lay, "glow", ctx, ts.px, base[:3], {"opacity": 0.5, "radius": 0.25, "color": None})
     sil = np.zeros((ctx.h, ctx.w), np.float32)
@@ -354,4 +422,5 @@ def draw_set(lay: dict, ts, ctx: RCtx) -> np.ndarray:
 
 def _downscale(rgba: np.ndarray, w: int, h: int) -> np.ndarray:
     from .raster import _resize_rgba
+
     return np.asarray(_resize_rgba(Image.fromarray(rgba, "RGBA"), (w, h)))

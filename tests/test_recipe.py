@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 
 import numpy as np
@@ -16,13 +15,24 @@ ROOT = Path(__file__).resolve().parent.parent
 def sample_recipe() -> Recipe2:
     return Recipe2(
         settings=Settings2(width=64, height=64, fps=10, seconds=1.0, seed=7),
-        palette="vapor", cycles=1,
-        layers=[Layer(shader="shaders/warp.frag", params={"u_amp": 0.4}),
-                Layer(type="image", path="examples/cat.png", fit="contain", blend="screen",
-                      opacity=0.8, uv_warp=1.0, extra={"note": "keeps unknown keys"}),
-                Layer(type="v1", effect="blobs", blend="add", opacity=0.5)],
+        palette="vapor",
+        cycles=1,
+        layers=[
+            Layer(shader="shaders/warp.frag", params={"u_amp": 0.4}),
+            Layer(
+                type="image",
+                path="examples/cat.png",
+                fit="contain",
+                blend="screen",
+                opacity=0.8,
+                uv_warp=1.0,
+                extra={"note": "keeps unknown keys"},
+            ),
+            Layer(type="v1", effect="blobs", blend="add", opacity=0.5),
+        ],
         post=[PostPass("chroma", {"px": 4}), PostPass("grain", {"amount": 0.03})],
-        text=TextSpec(text="FUNK", size=0.13, wobble=6.0, color="#ffffff", shadow="#ff2bd6"))
+        text=TextSpec(text="FUNK", size=0.13, wobble=6.0, color="#ffffff", shadow="#ff2bd6"),
+    )
 
 
 def test_v2_roundtrip(tmp_path):
@@ -34,11 +44,18 @@ def test_v2_roundtrip(tmp_path):
     shader_layer = d["layers"][0]
     assert shader_layer["source"].startswith("// Port of funk v1 effect 'warp'")
     assert len(shader_layer["source_sha256"]) == 64
-    assert set(shader_layer["params"]) == {"u_amp", "u_freq", "u_stripes", "u_iters",
-                                          "u_kaleido", "k_spin", "u_zoom"}   # resolved, look controls included
-    assert shader_layer["params"]["u_amp"] == 0.4                                      # override wins
-    assert d["layers"][1]["note"] == "keeps unknown keys"       # extra round-trips
-    assert d["layers"][2]["type"] == "shader" and d["layers"][2]["params"] is not None   # v1 layer converted
+    assert set(shader_layer["params"]) == {
+        "u_amp",
+        "u_freq",
+        "u_stripes",
+        "u_iters",
+        "u_kaleido",
+        "k_spin",
+        "u_zoom",
+    }  # resolved, look controls included
+    assert shader_layer["params"]["u_amp"] == 0.4  # override wins
+    assert d["layers"][1]["note"] == "keeps unknown keys"  # extra round-trips
+    assert d["layers"][2]["type"] == "shader" and d["layers"][2]["params"] is not None  # v1 layer converted
     # saved recipe renders identically to the original
     e = Engine(64, 64)
     try:
@@ -78,16 +95,31 @@ def test_v1_sidecar_loads_and_renders():
         e.release()
     ref = np.asarray(Image.open(side.with_suffix(".png")))
     assert arr.shape == ref.shape
-    assert np.abs(arr.astype(int) - ref.astype(int)).mean() < 1.0     # same look as v1
+    assert np.abs(arr.astype(int) - ref.astype(int)).mean() < 1.0  # same look as v1
 
 
 def test_v1_adapter_maps_every_option():
-    rc = dict(effect="plasma", palette="toxic", cycles=2, spin=1, zoom=0.1, kaleido=6, posterize=7,
-              halftone=9, chroma=3, scanlines=True, vignette=0.4, grain=0.05, text="HI",
-              text_size=0.2, text_wobble=3.0, text_color="#112233", shadow="#445566",
-              params={"k": [4, 5, 6, 7]})
-    r = recipe_from_v1({"recipe": rc, "settings": {"width": 80, "height": 60, "fps": 24,
-                                                   "seconds": 2.0, "seed": 9}})
+    rc = dict(
+        effect="plasma",
+        palette="toxic",
+        cycles=2,
+        spin=1,
+        zoom=0.1,
+        kaleido=6,
+        posterize=7,
+        halftone=9,
+        chroma=3,
+        scanlines=True,
+        vignette=0.4,
+        grain=0.05,
+        text="HI",
+        text_size=0.2,
+        text_wobble=3.0,
+        text_color="#112233",
+        shadow="#445566",
+        params={"k": [4, 5, 6, 7]},
+    )
+    r = recipe_from_v1({"recipe": rc, "settings": {"width": 80, "height": 60, "fps": 24, "seconds": 2.0, "seed": 9}})
     assert [p.name for p in r.post] == ["posterize", "halftone", "chroma", "scanlines", "vignette", "grain"]
     assert r.palette == "toxic" and r.cycles == 2
     lay = r.layers[0]
@@ -108,8 +140,7 @@ def test_path_outside_roots_rejected(tmp_path, monkeypatch):
         resolve_path(str(outside))
     with pytest.raises(ValueError, match="outside"):
         resolve_path("../../../../etc/passwd")
-    r = Recipe2(settings=Settings2(width=16, height=16),
-                layers=[Layer(type="image", path=str(outside))])
+    r = Recipe2(settings=Settings2(width=16, height=16), layers=[Layer(type="image", path=str(outside))])
     e = Engine(16, 16)
     try:
         with pytest.raises(ValueError):
@@ -141,16 +172,20 @@ def test_example_disco_cat_loops_and_renders(gl):
 def test_bom_recipe_and_shader_load(gl, tmp_path, monkeypatch):
     """Windows PowerShell 5 `Set-Content -Encoding utf8` writes a BOM; both must still load."""
     import json
-    from pathlib import Path
     from funkbox.gl.recipe import load_recipe
+
     monkeypatch.setenv("FUNK_OUT", str(tmp_path))
     frag = tmp_path / "bom.frag"
     frag.write_bytes(b"\xef\xbb\xbf" + b"vec4 effect(vec2 p){ return vec4(palette(p.x), 1.0); }\n")
-    rec = {"version": 2, "settings": {"width": 32, "height": 32, "fps": 10, "seconds": 0.2},
-           "layers": [{"type": "shader", "shader": str(frag)}]}
+    rec = {
+        "version": 2,
+        "settings": {"width": 32, "height": 32, "fps": 10, "seconds": 0.2},
+        "layers": [{"type": "shader", "shader": str(frag)}],
+    }
     rp = tmp_path / "bom.json"
     rp.write_bytes(b"\xef\xbb\xbf" + json.dumps(rec).encode())
     r = load_recipe(rp)
     from funkbox.gl.engine import Engine
+
     img = Engine(32, 32).render(r, 0)
     assert img.shape == (32, 32, 3)

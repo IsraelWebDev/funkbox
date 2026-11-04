@@ -20,11 +20,11 @@ video with ``loop_shaders`` (default true), so the background moves seamlessly.
 
 Text is never animated letter by letter: every frame draws the whole approved text, and every frame is audited.
 """
+
 from __future__ import annotations
 
 import copy
 import json
-import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -44,11 +44,11 @@ MAX_SECONDS, MAX_FPS = 30, 60
 def ease(name: str, u: float) -> float:
     u = min(1.0, max(0.0, u))
     if name == "in":
-        return u ** 3
+        return u**3
     if name == "out":
         return 1 - (1 - u) ** 3
     if name == "inout":
-        return 4 * u ** 3 if u < 0.5 else 1 - (-2 * u + 2) ** 3 / 2
+        return 4 * u**3 if u < 0.5 else 1 - (-2 * u + 2) ** 3 / 2
     return u
 
 
@@ -60,8 +60,8 @@ def _lerp(a: Any, b: Any, u: float) -> Any:
     if isinstance(a, list) and isinstance(b, list) and len(a) == len(b):
         return [_lerp(x, y, u) for x, y in zip(a, b)]
     if isinstance(a, str) and isinstance(b, str) and schema.HEX_RE.match(a) and schema.HEX_RE.match(b):
-        ca = [int(a[i:i + 2], 16) for i in range(1, len(a), 2)]
-        cb = [int(b[i:i + 2], 16) for i in range(1, len(b), 2)]
+        ca = [int(a[i : i + 2], 16) for i in range(1, len(a), 2)]
+        cb = [int(b[i : i + 2], 16) for i in range(1, len(b), 2)]
         if len(ca) != len(cb):
             ca, cb = ca[:3], cb[:3]
         return "#" + "".join(f"{round(x + (y - x) * u):02x}" for x, y in zip(ca, cb))
@@ -149,8 +149,13 @@ def _expand(doc: dict) -> dict[str, list]:
         lay = _find_layer(doc["layers"], lid)
         op = float(lay.get("opacity", 1.0))
         tracks.setdefault(f"layers.{lid}.opacity", []).extend([[0, 0.0], [at, 0.0], [at + dur, op, "out"]])
-        move = {"rise": ("dy", 0.06), "drop": ("dy", -0.06), "slide-left": ("dx", 0.12), "slide-right": ("dx", -0.12),
-                "pop": ("scale", 0.6)}.get(eff)
+        move = {
+            "rise": ("dy", 0.06),
+            "drop": ("dy", -0.06),
+            "slide-left": ("dx", 0.12),
+            "slide-right": ("dx", -0.12),
+            "pop": ("scale", 0.6),
+        }.get(eff)
         if move:
             k, v = move
             end = 1.0 if k == "scale" else 0.0
@@ -167,6 +172,7 @@ def _centre(lay: dict) -> tuple[float, float]:
         return float(pts[:, 0].mean()), float(pts[:, 1].mean())
     if t == "shape":
         from .vpath import parse
+
         pts = np.concatenate([np.array(p) for p, _ in parse(lay["d"], 0.01)])
         return float(pts[:, 0].mean()), float(pts[:, 1].mean())
     if t == "text":
@@ -181,6 +187,7 @@ def move_layer(lay: dict, dx: float, dy: float, s: float, W: int, H: int) -> Non
     """Shift a layer by (dx, dy) canvas fractions and scale it by ``s`` about its centre, in place."""
     from .text import TEXT_SIZE
     from .vpath import transform_d
+
     t = lay["type"]
     if t == "group":
         for sub in lay["layers"]:
@@ -263,13 +270,23 @@ class Animated:
     warnings: list[str] = field(default_factory=list)
 
 
-def animate(doc_in, out_dir, name: str = "", base_dir=None, scale: float = 1.0, gif: bool = False,
-            seconds: float | None = None, fps: int | None = None, write_files: bool = True) -> Animated:
+def animate(
+    doc_in,
+    out_dir,
+    name: str = "",
+    base_dir=None,
+    scale: float = 1.0,
+    gif: bool = False,
+    seconds: float | None = None,
+    fps: int | None = None,
+    write_files: bool = True,
+) -> Animated:
     """Render every frame and encode ``<name>.mp4`` (+ ``.gif``), the last frame as ``<name>.png`` (the poster),
     a strip of six frames ``<name>-frames.png`` and ``<name>.motion_audit.json`` (the text of every frame)."""
     from funkbox import media
     from PIL import Image
     from .sheet import contact_sheet
+
     raw = doc_in if isinstance(doc_in, dict) else schema.parse(doc_in).raw
     doc = copy.deepcopy(raw)
     doc.setdefault("motion", {})
@@ -309,6 +326,7 @@ def animate(doc_in, out_dir, name: str = "", base_dir=None, scale: float = 1.0, 
             if i in picks:
                 shots.append((Image.fromarray(img), f"{t:.1f}s"))
             yield img
+
     if write_files:
         d = render.fence_out(out_dir)
         d.mkdir(parents=True, exist_ok=True)
@@ -327,8 +345,18 @@ def animate(doc_in, out_dir, name: str = "", base_dir=None, scale: float = 1.0, 
         res.paths["frames"] = d / f"{name}-frames.png"
         res.sheet_image.save(res.paths["frames"])
         res.paths["audit"] = d / f"{name}.motion_audit.json"
-        res.paths["audit"].write_text(json.dumps({"frames": n, "seconds": secs, "fps": rate,
-                                                  "texts": [{"text": k, "exact_every_frame": v}
-                                                            for k, v in texts.items()]},
-                                                 indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        res.paths["audit"].write_text(
+            json.dumps(
+                {
+                    "frames": n,
+                    "seconds": secs,
+                    "fps": rate,
+                    "texts": [{"text": k, "exact_every_frame": v} for k, v in texts.items()],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
     return res

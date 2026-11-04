@@ -12,6 +12,7 @@ at depth d the source-frame point q it shows is
 with c = (0.5, 0.5). Parallax always runs at ``base`` = 1.07 so that the offset (<= 3% of the
 frame width) can never reveal anything outside the source.
 """
+
 from __future__ import annotations
 
 import math
@@ -28,9 +29,9 @@ from funkbox.gl.context import create_context
 from . import depth as depthmod
 from .schema import Motion
 
-MAX_REVEAL = 0.03                       # max horizontal camera offset, fraction of frame width
+MAX_REVEAL = 0.03  # max horizontal camera offset, fraction of frame width
 PARALLAX_BASE = 1.0 + 2 * MAX_REVEAL + 0.01
-DEPTH_SIDE = 512                        # depth is stored on the GPU at <= this many px per side
+DEPTH_SIDE = 512  # depth is stored on the GPU at <= this many px per side
 MAX_LOD = 4.0
 _WARNED: set[str] = set()
 
@@ -51,11 +52,11 @@ def smoothstep(t: float) -> float:
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True)
 class Camera:
-    mode: str = "kenburns"            # kenburns | parallax
-    zoom: float = 1.0                 # kenburns
+    mode: str = "kenburns"  # kenburns | parallax
+    zoom: float = 1.0  # kenburns
     pan: tuple[float, float] = (0.0, 0.0)
-    base: float = 1.0                 # parallax
-    push: float = 0.0                 # push * t
+    base: float = 1.0  # parallax
+    push: float = 0.0  # push * t
     shift: tuple[float, float] = (0.0, 0.0)
     dof: float = 0.0
 
@@ -98,7 +99,7 @@ def camera(motion: Motion, t: float, mode: str | None = None) -> Camera:
         z = z0 + (z1 - z0) * e
         (x0, y0), (x1, y1) = motion.pan
         px, py = x0 + (x1 - x0) * e, y0 + (y1 - y0) * e
-        lim = 0.5 - 0.5 / z                      # keep the window inside the source
+        lim = 0.5 - 0.5 / z  # keep the window inside the source
         cx, cy = max(-lim, min(lim, px)), max(-lim, min(lim, py))
         if (cx, cy) != (px, py):
             _warn(f"Ken Burns pan {motion.pan} would reveal outside the image at zoom {z:.2f}; clamped")
@@ -206,11 +207,16 @@ class MotionGL:
             sc = min(1.0, DEPTH_SIDE / max(dh, dw))
             d = depth
             if sc < 1.0:
-                d = np.asarray(Image.fromarray(depth.astype(np.float32), mode="F").resize(
-                    (max(2, round(dw * sc)), max(2, round(dh * sc))), Image.BILINEAR), dtype=np.float32)
+                d = np.asarray(
+                    Image.fromarray(depth.astype(np.float32), mode="F").resize(
+                        (max(2, round(dw * sc)), max(2, round(dh * sc))), Image.BILINEAR
+                    ),
+                    dtype=np.float32,
+                )
             d = depthmod.blur_depth(d)
-            dtex = self.ctx.texture((d.shape[1], d.shape[0]), 1, np.ascontiguousarray(d, dtype="f4").tobytes(),
-                                    dtype="f4")
+            dtex = self.ctx.texture(
+                (d.shape[1], d.shape[0]), 1, np.ascontiguousarray(d, dtype="f4").tobytes(), dtype="f4"
+            )
             dtex.filter = (moderngl.LINEAR, moderngl.LINEAR)
             dtex.repeat_x = dtex.repeat_y = False
         return SourceTex(tex, dtex, (w, h))

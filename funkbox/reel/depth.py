@@ -3,6 +3,7 @@
 Returns HxW float32 in [0, 1], 1 = near. Optional: needs ``onnxruntime`` and the model file from
 ``funkbox reel setup-models``. Never downloads anything itself.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -15,7 +16,7 @@ from PIL import Image
 
 from funkbox.config import funk_out, get as _config, models_dir
 
-NATIVE = 518          # model input side (multiple of 14)
+NATIVE = 518  # model input side (multiple of 14)
 MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
@@ -64,6 +65,7 @@ def _session():
         if not available():
             raise DepthUnavailable(unavailable_reason())
         import onnxruntime as ort
+
         so = ort.SessionOptions()
         so.log_severity_level = 3
         _SESSION = ort.InferenceSession(str(model_path()), so, providers=["CPUExecutionProvider"])
@@ -86,7 +88,7 @@ def estimate_depth(image_path: str | Path) -> np.ndarray:
     w, h = im.size
     x = np.asarray(im.resize((NATIVE, NATIVE), Image.BICUBIC), dtype=np.float32) / 255.0
     x = ((x - MEAN) / STD).transpose(2, 0, 1)[None].astype(np.float32)
-    y = sess.run(None, {sess.get_inputs()[0].name: x})[0][0].astype(np.float32)   # larger = nearer
+    y = sess.run(None, {sess.get_inputs()[0].name: x})[0][0].astype(np.float32)  # larger = nearer
     up = np.asarray(Image.fromarray(y, mode="F").resize((w, h), Image.BILINEAR), dtype=np.float32)
     lo, hi = float(up.min()), float(up.max())
     out = ((up - lo) / (hi - lo)).astype(np.float32) if hi > lo else np.full_like(up, 0.5)
@@ -105,7 +107,7 @@ def get_depth(image_path: str | Path, mode: str = "auto") -> np.ndarray | None:
         return stub_depth(h, w)
     if mode == "model":
         return estimate_depth(image_path)
-    if mode == "cached":                    # fast previews: use real depth only if it is already computed
+    if mode == "cached":  # fast previews: use real depth only if it is already computed
         c = _cache_file(Path(image_path))
         return np.load(c) if c.exists() else None
     if available():
@@ -128,6 +130,6 @@ def blur_depth(d: np.ndarray, passes: int = 2) -> np.ndarray:
             p = np.pad(out, pad, mode="edge")
             acc = np.zeros_like(out)
             for i, kv in enumerate(k):
-                acc += kv * (p[i:i + out.shape[0], :] if axis == 0 else p[:, i:i + out.shape[1]])
+                acc += kv * (p[i : i + out.shape[0], :] if axis == 0 else p[:, i : i + out.shape[1]])
             out = acc
     return out

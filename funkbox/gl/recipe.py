@@ -1,4 +1,5 @@
 """Recipe v2: dataclasses, JSON IO, path safety and the adapters for old (v1) recipes."""
+
 from __future__ import annotations
 
 import copy
@@ -21,13 +22,13 @@ V1_EFFECTS = ("plasma", "moire", "warp", "tunnel", "blobs", "rings")
 # Inigo Quilez cosine palettes  col = a + b*cos(2pi*(c*x + d)); the recipe's palette name picks one.
 # Time is added outside c as an integer number of cycles per loop, so loops stay exact.
 PALETTES: dict[str, tuple[tuple[float, float, float], ...]] = {
-    "acid":   ((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), (1.0, 1.0, 1.0), (0.00, 0.33, 0.67)),
-    "vapor":  ((0.6, 0.4, 0.7), (0.4, 0.4, 0.3), (1.0, 1.0, 1.0), (0.00, 0.45, 0.25)),
+    "acid": ((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), (1.0, 1.0, 1.0), (0.00, 0.33, 0.67)),
+    "vapor": ((0.6, 0.4, 0.7), (0.4, 0.4, 0.3), (1.0, 1.0, 1.0), (0.00, 0.45, 0.25)),
     "sunset": ((0.5, 0.3, 0.3), (0.5, 0.4, 0.3), (1.0, 1.0, 1.0), (0.00, 0.10, 0.25)),
-    "toxic":  ((0.4, 0.6, 0.3), (0.4, 0.4, 0.4), (1.0, 1.0, 1.0), (0.30, 0.10, 0.60)),
-    "candy":  ((0.8, 0.5, 0.6), (0.3, 0.5, 0.4), (1.0, 1.0, 1.0), (0.00, 0.30, 0.55)),
-    "ice":    ((0.4, 0.6, 0.8), (0.3, 0.3, 0.3), (1.0, 1.0, 1.0), (0.55, 0.60, 0.65)),
-    "mono":   ((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), (1.0, 1.0, 1.0), (0.00, 0.00, 0.00)),
+    "toxic": ((0.4, 0.6, 0.3), (0.4, 0.4, 0.4), (1.0, 1.0, 1.0), (0.30, 0.10, 0.60)),
+    "candy": ((0.8, 0.5, 0.6), (0.3, 0.5, 0.4), (1.0, 1.0, 1.0), (0.00, 0.30, 0.55)),
+    "ice": ((0.4, 0.6, 0.8), (0.3, 0.3, 0.3), (1.0, 1.0, 1.0), (0.55, 0.60, 0.65)),
+    "mono": ((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), (1.0, 1.0, 1.0), (0.00, 0.00, 0.00)),
 }
 
 
@@ -53,16 +54,16 @@ class Layer:
     type: str = "shader"
     blend: str = "normal"
     opacity: float = 1.0
-    shader: str | None = None          # path to a .frag
-    source: str | None = None          # inline GLSL (wins over `shader`)
+    shader: str | None = None  # path to a .frag
+    source: str | None = None  # inline GLSL (wins over `shader`)
     source_sha256: str | None = None
-    params: dict | None = None         # overrides; resolved values after resolve_recipe
-    path: str | None = None            # image layers
+    params: dict | None = None  # overrides; resolved values after resolve_recipe
+    path: str | None = None  # image layers
     fit: str = "cover"
     uv_warp: float = 0.0
-    effect: str | None = None          # legacy: type "v1" with an effect name is converted to a shader layer
-    channels: list[str] = field(default_factory=list)   # image paths -> iChannel1..3
-    extra: dict = field(default_factory=dict)           # also: "palette" / "cycles" override the recipe's for this layer
+    effect: str | None = None  # legacy: type "v1" with an effect name is converted to a shader layer
+    channels: list[str] = field(default_factory=list)  # image paths -> iChannel1..3
+    extra: dict = field(default_factory=dict)  # also: "palette" / "cycles" override the recipe's for this layer
 
     _OPT = ("shader", "source", "source_sha256", "params", "path")
 
@@ -138,8 +139,7 @@ class TextSpec:
     shadow: str = "#ff2bd6"
 
     def to_dict(self) -> dict:
-        return {"text": self.text, "size": self.size, "wobble": self.wobble,
-                "color": self.color, "shadow": self.shadow}
+        return {"text": self.text, "size": self.size, "wobble": self.wobble, "color": self.color, "shadow": self.shadow}
 
 
 @dataclass
@@ -156,8 +156,7 @@ class Recipe2:
     def to_dict(self) -> dict:
         d: dict[str, Any] = {
             "version": 2,
-            "settings": {k: v for k, v in vars(self.settings).items()
-                         if not (k == "audio" and v is None)},
+            "settings": {k: v for k, v in vars(self.settings).items() if not (k == "audio" and v is None)},
             "palette": {"name": self.palette, "cycles": self.cycles},
             "layers": [l.to_dict() for l in self.layers],
             "post": [p.to_dict() for p in self.post],
@@ -168,7 +167,7 @@ class Recipe2:
 
     @classmethod
     def from_dict(cls, d: dict, base_dir: str | Path | None = None) -> "Recipe2":
-        if "recipe" in d and "effect" in d.get("recipe", {}):   # v1 sidecar
+        if "recipe" in d and "effect" in d.get("recipe", {}):  # v1 sidecar
             return recipe_from_v1(d)
         if d.get("version", 2) != 2:
             raise ValueError(f"unsupported recipe version {d.get('version')!r}")
@@ -190,14 +189,19 @@ class Recipe2:
         settings = Settings2(**s)
         if settings.audio:
             settings.audio = Path(settings.audio).as_posix()
-            if "seconds" not in s:        # audio set: the clip defaults to the audio's length
+            if "seconds" not in s:  # audio set: the clip defaults to the audio's length
                 from .audio import wav_duration
+
                 settings.seconds = round(wav_duration(resolve_path(settings.audio, base_dir)), 3)
-        return cls(settings=settings, palette=pal.get("name", "acid"),
-                   cycles=int(pal.get("cycles", 1)),
-                   layers=[Layer.from_dict(x) for x in d.get("layers", [])],
-                   post=[PostPass.from_dict(x) for x in d.get("post", [])],
-                   text=text, base_dir=str(base_dir) if base_dir else None)
+        return cls(
+            settings=settings,
+            palette=pal.get("name", "acid"),
+            cycles=int(pal.get("cycles", 1)),
+            layers=[Layer.from_dict(x) for x in d.get("layers", [])],
+            post=[PostPass.from_dict(x) for x in d.get("post", [])],
+            text=text,
+            base_dir=str(base_dir) if base_dir else None,
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -233,9 +237,16 @@ def recipe_from_v1(v1: dict) -> Recipe2:
     rc = dict(v1.get("recipe", v1))
     st = dict(v1.get("settings", {}))
     effect = rc["effect"]
-    layer = Layer(type="v1", effect=effect, params=copy.deepcopy(rc.get("params")),
-                  extra={"spin": int(rc.get("spin", 0)), "zoom": float(rc.get("zoom", 0.0)),
-                         "kaleido": int(rc.get("kaleido", 0))})
+    layer = Layer(
+        type="v1",
+        effect=effect,
+        params=copy.deepcopy(rc.get("params")),
+        extra={
+            "spin": int(rc.get("spin", 0)),
+            "zoom": float(rc.get("zoom", 0.0)),
+            "kaleido": int(rc.get("kaleido", 0)),
+        },
+    )
     post: list[PostPass] = []
     if int(rc.get("posterize", 0)) >= 2:
         post.append(PostPass("posterize", {"levels": int(rc["posterize"])}))
@@ -251,13 +262,23 @@ def recipe_from_v1(v1: dict) -> Recipe2:
         post.append(PostPass("grain", {"amount": float(rc["grain"])}))
     text = None
     if rc.get("text"):
-        text = TextSpec(text=rc["text"], size=float(rc.get("text_size", 0.13)),
-                        wobble=float(rc.get("text_wobble", 0.0)),
-                        color=rc.get("text_color", "#ffffff"), shadow=rc.get("shadow", "#ff2bd6"))
+        text = TextSpec(
+            text=rc["text"],
+            size=float(rc.get("text_size", 0.13)),
+            wobble=float(rc.get("text_wobble", 0.0)),
+            color=rc.get("text_color", "#ffffff"),
+            shadow=rc.get("shadow", "#ff2bd6"),
+        )
     sk = {f.name for f in fields(Settings2)}
     settings = Settings2(**{k: v for k, v in st.items() if k in sk})
-    return Recipe2(settings=settings, palette=rc.get("palette", "acid"),
-                   cycles=int(rc.get("cycles", 1)), layers=[layer], post=post, text=text)
+    return Recipe2(
+        settings=settings,
+        palette=rc.get("palette", "acid"),
+        cycles=int(rc.get("cycles", 1)),
+        layers=[layer],
+        post=post,
+        text=text,
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -295,7 +316,7 @@ def resolve_recipe(recipe: Recipe2) -> Recipe2:
         elif lay.type == "image":
             if not lay.path:
                 raise ValueError("image layer needs `path`")
-            resolve_path(lay.path, r.base_dir)    # validates + enforces roots
+            resolve_path(lay.path, r.base_dir)  # validates + enforces roots
             if lay.fit not in ("cover", "contain", "stretch"):
                 raise ValueError(f"unknown fit {lay.fit!r}; use cover|contain|stretch")
     return r
@@ -319,8 +340,7 @@ def layer_seed(seed: int, index: int) -> int:
     return seed + 7919 * index
 
 
-def save_recipe(recipe: Recipe2, path: str | Path, resolve: bool = True,
-                outputs: dict | None = None) -> Recipe2:
+def save_recipe(recipe: Recipe2, path: str | Path, resolve: bool = True, outputs: dict | None = None) -> Recipe2:
     r = resolve_recipe(recipe) if resolve else recipe
     d = r.to_dict()
     if outputs:
@@ -337,5 +357,4 @@ def save_recipe(recipe: Recipe2, path: str | Path, resolve: bool = True,
 
 
 def recipe_digest(recipe: Recipe2) -> str:
-    return hashlib.sha256(json.dumps([recipe.to_dict(), recipe.base_dir],
-                                     sort_keys=True).encode("utf-8")).hexdigest()
+    return hashlib.sha256(json.dumps([recipe.to_dict(), recipe.base_dir], sort_keys=True).encode("utf-8")).hexdigest()

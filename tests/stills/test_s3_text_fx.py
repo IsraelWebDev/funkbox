@@ -1,7 +1,6 @@
 """v3.2 S3: adjustments, filters, effects, text with the copy rules and the audit."""
-import copy
+
 import json
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -53,13 +52,32 @@ def ref_adjust(rgb, a):
     return np.clip(c, 0, 1) * 255.0
 
 
-@pytest.mark.parametrize("adj", [
-    {"brightness": 0.2}, {"brightness": -0.3}, {"contrast": 0.5}, {"contrast": -0.6}, {"saturation": -1.0},
-    {"saturation": 0.8}, {"hue": 90}, {"hue": -40}, {"hue": 180}, {"levels": [0.1, 0.9, 1.0]},
-    {"levels": [0.0, 1.0, 2.2]}, {"temperature": 0.7}, {"invert": True},
-    {"brightness": 0.05, "contrast": 0.1, "saturation": -0.2, "hue": 15, "levels": [0.02, 0.98, 1.1],
-     "temperature": -0.2},
-])
+@pytest.mark.parametrize(
+    "adj",
+    [
+        {"brightness": 0.2},
+        {"brightness": -0.3},
+        {"contrast": 0.5},
+        {"contrast": -0.6},
+        {"saturation": -1.0},
+        {"saturation": 0.8},
+        {"hue": 90},
+        {"hue": -40},
+        {"hue": 180},
+        {"levels": [0.1, 0.9, 1.0]},
+        {"levels": [0.0, 1.0, 2.2]},
+        {"temperature": 0.7},
+        {"invert": True},
+        {
+            "brightness": 0.05,
+            "contrast": 0.1,
+            "saturation": -0.2,
+            "hue": 15,
+            "levels": [0.02, 0.98, 1.1],
+            "temperature": -0.2,
+        },
+    ],
+)
 def test_adjustments_match_numpy_within_3_levels(img, adj):
     r = render.render_document(doc([{"type": "image", "path": str(img), "adjust": adj}]))
     src = np.asarray(Image.open(img).convert("RGB"), np.float32)
@@ -72,16 +90,20 @@ def test_adjustments_match_numpy_within_3_levels(img, adj):
 def test_adjust_leaves_alpha_alone_and_noop_is_exact(work):
     arr = assets.noise_array(64, 64, 3, alpha=True)
     Image.fromarray(arr).save(work / "ra.png")
-    r = render.render_document(doc([{"type": "image", "path": str(work / "ra.png"), "adjust": {"brightness": 0.2}}], w=64, h=64))
+    r = render.render_document(
+        doc([{"type": "image", "path": str(work / "ra.png"), "adjust": {"brightness": 0.2}}], w=64, h=64)
+    )
     assert np.array_equal(r.layers[0].rgba[..., 3], arr[..., 3])
-    r0 = render.render_document(doc([{"type": "image", "path": str(work / "ra.png"), "adjust": {"brightness": 0.0}}], w=64, h=64))
-    assert np.array_equal(r0.layers[0].rgba, arr)                      # all-default adjust: no pass at all
+    r0 = render.render_document(
+        doc([{"type": "image", "path": str(work / "ra.png"), "adjust": {"brightness": 0.0}}], w=64, h=64)
+    )
+    assert np.array_equal(r0.layers[0].rgba, arr)  # all-default adjust: no pass at all
 
 
 # ------------------------------------------------------------------ filters
 def np_blur(x, sigma):
     taps = int(np.ceil(3 * sigma))
-    k = np.exp(-0.5 * (np.arange(-taps, taps + 1) ** 2) / sigma ** 2)
+    k = np.exp(-0.5 * (np.arange(-taps, taps + 1) ** 2) / sigma**2)
     k /= k.sum()
     out = x.astype(np.float32)
     for axis in (0, 1):
@@ -108,10 +130,12 @@ def test_blur_is_premultiplied_so_transparent_edges_do_not_darken(work):
     a = np.zeros((64, 64, 4), np.uint8)
     a[16:48, 16:48] = (255, 255, 255, 255)
     Image.fromarray(a).save(work / "sq.png")
-    r = render.render_document(doc([{"type": "image", "path": str(work / "sq.png"), "filters": {"blur": 4}}], w=64, h=64))
+    r = render.render_document(
+        doc([{"type": "image", "path": str(work / "sq.png"), "filters": {"blur": 4}}], w=64, h=64)
+    )
     px = r.layers[0].rgba
     soft = (px[..., 3] > 20) & (px[..., 3] < 235)
-    assert soft.sum() > 100 and px[..., :3][soft].min() >= 250          # edge colour stays white, only alpha softens
+    assert soft.sum() > 100 and px[..., :3][soft].min() >= 250  # edge colour stays white, only alpha softens
     assert 0 < px[16, 32, 3] < 255 and px[32, 32, 3] == 255 and px[2, 2, 3] == 0
 
 
@@ -122,24 +146,28 @@ def test_sharpen_posterize_duotone_pixelate(img):
     assert np.abs(layer_rgb(r) - want).max() <= 2.5
     assert len(np.unique(layer_rgb(r))) <= 4
 
-    r = render.render_document(doc([{"type": "image", "path": str(img), "filters": {"duotone": ["#102040", "#ffe0a0"]}}]))
+    r = render.render_document(
+        doc([{"type": "image", "path": str(img), "filters": {"duotone": ["#102040", "#ffe0a0"]}}])
+    )
     lum = (src / 255.0) @ np.array([0.299, 0.587, 0.114], np.float32)
-    lo, hi = np.array([0x10, 0x20, 0x40], np.float32), np.array([0xff, 0xe0, 0xa0], np.float32)
+    lo, hi = np.array([0x10, 0x20, 0x40], np.float32), np.array([0xFF, 0xE0, 0xA0], np.float32)
     want = lo + (hi - lo) * lum[..., None]
     assert np.abs(layer_rgb(r) - want).max() <= 3.0
 
     r = render.render_document(doc([{"type": "image", "path": str(img), "filters": {"pixelate": 8}}]))
     px = layer_rgb(r)
-    assert np.array_equal(px[0:8, 0:8], np.broadcast_to(px[0, 0], (8, 8, 3)))            # one flat cell
-    assert np.abs(px[4, 4] - src[4, 4]).max() <= 1.5                                     # centre sample of the cell
+    assert np.array_equal(px[0:8, 0:8], np.broadcast_to(px[0, 0], (8, 8, 3)))  # one flat cell
+    assert np.abs(px[4, 4] - src[4, 4]).max() <= 1.5  # centre sample of the cell
     assert len(np.unique(px.reshape(-1, 3), axis=0)) < len(np.unique(src.reshape(-1, 3), axis=0)) / 10
 
     r = render.render_document(doc([{"type": "image", "path": str(img), "filters": {"sharpen": 1.5}}]))
     assert layer_rgb(r).std() > src.std() * 0.99 and not np.array_equal(layer_rgb(r), src)
     flat = np.full((16, 16, 3), 90, np.uint8)
     Image.fromarray(flat).save(img.parent / "flat.png")
-    r = render.render_document(doc([{"type": "image", "path": str(img.parent / "flat.png"), "filters": {"sharpen": 2}}], w=64, h=64))
-    assert np.abs(layer_rgb(r) - 90).max() <= 1                                           # flat areas stay flat
+    r = render.render_document(
+        doc([{"type": "image", "path": str(img.parent / "flat.png"), "filters": {"sharpen": 2}}], w=64, h=64)
+    )
+    assert np.abs(layer_rgb(r) - 90).max() <= 1  # flat areas stay flat
 
 
 @pytest.mark.parametrize("flt", [{"halftone": 6}, {"chroma": 4}, {"vignette": 1.0}])
@@ -160,11 +188,29 @@ def test_scale_changes_pixel_sized_filters_for_previews(img):
 
 
 def test_adjust_and_filter_validation():
-    errs = "\n".join(schema.check(doc([{"id": "a", "type": "solid", "color": "#000000",
-                                        "adjust": {"brightness": 5, "wobble": 1, "levels": [0.9, 0.1, 1]},
-                                        "filters": {"blur": -1, "duotone": ["#fff", "#000000"], "sparkle": 1}}])))
-    for frag in ("adjust.brightness", "unknown keys ['wobble']", "adjust.levels", "filters.blur", "filters.duotone",
-                 "unknown keys ['sparkle']"):
+    errs = "\n".join(
+        schema.check(
+            doc(
+                [
+                    {
+                        "id": "a",
+                        "type": "solid",
+                        "color": "#000000",
+                        "adjust": {"brightness": 5, "wobble": 1, "levels": [0.9, 0.1, 1]},
+                        "filters": {"blur": -1, "duotone": ["#fff", "#000000"], "sparkle": 1},
+                    }
+                ]
+            )
+        )
+    )
+    for frag in (
+        "adjust.brightness",
+        "unknown keys ['wobble']",
+        "adjust.levels",
+        "filters.blur",
+        "filters.duotone",
+        "unknown keys ['sparkle']",
+    ):
         assert frag in errs, frag
 
 
@@ -198,8 +244,11 @@ def test_copy_id_needs_a_deck_and_a_known_id(work):
         render.render_document({**text_doc([{"id": "t", "type": "text", "copy_id": "nope"}]), "copy": str(deck)})
 
 
-LINES = {"hook": {"text": "LOOK CLOSER.\nTIME FOR A CLEAN?"}, "body": {"text": "Tough on stains, gentle on family life."},
-         "url": {"text": "GLOWMOP.EXAMPLE"}}
+LINES = {
+    "hook": {"text": "LOOK CLOSER.\nTIME FOR A CLEAN?"},
+    "body": {"text": "Tough on stains, gentle on family life."},
+    "url": {"text": "GLOWMOP.EXAMPLE"},
+}
 
 
 @pytest.fixture
@@ -216,8 +265,11 @@ def approve(lines=LINES):
 
 
 def proj_doc(*ids, **kw):
-    return text_doc([{"id": f"t{i}", "type": "text", "copy_id": c, "y": 0.1 + 0.2 * i, "size": 0.05}
-                     for i, c in enumerate(ids)], project="demo", **kw)
+    return text_doc(
+        [{"id": f"t{i}", "type": "text", "copy_id": c, "y": 0.1 + 0.2 * i, "size": 0.05} for i, c in enumerate(ids)],
+        project="demo",
+        **kw,
+    )
 
 
 def test_project_poster_draws_only_approved_locked_copy(penv):
@@ -230,16 +282,16 @@ def test_project_poster_draws_only_approved_locked_copy(penv):
 def test_project_poster_with_a_stale_lock_or_no_approval_is_rejected(penv):
     with pytest.raises(schema.PosterError, match="no approved copy.json"):
         render.render_document(proj_doc("hook"))
-    approval.propose_copy("demo", LINES)                           # a draft is not approval
+    approval.propose_copy("demo", LINES)  # a draft is not approval
     with pytest.raises(schema.PosterError, match="no approved copy.json"):
         render.render_document(proj_doc("hook"))
     approve()
     render.render_document(proj_doc("hook"))
     cp = P.project_dir("demo") / "copy.json"
-    cp.write_bytes(cp.read_bytes().replace(b"CLOSER", b"CLOSE R"))       # someone edits the approved file
+    cp.write_bytes(cp.read_bytes().replace(b"CLOSER", b"CLOSE R"))  # someone edits the approved file
     with pytest.raises(schema.PosterError, match="copy.json changed since approval"):
         render.render_document(proj_doc("hook"))
-    cp.write_bytes(cp.read_bytes().replace(b"CLOSE R", b"CLOSER"))        # back to the exact bytes: valid again
+    cp.write_bytes(cp.read_bytes().replace(b"CLOSE R", b"CLOSER"))  # back to the exact bytes: valid again
     render.render_document(proj_doc("hook"))
 
 
@@ -258,7 +310,7 @@ def test_a_poster_cannot_borrow_another_decks_draft_or_a_projects_copy(penv, wor
     d = text_doc([{"id": "t", "type": "text", "copy_id": "hook"}], copy=str(draft))
     with pytest.raises(schema.PosterError, match="only the approved copy.json"):
         render.render_document(d)
-    d["copy"] = str(P.project_dir("demo") / "copy.json")          # outside a project doc: the lock still applies
+    d["copy"] = str(P.project_dir("demo") / "copy.json")  # outside a project doc: the lock still applies
     render.render_document(d)
     cp = P.project_dir("demo") / "copy.json"
     cp.write_text(cp.read_text() + " ")
@@ -267,17 +319,47 @@ def test_a_poster_cannot_borrow_another_decks_draft_or_a_projects_copy(penv, wor
 
 
 def test_audit_lists_every_string_byte_equal_to_its_source(work):
-    lines = {"hook": {"text": "LOOK CLOSER.\nTIME FOR A CLEAN?"},
-             "long": {"text": "Tough on stains and gentle on family life, every single time you clean."},
-             "uni": {"text": "Crème brûlée — 100%"}, "url": {"text": "GLOWMOP.EXAMPLE"}}
+    lines = {
+        "hook": {"text": "LOOK CLOSER.\nTIME FOR A CLEAN?"},
+        "long": {"text": "Tough on stains and gentle on family life, every single time you clean."},
+        "uni": {"text": "Crème brûlée — 100%"},
+        "url": {"text": "GLOWMOP.EXAMPLE"},
+    }
     deck = work / "copy.json"
     deck.write_text(json.dumps({"brand_name": "X", "lines": lines}, ensure_ascii=False), encoding="utf-8")
-    d = text_doc([{"id": "a", "type": "text", "copy_id": "hook", "y": 0.05, "size": 0.05},
-                  {"id": "b", "type": "text", "copy_id": "long", "y": 0.25, "size": 0.05, "max_width": 0.5, "align": "center"},
-                  {"id": "c", "type": "text", "copy_id": "uni", "y": 0.6, "size": 0.05, "style": "display"},
-                  {"id": "g", "type": "group", "layers": [{"id": "d", "type": "text", "copy_id": "url", "y": 0.8, "size": 0.05,
-                                                              "align": "right", "x": 0.1, "max_width": 0.8}]}],
-                 copy=str(deck), post=[{"name": "grain", "amount": 0.01}])
+    d = text_doc(
+        [
+            {"id": "a", "type": "text", "copy_id": "hook", "y": 0.05, "size": 0.05},
+            {
+                "id": "b",
+                "type": "text",
+                "copy_id": "long",
+                "y": 0.25,
+                "size": 0.05,
+                "max_width": 0.5,
+                "align": "center",
+            },
+            {"id": "c", "type": "text", "copy_id": "uni", "y": 0.6, "size": 0.05, "style": "display"},
+            {
+                "id": "g",
+                "type": "group",
+                "layers": [
+                    {
+                        "id": "d",
+                        "type": "text",
+                        "copy_id": "url",
+                        "y": 0.8,
+                        "size": 0.05,
+                        "align": "right",
+                        "x": 0.1,
+                        "max_width": 0.8,
+                    }
+                ],
+            },
+        ],
+        copy=str(deck),
+        post=[{"name": "grain", "amount": 0.01}],
+    )
     paths = render.render_poster(d, work / "o", "aud")
     audit = json.loads(paths["text_audit"].read_text(encoding="utf-8"))
     assert [e["layer"] for e in audit] == ["a", "b", "c", "d"]
@@ -299,40 +381,83 @@ def test_text_never_splits_words_never_truncates_and_errors_when_it_cannot_fit()
     with pytest.raises(schema.PosterError) as e:
         render.render_document(d)
     assert "'w'" in str(e.value) and "minimum size" in str(e.value) and "wider than the line" in str(e.value)
-    tall = text_doc([{"id": "z", "type": "text", "text": " ".join(["word"] * 120), "size": 0.08, "max_width": 0.3, "y": 0.5}],
-                    casual=True)
+    tall = text_doc(
+        [{"id": "z", "type": "text", "text": " ".join(["word"] * 120), "size": 0.08, "max_width": 0.3, "y": 0.5}],
+        casual=True,
+    )
     with pytest.raises(schema.PosterError, match="outside the canvas"):
         render.render_document(tall)
-    shrink = text_doc([{"id": "s", "type": "text", "text": "A fairly long headline that wants to be big", "size": 0.2,
-                        "max_width": 0.9, "y": 0.4}], casual=True)
+    shrink = text_doc(
+        [
+            {
+                "id": "s",
+                "type": "text",
+                "text": "A fairly long headline that wants to be big",
+                "size": 0.2,
+                "max_width": 0.9,
+                "y": 0.4,
+            }
+        ],
+        casual=True,
+    )
     r = render.render_document(shrink)
-    assert r.audit[0]["px"] < round(0.2 * 720) and r.audit[0]["text_exact"]          # shrank instead of overflowing
+    assert r.audit[0]["px"] < round(0.2 * 720) and r.audit[0]["text_exact"]  # shrank instead of overflowing
 
 
 def test_text_pixels_stay_inside_the_reported_box_and_effects_add_around_it():
-    d = text_doc([{"id": "t", "type": "text", "text": "Hello floor", "x": 0.1, "y": 0.4, "size": 0.08, "color": "#ffffff"}],
-                 casual=True)
+    d = text_doc(
+        [{"id": "t", "type": "text", "text": "Hello floor", "x": 0.1, "y": 0.4, "size": 0.08, "color": "#ffffff"}],
+        casual=True,
+    )
     r = render.render_document(d)
     bg = np.array([0x20, 0x30, 0x40], np.uint8)
     x, y, w, h = r.audit[0]["box"]
     changed = (r.image != bg).any(-1)
-    assert changed[y:y + h, x:x + w].sum() > 300
-    changed[max(0, y - 2):y + h + 2, max(0, x - 2):x + w + 2] = False
-    assert changed.sum() == 0                                         # nothing drawn outside the layout box
-    fx = text_doc([{"id": "t", "type": "text", "text": "Hello floor", "x": 0.1, "y": 0.4, "size": 0.08, "color": "#ffffff",
-                    "effects": {"shadow": 0.8, "glow": {"opacity": 0.6, "color": "#ff00ff", "radius": 0.3},
-                                "stroke": {"width": 0.06, "color": "#000000"}}}], casual=True)
+    assert changed[y : y + h, x : x + w].sum() > 300
+    changed[max(0, y - 2) : y + h + 2, max(0, x - 2) : x + w + 2] = False
+    assert changed.sum() == 0  # nothing drawn outside the layout box
+    fx = text_doc(
+        [
+            {
+                "id": "t",
+                "type": "text",
+                "text": "Hello floor",
+                "x": 0.1,
+                "y": 0.4,
+                "size": 0.08,
+                "color": "#ffffff",
+                "effects": {
+                    "shadow": 0.8,
+                    "glow": {"opacity": 0.6, "color": "#ff00ff", "radius": 0.3},
+                    "stroke": {"width": 0.06, "color": "#000000"},
+                },
+            }
+        ],
+        casual=True,
+    )
     r2 = render.render_document(fx)
     assert r2.audit[0]["text"] == "Hello floor"
     outside = (r2.image != bg).any(-1)
-    outside[y:y + h, x:x + w] = False
-    assert outside.sum() > 500                                        # shadow/glow spill past the box
-    assert r2.audit[0]["box"] == r.audit[0]["box"]                    # effects never change the layout
+    outside[y : y + h, x : x + w] = False
+    assert outside.sum() > 500  # shadow/glow spill past the box
+    assert r2.audit[0]["box"] == r.audit[0]["box"]  # effects never change the layout
 
 
 def test_text_layout_is_identical_at_preview_scale():
-    d = text_doc([{"id": "t", "type": "text", "text": "A fairly long headline that wraps", "x": 0.1, "y": 0.2,
-                   "size": 0.07, "max_width": 0.5}], casual=True)
+    d = text_doc(
+        [
+            {
+                "id": "t",
+                "type": "text",
+                "text": "A fairly long headline that wraps",
+                "x": 0.1,
+                "y": 0.2,
+                "size": 0.07,
+                "max_width": 0.5,
+            }
+        ],
+        casual=True,
+    )
     full = render.render_document(d)
     small = render.render_document(d, scale=0.5)
     assert (small.width, small.height) == (270, 360)
@@ -340,9 +465,23 @@ def test_text_layout_is_identical_at_preview_scale():
 
 
 def test_text_layer_fx_and_blend_apply_after_drawing(work):
-    d = text_doc([{"id": "bgc", "type": "solid", "color": "#808080"},
-                  {"id": "t", "type": "text", "text": "Hi", "size": 0.2, "x": 0.1, "y": 0.3, "color": "#000000",
-                   "blend": "difference", "adjust": {"invert": True}}], casual=True)
+    d = text_doc(
+        [
+            {"id": "bgc", "type": "solid", "color": "#808080"},
+            {
+                "id": "t",
+                "type": "text",
+                "text": "Hi",
+                "size": 0.2,
+                "x": 0.1,
+                "y": 0.3,
+                "color": "#000000",
+                "blend": "difference",
+                "adjust": {"invert": True},
+            },
+        ],
+        casual=True,
+    )
     r = render.render_document(d)
     assert r.audit[0]["text"] == "Hi"
-    assert (r.image == 127).all(-1).sum() > 200        # black ink inverted to white, then |128 - 255| = 127
+    assert (r.image == 127).all(-1).sum() > 200  # black ink inverted to white, then |128 - 255| = 127

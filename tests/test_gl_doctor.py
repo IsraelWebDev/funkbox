@@ -1,6 +1,6 @@
 """Doctor and GL fallback behaviour without a real OpenGL driver."""
+
 import os
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -108,20 +108,23 @@ def test_software_backend_tries_only_software_attempts(monkeypatch):
     assert calls[1]["kwargs"] == {}
 
 
-@pytest.mark.parametrize("release, command", [
-    ({"ID": "debian"}, "sudo apt install"),
-    ({"ID": "ubuntu"}, "sudo apt install"),
-    ({"ID": "linuxmint", "ID_LIKE": "ubuntu debian"}, "sudo apt install"),
-    ({"ID": "fedora"}, "sudo dnf install"),
-    ({"ID": "rhel"}, "sudo dnf install"),
-    ({"ID": "centos"}, "sudo dnf install"),
-    ({"ID": "arch"}, "sudo pacman -S --needed mesa libglvnd"),
-    ({"ID": "alpine"}, "sudo apk add mesa-egl mesa-dri-gallium mesa-gl"),
-    ({"ID": "suse"}, "sudo zypper install"),
-    ({"ID": "opensuse-tumbleweed", "ID_LIKE": "opensuse suse"}, "sudo zypper install"),
-    ({"ID": "plan9"}, "install Mesa's EGL, GL and DRI packages"),
-    ({}, "install Mesa's EGL, GL and DRI packages"),
-])
+@pytest.mark.parametrize(
+    "release, command",
+    [
+        ({"ID": "debian"}, "sudo apt install"),
+        ({"ID": "ubuntu"}, "sudo apt install"),
+        ({"ID": "linuxmint", "ID_LIKE": "ubuntu debian"}, "sudo apt install"),
+        ({"ID": "fedora"}, "sudo dnf install"),
+        ({"ID": "rhel"}, "sudo dnf install"),
+        ({"ID": "centos"}, "sudo dnf install"),
+        ({"ID": "arch"}, "sudo pacman -S --needed mesa libglvnd"),
+        ({"ID": "alpine"}, "sudo apk add mesa-egl mesa-dri-gallium mesa-gl"),
+        ({"ID": "suse"}, "sudo zypper install"),
+        ({"ID": "opensuse-tumbleweed", "ID_LIKE": "opensuse suse"}, "sudo zypper install"),
+        ({"ID": "plan9"}, "install Mesa's EGL, GL and DRI packages"),
+        ({}, "install Mesa's EGL, GL and DRI packages"),
+    ],
+)
 def test_install_hint_package_managers(release, command):
     text = hints.install_hint([], system="Linux", os_release=release)
     assert command in text
@@ -135,17 +138,17 @@ def test_install_hint_is_empty_off_linux():
 
 def test_read_os_release_parses_and_tolerates_missing_file(tmp_path):
     p = tmp_path / "os-release"
-    p.write_text('# comment\nID=debian\nID_LIKE="debian ubuntu"\nNAME=\'Debian\'\nBADLINE\n',
-                 encoding="utf-8")
-    assert hints.read_os_release(str(p)) == {
-        "ID": "debian", "ID_LIKE": "debian ubuntu", "NAME": "Debian"}
+    p.write_text("# comment\nID=debian\nID_LIKE=\"debian ubuntu\"\nNAME='Debian'\nBADLINE\n", encoding="utf-8")
+    assert hints.read_os_release(str(p)) == {"ID": "debian", "ID_LIKE": "debian ubuntu", "NAME": "Debian"}
     assert hints.read_os_release(str(tmp_path / "absent")) == {}
 
 
 def test_probe_tries_all_four_and_never_caches(monkeypatch, capsys):
-    calls, created = install(monkeypatch, {
-        "default": True, "egl": True, "egl-software": True, "default-software": True},
-        renderers={"egl-software": "llvmpipe (LLVM 18.1)", "default-software": "Fake GPU"})
+    calls, created = install(
+        monkeypatch,
+        {"default": True, "egl": True, "egl-software": True, "default-software": True},
+        renderers={"egl-software": "llvmpipe (LLVM 18.1)", "default-software": "Fake GPU"},
+    )
     probes = context.probe()
     assert [p.label for p in probes] == ["default", "egl", "egl-software", "default-software"]
     assert [c["label"] for c in calls] == ["default", "egl", "egl-software", "default-software"]
@@ -162,12 +165,15 @@ def test_doctor_reports_software_only_as_success(monkeypatch, capsys, tmp_path):
     err = OSError("libEGL.so not loaded")
     install(monkeypatch, {"default": err, "egl": err, "egl-software": True})
     missing = tmp_path / "missing"
-    fake_cfg = SimpleNamespace(describe=lambda: ["test config"], fastsd_dir=missing,
-                               gimp_mcp_dir=missing, gimp_exe=None, fake_sd=False)
+    fake_cfg = SimpleNamespace(
+        describe=lambda: ["test config"], fastsd_dir=missing, gimp_mcp_dir=missing, gimp_exe=None, fake_sd=False
+    )
     monkeypatch.setattr(config, "get", lambda *a, **k: fake_cfg)
     import funkbox.media as media
+
     monkeypatch.setattr(media, "ffmpeg_exe", lambda: "ffmpeg")
     from funkbox.reel import models
+
     monkeypatch.setattr(models, "status", lambda: {})
     rc = cli.cmd_doctor(None)
     out = capsys.readouterr().out

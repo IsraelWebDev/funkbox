@@ -5,6 +5,7 @@ brand/logo.png.  primary = the most saturated cluster with >= 4% share, secondar
 cluster, text = #ffffff or #111111 (whichever has the better WCAG contrast on primary; primary is
 darkened/lightened until the contrast is >= 4.5 and the tool says so).
 """
+
 from __future__ import annotations
 
 import colorsys
@@ -128,17 +129,30 @@ def palette_of(px: np.ndarray, seed: int = 7) -> list[dict]:
         if len(sel) == 0:
             continue
         rgb = tuple(int(v) for v in np.median(sel, axis=0))
-        out.append({"rgb": rgb, "hex": rgb_to_hex(rgb), "share": len(sel) / len(px), "sat": saturation(rgb),
-                    "L": float(srgb_to_lab(np.array(rgb, np.float32))[0])})
+        out.append(
+            {
+                "rgb": rgb,
+                "hex": rgb_to_hex(rgb),
+                "share": len(sel) / len(px),
+                "sat": saturation(rgb),
+                "L": float(srgb_to_lab(np.array(rgb, np.float32))[0]),
+            }
+        )
     return sorted(out, key=lambda c: -c["share"])
 
 
 def pick(clusters: list[dict]) -> dict:
     notes: list[str] = []
-    big = [c for c in clusters if c["share"] >= MIN_SHARE and c["L"] > 12] or [c for c in clusters if c["share"] >= MIN_SHARE] or clusters
+    big = (
+        [c for c in clusters if c["share"] >= MIN_SHARE and c["L"] > 12]
+        or [c for c in clusters if c["share"] >= MIN_SHARE]
+        or clusters
+    )
     prim = max(big, key=lambda c: c["sat"])
     if prim["sat"] < 0.12:
-        notes.append("the product is nearly colourless; primary is its most colourful tone. Override with set_brand if needed.")
+        notes.append(
+            "the product is nearly colourless; primary is its most colourful tone. Override with set_brand if needed."
+        )
     dark_pool = [c for c in clusters if c["share"] >= 0.02] or clusters
     sec = min(dark_pool, key=lambda c: c["L"])
     if delta_e(sec["rgb"], prim["rgb"]) < 10:
@@ -154,17 +168,23 @@ def pick(clusters: list[dict]) -> dict:
     if contrast(text, primary) < MIN_CONTRAST:
         before = rgb_to_hex(primary)
         lab = srgb_to_lab(np.array(primary, np.float32)).astype(np.float64)
-        step = -1.5 if text == white else 1.5            # white text: darken primary; dark text: lighten it
+        step = -1.5 if text == white else 1.5  # white text: darken primary; dark text: lighten it
         for _ in range(100):
             lab[0] = float(np.clip(lab[0] + step, 0, 100))
             cand = tuple(float(v) for v in lab_to_srgb(lab.astype(np.float32)))
             primary = tuple(int(round(v)) for v in cand)
             if contrast(text, primary) >= MIN_CONTRAST or lab[0] in (0.0, 100.0):
                 break
-        notes.append(f"primary {before} gave text contrast {contrast(text, hex_to_rgb(before)):.2f} < {MIN_CONTRAST}; "
-                     f"{'darkened' if text == white else 'lightened'} to {rgb_to_hex(primary)}")
-    return {"primary": rgb_to_hex(primary), "secondary": sec["hex"] if "hex" in sec else rgb_to_hex(sec["rgb"]),
-            "text": rgb_to_hex(text), "notes": notes}
+        notes.append(
+            f"primary {before} gave text contrast {contrast(text, hex_to_rgb(before)):.2f} < {MIN_CONTRAST}; "
+            f"{'darkened' if text == white else 'lightened'} to {rgb_to_hex(primary)}"
+        )
+    return {
+        "primary": rgb_to_hex(primary),
+        "secondary": sec["hex"] if "hex" in sec else rgb_to_hex(sec["rgb"]),
+        "text": rgb_to_hex(text),
+        "notes": notes,
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -172,6 +192,7 @@ def video_frame(video: Path, seconds: float = 1.0) -> Path | None:
     """One frame of a video at ``seconds``, written to a temp PNG (never next to the video).
     None when ffmpeg is missing or cannot produce a frame."""
     from funkbox.media import require_ffmpeg
+
     fd, name = tempfile.mkstemp(suffix=".png")
     os.close(fd)
     out = Path(name)
@@ -181,9 +202,11 @@ def video_frame(video: Path, seconds: float = 1.0) -> Path | None:
         out.unlink(missing_ok=True)
         return None
     try:
-        for ss in (seconds, 0.0):              # a clip shorter than `seconds` falls back to its first frame
-            r = subprocess.run([ff, "-y", "-loglevel", "error", "-ss", f"{ss}", "-i", str(video),
-                                "-frames:v", "1", str(out)], capture_output=True)
+        for ss in (seconds, 0.0):  # a clip shorter than `seconds` falls back to its first frame
+            r = subprocess.run(
+                [ff, "-y", "-loglevel", "error", "-ss", f"{ss}", "-i", str(video), "-frames:v", "1", str(out)],
+                capture_output=True,
+            )
             if r.returncode == 0 and out.stat().st_size > 0:
                 return out
             out.unlink(missing_ok=True)
@@ -234,19 +257,28 @@ def brand_from_assets(slug: str) -> dict:
     prod, logo = d / "product" / "product.png", d / "brand" / "logo.png"
     srcs = [p for p in (prod, logo) if p.is_file()]
     if not srcs:
-        raise P.ProjectError("no product.png or brand/logo.png to take colours from; ingest a product photo or logo "
-                             "first (or use set_brand to give the colours yourself)")
+        raise P.ProjectError(
+            "no product.png or brand/logo.png to take colours from; ingest a product photo or logo "
+            "first (or use set_brand to give the colours yourself)"
+        )
     px = np.concatenate([opaque_pixels(p) for p in srcs])
     if len(px) < 50:
         raise P.ProjectError("the product/logo image has almost no opaque pixels; check the cut-out")
     clusters = palette_of(px)
     chosen = pick(clusters)
     cap, disp, fnote = project_fonts(d)
-    brand = {"primary": chosen["primary"], "secondary": chosen["secondary"], "text": chosen["text"],
-             "font_caption": cap, "font_display": disp,
-             "logo": "brand/logo.png" if logo.is_file() else None,
-             "palette": [c["hex"] for c in clusters], "notes": chosen["notes"] + [fnote],
-             "contrast": round(contrast(chosen["text"], chosen["primary"]), 2), "source": "auto"}
+    brand = {
+        "primary": chosen["primary"],
+        "secondary": chosen["secondary"],
+        "text": chosen["text"],
+        "font_caption": cap,
+        "font_display": disp,
+        "logo": "brand/logo.png" if logo.is_file() else None,
+        "palette": [c["hex"] for c in clusters],
+        "notes": chosen["notes"] + [fnote],
+        "contrast": round(contrast(chosen["text"], chosen["primary"]), 2),
+        "source": "auto",
+    }
     meta = P.load_meta(slug)
     meta["brand"] = brand
     P.save_meta(slug, meta)
@@ -255,9 +287,15 @@ def brand_from_assets(slug: str) -> dict:
     return brand
 
 
-def set_brand(slug: str, primary: str | None = None, secondary: str | None = None, text: str | None = None,
-              font_caption: str | None = None, font_display: str | None = None,
-              font_fallback: str | None = None) -> dict:
+def set_brand(
+    slug: str,
+    primary: str | None = None,
+    secondary: str | None = None,
+    text: str | None = None,
+    font_caption: str | None = None,
+    font_display: str | None = None,
+    font_fallback: str | None = None,
+) -> dict:
     """Override any brand value. Colours are #rrggbb; fonts are .ttf/.otf paths inside the project or bundled fonts/,
     or Google Fonts names like 'Rubik:800' (fetched once, see funkbox.fonts)."""
     d = P.project_dir(slug)
@@ -265,15 +303,24 @@ def set_brand(slug: str, primary: str | None = None, secondary: str | None = Non
     brand = dict(meta.get("brand") or {})
     if not brand:
         cap, disp, fnote = project_fonts(d)
-        brand = {"primary": "#c8102e", "secondary": "#1a1a1a", "text": "#ffffff", "font_caption": cap,
-                 "font_display": disp, "logo": "brand/logo.png" if (d / "brand" / "logo.png").is_file() else None,
-                 "palette": [], "notes": [fnote], "source": "manual"}
+        brand = {
+            "primary": "#c8102e",
+            "secondary": "#1a1a1a",
+            "text": "#ffffff",
+            "font_caption": cap,
+            "font_display": disp,
+            "logo": "brand/logo.png" if (d / "brand" / "logo.png").is_file() else None,
+            "palette": [],
+            "notes": [fnote],
+            "source": "manual",
+        }
     for k, v in (("primary", primary), ("secondary", secondary), ("text", text)):
         if v is not None:
             if not isinstance(v, str) or not HEX_RE.match(v):
                 raise P.ProjectError(f"{k} must be a #rrggbb colour, got {v!r}")
             brand[k] = v.lower()
     from funkbox import fonts as fontsmod
+
     for k, v in (("font_caption", font_caption), ("font_display", font_display), ("font_fallback", font_fallback)):
         if v is not None:
             if not fontsmod.is_name(v) and Path(v).suffix.lower() not in (".ttf", ".otf"):
@@ -286,7 +333,9 @@ def set_brand(slug: str, primary: str | None = None, secondary: str | None = Non
     brand["contrast"] = round(contrast(brand["text"], brand["primary"]), 2)
     brand["source"] = "manual" if brand.get("source") != "auto" else "auto+manual"
     if brand["contrast"] < MIN_CONTRAST:
-        brand.setdefault("notes", []).append(f"warning: text/primary contrast is {brand['contrast']} (< {MIN_CONTRAST})")
+        brand.setdefault("notes", []).append(
+            f"warning: text/primary contrast is {brand['contrast']} (< {MIN_CONTRAST})"
+        )
     meta["brand"] = brand
     P.save_meta(slug, meta)
     P.advance_status(slug, "branded")
@@ -306,13 +355,23 @@ def swatch(d: Path, brand: dict, clusters: list[dict]) -> Path:
     dr.rectangle((20, 20, 440, 200), fill=pr)
     dr.rectangle((460, 20, 880, 200), fill=sc, outline=(120, 120, 130))
     dr.text((34, 30), f"primary {brand['primary']}", font=font_(26), fill=tx)
-    dr.text((474, 30), f"secondary {brand['secondary']}", font=font_(26), fill=tx if contrast(tx, sc) >= 3 else (255, 255, 255))
+    dr.text(
+        (474, 30),
+        f"secondary {brand['secondary']}",
+        font=font_(26),
+        fill=tx if contrast(tx, sc) >= 3 else (255, 255, 255),
+    )
     f40 = font_(34)
     tw = int(dr.textlength("Sample caption", font=f40))
     dr.rectangle((60, 112, 60 + tw + 40, 112 + 60), fill=pr, outline=tx)
     dr.text((80, 122), "Sample caption", font=f40, fill=tx)
-    dr.text((34, 205), f"text {brand['text']} on primary: contrast {brand.get('contrast', contrast(tx, pr)):.2f} "
-                       f"({'OK' if brand.get('contrast', 5) >= MIN_CONTRAST else 'LOW'})", font=font_(20), fill=(235, 235, 235))
+    dr.text(
+        (34, 205),
+        f"text {brand['text']} on primary: contrast {brand.get('contrast', contrast(tx, pr)):.2f} "
+        f"({'OK' if brand.get('contrast', 5) >= MIN_CONTRAST else 'LOW'})",
+        font=font_(20),
+        fill=(235, 235, 235),
+    )
     cl = clusters or [{"rgb": hex_to_rgb(h), "hex": h, "share": 0.0} for h in brand.get("palette", [])]
     x = 20
     for c in cl[:6]:
@@ -329,10 +388,11 @@ def swatch(d: Path, brand: dict, clusters: list[dict]) -> Path:
 
 
 def brand_text(b: dict) -> str:
-    lines = [f"brand: primary {b['primary']}, secondary {b['secondary']}, text {b['text']} "
-             f"(contrast {b.get('contrast')})",
-             f"fonts: captions {b['font_caption']}, end card {b['font_display']}",
-             f"logo: {b.get('logo') or 'none'}"]
+    lines = [
+        f"brand: primary {b['primary']}, secondary {b['secondary']}, text {b['text']} (contrast {b.get('contrast')})",
+        f"fonts: captions {b['font_caption']}, end card {b['font_display']}",
+        f"logo: {b.get('logo') or 'none'}",
+    ]
     lines += [f"note: {n}" for n in b.get("notes", [])]
     if b.get("swatch"):
         lines.append(f"swatch: {b['swatch']}")

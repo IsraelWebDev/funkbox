@@ -15,6 +15,7 @@
 5. Owner approval: an owner_approval.json, if the day has one, is well formed (see enqueue.py and REVIEW.md
    check 7). Lint does not judge what it approves; the reviewer does, and only for the content it names.
 """
+
 from __future__ import annotations
 
 import json
@@ -67,19 +68,24 @@ def _words(s: str) -> set[str]:
 # --------------------------------------------------------------------------- 1. captions vs card text
 def caption_problems(day: Path) -> list[str]:
     from funkbox.reel import audio, captions, framing, timeline, validate
+
     cards = {a["path"]: a["text_rect"] for a in _json(day / "assets.json").get("assets", []) if a.get("text_rect")}
     if not cards or not (day / "reel.json").is_file():
         return []
     try:
         reel = validate.load_reel(day / "reel.json")
-    except Exception as e:                                  # noqa: BLE001 - reel validate reports it properly
+    except Exception as e:  # noqa: BLE001 - reel validate reports it properly
         return [f"reel.json does not load ({e}); run funkbox reel validate"]
     copy = _json(day / "copy.json").get("lines", {})
     W, H = reel.settings.width, reel.settings.height
     fonts = captions.Fonts(validate._res(reel.brand.font_caption, reel), validate._res(reel.brand.font_display, reel))
-    try:                                                    # shot lengths only matter for keys given in seconds
-        spans = {s.index: s.end - s.start for s in timeline.build_timeline(reel, beats=audio.beat_grid_for(reel)) if s.kind == "shot"}
-    except Exception:                                       # noqa: BLE001
+    try:  # shot lengths only matter for keys given in seconds
+        spans = {
+            s.index: s.end - s.start
+            for s in timeline.build_timeline(reel, beats=audio.beat_grid_for(reel))
+            if s.kind == "shot"
+        }
+    except Exception:  # noqa: BLE001
         spans = {}
     out = []
     for i, sh in enumerate(reel.shots):
@@ -88,13 +94,23 @@ def caption_problems(day: Path) -> list[str]:
         if rect is None or sh.caption is None or sh.caption.copy_id not in copy:
             continue
         if sh.caption.anchor == "auto":
-            out.append(f"shots[{i}] ({sh.id}): code card shots need an explicit caption anchor "
-                       f"(top/center/bottom); \"auto\" cannot be checked against the card's text_rect")
+            out.append(
+                f"shots[{i}] ({sh.id}): code card shots need an explicit caption anchor "
+                f'(top/center/bottom); "auto" cannot be checked against the card\'s text_rect'
+            )
             continue
-        lay = captions.layout_block(sh.caption.copy_id, copy[sh.caption.copy_id]["text"],
-                                    captions.load_style(sh.caption.style), fonts, reel.brand, W, H,
-                                    anchor=sh.caption.anchor, safe_area=reel.settings.safe_area)
-        m = 0.015 * H                                       # keep a little air around the box too
+        lay = captions.layout_block(
+            sh.caption.copy_id,
+            copy[sh.caption.copy_id]["text"],
+            captions.load_style(sh.caption.style),
+            fonts,
+            reel.brand,
+            W,
+            H,
+            anchor=sh.caption.anchor,
+            safe_area=reel.settings.safe_area,
+        )
+        m = 0.015 * H  # keep a little air around the box too
         cap = (lay.x0 - m, lay.y0 - m, lay.x0 + lay.box_w + m, lay.y0 + lay.box_h + m)
         secs = spans.get(i, 3.0)
         for u in (0.0, 0.25, 0.5, 0.75, 1.0):
@@ -104,8 +120,10 @@ def caption_problems(day: Path) -> list[str]:
             tx0, ty0 = (rect[0] * 1080 - win.x0) * sx, (rect[1] * 1920 - win.y0) * sy
             tx1, ty1 = (rect[2] * 1080 - win.x0) * sx, (rect[3] * 1920 - win.y0) * sy
             if tx0 < cap[2] and cap[0] < tx1 and ty0 < cap[3] and cap[1] < ty1:
-                out.append(f"shots[{i}] ({sh.id}): the caption {sh.caption.copy_id!r} sits on the card's text "
-                           f"{u:.0%} into the shot; anchor it elsewhere, or frame the card so its text stays clear")
+                out.append(
+                    f"shots[{i}] ({sh.id}): the caption {sh.caption.copy_id!r} sits on the card's text "
+                    f"{u:.0%} into the shot; anchor it elsewhere, or frame the card so its text stays clear"
+                )
                 break
     return out
 
@@ -113,7 +131,7 @@ def caption_problems(day: Path) -> list[str]:
 # --------------------------------------------------------------------------- 2. variety
 def earlier_briefs(day: Path, n: int = 14) -> list[dict]:
     days = sorted(p for p in day.parent.iterdir() if p.is_dir() and p.name < day.name and (p / "brief.json").is_file())
-    return [_json(p / "brief.json") | {"_day": p.name} for p in days[-n:]][::-1]   # newest first
+    return [_json(p / "brief.json") | {"_day": p.name} for p in days[-n:]][::-1]  # newest first
 
 
 def variety_problems(day: Path) -> list[str]:
@@ -125,14 +143,17 @@ def variety_problems(day: Path) -> list[str]:
     if fmt not in FORMATS:
         out.append(f"brief.format must be one of {sorted(FORMATS)} (got {fmt!r})")
     if sp not in SELLING_POINTS:
-        out.append(f"brief.selling_point must be one of {sorted(SELLING_POINTS, key=lambda k: int(k[1:]))} (got {sp!r})")
+        out.append(
+            f"brief.selling_point must be one of {sorted(SELLING_POINTS, key=lambda k: int(k[1:]))} (got {sp!r})"
+        )
     for p in prev[:FORMAT_GAP]:
         if fmt and p.get("format") == fmt:
             out.append(f"format {fmt!r} was used on {p['_day']}; pick another (no repeat within {FORMAT_GAP} days)")
     for p in prev[:SELLING_GAP]:
         if sp and p.get("selling_point") == sp:
-            out.append(f"selling point {sp} was the focus on {p['_day']}; pick another (no repeat within "
-                       f"{SELLING_GAP} days)")
+            out.append(
+                f"selling point {sp} was the focus on {p['_day']}; pick another (no repeat within {SELLING_GAP} days)"
+            )
     hook = _words(b.get("hook", ""))
     for p in prev:
         other = _words(p.get("hook", ""))
@@ -159,32 +180,40 @@ def claim_problems(day: Path, facts_md: Path = HERE / "FACTS.md") -> list[str]:
         ids = re.findall(r"\b(?:F\d+|L\d+)\b|\bM-[\w-]+", str(c.get("fact", "")))
         bad = [x for x in ids if x not in known and x not in measured]
         if not ids or bad:
-            out.append(f"claim {c.get('text')!r} cites {bad or 'nothing'}: use F/L ids from FACTS.md or M-keys from "
-                       "measured.json")
+            out.append(
+                f"claim {c.get('text')!r} cites {bad or 'nothing'}: use F/L ids from FACTS.md or M-keys from "
+                "measured.json"
+            )
     return out
 
 
 def approval_problems(day: Path) -> list[str]:
     sys.path.insert(0, str(HERE))
     from enqueue import approval_problems as ap
+
     return ap(day)
 
 
-TREND_KINDS = ("event", "genre")                 # an event is news; a genre is a style people are making
+TREND_KINDS = ("event", "genre")  # an event is news; a genre is a style people are making
 TREND_ORIGINS = ("web", "owner-seed")
-TREND_MAX_AGE = {"event": 7, "genre": 30}        # days between a source's date and the brief's date
+TREND_MAX_AGE = {"event": 7, "genre": 30}  # days between a source's date and the brief's date
 
 
 def trend_problems(day: Path) -> list[str]:
     """The shape of brief.json's trend, so the reviewer's honesty check has real sources to read."""
     import datetime as _dt
     import re as _re
+
     if not (day / "brief.json").is_file():
-        return []                                  # a missing brief is reported by the other checks
+        return []  # a missing brief is reported by the other checks
     brief = _json(day / "brief.json")
     trend = brief.get("trend")
     if not trend:
-        return ["format trend-reaction needs a trend (summary and sources)"] if brief.get("format") == "trend-reaction" else []
+        return (
+            ["format trend-reaction needs a trend (summary and sources)"]
+            if brief.get("format") == "trend-reaction"
+            else []
+        )
     if not isinstance(trend, dict):
         return ["trend must be an object or null"]
     out = []
@@ -211,8 +240,11 @@ def trend_problems(day: Path) -> list[str]:
     except ValueError:
         today = None
     for i, src in enumerate(sources):
-        if not isinstance(src, dict) or not str(src.get("title", "")).strip() \
-                or not _re.match(r"^https?://\S+$", str(src.get("url", ""))):
+        if (
+            not isinstance(src, dict)
+            or not str(src.get("title", "")).strip()
+            or not _re.match(r"^https?://\S+$", str(src.get("url", "")))
+        ):
             out.append(f"trend.sources[{i}] needs a title and an http(s) url")
             continue
         try:
@@ -221,13 +253,21 @@ def trend_problems(day: Path) -> list[str]:
             out.append(f"trend.sources[{i}].date must be YYYY-MM-DD")
             continue
         if today and (today - sd).days > TREND_MAX_AGE[kind]:
-            out.append(f"trend.sources[{i}] is {(today - sd).days} days old; a {kind} trend allows {TREND_MAX_AGE[kind]}")
+            out.append(
+                f"trend.sources[{i}] is {(today - sd).days} days old; a {kind} trend allows {TREND_MAX_AGE[kind]}"
+            )
     return out
 
 
 def check(day: Path) -> list[str]:
-    return (caption_problems(day) + variety_problems(day) + feedback_problems(day) + claim_problems(day)
-            + approval_problems(day) + trend_problems(day))
+    return (
+        caption_problems(day)
+        + variety_problems(day)
+        + feedback_problems(day)
+        + claim_problems(day)
+        + approval_problems(day)
+        + trend_problems(day)
+    )
 
 
 def add_feedback(day: Path, log: Path | None = None) -> bool:

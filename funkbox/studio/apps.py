@@ -10,6 +10,7 @@ shortcut "GIMP + MCP"): anything a server launches lives in the client's sandbox
 
 ``funkbox/studio/start_local_mcp.py`` and ``sdcore.py`` run inside FastSD's own venv and stay standalone.
 """
+
 from __future__ import annotations
 
 import json
@@ -73,8 +74,7 @@ def wait_port(port: int, timeout: float, also=lambda: True) -> bool:
 
 def http_json(method: str, url: str, body: dict | None = None, timeout: float = 30) -> dict:
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(url, data=data, method=method,
-                                 headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(url, data=data, method=method, headers={"Content-Type": "application/json"})
     # explicit no-proxy: corporate/system proxies must never see localhost traffic
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with opener.open(req, timeout=timeout) as r:
@@ -84,8 +84,7 @@ def http_json(method: str, url: str, body: dict | None = None, timeout: float = 
 def _detached_flags() -> int:
     if not WIN:
         return 0
-    return (subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
-            | subprocess.CREATE_NO_WINDOW)
+    return subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS | subprocess.CREATE_NO_WINDOW
 
 
 def pid_on_port(port: int) -> int | None:
@@ -121,8 +120,7 @@ def gimp_exe() -> Path | None:
         return Path(env)
     roots = []
     if WIN:
-        roots = [Path(os.environ.get("LOCALAPPDATA", "")) / "Programs",
-                 Path(os.environ.get("ProgramFiles", ""))]
+        roots = [Path(os.environ.get("LOCALAPPDATA", "")) / "Programs", Path(os.environ.get("ProgramFiles", ""))]
     for root in roots:
         for d in sorted(root.glob("GIMP 3*"), reverse=True):
             for name in ("gimp-3.2.exe", "gimp-3.exe", "gimp.exe"):
@@ -136,8 +134,9 @@ def gimp_exe() -> Path | None:
 def gimp_running() -> bool:
     if not WIN:
         return False
-    out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq gimp-3*", "/FO", "CSV", "/NH"],
-                         capture_output=True, text=True).stdout
+    out = subprocess.run(
+        ["tasklist", "/FI", "IMAGENAME eq gimp-3*", "/FO", "CSV", "/NH"], capture_output=True, text=True
+    ).stdout
     return "gimp-3" in out.lower()
 
 
@@ -149,6 +148,7 @@ def sync_launcher(fastsd_dir: Path) -> list[str]:
     date, so a funkbox update (git pull) never runs against a stale launcher. Returns the names copied."""
     import hashlib
     import shutil
+
     copied = []
     for name in ("start_local_mcp.py", "sdcore.py"):
         src, dst = HERE / name, fastsd_dir / name
@@ -184,8 +184,10 @@ class FastSD:
             if self.healthy():
                 return "FastSD already running"
             if port_open(FASTSD_PORT):
-                return (f"port {FASTSD_PORT} is taken by something that isn't the studio FastSD "
-                        "launcher (upstream start-mcpserver.bat?). Stop it and retry.")
+                return (
+                    f"port {FASTSD_PORT} is taken by something that isn't the studio FastSD "
+                    "launcher (upstream start-mcpserver.bat?). Stop it and retry."
+                )
             py = fastsd_python(FASTSD_DIR)
             if not py.exists():
                 return f"FastSD not installed where expected ({FASTSD_DIR})"
@@ -197,23 +199,34 @@ class FastSD:
             if not self._reaper:
                 self._reaper = True
                 threading.Thread(target=self.idle_reaper, daemon=True).start()
-            env = {**os.environ, "DEVICE": cfg.fastsd_device,
-                   "STUDIO_OUT": str(cfg.inputs), "FASTSD_PORT": str(FASTSD_PORT),
-                   "STUDIO_ROOTS": os.pathsep.join(str(r) for r in roots()),
-                   "PATH": os.environ.get("PATH", "") + os.pathsep
-                   + str(FASTSD_DIR / "env" / "Lib" / "site-packages" / "openvino" / "libs")}
+            env = {
+                **os.environ,
+                "DEVICE": cfg.fastsd_device,
+                "STUDIO_OUT": str(cfg.inputs),
+                "FASTSD_PORT": str(FASTSD_PORT),
+                "STUDIO_ROOTS": os.pathsep.join(str(r) for r in roots()),
+                "PATH": os.environ.get("PATH", "")
+                + os.pathsep
+                + str(FASTSD_DIR / "env" / "Lib" / "site-packages" / "openvino" / "libs"),
+            }
             logf = open(FASTSD_DIR / "_studio_fastsd.log", "ab")
-            subprocess.Popen([str(py), str(launcher)], cwd=str(FASTSD_DIR), env=env,
-                             stdin=subprocess.DEVNULL, stdout=logf, stderr=logf,
-                             creationflags=_detached_flags(), close_fds=True)
+            subprocess.Popen(
+                [str(py), str(launcher)],
+                cwd=str(FASTSD_DIR),
+                env=env,
+                stdin=subprocess.DEVNULL,
+                stdout=logf,
+                stderr=logf,
+                creationflags=_detached_flags(),
+                close_fds=True,
+            )
             self.started_by_us = True
-            sizes.clear()                       # a fresh process has compiled nothing yet
+            sizes.clear()  # a fresh process has compiled nothing yet
             self.last_used = time.monotonic()
             t0 = time.monotonic()
             log.info("starting FastSD")
             if not wait_port(FASTSD_PORT, timeout, self.healthy):
-                return (f"FastSD did not come up within {timeout:.0f}s; see "
-                        f"{FASTSD_DIR / '_studio_fastsd.log'}")
+                return f"FastSD did not come up within {timeout:.0f}s; see {FASTSD_DIR / '_studio_fastsd.log'}"
             return f"FastSD started in {time.monotonic() - t0:.0f}s"
 
     def stop(self) -> str:
@@ -252,8 +265,14 @@ class FastSD:
             time.sleep(30)
             cfg = config.get()
             idle = cfg.idle_min
-            if (idle > 0 and self.started_by_us and not self.busy and not self.lock.locked()
-                    and time.monotonic() - self.last_used > idle * 60 and port_open(cfg.fastsd_port)):
+            if (
+                idle > 0
+                and self.started_by_us
+                and not self.busy
+                and not self.lock.locked()
+                and time.monotonic() - self.last_used > idle * 60
+                and port_open(cfg.fastsd_port)
+            ):
                 log.info("FastSD idle for %.0f min: %s", idle, self.stop())
 
 
@@ -270,21 +289,22 @@ class Gimp:
         if port_open(port):
             return "GIMP MCP already listening"
         if gimp_running():
-            msg = ("GIMP is open but its MCP server isn't on. Ask the user to click "
-                   "Tools > MCP > Start MCP Server in GIMP (needs an image open), or to close GIMP and "
-                   f"double-click the '{self.SHORTCUT}' desktop shortcut.")
+            msg = (
+                "GIMP is open but its MCP server isn't on. Ask the user to click "
+                "Tools > MCP > Start MCP Server in GIMP (needs an image open), or to close GIMP and "
+                f"double-click the '{self.SHORTCUT}' desktop shortcut."
+            )
         else:
-            msg = (f"GIMP isn't running. Ask the user to double-click the '{self.SHORTCUT}' shortcut on "
-                   "their desktop (opens GIMP with the MCP server on, ~15 s), then call status().")
+            msg = (
+                f"GIMP isn't running. Ask the user to double-click the '{self.SHORTCUT}' shortcut on "
+                "their desktop (opens GIMP with the MCP server on, ~15 s), then call status()."
+            )
         if wait > 0 and wait_port(port, wait):
             return "GIMP MCP is now listening"
         return msg
 
     def stop(self, force: bool) -> str:
-        return ("GIMP is the user's app (it may hold unsaved work), so studio never closes it. "
-                "Ask the user to close it.")
-
-
+        return "GIMP is the user's app (it may hold unsaved work), so studio never closes it. Ask the user to close it."
 
 
 # --------------------------------------------------------------------------- #
@@ -298,11 +318,18 @@ gimp = Gimp()
 def status_dict() -> dict:
     c = config.get()
     return {
-        "fastsd": {"running": fastsd.healthy(), "port": c.fastsd_port,
-                   "started_by_studio": fastsd.started_by_us,
-                   "idle_shutdown_min": c.idle_min},
-        "gimp": {"mcp_listening": port_open(c.gimp_port), "app_open": gimp_running(),
-                 "port": c.gimp_port, "exe": str(gimp_exe() or "")},
+        "fastsd": {
+            "running": fastsd.healthy(),
+            "port": c.fastsd_port,
+            "started_by_studio": fastsd.started_by_us,
+            "idle_shutdown_min": c.idle_min,
+        },
+        "gimp": {
+            "mcp_listening": port_open(c.gimp_port),
+            "app_open": gimp_running(),
+            "port": c.gimp_port,
+            "exe": str(gimp_exe() or ""),
+        },
         "inputs_folder": str(c.inputs),
         "image_backend": "stub (STUDIO_FAKE_SD)" if c.fake_sd else "fastsd",
         "compiled_sizes": sorted(f"{w}x{h}" for w, h in sizes.seen),

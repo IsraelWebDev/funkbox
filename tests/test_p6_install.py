@@ -1,9 +1,9 @@
 """v3.1 P6: self-install packaging (install.py, pyproject, plugin files, studio path resolution)."""
+
 import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -37,6 +37,7 @@ def test_pyproject_in_sync_with_requirements():
     d = tomllib.loads((ROOT / "pyproject.toml").read_text())
     assert d["tool"]["uv"]["package"] is False
     import funkbox
+
     assert d["project"]["version"] == funkbox.__version__ and d["project"]["scripts"] == {"funkbox": "funkbox.cli:main"}
     assert d["project"]["requires-python"] == ">=3.10"
     norm = lambda xs: sorted(re.sub(r"\s+", "", x).lower() for x in xs)
@@ -48,12 +49,32 @@ def test_pyproject_in_sync_with_requirements():
 def test_dry_run_plan_prints_everything_and_changes_nothing(tmp_path, capsys):
     cfg = tmp_path / "cfg.json"
     before = sorted(p.name for p in ROOT.iterdir())
-    rc = install.main(["--dry-run", "--with", "reel,fastsd,gimp", "--register", "desktop", "--shortcuts",
-                       "--config", str(cfg), "--no-selftest"])
+    rc = install.main(
+        [
+            "--dry-run",
+            "--with",
+            "reel,fastsd,gimp",
+            "--register",
+            "desktop",
+            "--shortcuts",
+            "--config",
+            str(cfg),
+            "--no-selftest",
+        ]
+    )
     out = capsys.readouterr().out
     assert rc == 0
-    for needle in ("setup-models", "fastsdcpu", "pydantic>=2.11,<2.12", "gimp-mcp", "GIMP.GIMP.3",
-                   "quit Claude Desktop", "funk inbox", "funk projects", "DRY RUN"):
+    for needle in (
+        "setup-models",
+        "fastsdcpu",
+        "pydantic>=2.11,<2.12",
+        "gimp-mcp",
+        "GIMP.GIMP.3",
+        "quit Claude Desktop",
+        "funk inbox",
+        "funk projects",
+        "DRY RUN",
+    ):
         assert needle.lower() in out.lower(), needle
     assert not cfg.exists()
     assert sorted(p.name for p in ROOT.iterdir()) == before
@@ -72,7 +93,7 @@ def test_register_merge_backup_and_unregister(tmp_path):
     assert data["theme"] == "dark"
     assert data["mcpServers"]["other"] == other
     assert set(data["mcpServers"]) == {"other", *install.SERVER_KEYS}
-    assert "funk" not in data["mcpServers"]                         # the v3 key was migrated away
+    assert "funk" not in data["mcpServers"]  # the v3 key was migrated away
     baks = list(tmp_path.glob("claude_desktop_config.json.bak-*"))
     assert len(baks) == 1 and "old" in baks[0].read_text()
     install.unregister_desktop(r, cfg)
@@ -90,19 +111,22 @@ def test_migration_from_a_v3_config_keeps_unrelated_servers(tmp_path, capsys):
     cfg = tmp_path / "claude_desktop_config.json"
     unrelated = {"command": "npx", "args": ["-y", "some-server"], "env": {"TOKEN": "x"}}
     v3 = {k: {"command": "py", "args": [f"{k}_mcp.py"], "env": {"FUNK_HOME": "/x"}} for k in V3_KEYS}
-    original = {"mcpServers": {"filesystem": unrelated, **v3, "gimp": {"command": "uv", "args": ["old-gimp"]}}, "x": [1]}
+    original = {
+        "mcpServers": {"filesystem": unrelated, **v3, "gimp": {"command": "uv", "args": ["old-gimp"]}},
+        "x": [1],
+    }
     cfg.write_text(json.dumps(original))
     r = install.Runner(False, ROOT)
     install.register_desktop(r, cfg, ())
     servers = json.loads(cfg.read_text())["mcpServers"]
-    assert set(servers) == {"filesystem", "funkbox", "gimp"}        # gimp (not ours to remove) stays as it was
+    assert set(servers) == {"filesystem", "funkbox", "gimp"}  # gimp (not ours to remove) stays as it was
     assert servers["filesystem"] == unrelated and servers["gimp"] == original["mcpServers"]["gimp"]
     assert json.loads(cfg.read_text())["x"] == [1]
     e = servers["funkbox"]
     assert e["args"] == [str(ROOT / "funkbox.py"), "serve"] and e["env"]["FUNK_HOME"] == str(ROOT)
     assert "migrated from v3: removed " + ", ".join(V3_KEYS) in capsys.readouterr().out
     (bak,) = tmp_path.glob("claude_desktop_config.json.bak-*")
-    assert json.loads(bak.read_text()) == original                  # the backup is the old file, byte for byte in content
+    assert json.loads(bak.read_text()) == original  # the backup is the old file, byte for byte in content
     install.unregister_desktop(r, cfg)
     assert json.loads(cfg.read_text())["mcpServers"] == {"filesystem": unrelated}
 
@@ -134,9 +158,16 @@ def test_the_registered_entry_starts_the_server_from_any_folder(tmp_path):
     import asyncio
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
+
     e = install.server_entries(ROOT, ())["funkbox"]
-    env = {**os.environ, **e["env"], "FUNK_OUT": str(tmp_path / "out"), "FUNK_INPUTS": str(tmp_path / "in"),
-           "FUNK_PROJECTS": str(tmp_path / "pr"), "FUNK_INBOX": str(tmp_path / "ib")}
+    env = {
+        **os.environ,
+        **e["env"],
+        "FUNK_OUT": str(tmp_path / "out"),
+        "FUNK_INPUTS": str(tmp_path / "in"),
+        "FUNK_PROJECTS": str(tmp_path / "pr"),
+        "FUNK_INBOX": str(tmp_path / "ib"),
+    }
 
     async def go():
         params = StdioServerParameters(command=sys.executable, args=e["args"], env=env, cwd=str(tmp_path))
@@ -144,6 +175,7 @@ def test_the_registered_entry_starts_the_server_from_any_folder(tmp_path):
             async with ClientSession(rd, wr) as s:
                 await s.initialize()
                 return {t.name for t in (await s.list_tools()).tools}
+
     names = asyncio.run(go())
     assert len(names) == 49 and "project_approve_copy" in names
 
@@ -153,18 +185,20 @@ def test_gimp_cmd_template_rendered_without_machine_paths(tmp_path):
     assert "C:\\dev" not in tpl and "C:/dev" not in tpl
     (tmp_path / "funkbox" / "studio").mkdir(parents=True)
     shutil.copy(ROOT / "funkbox" / "studio" / "GIMP-MCP.cmd.template", tmp_path / "funkbox" / "studio")
-    out = install.render_gimp_cmd(install.Runner(False, tmp_path), Path("G:/Apps/GIMP/bin/gimp-3.2.exe"),
-                                  Path("G:/v/gimp-mcp"))
+    out = install.render_gimp_cmd(
+        install.Runner(False, tmp_path), Path("G:/Apps/GIMP/bin/gimp-3.2.exe"), Path("G:/v/gimp-mcp")
+    )
     text = out.read_bytes().decode()
     assert "@" not in re.sub(r"@echo", "", text) and "3.2" in text and "\r\n" in text
 
 
 def test_funkbox_toml_roundtrip_and_resolution_order(tmp_path, monkeypatch):
     r = install.Runner(False, tmp_path)
-    install.write_toml(r, fastsd_dir=r"D:\tools\fast sd", gimp_exe='C:\\Program Files\\GIMP 3\\bin\\gimp-3.exe')
+    install.write_toml(r, fastsd_dir=r"D:\tools\fast sd", gimp_exe="C:\\Program Files\\GIMP 3\\bin\\gimp-3.exe")
     install.write_toml(r, gimp_mcp_dir="/opt/gm")
     assert install.read_toml(tmp_path / "funkbox.toml")["fastsd_dir"] == r"D:\tools\fast sd"
     from funkbox import config as paths
+
     for k in ("FASTSD_DIR", "GIMP_MCP_DIR", "GIMP_EXE"):
         monkeypatch.delenv(k, raising=False)
     assert paths.get(tmp_path).fastsd_dir == Path(r"D:\tools\fast sd")
@@ -194,12 +228,16 @@ def test_plugin_files_parse_and_skill_present():
     mk = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text())
     mcp = json.loads((ROOT / ".mcp.json").read_text())
     assert pj["name"] == "funkbox" and mk["plugins"][0]["name"] == "funkbox"
-    assert list(mcp["mcpServers"]) == ["funkbox"]                        # one server, not five
+    assert list(mcp["mcpServers"]) == ["funkbox"]  # one server, not five
     for k, s in mcp["mcpServers"].items():
         assert s["command"] == "uv" and "${CLAUDE_PLUGIN_ROOT}" in " ".join(s["args"]), k
-        assert s["args"][-2:] == ["${CLAUDE_PLUGIN_ROOT}/funkbox.py", "serve"] and s["env"]["FUNK_HOME"] == "${CLAUDE_PLUGIN_ROOT}"
+        assert (
+            s["args"][-2:] == ["${CLAUDE_PLUGIN_ROOT}/funkbox.py", "serve"]
+            and s["env"]["FUNK_HOME"] == "${CLAUDE_PLUGIN_ROOT}"
+        )
     import funkbox
-    assert pj["version"] == funkbox.__version__                           # one version everywhere
+
+    assert pj["version"] == funkbox.__version__  # one version everywhere
     sk = (ROOT / "skills" / "funk-studio" / "SKILL.md").read_text()
     assert sk == (ROOT / "docs" / "skill" / "SKILL.md").read_text() and sk.startswith("---")
     wf = (ROOT / ".github" / "workflows" / "tests.yml").read_text()
@@ -214,12 +252,17 @@ def test_uv_run_project_lists_tools():
     from mcp.client.stdio import stdio_client
 
     async def go():
-        params = StdioServerParameters(command="uv", args=["run", "--project", str(ROOT), "python", str(ROOT / "funkbox.py"), "serve"],
-                                       env={**os.environ}, cwd=str(ROOT.parent))
+        params = StdioServerParameters(
+            command="uv",
+            args=["run", "--project", str(ROOT), "python", str(ROOT / "funkbox.py"), "serve"],
+            env={**os.environ},
+            cwd=str(ROOT.parent),
+        )
         async with stdio_client(params) as (rd, wr):
             async with ClientSession(rd, wr) as s:
                 await s.initialize()
                 return [t.name for t in (await s.list_tools()).tools]
+
     try:
         names = asyncio.run(asyncio.wait_for(go(), 240))
     except Exception as e:  # offline sandbox: uv cannot resolve
@@ -244,7 +287,7 @@ def test_packaged_desktop_config_wins_over_appdata(tmp_path, monkeypatch):
     private.mkdir(parents=True)
     (private / "claude_desktop_config.json").write_text("{}")
     assert install.desktop_config_path() == private / "claude_desktop_config.json"
-    monkeypatch.setenv("CLAUDE_DESKTOP_CONFIG", str(tmp_path / "explicit.json"))   # explicit still wins
+    monkeypatch.setenv("CLAUDE_DESKTOP_CONFIG", str(tmp_path / "explicit.json"))  # explicit still wins
     assert install.desktop_config_path() == tmp_path / "explicit.json"
 
 
@@ -265,7 +308,7 @@ def test_failed_command_is_recorded_and_main_exits_nonzero(tmp_path, monkeypatch
 def test_register_reads_back_and_fails_when_the_write_did_not_stick(tmp_path, monkeypatch):
     cfg = tmp_path / "claude_desktop_config.json"
     cfg.write_text(json.dumps({"mcpServers": {"other": {"command": "x"}}}))
-    monkeypatch.setattr(install, "write_config", lambda p, c: None)   # e.g. Desktop rewrote it underneath us
+    monkeypatch.setattr(install, "write_config", lambda p, c: None)  # e.g. Desktop rewrote it underneath us
     r = install.Runner(False, ROOT)
     install.register_desktop(r, cfg, ())
     assert r.failures and "funkbox" in r.failures[0]
@@ -285,7 +328,7 @@ def test_dead_venv_is_detected_and_stops_the_install(tmp_path, monkeypatch):
     assert any("unusable" in f for f in r.failures)
     cfg = tmp_path / "cfg.json"
     assert install.main(["--register", "desktop", "--config", str(cfg), "--yes"], root=tmp_path) == 1
-    assert not cfg.exists()                                           # never registers a server that cannot start
+    assert not cfg.exists()  # never registers a server that cannot start
 
 
 def test_healthy_venv_probe(tmp_path):

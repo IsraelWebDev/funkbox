@@ -7,6 +7,7 @@ svg_items(path)     -> the shapes of an SVG file: [{"subpaths", "closed", "fill"
                        Gradients fall back to their first colour; <text> is skipped with a warning (convert text to
                        outlines in the editor first).
 """
+
 from __future__ import annotations
 
 import math
@@ -27,7 +28,7 @@ def _flatten_cubic(p0, p1, p2, p3, tol):
     out = []
     for i in range(1, n + 1):
         t = i / n
-        a, b, c, d = (1 - t) ** 3, 3 * (1 - t) ** 2 * t, 3 * (1 - t) * t * t, t ** 3
+        a, b, c, d = (1 - t) ** 3, 3 * (1 - t) ** 2 * t, 3 * (1 - t) * t * t, t**3
         out.append((a * p0[0] + b * p1[0] + c * p2[0] + d * p3[0], a * p0[1] + b * p1[1] + c * p2[1] + d * p3[1]))
     return out
 
@@ -113,7 +114,7 @@ def parse(d: str, tol: float = 0.5) -> list[tuple[list[tuple[float, float]], boo
             pos = (ox + num(), oy + num())
             start = pos
             cur = [pos]
-            cmd = "l" if rel else "L"                      # further pairs are linetos
+            cmd = "l" if rel else "L"  # further pairs are linetos
         elif up == "L":
             pos = (ox + num(), oy + num())
             cur.append(pos)
@@ -208,8 +209,10 @@ def transform_d(d: str, sx: float, sy: float, tx: float = 0.0, ty: float = 0.0) 
         elif up == "A":
             rx, ry, phi, large, sweep = num(), num(), num(), num(), num()
             pos = pt()
-            out.append(f"A{f(abs(rx * sx))},{f(abs(ry * sy))} {f(phi)} {int(large)} "
-                       f"{int(sweep) ^ int(sx * sy < 0)} {f(X(pos[0]))},{f(Y(pos[1]))}")
+            out.append(
+                f"A{f(abs(rx * sx))},{f(abs(ry * sy))} {f(phi)} {int(large)} "
+                f"{int(sweep) ^ int(sx * sy < 0)} {f(X(pos[0]))},{f(Y(pos[1]))}"
+            )
         else:
             pts = [pt() for _ in range(_ARGS[up] // 2)]
             pos = pts[-1]
@@ -218,10 +221,28 @@ def transform_d(d: str, sx: float, sy: float, tx: float = 0.0, ty: float = 0.0) 
 
 
 # --------------------------------------------------------------------------- SVG files
-_NAMED = {"black": "#000000", "white": "#ffffff", "red": "#ff0000", "green": "#008000", "blue": "#0000ff",
-          "yellow": "#ffff00", "gray": "#808080", "grey": "#808080", "orange": "#ffa500", "purple": "#800080",
-          "navy": "#000080", "gold": "#ffd700", "silver": "#c0c0c0", "maroon": "#800000", "olive": "#808000",
-          "teal": "#008080", "lime": "#00ff00", "aqua": "#00ffff", "fuchsia": "#ff00ff", "transparent": None}
+_NAMED = {
+    "black": "#000000",
+    "white": "#ffffff",
+    "red": "#ff0000",
+    "green": "#008000",
+    "blue": "#0000ff",
+    "yellow": "#ffff00",
+    "gray": "#808080",
+    "grey": "#808080",
+    "orange": "#ffa500",
+    "purple": "#800080",
+    "navy": "#000080",
+    "gold": "#ffd700",
+    "silver": "#c0c0c0",
+    "maroon": "#800000",
+    "olive": "#808000",
+    "teal": "#008080",
+    "lime": "#00ff00",
+    "aqua": "#00ffff",
+    "fuchsia": "#ff00ff",
+    "transparent": None,
+}
 
 
 def color(v: str | None, defs: dict) -> str | None:
@@ -272,8 +293,14 @@ def _matrix(tf: str | None) -> tuple[float, ...]:
 
 
 def _mul(a, b):
-    return (a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3],
-            a[1] * b[2] + a[3] * b[3], a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5])
+    return (
+        a[0] * b[0] + a[2] * b[1],
+        a[1] * b[0] + a[3] * b[1],
+        a[0] * b[2] + a[2] * b[3],
+        a[1] * b[2] + a[3] * b[3],
+        a[0] * b[4] + a[2] * b[5] + a[4],
+        a[1] * b[4] + a[3] * b[5] + a[5],
+    )
 
 
 def _apply(m, pts):
@@ -306,8 +333,12 @@ def _f(el, k, default=0.0) -> float:
 
 def svg_items(path: str | Path, tol: float = 0.5) -> tuple[list[dict], tuple[float, float, float, float], list[str]]:
     root = ET.parse(str(path)).getroot()
-    vb = [float(x) for x in re.split(r"[\s,]+", (root.get("viewBox") or "").strip()) if x] or [0, 0, _f(root, "width", 100),
-                                                                                            _f(root, "height", 100)]
+    vb = [float(x) for x in re.split(r"[\s,]+", (root.get("viewBox") or "").strip()) if x] or [
+        0,
+        0,
+        _f(root, "width", 100),
+        _f(root, "height", 100),
+    ]
     defs: dict = {}
     for g in root.iter():
         if _local(g.tag) in ("linearGradient", "radialGradient") and g.get("id"):
@@ -320,8 +351,19 @@ def svg_items(path: str | Path, tol: float = 0.5) -> tuple[list[dict], tuple[flo
 
     def walk(el, m, st):
         tag = _local(el.tag)
-        if tag in ("defs", "clipPath", "mask", "symbol", "metadata", "title", "desc", "style", "linearGradient",
-                   "radialGradient", "pattern"):
+        if tag in (
+            "defs",
+            "clipPath",
+            "mask",
+            "symbol",
+            "metadata",
+            "title",
+            "desc",
+            "style",
+            "linearGradient",
+            "radialGradient",
+            "pattern",
+        ):
             return
         st = _style(el, st)
         if st.get("display") == "none":
@@ -335,9 +377,12 @@ def svg_items(path: str | Path, tol: float = 0.5) -> tuple[list[dict], tuple[flo
             rx = _f(el, "rx", _f(el, "ry"))
             if rx > 0:
                 r = min(rx, w / 2, h / 2)
-                subs = parse(f"M{x + r},{y} H{x + w - r} A{r},{r} 0 0 1 {x + w},{y + r} V{y + h - r} "
-                             f"A{r},{r} 0 0 1 {x + w - r},{y + h} H{x + r} A{r},{r} 0 0 1 {x},{y + h - r} V{y + r} "
-                             f"A{r},{r} 0 0 1 {x + r},{y} Z", tol)
+                subs = parse(
+                    f"M{x + r},{y} H{x + w - r} A{r},{r} 0 0 1 {x + w},{y + r} V{y + h - r} "
+                    f"A{r},{r} 0 0 1 {x + w - r},{y + h} H{x + r} A{r},{r} 0 0 1 {x},{y + h - r} V{y + r} "
+                    f"A{r},{r} 0 0 1 {x + r},{y} Z",
+                    tol,
+                )
             else:
                 subs = [([(x, y), (x + w, y), (x + w, y + h), (x, y + h)], True)]
         elif tag in ("circle", "ellipse"):
@@ -361,10 +406,18 @@ def svg_items(path: str | Path, tol: float = 0.5) -> tuple[list[dict], tuple[flo
             stroke = color(st.get("stroke"), defs)
             op = float(st.get("opacity", 1)) * float(st.get("fill-opacity", 1))
             scale = math.sqrt(abs(m[0] * m[3] - m[1] * m[2])) or 1.0
-            items.append({"subpaths": [(_apply(m, p), c) for p, c in subs], "fill": fill, "stroke": stroke,
-                          "stroke_width": _f(el, "stroke-width", float(st.get("stroke-width", 1) or 1)) * scale
-                          if stroke else 0.0, "opacity": max(0.0, min(1.0, op)),
-                          "evenodd": st.get("fill-rule") == "evenodd"})
+            items.append(
+                {
+                    "subpaths": [(_apply(m, p), c) for p, c in subs],
+                    "fill": fill,
+                    "stroke": stroke,
+                    "stroke_width": _f(el, "stroke-width", float(st.get("stroke-width", 1) or 1)) * scale
+                    if stroke
+                    else 0.0,
+                    "opacity": max(0.0, min(1.0, op)),
+                    "evenodd": st.get("fill-rule") == "evenodd",
+                }
+            )
         for ch in el:
             walk(ch, m, st)
 

@@ -1,4 +1,5 @@
 """v3.2 S1: FastSD extensions (request building, aspect presets, img2img clamp, path fence, stub, upscale)."""
+
 import asyncio
 import hashlib
 import os
@@ -20,8 +21,13 @@ from mcp.client.stdio import stdio_client  # noqa: E402
 
 # ------------------------------------------------------------------ request building (the real code path)
 def test_aspect_presets_are_multiples_of_64_and_match_the_plan():
-    assert sdcore.ASPECTS == {"square": (512, 512), "portrait": (512, 768), "landscape": (768, 512),
-                              "story": (512, 896), "wide": (896, 512)}
+    assert sdcore.ASPECTS == {
+        "square": (512, 512),
+        "portrait": (512, 768),
+        "landscape": (768, 512),
+        "story": (512, 896),
+        "wide": (896, 512),
+    }
     for w, h in sdcore.ASPECTS.values():
         assert w % 64 == 0 and h % 64 == 0
     with pytest.raises(sdcore.SDError, match="unknown aspect"):
@@ -33,17 +39,28 @@ def test_aspect_presets_are_multiples_of_64_and_match_the_plan():
 
 def test_txt2img_request_body():
     b = sdcore.build_request("a red kettle", "story", seed=7, name="k")
-    assert b == {"prompt": "a red kettle", "negative_prompt": "", "width": 512, "height": 896, "seed": 7,
-                 "name": "k", "mode": "txt2img", "steps": 1}
+    assert b == {
+        "prompt": "a red kettle",
+        "negative_prompt": "",
+        "width": 512,
+        "height": 896,
+        "seed": 7,
+        "name": "k",
+        "mode": "txt2img",
+        "steps": 1,
+    }
 
 
-@pytest.mark.parametrize("strength,steps,expected", [(0.5, 1, 2), (0.3, 1, 4), (0.95, 1, 2), (0.05, 1, 20),
-                                                     (0.5, 3, 3), (0.25, 1, 4), (1 / 3, 1, 3), (0.8, 5, 5)])
+@pytest.mark.parametrize(
+    "strength,steps,expected",
+    [(0.5, 1, 2), (0.3, 1, 4), (0.95, 1, 2), (0.05, 1, 20), (0.5, 3, 3), (0.25, 1, 4), (1 / 3, 1, 3), (0.8, 5, 5)],
+)
 def test_img2img_steps_are_clamped_so_steps_times_strength_is_at_least_one(tmp_path, strength, steps, expected):
     init = tmp_path / "a.png"
     Image.new("RGB", (64, 64)).save(init)
-    b = sdcore.build_request("x", "square", steps=steps, mode="img2img", init_image=init, strength=strength,
-                             roots=[tmp_path])
+    b = sdcore.build_request(
+        "x", "square", steps=steps, mode="img2img", init_image=init, strength=strength, roots=[tmp_path]
+    )
     assert b["steps"] == expected and b["steps"] * strength >= 1 - 1e-9
     assert ("steps_note" in b) == (expected != steps)
     if "steps_note" in b:
@@ -86,7 +103,7 @@ def test_init_image_path_fence(tmp_path):
         link.symlink_to(bad)
     except OSError:
         pytest.skip("symlinks unavailable")
-    with pytest.raises(sdcore.SDError, match="outside the allowed"):       # symlinks are followed
+    with pytest.raises(sdcore.SDError, match="outside the allowed"):  # symlinks are followed
         sdcore.fence_path(link, [root])
     with pytest.raises(sdcore.SDError, match="outside the allowed"):
         sdcore.build_request("x", mode="img2img", init_image=bad, roots=[root])
@@ -94,7 +111,7 @@ def test_init_image_path_fence(tmp_path):
 
 def test_size_tracker_warns_once_per_new_size():
     t = sdcore.SizeTracker()
-    assert t.warning(512, 512) is None                      # cold start at the warm size: model load, no recompile
+    assert t.warning(512, 512) is None  # cold start at the warm size: model load, no recompile
     t.mark(512, 512)
     w = t.warning(512, 896)
     assert w and "first image at 512x896 will take ~2-3 min" in w
@@ -102,7 +119,7 @@ def test_size_tracker_warns_once_per_new_size():
     assert t.warning(512, 896) is None and t.warning(512, 512) is None
     assert t.warning(896, 512)
     t.clear()
-    assert t.warning(512, 896)                              # a restarted FastSD has compiled nothing
+    assert t.warning(512, 896)  # a restarted FastSD has compiled nothing
 
 
 # ------------------------------------------------------------------ stub + upscale
@@ -139,8 +156,13 @@ def _text(r):
 def test_studio_tools_on_the_stub(tmp_path):
     home = tmp_path / "home"
     (home / "inputs").mkdir(parents=True)
-    env = {**os.environ, "FUNK_HOME": str(home), "FUNK_OUT": str(home / "out"), "FUNK_INPUTS": str(home / "inputs"),
-           "STUDIO_FAKE_SD": "1"}
+    env = {
+        **os.environ,
+        "FUNK_HOME": str(home),
+        "FUNK_OUT": str(home / "out"),
+        "FUNK_INPUTS": str(home / "inputs"),
+        "STUDIO_FAKE_SD": "1",
+    }
 
     async def go():
         params = StdioServerParameters(command=sys.executable, args=["-m", "funkbox", "serve"], env=env, cwd=str(ROOT))
@@ -148,7 +170,14 @@ def test_studio_tools_on_the_stub(tmp_path):
             async with ClientSession(r, w) as s:
                 await s.initialize()
                 tools = {t.name for t in (await s.list_tools()).tools}
-                assert {"image_generate", "image_restyle", "image_upscale", "apps_status", "apps_start", "apps_stop"} <= tools
+                assert {
+                    "image_generate",
+                    "image_restyle",
+                    "image_upscale",
+                    "apps_status",
+                    "apps_start",
+                    "apps_stop",
+                } <= tools
                 desc = {t.name: t.description for t in (await s.list_tools()).tools}
                 assert "Stability AI Community License" in desc["image_generate"]
 
@@ -158,7 +187,9 @@ def test_studio_tools_on_the_stub(tmp_path):
                     return res
 
                 # n=3 gives 3 files and one sheet
-                r1 = await call("image_generate", {"prompt": "mop on a kitchen floor", "n": 3, "seed": 10, "name": "mop"})
+                r1 = await call(
+                    "image_generate", {"prompt": "mop on a kitchen floor", "n": 3, "seed": 10, "name": "mop"}
+                )
                 files = sorted(p.name for p in (home / "inputs").glob("mop-*.png"))
                 assert files == ["mop-1.png", "mop-2.png", "mop-3.png"]
                 assert [c.type for c in r1.content] == ["text", "image"]
@@ -175,15 +206,18 @@ def test_studio_tools_on_the_stub(tmp_path):
                 r2 = await call("image_generate", {"prompt": "tall", "aspect": "story", "name": "tall"})
                 assert "NOT STARTED" in _text(r2) and "first image at 512x896 will take ~2-3 min" in _text(r2)
                 assert not (home / "inputs" / "tall.png").exists()
-                r3 = await call("image_generate", {"prompt": "tall", "aspect": "story", "name": "tall",
-                                                   "confirm_slow": True})
+                r3 = await call(
+                    "image_generate", {"prompt": "tall", "aspect": "story", "name": "tall", "confirm_slow": True}
+                )
                 assert Image.open(home / "inputs" / "tall.png").size == (512, 896)
                 r4 = await call("image_generate", {"prompt": "tall again", "aspect": "story", "name": "tall2"})
-                assert "NOT STARTED" not in _text(r4)                    # that size is now compiled
+                assert "NOT STARTED" not in _text(r4)  # that size is now compiled
 
                 # img2img: strength clamp is reported, aspect follows the picture
-                r5 = await call("image_restyle", {"path": "inputs/tall.png", "prompt": "oil painting",
-                                                  "strength": 0.3, "name": "tall-oil"})
+                r5 = await call(
+                    "image_restyle",
+                    {"path": "inputs/tall.png", "prompt": "oil painting", "strength": 0.3, "name": "tall-oil"},
+                )
                 assert "steps raised from 1 to 4" in _text(r5)
                 assert Image.open(home / "inputs" / "tall-oil.png").size == (512, 896)
                 r6 = await call("image_restyle", {"path": "/etc/hostname", "prompt": "x"})
@@ -203,6 +237,7 @@ def test_studio_tools_on_the_stub(tmp_path):
 
 def test_install_copies_the_launcher_with_its_helper_and_licence_is_documented(capsys, tmp_path):
     import install
+
     assert install.main(["--dry-run", "--with", "fastsd", "--register", "none", "--no-selftest"]) == 0
     assert "sdcore.py" in capsys.readouterr().out
     notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text()

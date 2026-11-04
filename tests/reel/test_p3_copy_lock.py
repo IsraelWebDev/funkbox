@@ -1,5 +1,4 @@
 import asyncio
-import io
 import json
 import os
 import subprocess
@@ -8,14 +7,16 @@ from pathlib import Path
 
 import pytest
 
-import synth
-from funkbox.reel import approval, ingest, project as P
+from funkbox.reel import approval, project as P
 from funkbox.reel.schema import ReelError
 from funkbox.reel.validate import validate
 
 ROOT = Path(__file__).resolve().parents[2]
-LINES = {"hook": {"text": "LOOK CLOSER.\nTIME FOR A CLEAN?", "say": "Look closer. Time for a clean?"},
-         "body1": {"text": "TOUGH ON STAINS."}, "url": {"text": "GLOWMOP.EXAMPLE"}}
+LINES = {
+    "hook": {"text": "LOOK CLOSER.\nTIME FOR A CLEAN?", "say": "Look closer. Time for a clean?"},
+    "body1": {"text": "TOUGH ON STAINS."},
+    "url": {"text": "GLOWMOP.EXAMPLE"},
+}
 
 
 @pytest.fixture
@@ -28,11 +29,20 @@ def penv(work, monkeypatch):
 
 def write_reel(slug="demo", copy="copy.json", cid="hook"):
     d = P.project_dir(slug)
-    reel = {"version": 3, "settings": {"width": 270, "height": 480, "fps": 10},
-            "brand": {"primary": "#c8102e", "secondary": "#1a1a1a", "text": "#ffffff"},
-            "copy": copy,
-            "shots": [{"id": "s1", "source": {"color": "#202020"}, "duration": 1.0,
-                       "caption": {"copy_id": cid, "style": "red-box", "reveal": "none"}}]}
+    reel = {
+        "version": 3,
+        "settings": {"width": 270, "height": 480, "fps": 10},
+        "brand": {"primary": "#c8102e", "secondary": "#1a1a1a", "text": "#ffffff"},
+        "copy": copy,
+        "shots": [
+            {
+                "id": "s1",
+                "source": {"color": "#202020"},
+                "duration": 1.0,
+                "caption": {"copy_id": cid, "style": "red-box", "reveal": "none"},
+            }
+        ],
+    }
     p = d / f"{slug}.reel.json"
     p.write_text(json.dumps(reel))
     return p
@@ -49,23 +59,26 @@ def test_propose_writes_only_a_draft_and_returns_the_exact_listing(penv):
     assert (d / "copy.draft.json").exists() and not (d / "copy.json").exists()
     assert r["draft_sha256"] == P.sha256_file(d / "copy.draft.json")
     txt = approval.propose_text(r, "demo")
-    assert '1. hook' in txt and '"LOOK CLOSER.\\nTIME FOR A CLEAN?"' in txt and "2. body1" in txt
+    assert "1. hook" in txt and '"LOOK CLOSER.\\nTIME FOR A CLEAN?"' in txt and "2. body1" in txt
     assert 'say:  "Look closer. Time for a clean?"' in txt and "VERBATIM" in txt and r["draft_sha256"] in txt
     assert P.load_meta("demo")["copy_lock"] is None
 
 
-@pytest.mark.parametrize("lines,frag", [
-    ({"Hook": {"text": "A"}}, "must match"),
-    ({"1hook": {"text": "A"}}, "must match"),
-    ({"a" * 40: {"text": "A"}}, "must match"),
-    ({"hook": {"text": "x" * 91}}, "91 characters"),
-    ({"hook": {"text": " padded"}}, "whitespace"),
-    ({"hook": "bare string"}, "bare string"),
-    ({"hook": {"text": "A", "color": "red"}}, "only"),
-    ({"hook": {"text": ""}}, "non-empty"),
-    ({"hook": {"text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}}, "does not fit"),
-    ({}, "non-empty"),
-])
+@pytest.mark.parametrize(
+    "lines,frag",
+    [
+        ({"Hook": {"text": "A"}}, "must match"),
+        ({"1hook": {"text": "A"}}, "must match"),
+        ({"a" * 40: {"text": "A"}}, "must match"),
+        ({"hook": {"text": "x" * 91}}, "91 characters"),
+        ({"hook": {"text": " padded"}}, "whitespace"),
+        ({"hook": "bare string"}, "bare string"),
+        ({"hook": {"text": "A", "color": "red"}}, "only"),
+        ({"hook": {"text": ""}}, "non-empty"),
+        ({"hook": {"text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}}, "does not fit"),
+        ({}, "non-empty"),
+    ],
+)
 def test_propose_rejects_bad_drafts_and_writes_nothing(penv, lines, frag):
     with pytest.raises(ReelError) as e:
         approval.propose_copy("demo", lines)
@@ -110,6 +123,7 @@ def test_editing_copy_json_after_approval_makes_validate_and_render_fail(penv):
     assert not bad.ok
     assert "copy.json changed since approval; run project_propose_copy/project_approve_copy again." in bad.text()
     from funkbox.reel import render
+
     with pytest.raises(ReelError, match="changed since approval"):
         render.prepare(str(reel))
     with pytest.raises(ReelError, match="changed since approval"):
@@ -127,9 +141,9 @@ def test_unapproved_project_copy_cannot_be_used(penv):
     propose()
     reel = write_reel()
     rep = validate(str(reel))
-    assert not rep.ok                                                    # no approved copy.json at all
+    assert not rep.ok  # no approved copy.json at all
     d = P.project_dir("demo")
-    (d / "copy.json").write_bytes((d / "copy.draft.json").read_bytes())   # hand-placed, never approved
+    (d / "copy.json").write_bytes((d / "copy.draft.json").read_bytes())  # hand-placed, never approved
     assert "has not been approved" in validate(str(reel)).text()
 
 
@@ -166,8 +180,13 @@ def test_copy_diff(penv):
     r = propose()
     assert "NEW" in approval.copy_diff("demo") and "none yet" in approval.copy_diff("demo")
     approval.approve("demo", r["draft_sha256"], "chat")
-    propose({"hook": {"text": "LOOK CLOSER.\nTIME FOR A CLEAN?", "say": "Look closer. Time for a clean?"},
-             "body1": {"text": "TOUGH ON DIRT."}, "extra": {"text": "NEW ONE"}})
+    propose(
+        {
+            "hook": {"text": "LOOK CLOSER.\nTIME FOR A CLEAN?", "say": "Look closer. Time for a clean?"},
+            "body1": {"text": "TOUGH ON DIRT."},
+            "extra": {"text": "NEW ONE"},
+        }
+    )
     t = approval.copy_diff("demo")
     assert "= hook: unchanged" in t and "~ body1: CHANGED" in t and "+ extra: NEW" in t and "- url: REMOVED" in t
     assert "LOCKED and intact" in t and "NOT in effect" in t
@@ -175,10 +194,20 @@ def test_copy_diff(penv):
 
 # ------------------------------------------------------------------ CLI (the person's own path)
 def run_cli(penv, *args, stdin=""):
-    env = {**os.environ, "FUNK_PROJECTS": str(penv / "projects"), "FUNK_INBOX": str(penv / "inbox"),
-           "PYTHONPATH": str(ROOT)}
-    return subprocess.run([sys.executable, "-m", "funkbox", "project", *args], input=stdin, capture_output=True,
-                          text=True, env=env, cwd=penv)
+    env = {
+        **os.environ,
+        "FUNK_PROJECTS": str(penv / "projects"),
+        "FUNK_INBOX": str(penv / "inbox"),
+        "PYTHONPATH": str(ROOT),
+    }
+    return subprocess.run(
+        [sys.executable, "-m", "funkbox", "project", *args],
+        input=stdin,
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=penv,
+    )
 
 
 def test_cli_approve_copy_relocks_after_a_hand_edit(penv):
@@ -192,7 +221,7 @@ def test_cli_approve_copy_relocks_after_a_hand_edit(penv):
     assert p.returncode == 1 and "not approved" in p.stdout and not validate(str(reel)).ok
     p = run_cli(penv, "approve-copy", "demo", "--stdin", stdin="y\n")
     assert p.returncode == 0, p.stderr
-    assert "TOUGH ON MARKS." in p.stdout                                  # the user sees the real current text
+    assert "TOUGH ON MARKS." in p.stdout  # the user sees the real current text
     assert validate(str(reel)).ok
     m = P.load_meta("demo")
     assert m["copy_approval"]["method"] == "cli" and m["copy_lock"] == P.sha256_file(cj)
@@ -215,8 +244,14 @@ from mcp.client.stdio import stdio_client  # noqa: E402
 
 
 async def _session(penv, fn, elicit=None):
-    env = {**os.environ, "FUNK_OUT": str(penv / "out"), "FUNK_PROJECTS": str(penv / "projects"),
-           "FUNK_INBOX": str(penv / "inbox"), "REEL_DEPTH": "stub", "REEL_TTS": "stub"}
+    env = {
+        **os.environ,
+        "FUNK_OUT": str(penv / "out"),
+        "FUNK_PROJECTS": str(penv / "projects"),
+        "FUNK_INBOX": str(penv / "inbox"),
+        "REEL_DEPTH": "stub",
+        "REEL_TTS": "stub",
+    }
     params = StdioServerParameters(command=sys.executable, args=["-m", "funkbox", "serve"], env=env, cwd=str(ROOT))
     async with stdio_client(params) as (r, w):
         kw = {"elicitation_callback": elicit} if elicit else {}
@@ -235,6 +270,7 @@ def make_cb(decision, seen):
         if decision == "decline":
             return types.ElicitResult(action="decline")
         return types.ElicitResult(action="accept", content={"decision": decision})
+
     return cb
 
 
@@ -249,6 +285,7 @@ def test_mcp_elicitation_accept_approves_and_the_user_sees_the_exact_listing(pen
         assert "stale" in txt(bad) and not seen
         a = await s.call_tool("project_approve_copy", {"project": "demo", "draft_sha256": sha})
         return txt(a)
+
     out = asyncio.run(_session(penv, go, make_cb("approve", seen)))
     assert out.startswith("APPROVED (elicitation)"), out
     assert len(seen) == 1 and '"LOOK CLOSER.\\nTIME FOR A CLEAN?"' in seen[0] and "3. url" in seen[0]
@@ -264,12 +301,14 @@ def test_mcp_elicitation_reject_blocks_even_if_the_agent_claims_chat_confirmatio
         p = await s.call_tool("project_propose_copy", {"project": "demo", "lines": LINES})
         sha = txt(p).split("draft_sha256: ")[1].split()[0]
         a = await s.call_tool("project_approve_copy", {"project": "demo", "draft_sha256": sha})
-        b = await s.call_tool("project_approve_copy", {"project": "demo", "draft_sha256": sha,
-                                               "user_confirmed_in_chat": True})
+        b = await s.call_tool(
+            "project_approve_copy", {"project": "demo", "draft_sha256": sha, "user_confirmed_in_chat": True}
+        )
         return txt(a), txt(b)
+
     a, b = asyncio.run(_session(penv, go, make_cb(cb_kind, seen)))
     assert a.startswith("NOT approved") and b.startswith("NOT approved"), (a, b)
-    assert len(seen) == 2                                              # the flag did not skip the prompt
+    assert len(seen) == 2  # the flag did not skip the prompt
     assert not (P.project_dir("demo") / "copy.json").exists() and P.load_meta("demo")["copy_lock"] is None
 
 
@@ -279,17 +318,23 @@ def test_mcp_fallback_needs_user_confirmed_in_chat(penv):
         sha = txt(p).split("draft_sha256: ")[1].split()[0]
         a = await s.call_tool("project_approve_copy", {"project": "demo", "draft_sha256": sha})
         assert not (P.project_dir("demo") / "copy.json").exists()
-        a2 = await s.call_tool("project_approve_copy", {"project": "demo", "draft_sha256": sha,
-                                                "user_confirmed_in_chat": False})
-        stale = await s.call_tool("project_approve_copy", {"project": "demo", "draft_sha256": "f" * 64,
-                                                   "user_confirmed_in_chat": True})
-        b = await s.call_tool("project_approve_copy", {"project": "demo", "draft_sha256": sha,
-                                               "user_confirmed_in_chat": True})
+        a2 = await s.call_tool(
+            "project_approve_copy", {"project": "demo", "draft_sha256": sha, "user_confirmed_in_chat": False}
+        )
+        stale = await s.call_tool(
+            "project_approve_copy", {"project": "demo", "draft_sha256": "f" * 64, "user_confirmed_in_chat": True}
+        )
+        b = await s.call_tool(
+            "project_approve_copy", {"project": "demo", "draft_sha256": sha, "user_confirmed_in_chat": True}
+        )
         tools = {t.name: t.description for t in (await s.list_tools()).tools}
         return txt(a), txt(a2), txt(stale), txt(b), tools
-    a, a2, stale, b, tools = asyncio.run(_session(penv, go))                 # no elicitation callback
+
+    a, a2, stale, b, tools = asyncio.run(_session(penv, go))  # no elicitation callback
     assert a.startswith("NOT approved") and "user_confirmed_in_chat=true" in a and '"LOOK CLOSER' in a
     assert a2.startswith("NOT approved") and "stale" in stale
     assert b.startswith("APPROVED (chat)"), b
     assert P.load_meta("demo")["copy_approval"]["method"] == "chat"
-    assert "only set this after the user explicitly approved the exact listing in this conversation" in " ".join(tools["project_approve_copy"].split())
+    assert "only set this after the user explicitly approved the exact listing in this conversation" in " ".join(
+        tools["project_approve_copy"].split()
+    )

@@ -1,4 +1,5 @@
 """Whole-reel validation: schema, copy deck IDs, files, templates, caption fit, timing."""
+
 from __future__ import annotations
 
 import json
@@ -72,9 +73,15 @@ def _res(path: str, reel: Reel) -> Path:
     return resolve_path(path, reel.base_dir)
 
 
-def validate(src: dict | str | Path | Reel, base_dir: str | Path | None = None, *,
-             vo_durations: dict[str, float] | None = None,
-             beats: list[float] | None = None, deep: bool = True, fmt: str | None = None) -> Report:
+def validate(
+    src: dict | str | Path | Reel,
+    base_dir: str | Path | None = None,
+    *,
+    vo_durations: dict[str, float] | None = None,
+    beats: list[float] | None = None,
+    deep: bool = True,
+    fmt: str | None = None,
+) -> Report:
     """Validate a reel. Without ``fmt``, a reel with ``formats`` is also checked in every format (caption fit,
     framing and the end card depend on the frame size); those problems are prefixed with ``[format]``."""
     rep = _validate_one(src, base_dir, vo_durations=vo_durations, beats=beats, deep=deep, fmt=fmt)
@@ -103,7 +110,7 @@ def _validate_one(src, base_dir, *, vo_durations, beats, deep: bool, fmt: str | 
     rep.warnings += reel.warnings
     try:
         cp = _res(reel.copy, reel)
-        data = cp.read_bytes()                # ONE read: the bytes that are hash-checked are the bytes that are parsed
+        data = cp.read_bytes()  # ONE read: the bytes that are hash-checked are the bytes that are parsed
         # v3.1: inside a project only the approved, locked copy.json may be the deck (see project.check_reel_copy)
         lock = project.check_reel_copy(cp, reel.base_dir, data)
         if lock:
@@ -141,9 +148,10 @@ def _check_files(reel: Reel, rep: Report) -> None:
         if not spec:
             return
         from .. import fonts as fontsmod
+
         try:
             fontsmod.resolve(spec, reel.base_dir)
-        except (ValueError, FileNotFoundError, OSError) as e:       # FontError is a ValueError
+        except (ValueError, FileNotFoundError, OSError) as e:  # FontError is a ValueError
             rep.errors.append(f"{what}: {e}")
 
     need_font("brand.font_caption", reel.brand.font_caption)
@@ -171,81 +179,108 @@ def _check_funk2_text(reel: Reel, path: str, where: str, rep: Report) -> None:
     try:
         d = json.loads(_res(path, reel).read_text(encoding="utf-8-sig"))
     except (ValueError, OSError):
-        return                      # missing file is reported by need()
+        return  # missing file is reported by need()
     t = d.get("text") if isinstance(d, dict) else None
     if (isinstance(t, dict) and t.get("text")) or (isinstance(t, str) and t):
-        rep.errors.append(f"{where}.source.funk2: recipe {path!r} draws text; remove its `text` block "
-                          f"(on-screen text comes only from the copy deck)")
+        rep.errors.append(
+            f"{where}.source.funk2: recipe {path!r} draws text; remove its `text` block "
+            f"(on-screen text comes only from the copy deck)"
+        )
 
 
 def _check_templates_and_fit(reel: Reel, rep: Report) -> None:
     """Caption styles exist, text fits at >= 0.032 x height (errors name the copy id), end-card slots."""
     from . import captions, endcard
+
     errs_before = len(rep.errors)
     try:
         fonts = captions.fonts_for(reel.brand, reel.base_dir)
     except (ValueError, FileNotFoundError):
-        return                      # already reported by _check_files
+        return  # already reported by _check_files
     W, H = reel.settings.width, reel.settings.height
     assert rep.deck is not None
     for i, sh in enumerate(reel.shots):
         c = sh.caption
         if c is None or c.copy_id not in rep.deck.lines:
             continue
-        err = captions.check_caption(c.copy_id, rep.deck.text(c.copy_id), c.style, c.anchor, fonts, reel.brand, W, H,
-                                     reel.settings.safe_area)
+        err = captions.check_caption(
+            c.copy_id, rep.deck.text(c.copy_id), c.style, c.anchor, fonts, reel.brand, W, H, reel.settings.safe_area
+        )
         if err:
             rep.errors.append(f"shots[{i}] ({sh.id}).caption: {err}")
-    for i, sh in enumerate(reel.shots):                       # grid labels: the same fit check, on the cell
+    for i, sh in enumerate(reel.shots):  # grid labels: the same fit check, on the cell
         g = sh.source.grid
         if g is None:
             continue
         if grid_mod.geometry_error(g.cols, g.rows, g.gap, W, H):
-            continue                                              # reported by _check_grid_geometry
+            continue  # reported by _check_grid_geometry
         rects = grid_mod.cell_rects(g.cols, g.rows, g.gap, W, H)
         for j, (cell, rect) in enumerate(zip(g.cells, rects)):
             if not cell.label or cell.label not in rep.deck.lines:
                 continue
             where = f"shots[{i}] ({sh.id}).source.grid.cells[{j}].label"
             try:
-                grid_mod.layout_label(cell.label, rep.deck.text(cell.label), cell.label_style, fonts, reel.brand,
-                                      rect, W, H, reel.settings.safe_area)
-            except (captions.CaptionFitError, ValueError) as e:       # GlyphError is a ValueError
-                rep.errors.append(f"{where}: " + (f"copy {cell.label!r}: {e}" if isinstance(e, captions.GlyphError)
-                                                  else str(e)))
-    for i, sh in enumerate(reel.shots):                       # v3.1: caption/product collision rule
+                grid_mod.layout_label(
+                    cell.label,
+                    rep.deck.text(cell.label),
+                    cell.label_style,
+                    fonts,
+                    reel.brand,
+                    rect,
+                    W,
+                    H,
+                    reel.settings.safe_area,
+                )
+            except (captions.CaptionFitError, ValueError) as e:  # GlyphError is a ValueError
+                rep.errors.append(
+                    f"{where}: " + (f"copy {cell.label!r}: {e}" if isinstance(e, captions.GlyphError) else str(e))
+                )
+    for i, sh in enumerate(reel.shots):  # v3.1: caption/product collision rule
         c = sh.caption
         if c is None or sh.product is None or c.copy_id not in rep.deck.lines:
             continue
         try:
             # no frame here: "auto" is checked as "bottom" (the render may pick another anchor from the frame)
             anchor = "bottom" if c.anchor == "auto" else c.anchor
-            lay = captions.layout_block(c.copy_id, rep.deck.text(c.copy_id), captions.load_style(c.style), fonts,
-                                        reel.brand, W, H, anchor=anchor, safe_area=reel.settings.safe_area)
+            lay = captions.layout_block(
+                c.copy_id,
+                rep.deck.text(c.copy_id),
+                captions.load_style(c.style),
+                fonts,
+                reel.brand,
+                W,
+                H,
+                anchor=anchor,
+                safe_area=reel.settings.safe_area,
+            )
             asp = collision.image_aspect(_res(sh.product.image, reel))
         except (captions.CaptionFitError, ValueError, OSError):
-            continue                                          # reported elsewhere
+            continue  # reported elsewhere
         pb = collision.product_box(sh.product.x, sh.product.y, sh.product.height, asp, W, H)
         ov = collision.overlap_fraction(collision.caption_box(lay), pb)
         if ov > collision.MAX_OVERLAP + 1e-9:
-            rep.errors.append(f"shots[{i}] ({sh.id}): caption {c.copy_id!r} overlaps the product by {ov:.0%} of the "
-                              f"caption area (limit {collision.MAX_OVERLAP:.0%}); move the caption anchor "
-                              f"(top/bottom), or move/shrink the product")
+            rep.errors.append(
+                f"shots[{i}] ({sh.id}): caption {c.copy_id!r} overlaps the product by {ov:.0%} of the "
+                f"caption area (limit {collision.MAX_OVERLAP:.0%}); move the caption anchor "
+                f"(top/bottom), or move/shrink the product"
+            )
     rep.errors += endcard.check(reel)
-    if reel.end_card and len(rep.errors) == errs_before and all(
-            c in rep.deck.lines for c in reel.end_card.copy.values()):
+    if (
+        reel.end_card
+        and len(rep.errors) == errs_before
+        and all(c in rep.deck.lines for c in reel.end_card.copy.values())
+    ):
         try:
             endcard.EndCardRenderer(reel, rep.deck, W, H, fonts, lambda p: _res(p, reel))
         except (captions.CaptionFitError, ValueError, OSError) as e:
             rep.errors.append(f"end_card: {e}")
 
 
-def _check_timeline(reel: Reel, rep: Report, vo: dict[str, float] | None,
-                    beats: list[float] | None) -> None:
+def _check_timeline(reel: Reel, rep: Report, vo: dict[str, float] | None, beats: list[float] | None) -> None:
     try:
         try:
             from . import audio
-        except ImportError:                 # audio module optional until R6
+        except ImportError:  # audio module optional until R6
             audio = None
         if audio is not None:
             if vo is None and reel.audio.voiceover:
@@ -261,8 +296,7 @@ def _check_timeline(reel: Reel, rep: Report, vo: dict[str, float] | None,
         return
     rep.warnings += timeline.warnings(rep.spans)
     total = timeline.total_seconds(rep.spans)
-    rep.info.update(total_seconds=total, shots=len(reel.shots),
-                    summary=f"{len(reel.shots)} shots, {total:.2f}s total")
+    rep.info.update(total_seconds=total, shots=len(reel.shots), summary=f"{len(reel.shots)} shots, {total:.2f}s total")
 
 
 def _check_grid(reel: Reel, rep: Report, beats: list[float] | None) -> None:
@@ -275,30 +309,36 @@ def _check_grid(reel: Reel, rep: Report, beats: list[float] | None) -> None:
     try:
         if beats is None and (reel.audio.music or reel.audio.bpm):
             from . import audio
+
             beats = audio.beat_grid_for(reel)
         if beats and len(beats) >= 2:
             period = timeline.beat_period(beats)
     except (ImportError, ValueError, OSError, RuntimeError, timeline.TimelineError):
-        period = None                    # the timeline check reports a broken beat grid
+        period = None  # the timeline check reports a broken beat grid
     for i, sh in shots:
         g = sh.source.grid
         assert g is not None
         try:
             stagger = grid_mod.stagger_seconds(g, period)
         except ValueError as e:
-            if not (reel.audio.music or reel.audio.bpm):    # with music or bpm set, the timeline check has the cause
+            if not (reel.audio.music or reel.audio.bpm):  # with music or bpm set, the timeline check has the cause
                 rep.errors.append(f"shots[{i}] ({sh.id}).source.grid.stagger: {e}")
             continue
         sp = next((s for s in rep.spans if s.kind == "shot" and s.index == i), None)
         if g.reveal != "sequence" or sp is None:
             continue
-        late = [j for j in range(len(g.cells))
-                if not grid_mod.arrives_in_time(grid_mod.arrival(g, j, stagger), sp.duration, reel.settings.fps)]
+        late = [
+            j
+            for j in range(len(g.cells))
+            if not grid_mod.arrives_in_time(grid_mod.arrival(g, j, stagger), sp.duration, reel.settings.fps)
+        ]
         if late:
-            rep.errors.append(f"shots[{i}] ({sh.id}).source.grid: cell(s) {late} arrive at "
-                              f"{grid_mod.arrival(g, late[0], stagger):.2f}s or later but the shot lasts "
-                              f"{sp.duration:.2f}s: they could not finish arriving (a cell is drawn from the frame "
-                              f"after its arrival, and its label is audited); shorten the stagger or lengthen the shot")
+            rep.errors.append(
+                f"shots[{i}] ({sh.id}).source.grid: cell(s) {late} arrive at "
+                f"{grid_mod.arrival(g, late[0], stagger):.2f}s or later but the shot lasts "
+                f"{sp.duration:.2f}s: they could not finish arriving (a cell is drawn from the frame "
+                f"after its arrival, and its label is audited); shorten the stagger or lengthen the shot"
+            )
 
 
 def _check_grid_geometry(reel: Reel, rep: Report) -> None:
@@ -316,6 +356,7 @@ def _check_grid_geometry(reel: Reel, rep: Report) -> None:
 def _check_grid_label_crops(reel: Reel, rep: Report) -> None:
     """Warn when the shot's motion (it moves the whole composed grid) cuts a cell label off at the frame edge."""
     from . import captions
+
     assert rep.deck is not None
     try:
         fonts = captions.fonts_for(reel.brand, reel.base_dir)
@@ -331,21 +372,34 @@ def _check_grid_label_crops(reel: Reel, rep: Report) -> None:
             if not cell.label or cell.label not in rep.deck.lines:
                 continue
             try:
-                lay = grid_mod.layout_label(cell.label, rep.deck.text(cell.label), cell.label_style, fonts,
-                                            reel.brand, rect, W, H, reel.settings.safe_area)
+                lay = grid_mod.layout_label(
+                    cell.label,
+                    rep.deck.text(cell.label),
+                    cell.label_style,
+                    fonts,
+                    reel.brand,
+                    rect,
+                    W,
+                    H,
+                    reel.settings.safe_area,
+                )
             except (captions.CaptionFitError, ValueError):
-                continue                                              # reported by the fit check
-            if grid_mod.motion_crops(sh.motion, (rect[0] + lay.x0, rect[1] + lay.y0, lay.box_w, lay.box_h), W, H,
-                                     sp.duration):
-                rep.warnings.append(f"shots[{i}] ({sh.id}).source.grid.cells[{j}].label: the shot's "
-                                    f"{sh.motion.type} motion (it moves the whole grid) cuts this label off at the "
-                                    f"frame edge; use a smaller zoom/frame, or no motion on a labelled grid")
+                continue  # reported by the fit check
+            if grid_mod.motion_crops(
+                sh.motion, (rect[0] + lay.x0, rect[1] + lay.y0, lay.box_w, lay.box_h), W, H, sp.duration
+            ):
+                rep.warnings.append(
+                    f"shots[{i}] ({sh.id}).source.grid.cells[{j}].label: the shot's "
+                    f"{sh.motion.type} motion (it moves the whole grid) cuts this label off at the "
+                    f"frame edge; use a smaller zoom/frame, or no motion on a labelled grid"
+                )
 
 
 def _check_framing(reel: Reel, rep: Report) -> None:
     """Warn when a `frame` rectangle cannot be shown whole at this aspect (cover fit crops it), and when a
     trimmed / sped-up clip runs out before its shot ends (its last frame is held)."""
     from . import framing
+
     W, H = reel.settings.width, reel.settings.height
     for i, sh in enumerate(reel.shots):
         src = sh.source
@@ -363,26 +417,37 @@ def _check_framing(reel: Reel, rep: Report) -> None:
             continue
         where = f"shot {sh.id}"
         if sh.motion.type == "frame" and src.fit == "cover":
-            worst = max((framing.window(k.rect, sw, shh, W, H, fit="cover").cut for k in sh.motion.keys
-                         if k.rect != framing.FULL), default=0.0)      # the full frame is the normal cover crop
+            worst = max(
+                (
+                    framing.window(k.rect, sw, shh, W, H, fit="cover").cut
+                    for k in sh.motion.keys
+                    if k.rect != framing.FULL
+                ),
+                default=0.0,
+            )  # the full frame is the normal cover crop
             if worst > 0.02:
-                rep.warnings.append(f"{where}: at {W}x{H} a framed rectangle is {worst:.0%} cut off (the rect is too wide "
-                                    f"or too tall for this aspect); use fit \"contain\" (with pad) or a per-format "
-                                    f"motion override")
+                rep.warnings.append(
+                    f"{where}: at {W}x{H} a framed rectangle is {worst:.0%} cut off (the rect is too wide "
+                    f'or too tall for this aspect); use fit "contain" (with pad) or a per-format '
+                    f"motion override"
+                )
         if info is not None and info.duration and not src.loop:
             start, end = src.trim if src.trim else (0.0, info.duration)
             sp = next((s for s in rep.spans if s.kind == "shot" and s.index == i), None)
             if sp is not None:
                 need = framing.source_time(sp.duration, sp.duration, src.speed)
                 if need > (end - start) + 0.05:
-                    rep.warnings.append(f"{where}: plays {need:.2f}s of {src.value} at speed {list(src.speed)} but only "
-                                        f"{end - start:.2f}s are available; the last frame is held (set loop, trim "
-                                        f"or a faster speed)")
+                    rep.warnings.append(
+                        f"{where}: plays {need:.2f}s of {src.value} at speed {list(src.speed)} but only "
+                        f"{end - start:.2f}s are available; the last frame is held (set loop, trim "
+                        f"or a faster speed)"
+                    )
 
 
 def _check_reveal_timing(reel: Reel, rep: Report) -> None:
     """Warn when a typewriter/words caption cannot finish before its shot ends (the audit would flag it)."""
     from . import captions
+
     assert rep.deck is not None
     try:
         fonts = captions.fonts_for(reel.brand, reel.base_dir)
@@ -396,12 +461,22 @@ def _check_reveal_timing(reel: Reel, rep: Report) -> None:
         if c is None or c.reveal not in ("typewriter", "words"):
             continue
         try:
-            lay = captions.layout_block(c.copy_id, rep.deck.text(c.copy_id), captions.load_style(c.style), fonts,
-                                        reel.brand, reel.settings.width, reel.settings.height, anchor=c.anchor,
-                                        safe_area=reel.settings.safe_area)
+            lay = captions.layout_block(
+                c.copy_id,
+                rep.deck.text(c.copy_id),
+                captions.load_style(c.style),
+                fonts,
+                reel.brand,
+                reel.settings.width,
+                reel.settings.height,
+                anchor=c.anchor,
+                safe_area=reel.settings.safe_area,
+            )
         except (captions.CaptionFitError, ValueError):
             continue
         need = captions.CAPTION_DELAY + captions.reveal_seconds(lay, c.reveal, sp.vo_dur, sp.duration)
         if need > sp.duration + 1e-6:
-            rep.warnings.append(f"shot {sh.id}: caption {c.copy_id!r} needs {need:.2f}s to finish its "
-                                f"{c.reveal} reveal but the shot lasts {sp.duration:.2f}s")
+            rep.warnings.append(
+                f"shot {sh.id}: caption {c.copy_id!r} needs {need:.2f}s to finish its "
+                f"{c.reveal} reveal but the shot lasts {sp.duration:.2f}s"
+            )

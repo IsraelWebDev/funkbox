@@ -18,6 +18,7 @@ with "units": "px" (so arcs stay round on a non-square canvas). An svg layer pla
 A polyline is a thick stroke ``width`` (a fraction of the canvas width) with mitred corners, so straight-bar lettering
 and ribbons can be drawn; its ``stroke`` outlines the whole bar. Shapes are drawn supersampled, so edges are smooth.
 """
+
 from __future__ import annotations
 
 import math
@@ -28,7 +29,7 @@ from PIL import Image, ImageDraw
 from .raster import RCtx, rgba_of, transparent
 
 KINDS = ("polygon", "rect", "ellipse", "polyline", "path")
-SS_MAX = 8192                     # largest supersampled side
+SS_MAX = 8192  # largest supersampled side
 
 
 def _ss(ctx: RCtx) -> int:
@@ -54,7 +55,7 @@ def bar_polygons(pts: list[tuple[float, float]], half: float, cap: str = "square
         if cap == "square" and k == len(segs) - 1:
             bx, by = bx + ux * half, by + uy * half
         polys.append([(ax + nx, ay + ny), (bx + nx, by + ny), (bx - nx, by - ny), (ax - nx, ay - ny)])
-    for k in range(len(segs) - 1):                     # fill each corner with its mitre on both sides
+    for k in range(len(segs) - 1):  # fill each corner with its mitre on both sides
         px, py = segs[k][1]
         (u1x, u1y), (u2x, u2y) = dirs[k], dirs[k + 1]
         for side in (1, -1):
@@ -66,8 +67,14 @@ def bar_polygons(pts: list[tuple[float, float]], half: float, cap: str = "square
                 continue
             cos_half = (mx * n1[0] + my * n1[1]) / ml
             length = min(half / max(cos_half, 1e-6), 4 * half)
-            polys.append([(px, py), (px + n1[0] * half, py + n1[1] * half),
-                          (px + mx / ml * length, py + my / ml * length), (px + n2[0] * half, py + n2[1] * half)])
+            polys.append(
+                [
+                    (px, py),
+                    (px + n1[0] * half, py + n1[1] * half),
+                    (px + mx / ml * length, py + my / ml * length),
+                    (px + n2[0] * half, py + n2[1] * half),
+                ]
+            )
     return polys
 
 
@@ -86,11 +93,12 @@ def _geometry(lay: dict, ctx: RCtx, grow: float):
     if kind == "path":
         subs = path_px(lay, ctx)
 
-        def draw_path(d: ImageDraw.ImageDraw, s: int) -> None:          # outline: a bar along every subpath
+        def draw_path(d: ImageDraw.ImageDraw, s: int) -> None:  # outline: a bar along every subpath
             for pts, closed in subs:
                 S = [(x * s, y * s) for x, y in pts]
                 for poly in bar_polygons(S + ([S[0], S[1]] if closed and len(S) > 2 else []), grow * s, "butt"):
                     d.polygon(poly, fill=255)
+
         return draw_path
     P = [(float(x) * ctx.w, float(y) * ctx.h) for x, y in lay["points"]]
 
@@ -110,12 +118,14 @@ def _geometry(lay: dict, ctx: RCtx, grow: float):
             (x0, y0), (x1, y1) = S
             box = [min(x0, x1) - g, min(y0, y1) - g, max(x0, x1) + g, max(y0, y1) + g]
             (d.rectangle if kind == "rect" else d.ellipse)(box, fill=255)
+
     return draw
 
 
 def path_px(lay: dict, ctx: RCtx) -> list[tuple[list[tuple[float, float]], bool]]:
     """A path layer's subpaths in render pixels."""
     from .vpath import parse
+
     px = lay.get("units", "fraction") == "px"
     sx, sy = (ctx.scale, ctx.scale) if px else (ctx.w, ctx.h)
     tol = 0.5 / max(sx, sy) if not px else 0.5 / max(ctx.scale, 1e-6)
@@ -161,6 +171,7 @@ def stroke_mask(subs, half: float, ctx: RCtx) -> np.ndarray:
             S = [(x * s, y * s) for x, y in pts]
             for poly in bar_polygons(S + ([S[0], S[1]] if closed and len(S) > 2 else []), half * s, "butt"):
                 d.polygon(poly, fill=255)
+
     return _mask(ctx, draw)
 
 
@@ -188,13 +199,21 @@ def raster_shape(lay: dict, ctx: RCtx) -> np.ndarray:
     sw = ctx.px(float(lay.get("stroke_px", 0))) if lay.get("stroke") else 0.0
     paint = _Paint(ctx)
     if sw > 0:
-        paint.over(_mask(ctx, _geometry(lay, ctx, sw)) if lay["kind"] != "path"
-                   else np.maximum(stroke_mask(path_px(lay, ctx), sw, ctx),
-                                   fill_mask(path_px(lay, ctx), ctx, lay.get("fill_rule", "nonzero"))),
-                   rgba_of(lay["stroke"], ctx.brand))
+        paint.over(
+            _mask(ctx, _geometry(lay, ctx, sw))
+            if lay["kind"] != "path"
+            else np.maximum(
+                stroke_mask(path_px(lay, ctx), sw, ctx),
+                fill_mask(path_px(lay, ctx), ctx, lay.get("fill_rule", "nonzero")),
+            ),
+            rgba_of(lay["stroke"], ctx.brand),
+        )
     if lay.get("fill"):
-        m = (fill_mask(path_px(lay, ctx), ctx, lay.get("fill_rule", "nonzero")) if lay["kind"] == "path"
-             else _mask(ctx, _geometry(lay, ctx, 0.0)))
+        m = (
+            fill_mask(path_px(lay, ctx), ctx, lay.get("fill_rule", "nonzero"))
+            if lay["kind"] == "path"
+            else _mask(ctx, _geometry(lay, ctx, 0.0))
+        )
         paint.over(m, rgba_of(lay["fill"], ctx.brand))
     return paint.rgba(ctx)
 
@@ -203,6 +222,7 @@ def raster_svg(lay: dict, ctx: RCtx) -> np.ndarray:
     """Place an SVG file: x, y (top-left) and width as canvas fractions; height from its viewBox unless given."""
     from ..config import resolve_path
     from .vpath import svg_items
+
     path = resolve_path(lay["path"], ctx.base_dir)
     items, (vx, vy, vw, vh), warns = svg_items(path, tol=0.25)
     ctx.warnings += [f"svg {lay['id']!r}: {w}" for w in warns]
@@ -214,11 +234,17 @@ def raster_svg(lay: dict, ctx: RCtx) -> np.ndarray:
     for it in items:
         subs = [([(tx + (x - vx) * k[0], ty + (y - vy) * k[1]) for x, y in pts], c) for pts, c in it["subpaths"]]
         if it["fill"]:
-            paint.over(fill_mask(subs, ctx, "evenodd" if it["evenodd"] else "nonzero"),
-                       rgba_of(it["fill"], ctx.brand), it["opacity"])
+            paint.over(
+                fill_mask(subs, ctx, "evenodd" if it["evenodd"] else "nonzero"),
+                rgba_of(it["fill"], ctx.brand),
+                it["opacity"],
+            )
         if it["stroke"] and it["stroke_width"] > 0:
-            paint.over(stroke_mask(subs, it["stroke_width"] * (k[0] + k[1]) / 4, ctx), rgba_of(it["stroke"], ctx.brand),
-                       it["opacity"])
+            paint.over(
+                stroke_mask(subs, it["stroke_width"] * (k[0] + k[1]) / 4, ctx),
+                rgba_of(it["stroke"], ctx.brand),
+                it["opacity"],
+            )
     return paint.rgba(ctx)
 
 
@@ -229,6 +255,7 @@ def check_shape(lay: dict, w: str, errs: list[str], is_color, num) -> None:
         return
     if kind == "path":
         from .vpath import PathError, parse
+
         try:
             parse(lay.get("d") or "")
         except PathError as e:
@@ -249,12 +276,15 @@ def check_shape(lay: dict, w: str, errs: list[str], is_color, num) -> None:
             errs.append(f"{w}: a stroke needs `stroke_px` (0.01..200)")
         return
     pts = lay.get("points")
-    ok = isinstance(pts, list) and all(isinstance(p, (list, tuple)) and len(p) == 2 and all(num(v, -2, 3) for v in p)
-                                       for p in pts)
+    ok = isinstance(pts, list) and all(
+        isinstance(p, (list, tuple)) and len(p) == 2 and all(num(v, -2, 3) for v in p) for p in pts
+    )
     need = {"polygon": 3, "polyline": 2, "rect": 2, "ellipse": 2}[kind]
     if not ok or len(pts) < need or (kind in ("rect", "ellipse") and len(pts) != 2):
-        errs.append(f"{w}: points must be {'exactly' if kind in ('rect', 'ellipse') else 'at least'} {need} [x, y] "
-                    "pairs, as fractions of the canvas (-2..3)")
+        errs.append(
+            f"{w}: points must be {'exactly' if kind in ('rect', 'ellipse') else 'at least'} {need} [x, y] "
+            "pairs, as fractions of the canvas (-2..3)"
+        )
     if not lay.get("fill") and not lay.get("stroke"):
         errs.append(f"{w}: a shape needs `fill`, `stroke` or both")
     for k in ("fill", "stroke"):
@@ -272,8 +302,15 @@ def check_shape(lay: dict, w: str, errs: list[str], is_color, num) -> None:
 
 
 # --------------------------------------------------------------------------- text geometry
-def warp_text(rgba: np.ndarray, centre: tuple[float, float], *, arc: float = 0.0, rotate_deg: float = 0.0,
-              skew_x: float = 0.0, skew_y: float = 0.0) -> np.ndarray:
+def warp_text(
+    rgba: np.ndarray,
+    centre: tuple[float, float],
+    *,
+    arc: float = 0.0,
+    rotate_deg: float = 0.0,
+    skew_x: float = 0.0,
+    skew_y: float = 0.0,
+) -> np.ndarray:
     """Bend (arc, a radius in pixels: + bows the line down at the middle like a smile, - like a frown), then slant
     (skew_x/skew_y in degrees) and rotate (degrees, counter-clockwise) a rendered text layer about ``centre``.
     The line is laid out and shaped first, so letters, kerning and right-to-left order are untouched."""
@@ -291,7 +328,7 @@ def warp_text(rgba: np.ndarray, centre: tuple[float, float], *, arc: float = 0.0
         x, y = (x - a * y) / det, (y - b * x) / det
     if arc:
         R = abs(arc)
-        if arc > 0:                                     # centre of the circle above the line
+        if arc > 0:  # centre of the circle above the line
             vx, vy = x, y + R
             theta, rad = np.arctan2(vx, vy), np.hypot(vx, vy)
             x, y = R * theta, rad - R

@@ -3,6 +3,7 @@
 Windows: .lnk files created through PowerShell (WScript.Shell). macOS/Linux: the equivalent commands are
 printed (symlinks into ~/Desktop). Creating a link changes nothing else, so an agent may run it.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -10,7 +11,6 @@ import sys
 from pathlib import Path
 
 from funkbox.config import get
-
 
 
 def inbox_path() -> Path:
@@ -31,11 +31,17 @@ def _ps_quote(s: str) -> str:
 
 def windows_script(links: list[tuple[str, Path]]) -> str:
     """The PowerShell that creates the .lnk files on the user's desktop."""
-    lines = ["$ErrorActionPreference = 'Stop'", "$desktop = [Environment]::GetFolderPath('Desktop')",
-             "$sh = New-Object -ComObject WScript.Shell"]
+    lines = [
+        "$ErrorActionPreference = 'Stop'",
+        "$desktop = [Environment]::GetFolderPath('Desktop')",
+        "$sh = New-Object -ComObject WScript.Shell",
+    ]
     for name, target in links:
-        lines += [f"$l = $sh.CreateShortcut((Join-Path $desktop {_ps_quote(name + '.lnk')}))",
-                  f"$l.TargetPath = {_ps_quote(str(target))}", "$l.Save()"]
+        lines += [
+            f"$l = $sh.CreateShortcut((Join-Path $desktop {_ps_quote(name + '.lnk')}))",
+            f"$l.TargetPath = {_ps_quote(str(target))}",
+            "$l.Save()",
+        ]
     return "\n".join(lines)
 
 
@@ -57,8 +63,9 @@ def make_shortcuts(dry_run: bool = False, platform: str | None = None) -> list[s
             return ["would run PowerShell:", script]
         for _, t in links:
             t.mkdir(parents=True, exist_ok=True)
-        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True,
-                           text=True)
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, text=True
+        )
         if r.returncode != 0:
             raise RuntimeError("could not create the shortcuts: " + (r.stderr.strip() or r.stdout.strip()))
         return [f"created desktop shortcut {n!r} -> {t}" for n, t in links]

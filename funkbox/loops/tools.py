@@ -3,6 +3,7 @@
 Plain module-level functions (``loop_*``) plus ``register(server)``. GL work runs on the one GL thread
 (``mcp_util.on_gl``). Nothing may be printed to stdout: it is the protocol.
 """
+
 from __future__ import annotations
 
 import copy
@@ -32,7 +33,7 @@ MAX_SIDE, MAX_SECONDS, MAX_FPS = 1080, 20.0, 60
 _ENGINES: dict[tuple[int, int], Engine] = {}
 
 
-def _engine(w: int, h: int) -> Engine:      # call only on the GL thread
+def _engine(w: int, h: int) -> Engine:  # call only on the GL thread
     w, h = w - w % 2, h - h % 2
     eng = _ENGINES.get((w, h))
     if eng is None:
@@ -61,8 +62,9 @@ def _parse_recipe(recipe: dict) -> Recipe2:
         raise ValueError("recipe must be a JSON object")
     rec = Recipe2.from_dict(copy.deepcopy(recipe))
     if not rec.layers:
-        raise ValueError("recipe needs at least one layer, e.g. "
-                         '{"layers": [{"type": "shader", "shader": "shaders/plasma.frag"}]}')
+        raise ValueError(
+            'recipe needs at least one layer, e.g. {"layers": [{"type": "shader", "shader": "shaders/plasma.frag"}]}'
+        )
     return rec
 
 
@@ -86,8 +88,10 @@ def _fit(rec: Recipe2, size: int) -> tuple[int, int]:
 
 def _summary(rec: Recipe2) -> str:
     r = resolve_recipe(rec)
-    lines = [f"settings: {r.settings.width}x{r.settings.height} {r.settings.fps}fps "
-             f"{r.settings.seconds:g}s seed={r.settings.seed}; palette={r.palette} cycles={r.cycles}"]
+    lines = [
+        f"settings: {r.settings.width}x{r.settings.height} {r.settings.fps}fps "
+        f"{r.settings.seconds:g}s seed={r.settings.seed}; palette={r.palette} cycles={r.cycles}"
+    ]
     for i, l in enumerate(r.layers):
         what = l.shader or l.path or l.effect or "inline"
         extra = f" params={json.dumps(l.params)}" if l.params else ""
@@ -123,18 +127,22 @@ def _shader_path(name: str) -> Path:
 
 
 def _loop_line(rep) -> str:
-    return (f"loop check: {'OK' if rep.ok else 'FAIL'} - {rep.reason} "
-            f"(bad_px={rep.bad_pixel_frac:.4f}, seam_step={rep.seam_step:.2f}, "
-            f"typical_step={rep.typical_step:.2f})")
+    return (
+        f"loop check: {'OK' if rep.ok else 'FAIL'} - {rep.reason} "
+        f"(bad_px={rep.bad_pixel_frac:.4f}, seam_step={rep.seam_step:.2f}, "
+        f"typical_step={rep.typical_step:.2f})"
+    )
 
 
 @safe
 def loop_gl_info() -> str:
     """GPU renderer/version, bundled shader names and the output folders."""
     info = on_gl(_gl_info)
-    return (f"GL_RENDERER: {info['GL_RENDERER']}\nGL_VERSION: {info['GL_VERSION']}\n"
-            f"shaders: {', '.join(_shader_names())}\n"
-            f"output dir: {funk_out()}\ninputs dir (put images here): {funk_inputs()}")
+    return (
+        f"GL_RENDERER: {info['GL_RENDERER']}\nGL_VERSION: {info['GL_VERSION']}\n"
+        f"shaders: {', '.join(_shader_names())}\n"
+        f"output dir: {funk_out()}\ninputs dir (put images here): {funk_inputs()}"
+    )
 
 
 @safe
@@ -157,24 +165,33 @@ def loop_list() -> str:
         note = " [no auto loop check]" if s.no_loopcheck else ""
         lines.append(f"  {n}{note}: " + ("; ".join(ps) if ps else "no params"))
     post_dir = Path(__file__).resolve().parents[1] / "gl" / "post"
-    lines.append("== POST PASSES (recipe `post`: [{\"name\": ..., <param>: value}]) ==")
+    lines.append('== POST PASSES (recipe `post`: [{"name": ..., <param>: value}]) ==')
     for f in sorted(post_dir.glob("*.frag")):
         s = ShaderSource.from_file(f)
-        lines.append(f"  {f.stem}: " + ("; ".join(f"{p.name[2:]} {p.min:g}..{p.max:g} (def {p.default:g})"
-                                                  for p in s.params) or "no params"))
-    lines.append("== PRESETS (named looks as ready-to-use recipe layers/post; copy one into loop_preview/loop_render) ==")
+        lines.append(
+            f"  {f.stem}: "
+            + ("; ".join(f"{p.name[2:]} {p.min:g}..{p.max:g} (def {p.default:g})" for p in s.params) or "no params")
+        )
+    lines.append(
+        "== PRESETS (named looks as ready-to-use recipe layers/post; copy one into loop_preview/loop_render) =="
+    )
     for k in LOOKS:
         lines.append(f"  {k}: " + json.dumps(_compact(presets_mod.PRESETS[k]), separators=(",", ":")))
     lines.append("== BLEND MODES == " + ", ".join(BLEND_MODES))
-    lines.append("== LAYER TYPES == " + ", ".join(LAYER_TYPES) +
-                 "  (shader: shader|source; image: path, fit cover|contain|stretch, uv_warp; "
-                 "v1: effect (legacy, becomes a shader layer); all: blend, opacity; shader layers may list `channels` images -> iChannel1..3; "
-                 "iChannel0 = everything below)")
+    lines.append(
+        "== LAYER TYPES == "
+        + ", ".join(LAYER_TYPES)
+        + "  (shader: shader|source; image: path, fit cover|contain|stretch, uv_warp; "
+        "v1: effect (legacy, becomes a shader layer); all: blend, opacity; shader layers may list `channels` images -> iChannel1..3; "
+        "iChannel0 = everything below)"
+    )
     lines.append("== PALETTES == " + ", ".join(PALETTES))
-    lines.append("== SHADER CONTRACT == uniforms iResolution iLoop iPhase iTime iFrame iSeed iChannel0..3 "
-                 "iAudio; helpers uv() pal() palette(x) loopNoise(p,r) snoise2/3/4 rot() wrap01() src0(p); "
-                 "uv().y points UP; `uniform float u_x; // @param min max default` exposes a param; "
-                 "ints named k_* must be integer multipliers of iPhase.")
+    lines.append(
+        "== SHADER CONTRACT == uniforms iResolution iLoop iPhase iTime iFrame iSeed iChannel0..3 "
+        "iAudio; helpers uv() pal() palette(x) loopNoise(p,r) snoise2/3/4 rot() wrap01() src0(p); "
+        "uv().y points UP; `uniform float u_x; // @param min max default` exposes a param; "
+        "ints named k_* must be integer multipliers of iPhase."
+    )
     lines.append(f"inputs dir (put images here): {funk_inputs()}")
     return "\n".join(lines)
 
@@ -186,8 +203,8 @@ def _write_shader_gl(name: str, source: str, check: bool):
     if not res.ok:
         return {"ok": False, "errors": res.errors, "src": src}
     from funkbox.gl.recipe import Layer, Settings2
-    rec = Recipe2(settings=Settings2(width=384, height=384, seed=1), palette="vapor",
-                  layers=[Layer(source=source)])
+
+    rec = Recipe2(settings=Settings2(width=384, height=384, seed=1), palette="vapor", layers=[Layer(source=source)])
     rep = None
     if check and not src.no_loopcheck:
         rep = validate_loop(rec, size=160)
@@ -224,8 +241,10 @@ def loop_write_shader(name: str, source: str, check: bool = True) -> list:
         path.write_text(source, encoding="utf-8", newline="\n")
         msgs.append(f"{'overwrote' if existed else 'saved'} shaders/{name}.frag")
     else:
-        msgs.append("NOT saved: it does not loop. Fix it (animate with iPhase * integer, or loopNoise), "
-                    "or call again with check=false to save anyway.")
+        msgs.append(
+            "NOT saved: it does not loop. Fix it (animate with iPhase * integer, or loopNoise), "
+            "or call again with check=false to save anyway."
+        )
     return ["\n".join(msgs), _png(PILImage.fromarray(out["frame"]), 384)]
 
 
@@ -258,11 +277,13 @@ def _sheet_gl(rec: Recipe2, seeds: list[int], t: float, w: int, h: int):
     for s in seeds:
         r = copy.deepcopy(rec)
         r.settings.seed = s
-        resample_params(r)                       # resample seeded params per tile
+        resample_params(r)  # resample seeded params per tile
         im = PILImage.fromarray(eng.render_at_t(r, t))
         from PIL import ImageDraw
-        ImageDraw.Draw(im).text((8, 6), f"seed {s}", font=font(max(12, eng.h // 16)),
-                                fill="#ffffff", stroke_width=2, stroke_fill="#000000")
+
+        ImageDraw.Draw(im).text(
+            (8, 6), f"seed {s}", font=font(max(12, eng.h // 16)), fill="#ffffff", stroke_width=2, stroke_fill="#000000"
+        )
         tiles.append(im)
     return tiles, eng.w, eng.h
 
@@ -326,6 +347,7 @@ def loop_still(recipe_or_shader: str | dict, t: float = 0.25, preset: str = "squ
     """One frame of a recipe (JSON object or .json path) or a shader (.frag path or GLSL source with
     `vec4 effect(vec2 p)`) at time t (0..1 of the loop), as a PNG poster background in <out>/stills/."""
     from funkbox.stills import api
+
     paths, r = on_gl(api.funk_still, recipe_or_shader, t, preset, name)
     lines = [api.describe(r)] + [f"{k}: {v}" for k, v in paths.items()]
     return ["\n".join(lines), _png(r.pil, 1000)]

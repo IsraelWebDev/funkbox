@@ -2,6 +2,7 @@
 poster-level post passes. Everything reuses funkbox.gl: the blend functions of ``funkbox/gl/blend.glsl``, the shader
 prelude and ``Engine`` (programs, uniforms, the post pass chain, shader layers).
 """
+
 from __future__ import annotations
 
 from collections import OrderedDict
@@ -99,8 +100,9 @@ class GL:
             p = self._progs[key] = self.eng._compile(ShaderSource.from_file(frag), f"stills pass {frag.stem}")
         return p
 
-    def run(self, frag: Path, inputs: dict[int, Buf], out: Buf, values: dict | None = None,
-            extra: dict | None = None) -> None:
+    def run(
+        self, frag: Path, inputs: dict[int, Buf], out: Buf, values: dict | None = None, extra: dict | None = None
+    ) -> None:
         """Draw one fullscreen pass of ``frag`` reading ``inputs`` (iChannelN) into ``out``."""
         p = self._prog(frag)
         eng = self.eng
@@ -148,8 +150,12 @@ class GL:
         if not passes:
             return rgb
         from funkbox.gl.recipe import PostPass
-        rec = Recipe2(settings=Settings2(width=self.w, height=self.h, seed=seed, seconds=1.0, fps=1), layers=[],
-                      post=[PostPass.from_dict(dict(p)) for p in passes])
+
+        rec = Recipe2(
+            settings=Settings2(width=self.w, height=self.h, seed=seed, seconds=1.0, fps=1),
+            layers=[],
+            post=[PostPass.from_dict(dict(p)) for p in passes],
+        )
         eng = self.eng
         prep = eng.prepare(rec)
         a, b = 0, 1
