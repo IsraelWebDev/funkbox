@@ -9,6 +9,7 @@ from typing import Any
 from funkbox.config import resolve_path
 
 from . import collision, copydeck, project, timeline
+from . import grid as grid_mod
 from .copydeck import CopyDeck
 from .schema import Reel, ReelError, format_ids, materialize, parse_reel
 
@@ -117,7 +118,11 @@ def _validate_one(src, base_dir, *, vo_durations, beats, deep: bool, fmt: str | 
         _check_files(reel, rep)
         _check_templates_and_fit(reel, rep)
     _check_timeline(reel, rep, vo_durations, beats)
+    if deep:
+        _check_grid(reel, rep, beats)
+        _check_grid_geometry(reel, rep)
     if deep and rep.ok:
+        _check_grid_label_crops(reel, rep)
         _check_framing(reel, rep)
         _check_reveal_timing(reel, rep)
     return rep
@@ -148,7 +153,10 @@ def _check_files(reel: Reel, rep: Report) -> None:
     need("audio.music", reel.audio.music)
     for i, sh in enumerate(reel.shots):
         w = f"shots[{i}] ({sh.id})"
-        if sh.source.kind != "color":
+        if sh.source.grid is not None:
+            for j, cell in enumerate(sh.source.grid.cells):
+                need(f"{w}.source.grid.cells[{j}].video", cell.video)
+        elif sh.source.kind != "color":
             need(f"{w}.source.{sh.source.kind}", sh.source.value)
         if sh.source.kind == "funk2":
             _check_funk2_text(reel, sh.source.value, w, rep)
@@ -188,6 +196,23 @@ def _check_templates_and_fit(reel: Reel, rep: Report) -> None:
                                      reel.settings.safe_area)
         if err:
             rep.errors.append(f"shots[{i}] ({sh.id}).caption: {err}")
+    for i, sh in enumerate(reel.shots):                       # grid labels: the same fit check, on the cell
+        g = sh.source.grid
+        if g is None:
+            continue
+        if grid_mod.geometry_error(g.cols, g.rows, g.gap, W, H):
+            continue                                              # reported by _check_grid_geometry
+        rects = grid_mod.cell_rects(g.cols, g.rows, g.gap, W, H)
+        for j, (cell, rect) in enumerate(zip(g.cells, rects)):
+            if not cell.label or cell.label not in rep.deck.lines:
+                continue
+            where = f"shots[{i}] ({sh.id}).source.grid.cells[{j}].label"
+            try:
+                grid_mod.layout_label(cell.label, rep.deck.text(cell.label), cell.label_style, fonts, reel.brand,
+                                      rect, W, H, reel.settings.safe_area)
+            except (captions.CaptionFitError, ValueError) as e:       # GlyphError is a ValueError
+                rep.errors.append(f"{where}: " + (f"copy {cell.label!r}: {e}" if isinstance(e, captions.GlyphError)
+                                                  else str(e)))
     for i, sh in enumerate(reel.shots):                       # v3.1: caption/product collision rule
         c = sh.caption
         if c is None or sh.product is None or c.copy_id not in rep.deck.lines:
@@ -238,6 +263,83 @@ def _check_timeline(reel: Reel, rep: Report, vo: dict[str, float] | None,
     total = timeline.total_seconds(rep.spans)
     rep.info.update(total_seconds=total, shots=len(reel.shots),
                     summary=f"{len(reel.shots)} shots, {total:.2f}s total")
+
+
+def _check_grid(reel: Reel, rep: Report, beats: list[float] | None) -> None:
+    """A grid's ``beats:N`` stagger needs a beat grid; a cell that cannot finish arriving before its
+    shot ends is an error (it is never drawn, or cut mid-fade, and its label is never audited)."""
+    shots = [(i, sh) for i, sh in enumerate(reel.shots) if sh.source.grid is not None]
+    if not shots:
+        return
+    period = None
+    try:
+        if beats is None and (reel.audio.music or reel.audio.bpm):
+            from . import audio
+            beats = audio.beat_grid_for(reel)
+        if beats and len(beats) >= 2:
+            period = timeline.beat_period(beats)
+    except (ImportError, ValueError, OSError, RuntimeError, timeline.TimelineError):
+        period = None                    # the timeline check reports a broken beat grid
+    for i, sh in shots:
+        g = sh.source.grid
+        assert g is not None
+        try:
+            stagger = grid_mod.stagger_seconds(g, period)
+        except ValueError as e:
+            if not (reel.audio.music or reel.audio.bpm):    # with music or bpm set, the timeline check has the cause
+                rep.errors.append(f"shots[{i}] ({sh.id}).source.grid.stagger: {e}")
+            continue
+        sp = next((s for s in rep.spans if s.kind == "shot" and s.index == i), None)
+        if g.reveal != "sequence" or sp is None:
+            continue
+        late = [j for j in range(len(g.cells))
+                if not grid_mod.arrives_in_time(grid_mod.arrival(g, j, stagger), sp.duration, reel.settings.fps)]
+        if late:
+            rep.errors.append(f"shots[{i}] ({sh.id}).source.grid: cell(s) {late} arrive at "
+                              f"{grid_mod.arrival(g, late[0], stagger):.2f}s or later but the shot lasts "
+                              f"{sp.duration:.2f}s: they could not finish arriving (a cell is drawn from the frame "
+                              f"after its arrival, and its label is audited); shorten the stagger or lengthen the shot")
+
+
+def _check_grid_geometry(reel: Reel, rep: Report) -> None:
+    """A grid whose gap leaves no room in the frame, or whose cells would be tiny, cannot be laid out: an error."""
+    W, H = reel.settings.width, reel.settings.height
+    for i, sh in enumerate(reel.shots):
+        g = sh.source.grid
+        if g is None:
+            continue
+        err = grid_mod.geometry_error(g.cols, g.rows, g.gap, W, H)
+        if err:
+            rep.errors.append(f"shots[{i}] ({sh.id}).source.grid: {err}")
+
+
+def _check_grid_label_crops(reel: Reel, rep: Report) -> None:
+    """Warn when the shot's motion (it moves the whole composed grid) cuts a cell label off at the frame edge."""
+    from . import captions
+    assert rep.deck is not None
+    try:
+        fonts = captions.fonts_for(reel.brand, reel.base_dir)
+    except (ValueError, FileNotFoundError):
+        return
+    W, H = reel.settings.width, reel.settings.height
+    for i, sh in enumerate(reel.shots):
+        g = sh.source.grid
+        sp = next((s for s in rep.spans if s.kind == "shot" and s.index == i), None)
+        if g is None or sp is None or sh.motion.type not in ("kenburns", "frame"):
+            continue
+        for j, (cell, rect) in enumerate(zip(g.cells, grid_mod.cell_rects(g.cols, g.rows, g.gap, W, H))):
+            if not cell.label or cell.label not in rep.deck.lines:
+                continue
+            try:
+                lay = grid_mod.layout_label(cell.label, rep.deck.text(cell.label), cell.label_style, fonts,
+                                            reel.brand, rect, W, H, reel.settings.safe_area)
+            except (captions.CaptionFitError, ValueError):
+                continue                                              # reported by the fit check
+            if grid_mod.motion_crops(sh.motion, (rect[0] + lay.x0, rect[1] + lay.y0, lay.box_w, lay.box_h), W, H,
+                                     sp.duration):
+                rep.warnings.append(f"shots[{i}] ({sh.id}).source.grid.cells[{j}].label: the shot's "
+                                    f"{sh.motion.type} motion (it moves the whole grid) cuts this label off at the "
+                                    f"frame edge; use a smaller zoom/frame, or no motion on a labelled grid")
 
 
 def _check_framing(reel: Reel, rep: Report) -> None:

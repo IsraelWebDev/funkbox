@@ -21,8 +21,10 @@ from . import depth as depthmod
 from . import captions as captions_mod
 from . import endcard as endcard_mod
 from . import framing
+from . import grid as grid_mod
 from . import motion as motionmod
 from . import product as product_mod
+from . import timeline as timeline_mod
 from .copydeck import CopyDeck
 from .schema import Reel, Shot
 from .timeline import ShotSpan, resolve_transitions
@@ -30,6 +32,7 @@ from .timeline import ShotSpan, resolve_transitions
 DRAFT_WIDTH, DRAFT_FPS = 540, 24
 TRANSITION_SECONDS = {"flash": 0.0, "push": 0.25, "crossfade": 0.3, "zoom-punch": 0.2}
 FLASH_FRAMES = 3
+_UNSET = object()                  # "not computed yet" (None is a real beat-period result: no beat grid)
 
 
 def _log(*a) -> None:
@@ -114,11 +117,27 @@ class VideoStream:
 
 # --------------------------------------------------------------------------- #
 @dataclass
+class _GridCell:
+    rect: tuple[int, int, int, int]                   # x, y, w, h in the output frame
+    size: tuple[int, int]                             # source pixels
+    video: VideoStream
+    label: captions_mod.Layout | None = None          # laid out for the cell, not the frame
+
+
+@dataclass
+class _GridState:
+    cells: list[_GridCell]
+    stagger: float
+    bg: tuple[int, int, int]
+
+
+@dataclass
 class _ShotState:
     video: VideoStream | None = None
     image: motionmod.SourceTex | None = None
     parallax_ok: bool = False
     funk2: Recipe2 | None = None
+    grid: _GridState | None = None
     extra: dict = field(default_factory=dict)
 
 
@@ -144,6 +163,7 @@ class Renderer:
         self.audit: dict | None = None            # set to {} to record every drawn string
         self._fonts: captions_mod.Fonts | None = None
         self._endcard: endcard_mod.EndCardRenderer | None = None
+        self._beat_period_cache: object = _UNSET     # beat period for grid staggers, computed on first use
         if self.fps != self.src_fps:                 # rescale the timeline to the render fps
             sc = self.fps / self.src_fps
             self.spans = [replace(s, start_frame=round(s.start_frame * sc), end_frame=round(s.end_frame * sc))
@@ -167,13 +187,16 @@ class Renderer:
         return resolve_path(p, self.reel.base_dir)
 
     # ---------------------------------------------------------------- sources
-    def _source_frame(self, span: ShotSpan, local: int) -> np.ndarray:
-        """HxWx3 uint8: the shot's source through its motion, before product/caption."""
+    def _source_frame(self, span: ShotSpan, local: int, note: bool = False) -> np.ndarray:
+        """HxWx3 uint8: the shot's source through its motion, before product/caption. ``note``: record the
+        grid labels drawn in the audit (only the real frame of a shot does, not a look-ahead at its middle)."""
         sh: Shot = self.reel.shots[span.index]
         stt = self._state.setdefault(span.index, _ShotState())
         src = sh.source
         if src.kind == "color":
             return np.full((self.h, self.w, 3), hex_rgb(src.value), np.uint8)
+        if src.kind == "grid":
+            return self._grid_frame(span, sh, stt, local, note)
         if src.kind == "video":
             if framing.needs_windowing(src, sh.motion):
                 return self._windowed_video(span, sh, stt, local)
@@ -234,6 +257,72 @@ class Renderer:
             im = stt.extra["pil"] = Image.open(self._res(sh.source.value)).convert("RGB")
         return framing.draw(im, self._window(sh, span, local, im.width, im.height), self.w, self.h, sh.source.pad)
 
+    # ---- grid source: several clips side by side, each with its own label (see grid.py)
+    def _beat_period(self) -> float | None:
+        if not (self.reel.audio.bpm or self.reel.audio.music):
+            return None
+        if self._beat_period_cache is not _UNSET:       # music is analysed once per render, not once per grid shot
+            return self._beat_period_cache
+        from . import audio
+        beats = audio.beat_grid_for(self.reel)          # a broken beat grid is an error here too, as in validate
+        self._beat_period_cache = timeline_mod.beat_period(beats) if beats and len(beats) >= 2 else None
+        return self._beat_period_cache
+
+    def _grid_state(self, sh: Shot, stt: _ShotState) -> _GridState:
+        if stt.grid is not None:
+            return stt.grid
+        g = sh.source.grid
+        assert g is not None
+        cells: list[_GridCell] = []
+        for c, rect in zip(g.cells, grid_mod.cell_rects(g.cols, g.rows, g.gap, self.w, self.h)):
+            cw, ch = rect[2], rect[3]
+            path = self._res(c.video)
+            dw, dh = framing.decode_size(framing.probe_video(path))
+            k = min(1.0, 2.0 * max(cw, ch) / max(dw, dh))            # no need to decode far above the cell
+            dw, dh = max(2, int(dw * k) // 2 * 2), max(2, int(dh * k) // 2 * 2)
+            gc = _GridCell(rect, (dw, dh), VideoStream(path, dw, dh, self.fps, None, False, "native"))
+            if c.label:
+                gc.label = grid_mod.layout_label(c.label, self.deck.text(c.label), c.label_style, self.fonts(),
+                                                 self.reel.brand, rect, self.w, self.h, self.reel.settings.safe_area)
+            cells.append(gc)
+        pad = sh.source.pad
+        stagger = grid_mod.stagger_seconds(g, self._beat_period()) if g.reveal == "sequence" else 0.0
+        stt.grid = _GridState(cells, stagger, (0, 0, 0) if pad == "blur" else hex_rgb(pad))
+        return stt.grid
+
+    def _grid_frame(self, span: ShotSpan, sh: Shot, stt: _ShotState, local: int, note: bool) -> np.ndarray:
+        g, src = sh.source.grid, sh.source
+        assert g is not None
+        gs = self._grid_state(sh, stt)
+        t = local / self.fps
+        canvas = np.empty((self.h, self.w, 3), np.uint8)
+        canvas[:] = gs.bg
+        for i, (c, gc) in enumerate(zip(g.cells, gs.cells)):
+            since = t - grid_mod.arrival(g, i, gs.stagger)
+            ps = grid_mod.pose(g, since, gc.rect[3])
+            if ps is None:                                  # not arrived yet: neither the cell nor its label
+                continue
+            alpha, dy = ps
+            x, y, cw, ch = gc.rect
+            frm = gc.video.frame(max(0, int(round(since * self.fps))))
+            win = framing.window(framing.FULL, gc.size[0], gc.size[1], cw, ch, fit=c.fit)
+            tile = framing.draw(frm, win, cw, ch, src.pad)
+            if gc.label is not None:                        # the label arrives with its cell (reveal "none")
+                spr = captions_mod.render_caption(gc.label, "none", since, None, span.duration)
+                if spr is not None:
+                    if note and self.audit is not None:
+                        self._note("grid_label", span, "grid_label", str(i), c.label, span.start_frame + local,
+                                   gc.label, spr)
+                    tile = spr.over(tile)
+            # the cell drops in from above inside its own slot (clipped to it: it never covers a neighbour)
+            part = tile[-dy:] if dy < 0 else tile
+            dst = canvas[y:y + part.shape[0], x:x + cw]
+            canvas[y:y + part.shape[0], x:x + cw] = (
+                part if alpha >= 1.0 else np.clip(dst * (1.0 - alpha) + part * alpha + 0.5, 0, 255).astype(np.uint8))
+        if sh.motion.type in ("kenburns", "frame"):         # the shot's motion moves the whole composed grid
+            return framing.draw(canvas, self._window(sh, span, local, self.w, self.h), self.w, self.h, src.pad)
+        return canvas
+
     def camera_for(self, span: ShotSpan, local: int) -> motionmod.Camera:
         """The camera the shot's source uses at frame ``local`` (for locking a product to it)."""
         sh = self.reel.shots[span.index]
@@ -275,7 +364,7 @@ class Renderer:
         """Composed frame of a shot (source + product + caption), without its transition."""
         if span.kind == "end":
             return self._end_frame(span, local)
-        fr = self._source_frame(span, local)
+        fr = self._source_frame(span, local, note=True)
         fr = self._overlay_product(fr, span, local)
         fr = self._overlay_caption(fr, span, local)
         return fr
@@ -463,6 +552,9 @@ class Renderer:
         for s in self._state.values():
             if s.video:
                 s.video.close()
+            if s.grid:
+                for gc in s.grid.cells:
+                    gc.video.close()
         self._state.clear()
         if self._funk_engine is not None:
             self._funk_engine.release()
@@ -598,6 +690,10 @@ def _audit_json(r: Renderer, plan: Plan, name: str, out_dir: Path) -> dict:
     for sh in plan.reel.shots:
         if sh.caption:
             expected.add(f"{sh.id}/caption/main")
+        if sh.source.grid is not None:
+            for j, cell in enumerate(sh.source.grid.cells):
+                if cell.label:
+                    expected.add(f"{sh.id}/grid_label/{j}")
     ec = plan.reel.end_card
     if ec:
         for it in r.endcard().items:

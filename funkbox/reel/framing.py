@@ -104,6 +104,11 @@ def _ease(kind: str, u: float) -> float:
     return u * u * (3.0 - 2.0 * u)
 
 
+def ease(kind: str, u: float) -> float:
+    """The easing named ``kind`` (smooth | linear | in | out | hold) at ``u`` in 0..1."""
+    return _ease(kind, u)
+
+
 def key_times(keys: tuple[FrameKey, ...], shot_seconds: float) -> list[float]:
     """Key times as fractions of the shot (``s`` seconds are converted; past the shot end clamps to 1)."""
     d = max(shot_seconds, 1e-6)

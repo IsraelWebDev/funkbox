@@ -110,6 +110,38 @@ gives the right crop in 9:16 and in 16:9.
 copy of the same frame). On video, `speed: 2` plays twice as fast and `speed: [1, 3]` ramps from 1x to 3x over the
 shot; `validate` warns when a clip runs out before its shot ends (its last frame is held unless `loop` is set).
 
+**Grid sources (`"source": {"grid": ...}`).** Several clips side by side in one shot (before/after, a set of app screens),
+arriving one after another, each with a label from the copy deck:
+
+```json
+{"id": "screens", "duration": "beats:4", "source": {"pad": "#101820", "grid": {
+   "cols": 2, "rows": 2, "gap": 0.02, "reveal": "sequence", "stagger": "beats:1", "ease": "out",
+   "cells": [{"video": "clips/a.mp4", "fit": "contain", "label": "tough", "label_style": "bold-pop"},
+             {"video": "clips/b.mp4", "label": "gentle"}, {"video": "clips/c.mp4", "fit": "cover"}, {"video": "clips/d.mp4"}]}}}
+```
+
+- `cells` is row-major and must have exactly `cols * rows` entries (the error names the shot and both counts). Each cell
+  takes a `video` (a path, resolved like other sources; image cells are not supported) and `fit`: `contain` (default) or `cover`. The pad
+  colour is the source's `pad` (default black, `"blur"` pads each cell with a blurred copy; the gaps then stay black).
+- `gap` is a fraction of the output width, 0 to 0.2 (default 0.02), between columns and between rows. Cells are equal in
+  size and have no border.
+- `label` is a copy id (never text; validation checks it against the deck like a caption's). It is drawn with the caption
+  path (`label_style`, default `bold-pop`) at the bottom of its cell, laid out and fit-checked against the cell's size
+  (so the type scales with the cell, and the 0.032 minimum is measured on the cell's height) and kept out of the reel's
+  `safe_area` bands (the box moves up inside its cell; if it cannot, `validate` reports an error),
+  and the text audit gets one entry per label (`slot: "grid_label"`, `instance` = the cell index, 0-based, as a string).
+  A cell that cannot finish arriving before its shot ends would never be drawn and its label could not be audited, so
+  `validate` reports it as an error (shorten the stagger or lengthen the shot).
+- `reveal`: `none` (default: every cell is drawn for the whole shot) or `sequence`: cell `i` arrives at shot time
+  `i * stagger`. `stagger` is seconds, or `"beats:N"` (N beat periods, needs `audio.bpm` or music). Default: `beats:1`
+  when the reel has a beat grid, else 0.25 s. A cell arrives by dropping in from 10% of its height above its place (inside
+  its own slot) while fading in over 0.25 s, eased with `ease` (`smooth`, `linear`, `in`, `out`, `hold`; default `out`).
+  Before that the cell and its label are not drawn; the label appears and fades with its cell.
+- A video cell plays from its own arrival (the whole shot with `reveal: "none"`), and holds its last frame if it runs out.
+- The shot's own `motion` (`none`, `kenburns`, `frame`) applies to the whole composed grid, labels included. Per-cell
+  push-ins are not supported. `parallax` needs a still and is an error here. A zoom or `frame` that crops a label at the
+  frame edge makes `validate` warn.
+
 **Caption styles.** Styles live in `templates/captions/` (`red-box`, `lower-third`, `bold-pop`, `auto-box`); `box` is
 `primary`/`secondary`/`text`/`#rrggbb`, or `"auto"` (only for `box`, as in `auto-box`): the box then takes a dominant
 colour from the shot's own frame (the text switches to dark when that reads better; contrast-checked), falling back to `brand.primary`.

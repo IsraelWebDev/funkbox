@@ -14,6 +14,7 @@ SAFE_AREAS = ("reels", "landscape", "none")
 MOTION_TYPES = ("none", "kenburns", "parallax", "frame")
 EASES = ("smooth", "linear", "in", "out", "hold")
 REVEALS = ("none", "typewriter", "words", "pop")
+GRID_REVEALS = ("none", "sequence")                  # grid source: all cells at once | one after another
 ANCHORS = ("top", "center", "bottom", "auto")      # "auto": the renderer picks from the frame (else bottom)
 TRANSITIONS = ("cut", "flash", "push", "crossfade", "zoom-punch", "auto")   # "auto": resolved per shot, see timeline
 END_AUDIO = ("silence", "keep")
@@ -31,6 +32,8 @@ SHOT_FORMAT_KEYS = {"motion": None, "caption": ("anchor",), "product": ("x", "y"
 # keys that would smuggle literal copy into a reel; always rejected (except brand.text colour)
 FORBIDDEN_KEYS = ("text", "label", "caption_text", "title", "subtitle", "headline_text",
                   "string", "content", "copy_text", "message", "say", "body", "name_text")
+# the one place `label` is allowed: a grid cell's label is a copy ID (checked against the deck), not text
+GRID_LABEL_PATH_RE = re.compile(r"^shots\[\d+\]\.source\.grid\.cells\[\d+\]\.label$")
 
 
 class ReelError(ValueError):
@@ -78,16 +81,37 @@ class Audio:
     loudness_lufs: float = -14.0
 
 
+@dataclass(frozen=True)
+class GridCell:
+    video: str | None = None        # a path (video only: image cells are not supported)
+    fit: str = "contain"            # cover | contain
+    label: str | None = None        # a copy ID (never text), drawn at the bottom of the cell
+    label_style: str = "bold-pop"
+
+
+@dataclass
+class Grid:
+    """``source.grid``: clips side by side, ``cells`` row-major (``cols * rows`` of them)."""
+    cols: int = 2
+    rows: int = 2
+    gap: float = 0.02               # of the output width
+    reveal: str = "none"            # none | sequence
+    stagger: float | str | None = None   # seconds | "beats:N" | None (= beats:1 with a beat grid, else 0.25 s)
+    ease: str = "out"
+    cells: tuple[GridCell, ...] = ()
+
+
 @dataclass
 class Source:
-    kind: str = "color"             # image | video | color | funk2
-    value: str = "#000000"          # path or hex colour
+    kind: str = "color"             # image | video | color | funk2 | grid
+    value: str = "#000000"          # path or hex colour ("" for a grid)
     trim: tuple[float, float] | None = None
     loop: bool = False
     fit: str = "cover"
     focus: tuple[float, float] | None = None        # cover-crop centre, fractions of the source
     pad: str = "#000000"                            # fit=contain / framing past the edge: #hex or "blur"
     speed: tuple[float, float] = (1.0, 1.0)         # video playback speed at shot start / end (ramp)
+    grid: Grid | None = None                        # kind "grid" only
 
 
 @dataclass
@@ -279,6 +303,8 @@ def scan_forbidden(obj: Any, path: str = "") -> list[str]:
             if k in FORBIDDEN_KEYS:
                 if p == "brand.text" and isinstance(v, str) and HEX_RE.match(v):
                     continue
+                if GRID_LABEL_PATH_RE.match(p) and isinstance(v, str) and ID_RE.match(v):
+                    continue                 # a grid cell's label is a copy id
                 errs.append(f"{p}: free text is not allowed in a reel; reference a copy line by ID "
                             f"(copy.json) instead")
             errs += scan_forbidden(v, p)
@@ -291,13 +317,70 @@ def scan_forbidden(obj: Any, path: str = "") -> list[str]:
 # --------------------------------------------------------------------------- #
 # Parse
 # --------------------------------------------------------------------------- #
-def _parse_source(r: _R) -> Source:
-    kinds = [k for k in ("image", "video", "color", "funk2") if r.has(k)]
+def _parse_grid_cell(r: _R) -> GridCell:
+    """One grid cell: a ``video`` path (image cells are not supported), ``fit``, an optional ``label`` copy id."""
+    if not r.has("video"):
+        r.errs.append(f"{r.path}: needs a video (a path); a cell with neither video nor image is not allowed "
+                      f"(image cells are not supported)")
+    c = GridCell(video=r.s("video", None), fit=r.s("fit", "contain", ("cover", "contain")) or "contain",
+                 label=r.s("label", None, pattern=ID_RE),
+                 label_style=r.s("label_style", "bold-pop", pattern=ID_RE) or "bold-pop")
+    r.finish()
+    return c
+
+
+def _parse_grid(r: _R, shot_id: str) -> Grid:
+    """``source.grid``: cols/rows (required), gap, reveal, stagger, ease and row-major ``cells``."""
+    dims_before = len(r.errs)
+    for k in ("cols", "rows"):
+        if not r.has(k):
+            r.errs.append(f"{r._p(k)}: required")
+    cols, rows = r.num("cols", 2, 1, 8, integer=True), r.num("rows", 2, 1, 8, integer=True)
+    dims_ok = len(r.errs) == dims_before               # a bad cols/rows is reported once, not again as a count error
+    g = Grid(cols=cols, rows=rows,
+             gap=r.num("gap", 0.02, 0.0, 0.2),
+             reveal=r.s("reveal", "none", GRID_REVEALS) or "none",
+             ease=r.s("ease", "out", EASES) or "out")
+    if r.has("stagger"):
+        st = r.raw("stagger")
+        if isinstance(st, bool) or not (
+                (isinstance(st, (int, float)) and 0.0 <= st <= 10.0)
+                or (isinstance(st, str) and BEATS_RE.match(st) and float(st[6:]) > 0)):
+            r.errs.append(f"{r._p('stagger')}: expected seconds (0..10) or \"beats:N\" (N > 0), got {st!r}")
+        else:
+            g.stagger = float(st) if isinstance(st, (int, float)) else st
+    raw = r.raw("cells")
+    if not isinstance(raw, list):
+        r.errs.append(f"{r._p('cells')}: required, a list of {{video, fit, label, label_style}}, row-major")
+        raw = []
+    elif dims_ok and len(raw) != g.cols * g.rows:
+        r.errs.append(f"{r.path}.cells: shot {shot_id!r}: a {g.cols} x {g.rows} grid needs exactly "
+                      f"{g.cols * g.rows} cells (cols * rows), got {len(raw)}")
+    g.cells = tuple(_parse_grid_cell(_R(cd, f"{r.path}.cells[{j}]", r.errs)) for j, cd in enumerate(raw))
+    r.finish()
+    return g
+
+
+def _parse_pad(r: _R, src: Source) -> None:
+    pad = r.raw("pad", "#000000")
+    if not (isinstance(pad, str) and (pad == "blur" or HEX_RE.match(pad))):
+        r.errs.append(f"{r.path}.pad: expected \"#rrggbb\" or \"blur\", got {pad!r}")
+    else:
+        src.pad = pad
+
+
+def _parse_source(r: _R, shot_id: str = "") -> Source:
+    kinds = [k for k in ("image", "video", "color", "funk2", "grid") if r.has(k)]
     if len(kinds) != 1:
-        r.errs.append(f"{r.path}: needs exactly one of image, video, color, funk2 (got {kinds})")
+        r.errs.append(f"{r.path}: needs exactly one of image, video, color, funk2, grid (got {kinds})")
         r.finish()
         return Source()
     kind = kinds[0]
+    if kind == "grid":                       # pad (the gap and contain colour) is the only other key
+        src = Source("grid", "", grid=_parse_grid(r.sub("grid"), shot_id))
+        _parse_pad(r, src)
+        r.finish()
+        return src
     val = r.s(kind, "", required=True, pattern=HEX_RE if kind == "color" else None) or ""
     trim = r.pair("trim", None, lo=0.0)
     if trim is not None and trim[1] <= trim[0]:
@@ -305,11 +388,7 @@ def _parse_source(r: _R) -> Source:
     src = Source(kind, val, trim, r.b("loop", False), r.s("fit", "cover", ("cover", "contain")) or "cover")
     if r.has("focus"):
         src.focus = r.pair("focus", None, lo=0.0, hi=1.0)
-    pad = r.raw("pad", "#000000")
-    if not (isinstance(pad, str) and (pad == "blur" or HEX_RE.match(pad))):
-        r.errs.append(f"{r.path}.pad: expected \"#rrggbb\" or \"blur\", got {pad!r}")
-    else:
-        src.pad = pad
+    _parse_pad(r, src)
     if r.has("speed"):
         sp = r.raw("speed")
         if isinstance(sp, (int, float)) and not isinstance(sp, bool):
@@ -430,7 +509,7 @@ def _parse_caption(r: _R) -> CaptionSpec:
 
 def _parse_shot(r: _R, idx: int) -> Shot:
     sh = Shot(id=r.s("id", f"s{idx + 1}", pattern=ID_RE) or f"s{idx + 1}")
-    sh.source = _parse_source(r.sub("source"))
+    sh.source = _parse_source(r.sub("source"), sh.id)
     sh.motion = _parse_motion(r.sub("motion"))
     if r.has("product"):
         sh.product = _parse_product(r.sub("product"))

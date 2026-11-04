@@ -101,6 +101,10 @@ def used_ids(reel: Reel) -> list[tuple[str, str]]:
             out.append((f"shots[{i}] ({sh.id}).caption.copy_id", sh.caption.copy_id))
         if sh.vo:
             out.append((f"shots[{i}] ({sh.id}).vo", sh.vo))
+        if sh.source.grid is not None:
+            for j, cell in enumerate(sh.source.grid.cells):
+                if cell.label:
+                    out.append((f"shots[{i}] ({sh.id}).source.grid.cells[{j}].label", cell.label))
     if reel.end_card:
         for slot, cid in reel.end_card.copy.items():
             out.append((f"end_card.copy.{slot}", cid))
