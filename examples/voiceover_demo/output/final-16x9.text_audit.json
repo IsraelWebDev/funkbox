@@ -1,0 +1,233 @@
+{
+  "reel": "final-16x9",
+  "copy_deck": "../copy.json",
+  "tts": {
+    "mode": "kokoro",
+    "voice": "kokoro:af_heart"
+  },
+  "fps": 30,
+  "ok": true,
+  "missing": [],
+  "inexact": [],
+  "never_fully_typed": [],
+  "entries": [
+    {
+      "kind": "voiceover",
+      "shot": "s1",
+      "slot": "voiceover",
+      "instance": "hook",
+      "copy_id": "hook",
+      "text": "Your words. Your voice.",
+      "deck_text": "YOUR WORDS.\nYOUR VOICE.",
+      "say_declared": true,
+      "pronounce_declared": true,
+      "text_exact": true,
+      "first_frame": 3,
+      "last_frame": 55,
+      "complete_frame": 55,
+      "frames": [
+        3,
+        55
+      ]
+    },
+    {
+      "kind": "caption",
+      "shot": "s1",
+      "slot": "caption",
+      "instance": "main",
+      "copy_id": "hook",
+      "first_frame": 5,
+      "last_frame": 63,
+      "text": "YOUR WORDS.\nYOUR VOICE.",
+      "complete_frame": 28,
+      "opaque_frame": null,
+      "drawn_lines": [
+        "YOUR WORDS.",
+        "YOUR VOICE."
+      ],
+      "text_exact": true,
+      "frames": [
+        5,
+        63
+      ]
+    },
+    {
+      "kind": "caption",
+      "shot": "s2",
+      "slot": "caption",
+      "instance": "main",
+      "copy_id": "line2",
+      "first_frame": 67,
+      "last_frame": 134,
+      "text": "EVERY SPOKEN LINE COMES FROM THIS DECK.",
+      "complete_frame": 119,
+      "opaque_frame": null,
+      "drawn_lines": [
+        "EVERY SPOKEN LINE COMES FROM THIS DECK."
+      ],
+      "text_exact": true,
+      "frames": [
+        67,
+        134
+      ]
+    },
+    {
+      "kind": "voiceover",
+      "shot": "s2",
+      "slot": "voiceover",
+      "instance": "line2",
+      "copy_id": "line2",
+      "text": "EVERY SPOKEN LINE COMES FROM THIS DECK.",
+      "deck_text": "EVERY SPOKEN LINE COMES FROM THIS DECK.",
+      "say_declared": false,
+      "pronounce_declared": true,
+      "text_exact": true,
+      "first_frame": 67,
+      "last_frame": 126,
+      "complete_frame": 126,
+      "frames": [
+        67,
+        126
+      ]
+    },
+    {
+      "kind": "voiceover",
+      "shot": "s3",
+      "slot": "voiceover",
+      "instance": "line3",
+      "copy_id": "line3",
+      "text": "THE CAPTIONS MATCH. THE AUDIT PROVES IT.",
+      "deck_text": "THE CAPTIONS MATCH. THE AUDIT PROVES IT.",
+      "say_declared": false,
+      "pronounce_declared": true,
+      "text_exact": true,
+      "first_frame": 138,
+      "last_frame": 218,
+      "complete_frame": 218,
+      "frames": [
+        138,
+        218
+      ]
+    },
+    {
+      "kind": "caption",
+      "shot": "s3",
+      "slot": "caption",
+      "instance": "main",
+      "copy_id": "line3",
+      "first_frame": 140,
+      "last_frame": 226,
+      "text": "THE CAPTIONS MATCH. THE AUDIT PROVES IT.",
+      "complete_frame": 181,
+      "opaque_frame": null,
+      "drawn_lines": [
+        "THE CAPTIONS MATCH. THE AUDIT PROVES IT."
+      ],
+      "text_exact": true,
+      "frames": [
+        140,
+        226
+      ]
+    },
+    {
+      "kind": "caption",
+      "shot": "s4",
+      "slot": "caption",
+      "instance": "main",
+      "copy_id": "line4",
+      "first_frame": 230,
+      "last_frame": 289,
+      "text": "THE VOICE RUNS ON YOUR COMPUTER.",
+      "complete_frame": 273,
+      "opaque_frame": null,
+      "drawn_lines": [
+        "THE VOICE RUNS ON YOUR COMPUTER."
+      ],
+      "text_exact": true,
+      "frames": [
+        230,
+        289
+      ]
+    },
+    {
+      "kind": "voiceover",
+      "shot": "s4",
+      "slot": "voiceover",
+      "instance": "line4",
+      "copy_id": "line4",
+      "text": "THE VOICE RUNS ON YOUR COMPUTER.",
+      "deck_text": "THE VOICE RUNS ON YOUR COMPUTER.",
+      "say_declared": false,
+      "pronounce_declared": true,
+      "text_exact": true,
+      "first_frame": 230,
+      "last_frame": 281,
+      "complete_frame": 281,
+      "frames": [
+        230,
+        281
+      ]
+    },
+    {
+      "kind": "end_card",
+      "shot": "end_card",
+      "slot": "url",
+      "instance": "bottom",
+      "copy_id": "url",
+      "first_frame": 290,
+      "last_frame": 409,
+      "text": "GITHUB  ISRAELWEBDEV/FUNKBOX",
+      "complete_frame": 290,
+      "opaque_frame": null,
+      "drawn_lines": [
+        "GITHUB  ISRAELWEBDEV/FUNKBOX"
+      ],
+      "text_exact": true,
+      "frames": [
+        290,
+        409
+      ]
+    },
+    {
+      "kind": "end_card",
+      "shot": "end_card",
+      "slot": "url",
+      "instance": "top",
+      "copy_id": "url",
+      "first_frame": 290,
+      "last_frame": 409,
+      "text": "GITHUB  ISRAELWEBDEV/FUNKBOX",
+      "complete_frame": 290,
+      "opaque_frame": null,
+      "drawn_lines": [
+        "GITHUB  ISRAELWEBDEV/FUNKBOX"
+      ],
+      "text_exact": true,
+      "frames": [
+        290,
+        409
+      ]
+    },
+    {
+      "kind": "end_card",
+      "shot": "end_card",
+      "slot": "headline",
+      "instance": "main",
+      "copy_id": "end_head",
+      "first_frame": 300,
+      "last_frame": 409,
+      "text": "Text to voice,\nlocal.",
+      "complete_frame": 333,
+      "opaque_frame": null,
+      "drawn_lines": [
+        "Text to voice,",
+        "local."
+      ],
+      "text_exact": true,
+      "frames": [
+        300,
+        409
+      ]
+    }
+  ]
+}

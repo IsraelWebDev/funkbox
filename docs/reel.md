@@ -68,6 +68,14 @@ also available from the CLI (`python -m funkbox project new|ingest|brand|propose
 and the reel tools (`reel_validate`, `reel_storyboard`, `reel_still`, `reel_render`) accept `project=<name>` instead of a reel.
 The reel file is plain JSON you can edit by hand; copy still comes only from `copy.json` by id.
 
+## Voiceover
+
+A reel can speak its copy with a local voice. Set `audio.voiceover: true` and a `voice` such as `kokoro:af_heart`, and each shot's `vo` names a copy line. The spoken text is that line's `say` form in the copy deck, with its `pronounce` substitutions applied, so the caption, the voice and the text audit all come from one approved deck.
+
+- Setup: `pip install -r requirements-reel.txt`, then `python -m funkbox reel setup-models`. Without a voice, `voiceover: true` is an error.
+- The timeline sizes each shot to its spoken line plus a 0.35 s tail (`VO_TAIL`). The voice starts 0.1 s into the shot (`VO_LEAD`), so at least 0.25 s of silence follows the line. A shot too short for its line fails validation.
+- `--audit` writes the spoken lines into `<name>.text_audit.json` as `voiceover` entries.
+- A worked example with a music bed is in [`examples/voiceover_demo/`](../examples/voiceover_demo/README.md).
 
 ## Shot lists for specific briefs
 

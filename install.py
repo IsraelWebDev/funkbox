@@ -315,6 +315,13 @@ def venv_ok(py: Path) -> bool:
     `uv python uninstall`-ed, or installed from inside packaged Claude Desktop: see msix_config_dirs)."""
     if not py.exists():
         return False
+    if sys.platform == "win32":  # a Windows program starts with "MZ"; anything else cannot run, and launching it can hang
+        try:
+            with py.open("rb") as f:
+                if f.read(2) != b"MZ":
+                    return False
+        except OSError:
+            return False
     try:
         return subprocess.run([str(py), "-c", "pass"], capture_output=True, timeout=120).returncode == 0
     except (OSError, subprocess.TimeoutExpired):

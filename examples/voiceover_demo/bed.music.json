@@ -1,0 +1,15 @@
+{
+  "bpm": 92,
+  "meter": 4,
+  "key": "D",
+  "scale": "pentatonic",
+  "bars": 8,
+  "swing": 0.0,
+  "reverb": 0.35,
+  "soundfont": "builtin",
+  "tracks": [
+    {"name": "pad", "program": 89, "octave": 4, "velocity": 45, "notes": "[D4 A4]/1 | [C4 G4]/1 | [Bb3 F4]/1 | [A3 E4]/1 | [D4 A4]/1 | [C4 G4]/1 | [Bb3 F4]/1 | [A3 E4]/1"},
+    {"name": "bass", "program": 32, "octave": 2, "velocity": 60, "notes": "^1/2 ^1/2 ^5/2 ^5/2 | ^6,/2 ^6,/2 ^1/2 ^1/2 | ^1/2 ^1/2 ^5/2 ^5/2 | ^4,/2 ^4,/2 ^1/2 ^1/2"},
+    {"name": "drums", "drums": true, "pattern": {"kick": "x.......x.......", "hat": "..o...o...o...o."}}
+  ]
+}
