@@ -1,6 +1,6 @@
 {
-  "reel": "bed-16x9",
-  "copy_deck": "../../examples/voiceover_demo/copy.json",
+  "reel": "final-16x9",
+  "copy_deck": "../copy.json",
   "fps": 30,
   "ok": true,
   "missing": [],

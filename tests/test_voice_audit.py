@@ -1,8 +1,10 @@
-"""TV-1: every spoken line is in the text audit, and its text is the deck's text (or a declared change)."""
+"""TV-1: every spoken line is in the text audit, and its text is the deck's text, or a change the deck declares."""
 
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
-from funkbox.reel import audio
+from funkbox.reel import audio, render
 from funkbox.reel.copydeck import parse_copy
 
 
@@ -10,8 +12,26 @@ def span(sid, vo_id, start, dur, kind="shot"):
     return SimpleNamespace(id=sid, kind=kind, vo_id=vo_id, vo_start=start, vo_dur=dur)
 
 
+def deck_with(lines, pronounce=None, tmp_path=None):
+    d = {"brand_name": "T", "lines": lines}
+    if pronounce:
+        d["pronounce"] = pronounce
+    deck = parse_copy(d)
+    deck.path = str(tmp_path / "copy.json") if tmp_path else None
+    return deck
+
+
+def audit(tmp_path, deck, spans):
+    """Run the real _audit_json on a minimal plan (one voiced shot, s1, speaking copy id 'hook')."""
+    shot = SimpleNamespace(id="s1", vo="hook", caption=None, source=SimpleNamespace(grid=None))
+    reel = SimpleNamespace(audio=SimpleNamespace(voiceover=True), settings=SimpleNamespace(fps=30), shots=[shot], end_card=None)
+    plan = SimpleNamespace(deck=deck, spans=spans, reel=reel)
+    out = render._audit_json(SimpleNamespace(audit_report=lambda: []), plan, "t", tmp_path)
+    return json.loads(Path(out["path"]).read_text(encoding="utf-8"))
+
+
 def test_undeclared_line_is_spoken_as_the_deck_text():
-    deck = parse_copy({"brand_name": "T", "lines": {"hook": {"text": "LOOK\nCLOSER."}}})
+    deck = deck_with({"hook": {"text": "LOOK\nCLOSER."}})
     [e] = audio.voice_audit_entries(deck, [span("s1", "hook", 0.5, 2.0)], 30)
     assert e["text"] == "LOOK CLOSER."
     assert e["deck_text"] == "LOOK\nCLOSER."
@@ -21,21 +41,51 @@ def test_undeclared_line_is_spoken_as_the_deck_text():
 
 
 def test_declared_say_override_is_allowed():
-    deck = parse_copy({"brand_name": "T", "lines": {"hook": {"text": "GLOWMOP", "say": "Glow mop."}}})
+    deck = deck_with({"hook": {"text": "GLOWMOP", "say": "Glow mop."}})
     [e] = audio.voice_audit_entries(deck, [span("s1", "hook", 0.0, 1.0)], 30)
     assert e["text"] == "Glow mop."
     assert e["say_declared"] is True
     assert e["text_exact"] is True
 
 
-def test_undeclared_change_fails_the_audit():
-    deck = parse_copy({"brand_name": "T", "lines": {"hook": {"text": "LOOK CLOSER."}}})
+def test_undeclared_change_fails_the_audit(tmp_path):
+    deck = deck_with({"hook": {"text": "LOOK CLOSER."}}, tmp_path=tmp_path)
     deck.say = lambda cid: "Something else"  # a change no deck field declares
+    doc = audit(tmp_path, deck, [span("s1", "hook", 0.0, 1.0)])
+    assert doc["ok"] is False
+    assert doc["inexact"] == ["s1/voiceover/hook"]
+
+
+def test_pronounce_does_not_excuse_an_untouched_line():
+    deck = deck_with({"hook": {"text": "EVERY LINE."}}, pronounce={"FUNKBOX": "fun box"})
+    deck.say = lambda cid: "Something else"  # the line has no FUNKBOX, so no pronounce entry explains this
     [e] = audio.voice_audit_entries(deck, [span("s1", "hook", 0.0, 1.0)], 30)
     assert e["text_exact"] is False
 
 
+def test_pronounce_on_a_touched_line_is_exact():
+    deck = deck_with({"hook": {"text": "FUNKBOX RULES."}}, pronounce={"FUNKBOX": "fun box"})
+    [e] = audio.voice_audit_entries(deck, [span("s1", "hook", 0.0, 1.0)], 30)
+    assert e["text"] == "fun box RULES."
+    assert e["text_exact"] is True
+
+
 def test_shots_without_a_line_and_end_spans_have_no_entry():
-    deck = parse_copy({"brand_name": "T", "lines": {"hook": {"text": "HI."}}})
+    deck = deck_with({"hook": {"text": "HI."}})
     spans = [span("s1", None, None, None), span("end", None, None, None, kind="end"), span("s2", "hook", None, None)]
     assert audio.voice_audit_entries(deck, spans, 30) == []
+
+
+def test_missing_spoken_line_fails_the_audit(tmp_path):
+    deck = deck_with({"hook": {"text": "HI."}}, tmp_path=tmp_path)
+    doc = audit(tmp_path, deck, [span("s1", None, None, None)])
+    assert doc["ok"] is False
+    assert doc["missing"] == ["s1/voiceover/hook"]
+
+
+def test_audit_file_lists_the_spoken_lines(tmp_path):
+    deck = deck_with({"hook": {"text": "HI."}}, tmp_path=tmp_path)
+    doc = audit(tmp_path, deck, [span("s1", "hook", 0.0, 1.0)])
+    assert doc["ok"] is True
+    assert doc["copy_deck"] == "copy.json"
+    assert [e["kind"] for e in doc["entries"]] == ["voiceover"]

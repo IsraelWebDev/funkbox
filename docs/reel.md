@@ -71,12 +71,12 @@ The reel file is plain JSON you can edit by hand; copy still comes only from `co
 
 ## Voiceover
 
-A reel can speak its copy with a local voice. Set `audio.voiceover: true` and a `voice` such as `kokoro:af_heart`, and each shot's `vo` names a copy line. The spoken text is that line's `say` form in the copy deck, so the caption, the voice and the text audit all come from one approved deck.
+A reel can speak its copy with a local voice. Set `audio.voiceover: true` and a `voice` such as `kokoro:af_heart`, and each shot's `vo` names a copy line. The spoken text is that line's `say` form in the copy deck, with its `pronounce` substitutions applied, so the caption, the voice and the text audit all come from one approved deck.
 
 - Setup: `pip install -r requirements-reel.txt`, then `python -m funkbox reel setup-models`. Without a voice, `voiceover: true` is an error.
-- The timeline sizes each shot to its spoken line plus a 0.35 s tail (`VO_TAIL`), so a line does not run past its shot.
+- The timeline sizes each shot to its spoken line plus a 0.35 s tail (`VO_TAIL`). The voice starts 0.1 s into the shot (`VO_LEAD`), so at least 0.25 s of silence follows the line. A shot too short for its line fails validation.
 - `--audit` writes the spoken lines into `<name>.text_audit.json` as `voiceover` entries.
-- A worked example with a music bed is in `examples/voiceover_demo/`. See its README.
+- A worked example with a music bed is in [`examples/voiceover_demo/`](../examples/voiceover_demo/README.md).
 ## Shot lists for specific briefs
 
 `project_auto_reel` is a first draft. When a brief gives exact timings, framing or mostly screen recordings, edit the

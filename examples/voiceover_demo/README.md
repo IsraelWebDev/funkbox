@@ -1,10 +1,10 @@
 # Voiceover demo
 
-A 14-second ad with its copy spoken by a local voice (Kokoro `af_heart`), a quiet music bed under the voice, and an end card. It is the reference for the text-to-voice path: one approved copy deck drives the spoken line, the caption and the text audit.
+A 13.7-second ad with its copy spoken by a local voice (Kokoro `af_heart`), a quiet music bed under the voice, and an end card. It is the reference for the text-to-voice path: one approved copy deck drives the spoken line, the caption and the text audit.
 
 ## Files
 
-- `copy.json`: the approved copy deck.
+- `copy.json`: the approved copy deck. `copy.sha256` is its locked hash, and `tests/test_voiceover_demo.py` checks it. If you change the copy, update the lock on purpose.
 - `demo.reel.json`: the reel. Voiceover on, `kokoro:af_heart` at speed 1.0, music bed at -22 dB with a 10 dB duck under the voice, end card.
 - `bed.music.json`: the music score. General MIDI tracks on the built-in soundfont, so nothing is downloaded. 92 bpm, 8 bars.
 - `logo.png`: end-card logo.
@@ -22,7 +22,7 @@ The phonemizer behind `kokoro-onnx` needs espeak-ng (GPL-3.0). It is not bundled
 
 ## Text audit
 
-`final-16x9.text_audit.json` has four `voiceover` entries, one per spoken line. Each matches the copy deck, with `missing` 0 and `inexact` 0 (`never_fully_typed` 0):
+`final-16x9.text_audit.json` has four `voiceover` entries, one per spoken line. Each matches the copy deck, with `missing` 0, `inexact` 0 and `never_fully_typed` 0:
 
 - "Your words. Your voice."
 - "EVERY SPOKEN LINE COMES FROM THIS DECK."
@@ -33,13 +33,18 @@ The 9:16 audit matches.
 
 ## Mix
 
-- 16:9 mix: integrated loudness -13.9 LUFS (target -14), true peak -2.7 dBFS, loudness range 5.9 LU.
+Measured on the encoded MP4s with ffmpeg `ebur128`:
+
+- 16:9: integrated loudness -13.9 LUFS (target -14), loudness range 5.2 LU, true peak -2.8 dBFS.
+- 9:16: the same audio, so the same figures.
 - The music bed sits at -22 dB and is ducked a further 10 dB while the voice plays.
 
-Frame rendering took 15 s (16:9) and 28 s (9:16) on the laptop CPU, with the voice running on the CPU too.
+## Render times and voice
+
+On the laptop CPU, frame rendering took 16 s (16:9) and 28 s (9:16). The renders used the Kokoro voice: `tts_mode()` resolves to `kokoro` with the models installed. The render log does not print the voice mode, so that is the evidence.
 
 ## Not done yet
 
 - Reproduction from a clean clone is not run yet. The steps above are written from the render on the author's laptop.
-- "No spoken line runs past its shot" is covered by the timeline's VO_TAIL sizing (each shot is at least the spoken line plus 0.35 s). There is no dedicated test for it yet.
+- A shot too short for its spoken line fails validation. That rule is tested in `tests/reel/test_r1_copy_timeline.py`, not in this demo's own tests.
 - The second-voice variant waits for the reel-variants voice key.
