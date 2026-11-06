@@ -39,6 +39,7 @@ def _clear_stale(vdir: Path) -> None:
     for p in vdir.glob("v[0-9][0-9]*"):
         p.unlink(missing_ok=True)
     (vdir / "variants.json").unlink(missing_ok=True)
+    (vdir / "variants.json.tmp").unlink(missing_ok=True)
 
 
 def _write_atomic(path: Path, text: str) -> None:
