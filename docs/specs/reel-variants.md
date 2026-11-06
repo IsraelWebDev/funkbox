@@ -1,6 +1,6 @@
 # Spec: reel variants
 
-Status: proposed. Effort: medium. Source: creator feedback. Creator guides recommend shipping many versions of one ad, each with a different first scene ([influee](https://influee.co/gb/blog/doubling_roas_with_ad_variations), [videotok](https://www.videotok.app/blog/performance/ai-creative-testing-workflow-social-ads), [segwise](https://segwise.ai/blog/ai-ugc-perofrmance-marketing-2026)). These links come from the feedback; their content has not been checked.
+Status: RV-1 to RV-4 merged. Deferred: `--still` (PNG openings), from/to, speed, grid order. Effort: medium. Source: creator feedback. Creator guides recommend shipping many versions of one ad, each with a different first scene ([influee](https://influee.co/gb/blog/doubling_roas_with_ad_variations), [videotok](https://www.videotok.app/blog/performance/ai-creative-testing-workflow-social-ads), [segwise](https://segwise.ai/blog/ai-ugc-perofrmance-marketing-2026)). These links come from the feedback; their content has not been checked.
 
 ## Problem
 
