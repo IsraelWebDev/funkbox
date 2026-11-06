@@ -6,7 +6,7 @@
 
 measured.json holds {"facts": {"M-...": {"value": ..., "say": "<plain sentence a promo may use>"}}}. A brief's claim
 may cite an M-key instead of a FACTS.md id; the reviewer checks the words against "say". Keys:
-  M-render     how long this video took to render, and on what (M-machine)
+  M-render     how long this video took to render, and on what (M-machine); "say_rough" gives a safe "under N"
   M-machine    the machine: CPU cores and whether there was a GPU at all (software OpenGL = none)
   M-video      length, size and frame rate of this video
   M-audit      how many on-screen strings the text audit checked, and that all were exact
@@ -140,6 +140,14 @@ def audit(day: Path) -> dict | None:
     }
 
 
+def render_bound(seconds: float) -> int:
+    """A round upper bound for a render time ("under 40 seconds"): the next multiple of 10 above it (of 30 past two
+    minutes). Render times drift a few seconds between renders of the same video, so a promo that quotes the bound
+    stays true after a re-render; quoting the exact number is fine too (lint and the reviewer allow RENDER_TOLERANCE)."""
+    step = 30 if seconds >= 120 else 10
+    return int(seconds // step + 1) * step
+
+
 def write(day: Path, render_s: float | None = None, frames: int | None = None) -> dict:
     facts = {"M-machine": machine(), **repo_counts(), "M-commits": commits_since(day)}
     for key, fn in (("M-video", video), ("M-audit", audit)):
@@ -148,9 +156,11 @@ def write(day: Path, render_s: float | None = None, frames: int | None = None) -
             facts[key] = v
     if render_s is not None:
         where = facts["M-machine"]["say"]
+        under = render_bound(render_s)
         facts["M-render"] = {
-            "value": {"seconds": round(render_s, 1), "frames": frames},
+            "value": {"seconds": round(render_s, 1), "frames": frames, "under": under},
             "say": f"this video rendered in {render_s:.0f} seconds on {where}",
+            "say_rough": f"this video rendered in under {under} seconds on {where}",
         }
     doc = {"day": day.name, "measured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "facts": facts}
     (day / "measured.json").write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
