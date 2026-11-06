@@ -28,6 +28,10 @@ _ALLOWED = (
 class ReelVariantError(ValueError):
     """One message per problem; a run with any problem renders nothing."""
 
+    def __init__(self, problems: list[str]):
+        super().__init__(problems)
+        self.problems = list(problems)
+
 
 def variant_hash(reel: dict) -> str:
     """sha256 of the canonical JSON of a reel: equal reels give equal hashes."""
