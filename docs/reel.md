@@ -68,7 +68,6 @@ also available from the CLI (`python -m funkbox project new|ingest|brand|propose
 and the reel tools (`reel_validate`, `reel_storyboard`, `reel_still`, `reel_render`) accept `project=<name>` instead of a reel.
 The reel file is plain JSON you can edit by hand; copy still comes only from `copy.json` by id.
 
-
 ## Voiceover
 
 A reel can speak its copy with a local voice. Set `audio.voiceover: true` and a `voice` such as `kokoro:af_heart`, and each shot's `vo` names a copy line. The spoken text is that line's `say` form in the copy deck, with its `pronounce` substitutions applied, so the caption, the voice and the text audit all come from one approved deck.

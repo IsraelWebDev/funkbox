@@ -24,4 +24,11 @@ def test_demo_reel_has_voice_and_ducked_bed():
     reel = json.loads((ROOT / "demo.reel.json").read_text(encoding="utf-8"))
     assert reel["audio"]["voiceover"] is True
     assert reel["audio"]["music"] == "bed.music.json"
-    assert reel["audio"]["duck_db"] < 0
+    assert reel["audio"]["music_gain_db"] == -22 and reel["audio"]["duck_db"] == -10
+
+
+def test_committed_audits_record_kokoro():
+    for fmt in ("16x9", "9x16"):
+        doc = json.loads((ROOT / "output" / f"final-{fmt}.text_audit.json").read_text(encoding="utf-8"))
+        assert doc["ok"] is True
+        assert doc["tts"] == {"mode": "kokoro", "voice": "kokoro:af_heart"}

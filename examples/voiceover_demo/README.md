@@ -15,6 +15,7 @@ A 13.7-second ad with its copy spoken by a local voice (Kokoro `af_heart`), a qu
 1. `pip install -r requirements-reel.txt`
 2. `python -m funkbox reel setup-models` (about 520 MB, hashes checked)
 3. `python -m funkbox reel render examples/voiceover_demo/demo.reel.json --audit --name final --out out/voiceover_demo`
+   The committed MP4s in `output/` are what this produces; compare them by hash to check a reproduction.
 
 Add `--draft` while iterating (540 px, 24 fps).
 
@@ -43,7 +44,7 @@ Measured on the encoded MP4s with ffmpeg `ebur128`:
 
 On the author's laptop, one run: frame rendering took about 16 s (16:9) and 28 s (9:16). The renders used the Kokoro voice. The audit records the engine: `"tts": {"mode": "kokoro", "voice": "kokoro:af_heart"}` in `final-16x9.text_audit.json` and `final-9x16.text_audit.json`.
 
-## Not done yet
+## Status and limits
 
 - Reproduced from a fresh clone of `card/tv-1-voice-audit` at 9d83388, with the steps above: both MP4s came out byte-identical to the committed ones, and `reel validate` reports OK. This was run on the author's laptop only.
 - A shot too short for its spoken line fails validation. That rule is tested in `tests/reel/test_r1_copy_timeline.py`, not in this demo's own tests.

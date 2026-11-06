@@ -153,12 +153,18 @@ def test_whole_flow_over_stdio_to_a_draft_render_and_the_text_audit_passes(penv,
     d = P.project_dir("glowmop")
     assert (d / "out" / "glowmop-draft.mp4").exists() and (d / "out" / "glowmop-draft.png").exists()
     # the independent text check: every drawn string is byte-identical to the approved copy.json entry
-    deck = json.loads((d / "copy.json").read_text(encoding="utf-8"))["lines"]
+    full = json.loads((d / "copy.json").read_text(encoding="utf-8"))
+    deck = full["lines"]
     audit = json.loads((d / "out" / "glowmop-draft.text_audit.json").read_text(encoding="utf-8"))
     assert audit["ok"] and audit["entries"] and not audit["missing"] and not audit["inexact"]
+    pron = full.get("pronounce", {})
     for e in audit["entries"]:
-        if e.get("kind") == "voiceover":  # spoken, not drawn: checked against what the deck declares (say, or text)
-            assert e["text_exact"] is True, e
+        if e.get("kind") == "voiceover":  # spoken, not drawn: derive what the deck declares, then compare
+            line = deck[e["copy_id"]]
+            want = line["say"] if "say" in line else re.sub(r"\s*\n\s*", " ", line["text"])
+            for w, rep in sorted(pron.items(), key=lambda kv: -len(kv[0])):
+                want = re.sub(r"(?<![A-Za-z0-9])" + re.escape(w) + r"(?![A-Za-z0-9])", rep, want)
+            assert e["text"] == want, e
             continue
         assert e["text"].encode("utf-8") == deck[e["copy_id"]]["text"].encode("utf-8"), e
     ids = {e["copy_id"] for e in audit["entries"]}

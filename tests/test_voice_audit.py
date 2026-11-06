@@ -135,3 +135,21 @@ def test_voiceover_without_a_tts_engine_raises(monkeypatch):
     monkeypatch.setattr(audio, "tts_mode", lambda voice=None: "none")
     with pytest.raises(RuntimeError, match="needs a TTS voice"):
         audio.synthesize(deck, "hook", None)
+
+def test_longest_pronounce_key_wins():
+    deck = deck_with({"other": {"text": "GLOW MOP."}}, pronounce={"GLOW": "glow", "GLOW MOP": "glow mop"})
+    [e] = audio.voice_audit_entries(deck, [span("s1", "other", 0.0, 1.0)], 30)
+    assert e["text"] == "glow mop."
+    assert e["text_exact"] is True
+
+
+def test_pronounce_matches_whole_words_only():
+    deck = deck_with({"other": {"text": "FUNKBOXES."}}, pronounce={"FUNK": "fun"})
+    [e] = audio.voice_audit_entries(deck, [span("s1", "other", 0.0, 1.0)], 30)
+    assert e["text"] == "FUNKBOXES."
+    assert e["text_exact"] is True
+
+
+def test_end_spans_never_get_a_voice_entry():
+    deck = deck_with({"hook": {"text": "HI."}})
+    assert audio.voice_audit_entries(deck, [span("end", "hook", 0.0, 1.0, kind="end")], 30) == []
