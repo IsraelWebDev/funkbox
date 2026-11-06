@@ -256,7 +256,7 @@ def reel_variants(
         base = None
         if isinstance(src, str):
             base = Path(src).parent
-            src = json.loads(Path(src).read_text(encoding="utf-8"))
+            src = json.loads(Path(src).read_text(encoding="utf-8-sig"))
         return variants_render.render_variants(
             src, vary_map, name, base_dir=base, out_dir=out_dir, draft=draft, audit=True,
             sheet=sheet or sheet_video, sheet_video=sheet_video,

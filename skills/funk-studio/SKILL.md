@@ -80,7 +80,7 @@ Rules:
 
 ## A2. Several versions of one ad
 
-`reel_variants` (or `funkbox reel variants`) renders N versions of one reel from a vary file: different shots, palettes or music, with the same approved copy. Each version is validated and text-audited, and `variants.json` lists them. `sheet: true` adds a numbered contact sheet. Compare the drafts, then render the chosen `vNN.reel.json` at full quality with `reel_render`. Details are in docs/reel.md.
+`reel_variants` (or `funkbox reel variants`) renders N versions of one reel from a vary file: different shots, palettes or music, with the same approved copy. Each version is validated and text-audited, and `variants.json` lists them. `sheet: true` adds a numbered contact sheet. Compare the drafts, then render the chosen variant in full: copy its `vNN.reel.json` next to the original reel and render the copy with `reel_render`. Details are in docs/reel.md.
 
 ## B. Funky loops
 

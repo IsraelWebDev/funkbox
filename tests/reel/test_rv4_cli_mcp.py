@@ -42,13 +42,39 @@ def test_count_must_equal_the_length_of_the_vary_lists(demo, work, capsys):
     assert not (work / "cnt-variants").exists()
 
 
+def test_count_refuses_a_vary_value_that_is_not_a_list(demo, work, capsys):
+    reel = write_reel(demo, "rv4-count-type.reel.json")
+    vary = write_vary(work, {"brand.palette": WARM})
+    rc = main(["reel", "variants", str(reel), "--vary", str(vary), "--count", "1", "--out", str(work), "--name", "ct"])
+    assert rc == 1
+    assert "--vary must be a JSON object whose values are lists" in capsys.readouterr().err
+
+
 def test_cli_refuses_a_vary_key_that_writes_literal_text(demo, work, capsys):
     reel = write_reel(demo, "rv4-text.reel.json")
     vary = write_vary(work, {"shots.s1.text": ["a", "b"]})
     rc = main(["reel", "variants", str(reel), "--vary", str(vary), "--out", str(work), "--name", "txt"])
     assert rc == 1
-    assert capsys.readouterr().err.strip()
+    assert "literal text cannot vary" in capsys.readouterr().err
     assert not (work / "txt-variants").exists()
+
+
+def test_a_source_object_with_an_absolute_path_is_refused(demo, work, capsys):
+    reel = write_reel(demo, "rv4-abs.reel.json")
+    vary = write_vary(work, {"shots.s1.source": [{"image": "C:/x.png"}, {"image": "C:/y.png"}]})
+    rc = main(["reel", "variants", str(reel), "--vary", str(vary), "--out", str(work), "--name", "abs"])
+    assert rc == 1
+    assert "outside the project" in capsys.readouterr().err
+    assert not (work / "abs-variants").exists()
+
+
+def test_cli_refuses_a_name_that_is_not_a_plain_folder_name(demo, work, capsys):
+    reel = write_reel(demo, "rv4-name.reel.json")
+    vary = write_vary(work, {"brand.palette": [WARM, DARK]})
+    rc = main(["reel", "variants", str(reel), "--vary", str(vary), "--out", str(work), "--name", "../escape"])
+    assert rc == 1
+    assert "bad name" in capsys.readouterr().err
+    assert not (work.parent / "escape-variants").exists()
 
 
 def test_cli_renders_each_variant_and_writes_the_manifest(demo, work, gl, capsys):
@@ -62,6 +88,19 @@ def test_cli_renders_each_variant_and_writes_the_manifest(demo, work, gl, capsys
     assert "v01" in out and "v02" in out and "audit OK" in out
     assert "manifest:" in out
     assert all(e["audit_ok"] for e in manifest["variants"])
+
+
+def test_cli_sheet_adds_a_contact_sheet_with_its_audit(demo, work, gl, capsys):
+    reel = write_reel(demo, "rv4-sheet.reel.json")
+    vary = write_vary(work, {"brand.palette": [WARM, DARK]})
+    rc = main(["reel", "variants", str(reel), "--vary", str(vary), "--sheet", "--no-audio", "--out", str(work), "--name", "sheet4"])
+    out = capsys.readouterr().out
+    assert rc == 0, out
+    assert "contact sheet: audit OK" in out
+    vdir = work / "sheet4-variants"
+    assert (vdir / "contact_sheet.png").is_file()
+    manifest = json.loads((vdir / "variants.json").read_text(encoding="utf-8"))
+    assert manifest["sheet"]["audit_ok"] is True
 
 
 def test_cli_exits_non_zero_when_a_variant_audit_fails(demo, work, capsys, monkeypatch):
@@ -96,9 +135,15 @@ def test_the_mcp_tool_renders_and_returns_the_manifest(demo, work, gl, monkeypat
     assert (funk_out() / "mcp4-variants" / "variants.json").is_file()
 
 
-def test_the_mcp_tool_refuses_bad_input_with_a_message(demo, work):
+def test_the_mcp_tool_refuses_bad_input_with_a_message(demo, work, monkeypatch):
+    monkeypatch.setattr(tools, "on_gl", lambda fn, *a, **k: fn(*a, **k))
     reel = write_reel(demo, "rv4-mcp-bad.reel.json")
-    for bad_vary in ("not json", '{"shots.s1.text": ["a", "b"]}', "{}"):
+    cases = [
+        ("not json", "not valid JSON"),
+        ("{}", "must be a JSON object"),
+        ('{"shots.s1.text": ["a", "b"]}', "literal text cannot vary"),
+    ]
+    for bad_vary, want in cases:
         res = tools.reel_variants(reel=str(reel), vary=bad_vary, name="mcp5")
-        assert isinstance(res, str) and res, bad_vary
+        assert isinstance(res, str) and want in res, res
     assert not (funk_out() / "mcp5-variants").exists()

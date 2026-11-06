@@ -129,19 +129,24 @@ def cmd_render(a) -> int:
 
 def cmd_variants(a) -> int:
     import json as _json
+    import re as _re
 
     from funkbox.config import funk_out
     from funkbox.reel import variants_render
     from funkbox.reel.variants import ReelVariantError
 
     src = _reel_arg(a)
-    reel = _json.loads(Path(src).read_text(encoding="utf-8"))
-    vary = _json.loads(Path(a.vary).read_text(encoding="utf-8"))
+    reel = _json.loads(Path(src).read_text(encoding="utf-8-sig"))
+    vary = _json.loads(Path(a.vary).read_text(encoding="utf-8-sig"))
+    name = a.name or Path(src).name.replace(".reel.json", "").replace(".json", "")
+    if not _re.match(r"^[A-Za-z0-9_\-]{1,60}$", name):
+        return _err("bad name: use 1-60 chars of A-Z a-z 0-9 _ -")
     if a.count is not None:
-        lengths = {len(v) if isinstance(v, list) else -1 for v in vary.values()} if isinstance(vary, dict) else set()
+        if not isinstance(vary, dict) or not all(isinstance(v, list) for v in vary.values()):
+            return _err("--vary must be a JSON object whose values are lists")
+        lengths = {len(v) for v in vary.values()}
         if lengths != {a.count}:
             return _err(f"--count {a.count} must equal the length of every vary list (got {sorted(lengths) or 'none'})")
-    name = a.name or Path(src).name.replace(".reel.json", "").replace(".json", "")
     out_dir = a.out or (str(Path(src).parent / "out") if getattr(a, "project", None) else None)
     try:
         manifest = variants_render.render_variants(
@@ -161,7 +166,6 @@ def cmd_variants(a) -> int:
     root = Path(out_dir) if out_dir else funk_out()
     print(f"manifest: {root / (name + '-variants') / 'variants.json'}")
     return 0
-
 
 def cmd_setup_models(a) -> int:
     from funkbox.reel import models
