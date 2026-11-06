@@ -46,6 +46,6 @@ On the author's laptop, one run: frame rendering took about 16 s (16:9) and 28 s
 
 ## Status and limits
 
-- Reproduced from a fresh clone of `card/tv-1-voice-audit` at 9d83388, with the steps above: both MP4s came out byte-identical to the committed ones, and `reel validate` reports OK. This was run on the author's laptop only.
+- Reproduced from a fresh clone of `card/tv-1-voice-audit` at f41ed5c (code and tests; later commits change only docs): both MP4s came out byte-identical to the committed ones, and `reel validate` reports OK. This was run on the author's laptop only.
 - A shot too short for its spoken line fails validation. That rule is tested in `tests/reel/test_r1_copy_timeline.py`, not in this demo's own tests.
 - The second-voice variant waits for the reel-variants voice key.
