@@ -86,3 +86,33 @@ def test_a_failed_sheet_is_raised_after_the_manifest_is_written(demo, work, monk
     manifest = json.loads((work / "demo-variants" / "variants.json").read_text(encoding="utf-8"))
     assert manifest["sheet"]["audit_ok"] is False
     assert len(manifest["variants"]) == 2
+
+def test_a_sheet_that_cannot_render_is_recorded_with_its_traceback_and_raised(demo, work, monkeypatch):
+    real = render.render_reel
+
+    def boom(src, name, **kw):
+        if name == "contact_sheet":
+            raise ValueError("boom")
+        return real(src, name, **kw)
+
+    monkeypatch.setattr(render, "render_reel", boom)
+    with pytest.raises(ReelVariantError, match="contact sheet: ValueError: boom"):
+        render_variants(plain_reel(demo), {"brand.palette": [WARM, DARK]}, "demo", base_dir=demo,
+                        out_dir=work, draft=True, with_audio=False, sheet=True)
+    manifest = json.loads((work / "demo-variants" / "variants.json").read_text(encoding="utf-8"))
+    assert manifest["sheet"]["audit_ok"] is False and "boom" in manifest["sheet"]["error"]
+    assert "Traceback" in manifest["sheet"]["traceback"]
+    assert len(manifest["variants"]) == 2
+
+
+def test_a_variant_with_no_video_is_a_clear_sheet_error_not_a_crash(demo, work, monkeypatch):
+    def audit_only(src, stem, *, out_dir, **kw):
+        (out_dir / f"{stem}.text_audit.json").write_text("{}", encoding="utf-8")
+        return [SimpleNamespace(paths={}, audit_ok=True)]
+
+    monkeypatch.setattr(render, "render_formats", audit_only)
+    with pytest.raises(ReelVariantError, match="has no video to show"):
+        render_variants(plain_reel(demo), {"brand.palette": [WARM, DARK]}, "demo", base_dir=demo,
+                        out_dir=work, draft=True, with_audio=False, sheet=True)
+    manifest = json.loads((work / "demo-variants" / "variants.json").read_text(encoding="utf-8"))
+    assert manifest["sheet"]["audit_ok"] is False

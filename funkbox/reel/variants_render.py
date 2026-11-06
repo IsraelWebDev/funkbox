@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import time
+import traceback
 from pathlib import Path
 
 from .variants import ReelVariantError, expand_reel, variant_hash
@@ -65,7 +66,7 @@ def _manifest_hash(base_hash: str, vary: dict, flags: dict, variants: list[dict]
         ],
     }
     if sheet is not None:
-        core["sheet"] = {"cols": sheet["cols"], "rows": sheet["rows"], "audit_ok": sheet["audit_ok"]}
+        core["sheet"] = {k: sheet.get(k) for k in ("cols", "rows", "audit_ok", "error")}
     blob = json.dumps(core, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
@@ -85,22 +86,24 @@ def _write_atomic(path: Path, text: str) -> None:
     os.replace(tmp, path)
 
 
-def _sheet(reel: dict, entries: list[dict], vdir: Path, base_dir, draft: bool, sheet_video: bool) -> tuple[dict | None, str | None]:
-    """Render the contact sheet. Returns (sheet info, error): the error names what went wrong, and nothing is raised."""
+def _sheet(reel: dict, entries: list[dict], vdir: Path, base_dir, draft: bool, sheet_video: bool) -> tuple[dict, str | None]:
+    """Render the contact sheet. Returns (sheet info, error): a failure is recorded in the info and returned, never raised here."""
     from . import render
 
+    cols, rows = grid_shape(len(entries))
     missing = [e["index"] for e in entries if not any(n.endswith(".mp4") for n in e["outputs"])]
     if missing:
-        return None, f"contact sheet: variant {missing[0]} has no video to show (see {vdir})"
+        msg = f"contact sheet: variant {missing[0]} has no video to show (see {vdir})"
+        return {"cols": cols, "rows": rows, "audit_ok": False, "error": msg}, msg
     cells = [str(vdir / next(n for n in e["outputs"] if n.endswith(".mp4"))) for e in entries]
-    cols, rows = grid_shape(len(cells))
     try:
         out = render.render_reel(
             build_sheet_reel(reel, cells), "contact_sheet",
             base_dir=base_dir, out_dir=vdir, draft=draft, audit=True, with_audio=False,
         )
-    except Exception as e:  # recorded in the manifest and raised after it, so the failure is never silent
-        return None, f"contact sheet: {e}"
+    except Exception as e:  # recorded with its traceback in the manifest, and raised after it, so it is never silent
+        msg = f"contact sheet: {type(e).__name__}: {e}"
+        return {"cols": cols, "rows": rows, "audit_ok": False, "error": msg, "traceback": traceback.format_exc()}, msg
     if not sheet_video:
         (vdir / "contact_sheet.mp4").unlink(missing_ok=True)
     info = {
@@ -111,7 +114,6 @@ def _sheet(reel: dict, entries: list[dict], vdir: Path, base_dir, draft: bool, s
         "audit_ok": out.audit_ok,
     }
     return info, None
-
 
 def render_variants(
     reel: dict,
