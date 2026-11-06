@@ -22,7 +22,7 @@ The phonemizer behind `kokoro-onnx` needs espeak-ng (GPL-3.0). It is not bundled
 
 ## Text audit
 
-`final-16x9.text_audit.json` has four `voiceover` entries, one per spoken line. Each matches the copy deck, with `missing` 0, `inexact` 0 and `never_fully_typed` 0:
+`final-16x9.text_audit.json` has four `voiceover` entries, one per spoken line. Each matches what the copy deck declares: three match the line's text, and the hook matches its `say` field (`Your words. Your voice.`), which the deck uses so the voice reads it in normal case. `missing` 0, `inexact` 0 and `never_fully_typed` 0:
 
 - "Your words. Your voice."
 - "EVERY SPOKEN LINE COMES FROM THIS DECK."
@@ -41,7 +41,7 @@ Measured on the encoded MP4s with ffmpeg `ebur128`:
 
 ## Render times and voice
 
-On the laptop CPU, frame rendering took 16 s (16:9) and 28 s (9:16). The renders used the Kokoro voice: `tts_mode()` resolves to `kokoro` with the models installed. The render log does not print the voice mode, so that is the evidence.
+On the author's laptop, one run: frame rendering took about 16 s (16:9) and 28 s (9:16). The renders used the Kokoro voice: `tts_mode()` resolves to `kokoro` with the models installed. The render log does not print the voice mode, so that is the evidence.
 
 ## Not done yet
 

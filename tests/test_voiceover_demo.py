@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[1] / "examples" / "voiceover_demo"
 
 def test_copy_deck_is_hash_locked():
     lock = (ROOT / "copy.sha256").read_text(encoding="utf-8").split()[0]
-    assert hashlib.sha256((ROOT / "copy.json").read_bytes()).hexdigest() == lock
+    data = (ROOT / "copy.json").read_bytes().replace(b"\r\n", b"\n")  # line endings do not change the deck
+    assert hashlib.sha256(data).hexdigest() == lock
 
 
 def test_bed_score_is_valid():

@@ -33,16 +33,10 @@ class CopyDeck:
     def text(self, copy_id: str) -> str:
         return self.lines[copy_id].text
 
-    def default_say(self, copy_id: str) -> str:
-        """What ``say`` speaks when the line has no ``say`` override: newlines to spaces, pronunciations applied."""
-        return self._pronounce(re.sub(r"\s*\n\s*", " ", self.lines[copy_id].text))
-
     def say(self, copy_id: str) -> str:
         """TTS text: ``say`` (or ``text`` with newlines -> spaces) with pronunciations applied."""
         ln = self.lines[copy_id]
-        return self._pronounce(ln.say if ln.say is not None else re.sub(r"\s*\n\s*", " ", ln.text))
-
-    def _pronounce(self, raw: str) -> str:
+        raw = ln.say if ln.say is not None else re.sub(r"\s*\n\s*", " ", ln.text)
         for word in sorted(self.pronounce, key=len, reverse=True):
             raw = re.sub(
                 r"(?<![A-Za-z0-9])" + re.escape(word) + r"(?![A-Za-z0-9])", lambda _m, w=word: self.pronounce[w], raw

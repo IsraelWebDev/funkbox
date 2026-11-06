@@ -547,12 +547,26 @@ def _loudnorm_json(stderr: str) -> dict:
     return d
 
 
+def _expected_spoken(deck: CopyDeck, line) -> str:
+    """The spoken text the deck declares: the ``say`` field if the line has one, else its text with newlines as spaces;
+    then each ``pronounce`` word, longest first, where it stands as a whole word.
+
+    Worked out here, not by ``CopyDeck.say``, so that a bug in ``say`` makes the audit fail instead of agreeing with it.
+    """
+    out = line.say if line.say is not None else re.sub(r"\s*\n\s*", " ", line.text)
+    for word in sorted(deck.pronounce, key=len, reverse=True):
+        pat = r"(?<![A-Za-z0-9])" + re.escape(word) + r"(?![A-Za-z0-9])"
+        out = re.sub(pat, lambda _m, w=word: deck.pronounce[w], out)
+    return out
+
+
 def voice_audit_entries(deck: CopyDeck, spans, fps: int) -> list[dict]:
     """One audit entry per spoken line: the text sent to the voice and the frames it plays over.
 
     The spoken text is ``deck.say`` (the ``say`` override or the caption text, newlines to spaces, pronunciations
     applied). It differs from the caption text only where the deck declares it: a ``say`` override, or a
-    ``pronounce`` word that occurs in the line. Any other difference sets ``text_exact`` to false, and the audit fails.
+    ``pronounce`` word that occurs in the line. Any other difference, or empty spoken text, sets ``text_exact`` to false,
+    and the audit fails.
     """
     out: list[dict] = []
     for sp in spans:
@@ -561,9 +575,7 @@ def voice_audit_entries(deck: CopyDeck, spans, fps: int) -> list[dict]:
         cid = sp.vo_id
         line = deck.lines[cid]
         spoken = deck.say(cid)
-        plain = re.sub(r"\s*\n\s*", " ", line.text)
-        touched = any(re.search(r"(?<![A-Za-z0-9])" + re.escape(w) + r"(?![A-Za-z0-9])", line.text) for w in deck.pronounce)
-        expected = spoken if line.say is not None else (deck.default_say(cid) if touched else plain)
+        expected = _expected_spoken(deck, line)
         first = round(sp.vo_start * fps)
         last = round((sp.vo_start + (sp.vo_dur or 0.0)) * fps) - 1
         out.append(
@@ -577,7 +589,7 @@ def voice_audit_entries(deck: CopyDeck, spans, fps: int) -> list[dict]:
                 "deck_text": line.text,
                 "say_declared": line.say is not None,
                 "pronounce_declared": bool(deck.pronounce),
-                "text_exact": spoken == expected,
+                "text_exact": bool(spoken.strip()) and spoken == expected,
                 "first_frame": first,
                 "last_frame": last,
                 "complete_frame": last,

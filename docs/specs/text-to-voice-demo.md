@@ -1,6 +1,6 @@
 # Spec: text-to-voice demo
 
-Status: proposed. Effort: small. Source: product feedback. No demo uses voiceover yet, even though the engine can speak copy locally.
+Status: built on card/tv-1-voice-audit (TV-1 to TV-3), not yet merged. Effort: small. Source: product feedback. No demo uses voiceover yet, even though the engine can speak copy locally.
 
 ## Why this matters
 
@@ -23,12 +23,12 @@ Files:
 - `README.md`: how to reproduce, with the text audit excerpt.
 - Output: 16:9 and 9:16 MP4 and the `text_audit.json`.
 
-The voice variant is `voice: ["kokoro:af_heart", "kokoro:am_michael"]` in a reel-variants run, once that spec lands.
+The voice variant is `voice: ["kokoro:af_heart", "kokoro:am_michael"]` in a reel-variants run, once that spec lands. TV-2 ships the single-voice demo only; the variant is not built.
 
 ## Acceptance tests
 
 - Renders with a real Kokoro voice on the laptop. The stub is not allowed for the demo.
-- The text audit covers the voiceover lines. Check first whether it does. If not, add a `slot: "voiceover"` entry for each spoken line, with the text that was synthesised, and compare it to the copy deck byte for byte.
+- The text audit covers the voiceover lines. Check first whether it does. If not, add a `slot: "voiceover"` entry for each spoken line, with the text that was synthesised, and compare it to what the copy deck declares: the line's text with newlines as spaces, or its `say` field when it has one, with `pronounce` applied. The demo's hook line uses a `say` field, so its spoken text is checked against that field, not against the caption text.
 - `validate` reports no spoken line that runs past its shot.
 - Mix loudness is within the existing target.
 - The README reproduces the output from a clean clone with the reel extras installed.
