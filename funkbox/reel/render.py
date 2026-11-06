@@ -296,17 +296,18 @@ class Renderer:
         g = sh.source.grid
         assert g is not None
         cells: list[_GridCell] = []
-        for c, rect in zip(g.cells, grid_mod.cell_rects(g.cols, g.rows, g.gap, self.w, self.h)):
+        for j, (c, rect) in enumerate(zip(g.cells, grid_mod.cell_rects(g.cols, g.rows, g.gap, self.w, self.h))):
             cw, ch = rect[2], rect[3]
             path = self._res(c.video)
             dw, dh = framing.decode_size(framing.probe_video(path))
             k = min(1.0, 2.0 * max(cw, ch) / max(dw, dh))  # no need to decode far above the cell
             dw, dh = max(2, int(dw * k) // 2 * 2), max(2, int(dh * k) // 2 * 2)
             gc = _GridCell(rect, (dw, dh), VideoStream(path, dw, dh, self.fps, None, False, "native"))
-            if c.label:
+            lab = grid_mod.label_for(c, j, self.deck.text)
+            if lab is not None:
                 gc.label = grid_mod.layout_label(
-                    c.label,
-                    self.deck.text(c.label),
+                    lab[0],
+                    lab[1],
                     c.label_style,
                     self.fonts(),
                     self.reel.brand,
@@ -342,12 +343,13 @@ class Renderer:
                 spr = captions_mod.render_caption(gc.label, "none", since, None, span.duration)
                 if spr is not None:
                     if note and self.audit is not None:
+                        lab = grid_mod.label_for(c, i, self.deck.text)
                         self._note(
                             "grid_label",
                             span,
-                            "grid_label",
+                            "variant_index" if c.label_index else "grid_label",
                             str(i),
-                            c.label,
+                            None if c.label_index else lab[0],
                             span.start_frame + local,
                             gc.label,
                             spr,
@@ -582,7 +584,8 @@ class Renderer:
         out = []
         for e in (self.audit or {}).values():
             d = {k: v for k, v in e.items() if k != "chars"}
-            d["text_exact"] = e["text"] == self.deck.text(e["copy_id"])
+            want = str(int(e["instance"]) + 1) if e["slot"] == "variant_index" else self.deck.text(e["copy_id"])
+            d["text_exact"] = e["text"] == want
             d["frames"] = [e["first_frame"], e["last_frame"]]
             out.append(d)
         return out
@@ -820,7 +823,9 @@ def _audit_json(r: Renderer, plan: Plan, name: str, out_dir: Path) -> dict:
             expected.add(f"{sh.id}/caption/main")
         if sh.source.grid is not None:
             for j, cell in enumerate(sh.source.grid.cells):
-                if cell.label:
+                if cell.label_index:
+                    expected.add(f"{sh.id}/variant_index/{j}")
+                elif cell.label:
                     expected.add(f"{sh.id}/grid_label/{j}")
     ec = plan.reel.end_card
     if ec:
