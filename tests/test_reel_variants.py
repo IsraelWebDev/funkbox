@@ -135,3 +135,9 @@ def test_input_reel_is_not_mutated(project):
     before = copy.deepcopy(reel)
     expand({"brand.palette": ["#111111,#222222"], "shots.s1.motion": ["none"]}, project, reel)
     assert reel == before
+
+def test_shot_ids_that_look_like_copy_are_not_rejected(project):
+    reel = make_reel()
+    reel["shots"][0]["id"] = "copy_1"
+    variants, _ = expand_reel(reel, {"shots.copy_1.motion": [{"type": "none"}, {"type": "kenburns"}]}, base_dir=project, deep=False)
+    assert [v["shots"][0]["motion"]["type"] for v in variants] == ["none", "kenburns"]
