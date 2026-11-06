@@ -139,3 +139,15 @@ def motion_crops(motion: Motion, box: tuple[float, float, float, float], W: int,
         if x < win.x0 - 0.5 or y < win.y0 - 0.5 or x + w > win.x1 + 0.5 or y + h > win.y1 + 0.5:
             return True
     return False
+
+
+INDEX_COPY_ID = "variant_index"
+
+
+def label_for(cell, index: int, deck_text) -> tuple[str, str] | None:
+    """(copy id, text) drawn on a cell: its copy line, or the cell's 1-based number for ``{"index": true}``."""
+    if cell.label_index:
+        return INDEX_COPY_ID, str(index + 1)
+    if cell.label:
+        return cell.label, deck_text(cell.label)
+    return None

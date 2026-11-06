@@ -216,13 +216,16 @@ def _check_templates_and_fit(reel: Reel, rep: Report) -> None:
             continue  # reported by _check_grid_geometry
         rects = grid_mod.cell_rects(g.cols, g.rows, g.gap, W, H)
         for j, (cell, rect) in enumerate(zip(g.cells, rects)):
-            if not cell.label or cell.label not in rep.deck.lines:
+            if cell.label and cell.label not in rep.deck.lines:
+                continue
+            lab = grid_mod.label_for(cell, j, rep.deck.text)
+            if lab is None:
                 continue
             where = f"shots[{i}] ({sh.id}).source.grid.cells[{j}].label"
             try:
                 grid_mod.layout_label(
-                    cell.label,
-                    rep.deck.text(cell.label),
+                    lab[0],
+                    lab[1],
                     cell.label_style,
                     fonts,
                     reel.brand,
@@ -233,7 +236,7 @@ def _check_templates_and_fit(reel: Reel, rep: Report) -> None:
                 )
             except (captions.CaptionFitError, ValueError) as e:  # GlyphError is a ValueError
                 rep.errors.append(
-                    f"{where}: " + (f"copy {cell.label!r}: {e}" if isinstance(e, captions.GlyphError) else str(e))
+                    f"{where}: " + (f"copy {lab[0]!r}: {e}" if isinstance(e, captions.GlyphError) else str(e))
                 )
     for i, sh in enumerate(reel.shots):  # v3.1: caption/product collision rule
         c = sh.caption
@@ -369,12 +372,15 @@ def _check_grid_label_crops(reel: Reel, rep: Report) -> None:
         if g is None or sp is None or sh.motion.type not in ("kenburns", "frame"):
             continue
         for j, (cell, rect) in enumerate(zip(g.cells, grid_mod.cell_rects(g.cols, g.rows, g.gap, W, H))):
-            if not cell.label or cell.label not in rep.deck.lines:
+            if cell.label and cell.label not in rep.deck.lines:
+                continue
+            lab = grid_mod.label_for(cell, j, rep.deck.text)
+            if lab is None:
                 continue
             try:
                 lay = grid_mod.layout_label(
-                    cell.label,
-                    rep.deck.text(cell.label),
+                    lab[0],
+                    lab[1],
                     cell.label_style,
                     fonts,
                     reel.brand,

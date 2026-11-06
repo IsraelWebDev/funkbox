@@ -109,6 +109,7 @@ class GridCell:
     fit: str = "contain"  # cover | contain
     label: str | None = None  # a copy ID (never text), drawn at the bottom of the cell
     label_style: str = "bold-pop"
+    label_index: bool = False  # {"index": true}: draws the cell's 1-based number (the variant number)
 
 
 @dataclass
@@ -340,6 +341,8 @@ def scan_forbidden(obj: Any, path: str = "") -> list[str]:
                     continue
                 if GRID_LABEL_PATH_RE.match(p) and isinstance(v, str) and ID_RE.match(v):
                     continue  # a grid cell's label is a copy id
+                if GRID_LABEL_PATH_RE.match(p) and v == {"index": True}:
+                    continue  # a grid cell's label is its number
                 errs.append(f"{p}: free text is not allowed in a reel; reference a copy line by ID (copy.json) instead")
             errs += scan_forbidden(v, p)
     elif isinstance(obj, list):
@@ -358,10 +361,19 @@ def _parse_grid_cell(r: _R) -> GridCell:
             f"{r.path}: needs a video (a path); a cell with neither video nor image is not allowed "
             f"(image cells are not supported)"
         )
+    raw_label = r.raw("label")
+    label, label_index = None, False
+    if isinstance(raw_label, dict):
+        label_index = set(raw_label) == {"index"} and raw_label["index"] is True
+        if not label_index:
+            r.errs.append(f'{r._p("label")}: expected a copy id, or {{"index": true}} for the cell number, got {raw_label!r}')
+    elif raw_label is not None:
+        label = r.s("label", None, pattern=ID_RE)
     c = GridCell(
         video=r.s("video", None),
         fit=r.s("fit", "contain", ("cover", "contain")) or "contain",
-        label=r.s("label", None, pattern=ID_RE),
+        label=label,
+        label_index=label_index,
         label_style=r.s("label_style", "bold-pop", pattern=ID_RE) or "bold-pop",
     )
     r.finish()

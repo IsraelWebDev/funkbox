@@ -4,7 +4,6 @@ import json
 from types import SimpleNamespace
 
 import pytest
-from conftest import make_plain_reel
 
 from funkbox.reel import approval
 from funkbox.reel import project as P
@@ -12,13 +11,22 @@ from funkbox.reel import render
 from funkbox.reel.variants import ReelVariantError, variant_hash
 from funkbox.reel.variants_render import render_variants
 
+def plain_reel(demo):
+    """The demo reel with voiceover and music off and 3 s shots (a caption needs room to finish typing)."""
+    d = json.loads((demo / "demo.reel.json").read_text(encoding="utf-8"))
+    d["audio"] = {"voiceover": False}
+    for sh in d["shots"]:
+        sh["duration"] = 3.0
+        sh.pop("vo", None)
+    return d
+
 WARM = "#f6f7f4,#0f7c6e"
 DARK = "#0f1216,#4fd1b9"
 
 
 def long_reel(base):
     """The plain demo reel with 3 s shots: a caption needs room to finish typing, or the audit rightly fails it."""
-    reel = make_plain_reel(base)
+    reel = plain_reel(base)
     for sh in reel["shots"]:
         sh["duration"] = 3.0
     return reel
