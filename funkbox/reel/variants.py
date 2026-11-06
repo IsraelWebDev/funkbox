@@ -92,7 +92,7 @@ def _key_errors(key: str) -> list[str]:
         return [f"vary key {key!r}: literal text cannot vary; copy comes from the approved deck"]
     if _is_caption_copy_id(parts):
         return []
-    if "copy" in key:
+    if any(p == "copy" or p.startswith("copy_") for p in parts):
         return [f"vary key {key!r}: the copy deck cannot vary; use captions.<shot>.copy_id"]
     if key in ("brand.palette", "audio.music"):
         return []

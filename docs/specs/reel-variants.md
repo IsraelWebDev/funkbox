@@ -43,7 +43,7 @@ funkbox reel variants demo.reel.json --vary variants.json --count 6 --sheet --dr
 }
 ```
 
-Allowed keys: `shots.<id>.<field>` for source, motion, from/to, speed and grid order; `brand.palette`; `audio.music`; `captions.<shot>.copy_id` (approved lines only). Any key that reaches `copy.json`, a literal `text` field, or a file outside the project is an error.
+Allowed keys: `shots.<id>.<field>` for source and motion (RV-2); from/to, speed and grid order are deferred and rejected until a later card; `brand.palette`; `audio.music`; `captions.<shot>.copy_id` (approved lines only). Any key that reaches `copy.json`, a literal `text` field, or a file outside the project is an error.
 
 ## Outputs
 
@@ -51,7 +51,7 @@ Under `<name>-variants/`:
 
 - `vNN-16x9.mp4` and `vNN-9x16.mp4`, or PNG openings with `--still`.
 - `vNN.reel.json`, the resolved reel for that variant.
-- `vNN.text_audit.json`, the audit for that variant.
+- `vNN-<format>.text_audit.json`, one audit per rendered file (a reel with no declared formats gives `vNN.text_audit.json`). Every audit is checked against the same copy deck.
 - `contact_sheet.png` (and `contact_sheet.mp4` if asked): one cell per variant showing its opening.
 - `variants.json`: the manifest with each variant's vary values, reel hash, audit path and render time.
 
