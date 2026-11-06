@@ -153,3 +153,9 @@ def test_pronounce_matches_whole_words_only():
 def test_end_spans_never_get_a_voice_entry():
     deck = deck_with({"hook": {"text": "HI."}})
     assert audio.voice_audit_entries(deck, [span("end", "hook", 0.0, 1.0, kind="end")], 30) == []
+
+def test_pronounce_leading_boundary():
+    deck = deck_with({"other": {"text": "BOXFUNK."}}, pronounce={"FUNK": "fun"})
+    [e] = audio.voice_audit_entries(deck, [span("s1", "other", 0.0, 1.0)], 30)
+    assert e["text"] == "BOXFUNK."
+    assert e["text_exact"] is True
