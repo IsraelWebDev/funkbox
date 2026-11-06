@@ -1,6 +1,10 @@
 {
   "reel": "final-16x9",
   "copy_deck": "../copy.json",
+  "tts": {
+    "mode": "kokoro",
+    "voice": "kokoro:af_heart"
+  },
   "fps": 30,
   "ok": true,
   "missing": [],

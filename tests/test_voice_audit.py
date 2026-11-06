@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from funkbox.reel import audio, render
 from funkbox.reel.copydeck import parse_copy
 
@@ -25,7 +27,7 @@ def deck_with(lines, pronounce=None, tmp_path=None):
 def audit(tmp_path, deck, spans, voiceover=True):
     """Run the real _audit_json on a minimal plan (one voiced shot, s1, speaking copy id 'hook')."""
     shot = SimpleNamespace(id="s1", vo="hook", caption=None, source=SimpleNamespace(grid=None))
-    reel = SimpleNamespace(audio=SimpleNamespace(voiceover=voiceover), settings=SimpleNamespace(fps=30), shots=[shot], end_card=None)
+    reel = SimpleNamespace(audio=SimpleNamespace(voiceover=voiceover, voice="kokoro:af_heart"), settings=SimpleNamespace(fps=30), shots=[shot], end_card=None)
     plan = SimpleNamespace(deck=deck, spans=spans, reel=reel)
     out = render._audit_json(SimpleNamespace(audit_report=lambda: []), plan, "t", tmp_path)
     return json.loads(Path(out["path"]).read_text(encoding="utf-8"))
@@ -118,3 +120,18 @@ def test_voice_off_writes_no_voice_entries(tmp_path):
     doc = audit(tmp_path, deck, [span("s1", "hook", 0.0, 1.0)], voiceover=False)
     assert doc["entries"] == []
     assert doc["ok"] is True
+    assert doc["tts"] is None
+
+
+def test_audit_records_the_tts_engine_and_voice(tmp_path, monkeypatch):
+    monkeypatch.setattr(audio, "tts_mode", lambda voice=None: "kokoro")
+    deck = deck_with({"hook": {"text": "HI."}}, tmp_path=tmp_path)
+    doc = audit(tmp_path, deck, [span("s1", "hook", 0.0, 1.0)])
+    assert doc["tts"] == {"mode": "kokoro", "voice": "kokoro:af_heart"}
+
+
+def test_voiceover_without_a_tts_engine_raises(monkeypatch):
+    deck = deck_with({"hook": {"text": "HI."}})
+    monkeypatch.setattr(audio, "tts_mode", lambda voice=None: "none")
+    with pytest.raises(RuntimeError, match="needs a TTS voice"):
+        audio.synthesize(deck, "hook", None)

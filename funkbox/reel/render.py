@@ -839,6 +839,7 @@ def _audit_json(r: Renderer, plan: Plan, name: str, out_dir: Path) -> dict:
     doc = {
         "reel": name,
         "copy_deck": deck,
+        "tts": {"mode": audio.tts_mode(plan.reel.audio.voice), "voice": plan.reel.audio.voice} if plan.reel.audio.voiceover else None,
         "fps": plan.reel.settings.fps,
         "ok": ok,
         "missing": missing,

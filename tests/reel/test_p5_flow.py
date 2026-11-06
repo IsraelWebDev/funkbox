@@ -157,6 +157,9 @@ def test_whole_flow_over_stdio_to_a_draft_render_and_the_text_audit_passes(penv,
     audit = json.loads((d / "out" / "glowmop-draft.text_audit.json").read_text(encoding="utf-8"))
     assert audit["ok"] and audit["entries"] and not audit["missing"] and not audit["inexact"]
     for e in audit["entries"]:
+        if e.get("kind") == "voiceover":  # spoken, not drawn: checked against what the deck declares (say, or text)
+            assert e["text_exact"] is True, e
+            continue
         assert e["text"].encode("utf-8") == deck[e["copy_id"]]["text"].encode("utf-8"), e
     ids = {e["copy_id"] for e in audit["entries"]}
     assert {"hook", "end_head", "url"} <= ids

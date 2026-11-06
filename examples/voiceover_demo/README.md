@@ -41,7 +41,7 @@ Measured on the encoded MP4s with ffmpeg `ebur128`:
 
 ## Render times and voice
 
-On the author's laptop, one run: frame rendering took about 16 s (16:9) and 28 s (9:16). The renders used the Kokoro voice: `tts_mode()` resolves to `kokoro` with the models installed. The render log does not print the voice mode, so that is the evidence.
+On the author's laptop, one run: frame rendering took about 16 s (16:9) and 28 s (9:16). The renders used the Kokoro voice. The audit records the engine: `"tts": {"mode": "kokoro", "voice": "kokoro:af_heart"}` in `final-16x9.text_audit.json` and `final-9x16.text_audit.json`.
 
 ## Not done yet
 
