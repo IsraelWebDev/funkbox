@@ -4,7 +4,7 @@ Layout under ``<out_dir>/<name>-variants/``: ``vNN-<format>.mp4`` (one per forma
 ``vNN-<format>.text_audit.json`` (one audit per rendered file), ``vNN.reel.json`` (the expanded variant reel),
 ``contact_sheet.png`` and ``contact_sheet.text_audit.json`` (with ``sheet=True``), and ``variants.json`` (the manifest).
 
-Every variant is validated, copy lock included, before the first render. A failed text audit (variant or sheet) is
+Every variant is validated, copy lock included, before the first render. A failed text audit, or a failed sheet, is
 recorded in the manifest and raised after it is written, so a caller cannot ship a bad variant by ignoring the result.
 """
 
@@ -51,7 +51,10 @@ def build_sheet_reel(base: dict, cells: list[str]) -> dict:
 
 
 def _manifest_hash(base_hash: str, vary: dict, flags: dict, variants: list[dict], sheet: dict | None) -> str:
-    """Hash of what the run decided (inputs, flags, reel hashes, outputs, audit results): no paths, no clock."""
+    """Hash of what the run decided (inputs, flags, reel hashes, outputs, audit results): no paths, no clock.
+
+    The sheet enters the hash only when there is one, so a run without a sheet hashes as it did before the sheet existed.
+    """
     core = {
         "base_reel_sha256": base_hash,
         "vary": vary,
@@ -60,8 +63,9 @@ def _manifest_hash(base_hash: str, vary: dict, flags: dict, variants: list[dict]
             {"index": v["index"], "reel_sha256": v["reel_sha256"], "audit_ok": v["audit_ok"], "outputs": v["outputs"]}
             for v in variants
         ],
-        "sheet": None if sheet is None else {"cols": sheet["cols"], "rows": sheet["rows"], "audit_ok": sheet["audit_ok"]},
     }
+    if sheet is not None:
+        core["sheet"] = {"cols": sheet["cols"], "rows": sheet["rows"], "audit_ok": sheet["audit_ok"]}
     blob = json.dumps(core, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
@@ -81,6 +85,34 @@ def _write_atomic(path: Path, text: str) -> None:
     os.replace(tmp, path)
 
 
+def _sheet(reel: dict, entries: list[dict], vdir: Path, base_dir, draft: bool, sheet_video: bool) -> tuple[dict | None, str | None]:
+    """Render the contact sheet. Returns (sheet info, error): the error names what went wrong, and nothing is raised."""
+    from . import render
+
+    missing = [e["index"] for e in entries if not any(n.endswith(".mp4") for n in e["outputs"])]
+    if missing:
+        return None, f"contact sheet: variant {missing[0]} has no video to show (see {vdir})"
+    cells = [str(vdir / next(n for n in e["outputs"] if n.endswith(".mp4"))) for e in entries]
+    cols, rows = grid_shape(len(cells))
+    try:
+        out = render.render_reel(
+            build_sheet_reel(reel, cells), "contact_sheet",
+            base_dir=base_dir, out_dir=vdir, draft=draft, audit=True, with_audio=False,
+        )
+    except Exception as e:  # recorded in the manifest and raised after it, so the failure is never silent
+        return None, f"contact sheet: {e}"
+    if not sheet_video:
+        (vdir / "contact_sheet.mp4").unlink(missing_ok=True)
+    info = {
+        "png": "contact_sheet.png",
+        "audit": Path(out.paths["text_audit"]).name,
+        "cols": cols,
+        "rows": rows,
+        "audit_ok": out.audit_ok,
+    }
+    return info, None
+
+
 def render_variants(
     reel: dict,
     vary: dict,
@@ -97,7 +129,7 @@ def render_variants(
     """Render each variant of ``reel`` (and the contact sheet with ``sheet``) and return the manifest.
 
     Raises ``ReelVariantError`` before any render starts if a variant is invalid, and after the manifest is
-    written if any text audit fails.
+    written if a text audit or the sheet fails.
     """
     from ..config import funk_out
     from . import render
@@ -107,7 +139,9 @@ def render_variants(
     vdir = root / f"{name}-variants"
     vdir.mkdir(parents=True, exist_ok=True)
     _clear_stale(vdir)
-    flags = {"draft": draft, "audit": audit, "with_audio": with_audio, "sheet": sheet}
+    flags = {"draft": draft, "audit": audit, "with_audio": with_audio}
+    if sheet:
+        flags["sheet"] = True
     render._log(f"rendering {len(variants)} variants ({'draft' if draft else 'full'}) to {vdir}")
 
     entries: list[dict] = []
@@ -134,23 +168,9 @@ def render_variants(
             "render_seconds": round(time.perf_counter() - t0, 2),
         })
 
-    sheet_info = None
+    sheet_info, sheet_error = None, None
     if sheet:
-        cells = [str(vdir / next(n for n in e["outputs"] if n.endswith(".mp4"))) for e in entries]
-        cols, rows = grid_shape(len(cells))
-        out = render.render_reel(
-            build_sheet_reel(reel, cells), "contact_sheet",
-            base_dir=base_dir, out_dir=vdir, draft=draft, audit=True, with_audio=False,
-        )
-        if not sheet_video:
-            (vdir / "contact_sheet.mp4").unlink(missing_ok=True)
-        sheet_info = {
-            "png": "contact_sheet.png",
-            "audit": Path(out.paths["text_audit"]).name,
-            "cols": cols,
-            "rows": rows,
-            "audit_ok": out.audit_ok,
-        }
+        sheet_info, sheet_error = _sheet(reel, entries, vdir, base_dir, draft, sheet_video)
 
     manifest = {
         "name": name,
@@ -158,14 +178,17 @@ def render_variants(
         "flags": flags,
         "base_reel_sha256": variant_hash(reel),
         "vary": vary,
-        "sheet": sheet_info,
         "manifest_sha256": _manifest_hash(variant_hash(reel), vary, flags, entries, sheet_info),
         "variants": entries,
     }
+    if sheet:
+        manifest["sheet"] = sheet_info
     _write_atomic(vdir / "variants.json", json.dumps(manifest, indent=2, ensure_ascii=False))
     failed = [f"variant {e['index']}: text audit failed (see {vdir}/v{e['index']:02d}*.text_audit.json)"
               for e in entries if e["audit_ok"] is False]
-    if sheet_info is not None and sheet_info["audit_ok"] is False:
+    if sheet_error:
+        failed.append(sheet_error)
+    elif sheet_info is not None and sheet_info["audit_ok"] is False:
         failed.append(f"contact sheet: text audit failed (see {vdir}/contact_sheet.text_audit.json)")
     if failed:
         raise ReelVariantError(failed)

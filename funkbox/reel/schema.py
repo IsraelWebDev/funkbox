@@ -341,7 +341,7 @@ def scan_forbidden(obj: Any, path: str = "") -> list[str]:
                     continue
                 if GRID_LABEL_PATH_RE.match(p) and isinstance(v, str) and ID_RE.match(v):
                     continue  # a grid cell's label is a copy id
-                if GRID_LABEL_PATH_RE.match(p) and v == {"index": True}:
+                if GRID_LABEL_PATH_RE.match(p) and isinstance(v, dict) and set(v) == {"index"} and v["index"] is True:
                     continue  # a grid cell's label is its number
                 errs.append(f"{p}: free text is not allowed in a reel; reference a copy line by ID (copy.json) instead")
             errs += scan_forbidden(v, p)

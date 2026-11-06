@@ -349,7 +349,7 @@ class Renderer:
                             span,
                             "variant_index" if c.label_index else "grid_label",
                             str(i),
-                            lab[0],
+                            None if c.label_index else lab[0],
                             span.start_frame + local,
                             gc.label,
                             spr,
