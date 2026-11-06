@@ -809,9 +809,13 @@ def _build_audio(plan: Plan, out_dir: Path, name: str, fps: int) -> Path | None:
 
 def _audit_json(r: Renderer, plan: Plan, name: str, out_dir: Path) -> dict:
     """Write <name>.text_audit.json: every string drawn, its copy id and frame range."""
-    entries = sorted(r.audit_report(), key=lambda e: (e["first_frame"], e["shot"], e["slot"], e["instance"]))
+    from . import audio
+    voice = audio.voice_audit_entries(plan.deck, plan.spans, plan.reel.settings.fps) if plan.reel.audio.voiceover else []
+    entries = sorted(r.audit_report() + voice, key=lambda e: (e["first_frame"], e["shot"], e["slot"], e["instance"]))
     expected = set()
     for sh in plan.reel.shots:
+        if sh.vo and plan.reel.audio.voiceover:
+            expected.add(f"{sh.id}/voiceover/{sh.vo}")
         if sh.caption:
             expected.add(f"{sh.id}/caption/main")
         if sh.source.grid is not None:

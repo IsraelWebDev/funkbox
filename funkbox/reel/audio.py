@@ -545,3 +545,42 @@ def _loudnorm_json(stderr: str) -> dict:
     if str(d.get("input_i", "")).strip("-") in ("inf", ""):
         raise RuntimeError("cannot measure loudness of a silent mix")
     return d
+
+
+def voice_audit_entries(deck: CopyDeck, spans, fps: int) -> list[dict]:
+    """One audit entry per spoken line: the text sent to the voice and the frames it plays over.
+
+    The spoken text is ``deck.say`` (the ``say`` override or the caption text, newlines to spaces, pronunciations
+    applied). It may differ from the caption text only when the deck declares why: a ``say`` override or a
+    ``pronounce`` map. Any other difference sets ``text_exact`` to false, and the audit fails.
+    """
+    out: list[dict] = []
+    for sp in spans:
+        if sp.kind != "shot" or not sp.vo_id or sp.vo_start is None:
+            continue
+        cid = sp.vo_id
+        line = deck.lines[cid]
+        spoken = deck.say(cid)
+        plain = re.sub(r"\s*\n\s*", " ", line.text)
+        declared = line.say is not None or bool(deck.pronounce)
+        first = round(sp.vo_start * fps)
+        last = round((sp.vo_start + (sp.vo_dur or 0.0)) * fps) - 1
+        out.append(
+            {
+                "kind": "voiceover",
+                "shot": sp.id,
+                "slot": "voiceover",
+                "instance": cid,
+                "copy_id": cid,
+                "text": spoken,
+                "deck_text": line.text,
+                "say_declared": line.say is not None,
+                "pronounce_declared": bool(deck.pronounce),
+                "text_exact": spoken == plain or declared,
+                "first_frame": first,
+                "last_frame": last,
+                "complete_frame": last,
+                "frames": [first, last],
+            }
+        )
+    return out

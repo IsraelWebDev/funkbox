@@ -1,0 +1,27 @@
+{
+  "brand_name": "FUNKBOX",
+  "lines": {
+    "hook": {
+      "text": "YOUR WORDS.\nYOUR VOICE.",
+      "say": "Your words. Your voice."
+    },
+    "line2": {
+      "text": "EVERY SPOKEN LINE COMES FROM THIS DECK."
+    },
+    "line3": {
+      "text": "THE CAPTIONS MATCH. THE AUDIT PROVES IT."
+    },
+    "line4": {
+      "text": "THE VOICE RUNS ON YOUR COMPUTER."
+    },
+    "end_head": {
+      "text": "Text to voice,\nlocal."
+    },
+    "url": {
+      "text": "GITHUB  ISRAELWEBDEV/FUNKBOX"
+    }
+  },
+  "pronounce": {
+    "FUNKBOX": "fun box"
+  }
+}
