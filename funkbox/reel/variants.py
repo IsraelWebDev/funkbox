@@ -28,6 +28,14 @@ _ALLOWED = (
 class ReelVariantError(ValueError):
     """One message per problem; a run with any problem renders nothing."""
 
+    def __init__(self, problems):
+        problems = [problems] if isinstance(problems, str) else list(problems)
+        super().__init__(problems)
+        self.problems = problems
+
+    def __str__(self) -> str:
+        return "; ".join(self.problems)
+
 
 def variant_hash(reel: dict) -> str:
     """sha256 of the canonical JSON of a reel: equal reels give equal hashes."""
@@ -143,6 +151,9 @@ def _shot(variant: dict, shot_id: str) -> dict:
 def _source(key: str, old: dict | None, value: Any) -> dict:
     """A path (image or video by extension), a #hex colour, or a whole source object."""
     if isinstance(value, dict):
+        for field in ("image", "video"):  # a source object may name a file: same rule as a plain path
+            if field in value:
+                _safe_path(f"{key}.{field}", value[field])
         return value
     if not isinstance(value, str):
         raise ReelVariantError(f"{key}: expected a path, a #hex colour or a source object, got {value!r}")

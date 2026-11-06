@@ -77,6 +77,24 @@ A reel can speak its copy with a local voice. Set `audio.voiceover: true` and a 
 - `--audit` writes the spoken lines into `<name>.text_audit.json` as `voiceover` entries.
 - A worked example with a music bed is in [`examples/voiceover_demo/`](../examples/voiceover_demo/README.md).
 
+## Variants: several versions of one ad
+
+`funkbox reel variants` renders N alternatives of one reel from a vary file. Each key maps to a list of values, all lists have the same length, and position i of every list makes variant i:
+
+```
+funkbox reel variants demo.reel.json --vary variants.json --count 3 --sheet --name demo
+```
+
+- Allowed keys: `shots.<id>.source` and `shots.<id>.motion`, `brand.palette`, `audio.music`, and `captions.<shot>.copy_id` (approved lines only). A key that writes copy, a literal `text`, or a file outside the project is refused.
+- Every variant is validated before any render starts. One invalid variant stops the whole run and names it.
+- Every variant is text-audited against the approved copy deck. The copy lock applies: an edited, unapproved `copy.json` refuses the run.
+- Output goes to `<name>-variants/`: `vNN.reel.json`, `vNN-<format>.mp4` (`vNN.mp4` when the reel declares no formats), `vNN-<format>.text_audit.json`, and `variants.json` (the manifest, with each variant's values and hashes). If any audit fails the command exits 1, and the manifest is still written.
+- `--sheet` also builds `contact_sheet.png`: one cell per variant, numbered 1 to N. The numbers are the only labels, so the copy is not changed, and the sheet has its own audit. `--sheet-video` also renders `contact_sheet.mp4`.
+- Drafts are the default (540 px, 24 fps, no depth model); `--full` renders every variant at full quality. At most 12 variants per run.
+- To render one chosen variant in full, copy its `vNN.reel.json` into the original reel's folder first (its asset paths are relative to that folder), then run `funkbox reel render` on the copy.
+- The MCP tool is `reel_variants`. It takes `reel` (a path, or a JSON object), `vary` (a JSON object or its text), `name` (required unless `project` is given), `draft` (default true), `sheet`, `sheet_video` and `project`, and it returns the manifest. It has no `count`, `out`, no-audio or `full` options.
+- Not built yet: `--still` (PNG openings), `from`/`to` keys, speed, and grid order.
+
 ## Shot lists for specific briefs
 
 `project_auto_reel` is a first draft. When a brief gives exact timings, framing or mostly screen recordings, edit the

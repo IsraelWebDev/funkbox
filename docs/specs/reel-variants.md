@@ -1,6 +1,6 @@
 # Spec: reel variants
 
-Status: proposed. Effort: medium. Source: creator feedback. Creator guides recommend shipping many versions of one ad, each with a different first scene ([influee](https://influee.co/gb/blog/doubling_roas_with_ad_variations), [videotok](https://www.videotok.app/blog/performance/ai-creative-testing-workflow-social-ads), [segwise](https://segwise.ai/blog/ai-ugc-perofrmance-marketing-2026)). These links come from the feedback; their content has not been checked.
+Status: RV-1 to RV-4 merged. Deferred: `--still` (PNG openings), from/to, speed, grid order. Effort: medium. Source: creator feedback. Creator guides recommend shipping many versions of one ad, each with a different first scene ([influee](https://influee.co/gb/blog/doubling_roas_with_ad_variations), [videotok](https://www.videotok.app/blog/performance/ai-creative-testing-workflow-social-ads), [segwise](https://segwise.ai/blog/ai-ugc-perofrmance-marketing-2026)). These links come from the feedback; their content has not been checked.
 
 ## Problem
 
@@ -49,7 +49,7 @@ Allowed keys: `shots.<id>.<field>` for source and motion (RV-2); from/to, speed 
 
 Under `<name>-variants/`:
 
-- `vNN-16x9.mp4` and `vNN-9x16.mp4`, or PNG openings with `--still`.
+- `vNN-16x9.mp4` and `vNN-9x16.mp4`. PNG openings with `--still` are deferred (RV-4 does not build them).
 - `vNN.reel.json`, the resolved reel for that variant.
 - `vNN-<format>.text_audit.json`, one audit per rendered file (a reel with no declared formats gives `vNN.text_audit.json`). Every audit is checked against the same copy deck.
 - `contact_sheet.png` (RV-3; `contact_sheet.mp4` if asked): one cell per variant showing its opening.
@@ -78,7 +78,7 @@ Alternative (not recommended): label each cell with the variant's first caption 
 1. Expand and validate vary keys into variant reels (no rendering). Tests: rejections above.
 2. Render loop: per-variant render, audit, sidecar, manifest. Tests: audit equality, determinism.
 3. Contact sheet with `label: {"index": true}`. Tests: audit entries for each index.
-4. CLI and `reel_variants` MCP tool, plus docs/reel.md and docs/skill/SKILL.md updates.
+4. CLI and `reel_variants` MCP tool, plus docs/reel.md and docs/skill/SKILL.md updates. Done. Deferred from this card: `--still`.
 
 ## Risks
 
