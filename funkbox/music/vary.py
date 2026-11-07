@@ -14,6 +14,7 @@ import json
 import math
 import random
 import re
+from pathlib import Path
 from typing import Any
 
 from .score import SCALES, check
@@ -169,3 +170,102 @@ def score_sha256(score: dict) -> str:
     """The SHA-256 of the score's canonical JSON (sorted keys, no spaces)."""
     text = json.dumps(score, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+# --------------------------------------------------------------------------- MV-2: a set of variants
+GENERATOR = "funkbox-music-vary/1"
+MANIFEST = "manifest.json"
+FIELDS = ("bpm", "key", "scale", "swing", "programs", "drum_pattern", "chords")
+_NAME = re.compile(r"[A-Za-z0-9_\-]{1,60}")
+
+
+def _drum_name(pattern: dict) -> str:
+    for name, p in DRUM_PATTERNS.items():
+        if p == pattern:
+            return name
+    return "custom"
+
+
+def variant_fields(score: dict) -> dict:
+    """The musical fields one score uses. The manifest lists them and the diversity count reads them."""
+    tracks = score["tracks"]
+    drums = next(t for t in tracks if t.get("drums"))
+    pad = next(t for t in tracks if t.get("name") == "pad")
+    return {
+        "bpm": score["bpm"],
+        "key": score["key"],
+        "scale": score["scale"],
+        "swing": score["swing"],
+        "programs": [t["program"] for t in tracks if "program" in t],
+        "drum_pattern": _drum_name(drums["pattern"]),
+        "chords": pad["notes"],
+    }
+
+
+def field_spread(scores: list[dict]) -> dict:
+    """How many different values each field takes across ``scores``. A field with one value is fixed."""
+    fields = [variant_fields(s) for s in scores]
+    return {f: len({json.dumps(v[f], sort_keys=True) for v in fields}) for f in FIELDS}
+
+
+def _brief_sha256(brief) -> str:
+    text = json.dumps(brief, sort_keys=True, separators=(",", ":"))  # ASCII escapes: every brief encodes
+    return hashlib.sha256(text.encode("ascii")).hexdigest()
+
+
+def set_files(out_dir: Path, name: str) -> list[Path]:
+    """The files that belong to a set named ``name`` in ``out_dir``: its variants, and the manifest if present."""
+    found = sorted(out_dir.glob(f"{name}-[0-9][0-9].music.json"))
+    manifest = out_dir / MANIFEST
+    return found + ([manifest] if manifest.exists() else [])
+
+
+def _bytes(obj) -> bytes:
+    return (json.dumps(obj, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
+
+
+def write_set(brief, seed: int, count: int, out_dir, *, base, name: str, force: bool = False) -> dict:
+    """Write one ``NAME-NN.music.json`` per variant and ``manifest.json`` into ``out_dir``; return the manifest.
+
+    ``base`` is the score the set is built from: its ``bars`` and ``meter`` are kept, and everything else is drawn.
+    An existing set in ``out_dir`` (or any manifest there) is refused unless ``force`` is set; ``force`` removes the
+    old set's files first. Raises ``BriefError`` listing every problem found, before anything is written.
+    """
+    if not isinstance(base, dict):
+        raise BriefError("score: a JSON object")
+    if not _NAME.fullmatch(name or ""):
+        raise BriefError(f"name: {name!r} must be 1-60 of letters, digits, _ and -")
+    scores = generate(brief, seed, count, bars=base.get("bars"), meter=base.get("meter", 4), name=name)
+    out_dir = Path(out_dir)
+    old = set_files(out_dir, name) if out_dir.is_dir() else []
+    if old and not force:
+        raise FileExistsError(f"{out_dir} already holds a set ({old[0].name} ...); use --force to replace it")
+    for p in old:
+        p.unlink()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for s in scores:
+        data = _bytes(s)
+        path = out_dir / f"{s['name']}.music.json"
+        path.write_bytes(data)
+        rows.append(
+            {
+                "file": path.name,
+                "sha256": score_sha256(s),  # canonical score JSON, the same on every platform
+                "file_sha256": hashlib.sha256(data).hexdigest(),  # the bytes on disk
+                **variant_fields(s),
+            }
+        )
+    manifest = {
+        "generator": GENERATOR,
+        "base_name": name,
+        "seed": seed,
+        "count": count,
+        "bars": base.get("bars"),
+        "meter": base.get("meter", 4),
+        "brief": brief,
+        "brief_sha256": _brief_sha256(brief),
+        "fields_changed": field_spread(scores),
+        "variants": rows,
+    }
+    (out_dir / MANIFEST).write_bytes(_bytes(manifest))
+    return manifest
