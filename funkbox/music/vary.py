@@ -172,8 +172,10 @@ def score_sha256(score: dict) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 # --------------------------------------------------------------------------- MV-2: a set of variants
+GENERATOR = "funkbox-music-vary/1"
 MANIFEST = "manifest.json"
 FIELDS = ("bpm", "key", "scale", "swing", "programs", "drum_pattern", "chords")
+_NAME = re.compile(r"[A-Za-z0-9_\-]{1,60}")
 
 
 def _drum_name(pattern: dict) -> str:
@@ -206,27 +208,55 @@ def field_spread(scores: list[dict]) -> dict:
 
 
 def _brief_sha256(brief) -> str:
-    text = json.dumps(brief, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    text = json.dumps(brief, sort_keys=True, separators=(",", ":"))  # ASCII escapes: every brief encodes
+    return hashlib.sha256(text.encode("ascii")).hexdigest()
 
 
-def write_set(brief, seed: int, count: int, out_dir, *, base, name: str) -> dict:
+def set_files(out_dir: Path, name: str) -> list[Path]:
+    """The files that belong to a set named ``name`` in ``out_dir``: its variants, and the manifest if present."""
+    found = sorted(out_dir.glob(f"{name}-[0-9][0-9].music.json"))
+    manifest = out_dir / MANIFEST
+    return found + ([manifest] if manifest.exists() else [])
+
+
+def _bytes(obj) -> bytes:
+    return (json.dumps(obj, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
+
+
+def write_set(brief, seed: int, count: int, out_dir, *, base, name: str, force: bool = False) -> dict:
     """Write one ``NAME-NN.music.json`` per variant and ``manifest.json`` into ``out_dir``; return the manifest.
 
     ``base`` is the score the set is built from: its ``bars`` and ``meter`` are kept, and everything else is drawn.
-    Raises ``BriefError`` listing every problem found.
+    An existing set in ``out_dir`` (or any manifest there) is refused unless ``force`` is set; ``force`` removes the
+    old set's files first. Raises ``BriefError`` listing every problem found, before anything is written.
     """
     if not isinstance(base, dict):
         raise BriefError("score: a JSON object")
+    if not _NAME.fullmatch(name or ""):
+        raise BriefError(f"name: {name!r} must be 1-60 of letters, digits, _ and -")
     scores = generate(brief, seed, count, bars=base.get("bars"), meter=base.get("meter", 4), name=name)
     out_dir = Path(out_dir)
+    old = set_files(out_dir, name) if out_dir.is_dir() else []
+    if old and not force:
+        raise FileExistsError(f"{out_dir} already holds a set ({old[0].name} ...); use --force to replace it")
+    for p in old:
+        p.unlink()
     out_dir.mkdir(parents=True, exist_ok=True)
     rows = []
     for s in scores:
+        data = _bytes(s)
         path = out_dir / f"{s['name']}.music.json"
-        path.write_text(json.dumps(s, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
-        rows.append({"file": path.name, "sha256": score_sha256(s), **variant_fields(s)})
+        path.write_bytes(data)
+        rows.append(
+            {
+                "file": path.name,
+                "sha256": score_sha256(s),  # canonical score JSON, the same on every platform
+                "file_sha256": hashlib.sha256(data).hexdigest(),  # the bytes on disk
+                **variant_fields(s),
+            }
+        )
     manifest = {
+        "generator": GENERATOR,
         "base_name": name,
         "seed": seed,
         "count": count,
@@ -237,6 +267,5 @@ def write_set(brief, seed: int, count: int, out_dir, *, base, name: str) -> dict
         "fields_changed": field_spread(scores),
         "variants": rows,
     }
-    text = json.dumps(manifest, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
-    (out_dir / MANIFEST).write_text(text, encoding="utf-8")
+    (out_dir / MANIFEST).write_bytes(_bytes(manifest))
     return manifest

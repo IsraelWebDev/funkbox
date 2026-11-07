@@ -1,7 +1,10 @@
 """MV-2: ``funkbox music vary`` writes one score per variant, plus a manifest that records the seed and hashes."""
 
+import hashlib
 import json
 import types
+
+import pytest
 
 from funkbox.music import tools as music_tools
 from funkbox.music.vary import FIELDS, MANIFEST, generate, score_sha256, write_set
@@ -40,7 +43,7 @@ def _brief_file(tmp_path, brief=BRIEF):
 
 
 def _args(score, brief, **kw):
-    d = dict(score=str(score), brief=str(brief), seed=7, count=3, out=None)
+    d = dict(score=str(score), brief=str(brief), seed=7, count=3, out=None, force=False)
     d.update(kw)
     return types.SimpleNamespace(**d)
 
@@ -73,6 +76,16 @@ def test_manifest_records_seed_brief_and_hashes(tmp_path):
         assert row["sha256"] == score_sha256(score)
 
 
+def test_manifest_hash_matches_the_bytes_on_disk(tmp_path):
+    out = tmp_path / "out"
+    m = write_set(BRIEF, 7, 2, out, base=BASE, name="SCORE")
+    for row in m["variants"]:
+        data = (out / row["file"]).read_bytes()
+        assert b"\r\n" not in data
+        assert row["file_sha256"] == hashlib.sha256(data).hexdigest()
+    assert b"\r\n" not in (out / MANIFEST).read_bytes()
+
+
 def test_regenerating_from_the_manifest_gives_the_same_scores(tmp_path):
     out = tmp_path / "out"
     m = write_set(BRIEF, 11, 4, out, base=BASE, name="SCORE")
@@ -89,6 +102,31 @@ def test_fields_that_change_are_counted_not_only_bpm(tmp_path):
     assert len(changing) >= 5, spread
 
 
+def test_a_second_run_refuses_to_overwrite_without_force(tmp_path):
+    out = tmp_path / "out"
+    write_set(BRIEF, 7, 3, out, base=BASE, name="SCORE")
+    with pytest.raises(FileExistsError):
+        write_set(BRIEF, 8, 3, out, base=BASE, name="SCORE")
+
+
+def test_force_replaces_the_set_and_removes_extra_variants(tmp_path):
+    out = tmp_path / "out"
+    write_set(BRIEF, 7, 5, out, base=BASE, name="SCORE")
+    write_set(BRIEF, 9, 3, out, base=BASE, name="SCORE", force=True)
+    names = sorted(p.name for p in out.glob("*.music.json"))
+    assert names == ["SCORE-01.music.json", "SCORE-02.music.json", "SCORE-03.music.json"]
+    m = json.loads((out / MANIFEST).read_text(encoding="utf-8"))
+    assert m["seed"] == 9 and len(m["variants"]) == 3
+
+
+def test_a_library_name_with_dots_or_slashes_is_refused(tmp_path):
+    from funkbox.music.vary import BriefError
+
+    for bad in ("my.song", "../x", ""):
+        with pytest.raises(BriefError, match="name"):
+            write_set(BRIEF, 7, 2, tmp_path / "out", base=BASE, name=bad)
+
+
 def test_cli_vary_writes_the_set_next_to_the_score(tmp_path, capsys):
     score = _base_file(tmp_path)
     assert music_tools.cmd_vary(_args(score, _brief_file(tmp_path))) == 0
@@ -96,6 +134,15 @@ def test_cli_vary_writes_the_set_next_to_the_score(tmp_path, capsys):
     assert (out / "SCORE-01.music.json").is_file()
     assert (out / MANIFEST).is_file()
     assert "manifest:" in capsys.readouterr().out
+
+
+def test_cli_second_run_needs_force(tmp_path, capsys):
+    score = _base_file(tmp_path)
+    brief = _brief_file(tmp_path)
+    assert music_tools.cmd_vary(_args(score, brief)) == 0
+    assert music_tools.cmd_vary(_args(score, brief)) == 1
+    assert "--force" in capsys.readouterr().out
+    assert music_tools.cmd_vary(_args(score, brief, force=True)) == 0
 
 
 def test_cli_vary_prints_every_brief_problem_and_exits_1(tmp_path, capsys):
@@ -118,8 +165,20 @@ def test_cli_vary_refuses_a_bad_score_name(tmp_path, capsys):
     assert "bad name" in capsys.readouterr().out
 
 
+def test_cli_vary_refuses_a_name_with_extra_dots(tmp_path, capsys):
+    score = _base_file(tmp_path, name="my.song.music.json")
+    assert music_tools.cmd_vary(_args(score, _brief_file(tmp_path))) == 1
+    assert "name" in capsys.readouterr().out
+
+
 def test_cli_vary_refuses_a_score_that_is_not_an_object(tmp_path, capsys):
     score = tmp_path / "SCORE.music.json"
     score.write_text("[1, 2]", encoding="utf-8")
     assert music_tools.cmd_vary(_args(score, _brief_file(tmp_path))) == 1
     assert "JSON object" in capsys.readouterr().out
+
+
+def test_cli_out_pointing_at_the_base_score_is_an_error_not_a_traceback(tmp_path, capsys):
+    score = _base_file(tmp_path)
+    assert music_tools.cmd_vary(_args(score, _brief_file(tmp_path), out=str(score))) == 1
+    assert "error" in capsys.readouterr().out

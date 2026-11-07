@@ -76,15 +76,12 @@ def cmd_instruments(a) -> int:
 
 def cmd_vary(a) -> int:
     import json
-    import re
 
     from funkbox.music.vary import BriefError, write_set
 
     score = Path(a.score)
-    name = score.name.split(".")[0]
-    if not re.fullmatch(r"[A-Za-z0-9_\-]{1,60}", name):
-        print(f"bad name {name!r}: use 1-60 of letters, digits, _ and -")
-        return 1
+    suffix = ".music.json"
+    name = score.name[: -len(suffix)] if score.name.endswith(suffix) else score.name
     try:
         base = json.loads(score.read_text(encoding="utf-8-sig"))
         brief = json.loads(Path(a.brief).read_text(encoding="utf-8-sig"))
@@ -93,16 +90,18 @@ def cmd_vary(a) -> int:
         return 1
     out = Path(a.out) if a.out else score.parent / f"{name}-variants"
     try:
-        m = write_set(brief, a.seed, a.count, out, base=base, name=name)
+        m = write_set(brief, a.seed, a.count, out, base=base, name=name, force=a.force)
     except BriefError as e:
         for p in e.problems:
             print(f"error: {p}")
+        return 1
+    except (OSError, ValueError) as e:
+        print(f"error: {e}")
         return 1
     for v in m["variants"]:
         print(f"{v['file']}: {v['key']} {v['scale']}, {v['bpm']:g} BPM, programs {v['programs']}, {v['drum_pattern']}")
     print(f"manifest: {out / 'manifest.json'}")
     return 0
-
 
 def add_cli(sub) -> None:
     ap = sub.add_parser("music", help="music from a short score with real General MIDI instruments")
@@ -122,4 +121,5 @@ def add_cli(sub) -> None:
     p.add_argument("--seed", type=int, required=True)
     p.add_argument("--count", type=int, default=6)
     p.add_argument("--out", help="folder for the variants (default: SCORE-variants next to the score)")
+    p.add_argument("--force", action="store_true", help="replace an existing set of this name in the folder")
     p.set_defaults(fn=cmd_vary)
