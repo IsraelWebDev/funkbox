@@ -14,6 +14,7 @@ import json
 import math
 import random
 import re
+from pathlib import Path
 from typing import Any
 
 from .score import SCALES, check
@@ -169,3 +170,73 @@ def score_sha256(score: dict) -> str:
     """The SHA-256 of the score's canonical JSON (sorted keys, no spaces)."""
     text = json.dumps(score, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+# --------------------------------------------------------------------------- MV-2: a set of variants
+MANIFEST = "manifest.json"
+FIELDS = ("bpm", "key", "scale", "swing", "programs", "drum_pattern", "chords")
+
+
+def _drum_name(pattern: dict) -> str:
+    for name, p in DRUM_PATTERNS.items():
+        if p == pattern:
+            return name
+    return "custom"
+
+
+def variant_fields(score: dict) -> dict:
+    """The musical fields one score uses. The manifest lists them and the diversity count reads them."""
+    tracks = score["tracks"]
+    drums = next(t for t in tracks if t.get("drums"))
+    pad = next(t for t in tracks if t.get("name") == "pad")
+    return {
+        "bpm": score["bpm"],
+        "key": score["key"],
+        "scale": score["scale"],
+        "swing": score["swing"],
+        "programs": [t["program"] for t in tracks if "program" in t],
+        "drum_pattern": _drum_name(drums["pattern"]),
+        "chords": pad["notes"],
+    }
+
+
+def field_spread(scores: list[dict]) -> dict:
+    """How many different values each field takes across ``scores``. A field with one value is fixed."""
+    fields = [variant_fields(s) for s in scores]
+    return {f: len({json.dumps(v[f], sort_keys=True) for v in fields}) for f in FIELDS}
+
+
+def _brief_sha256(brief) -> str:
+    text = json.dumps(brief, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def write_set(brief, seed: int, count: int, out_dir, *, base, name: str) -> dict:
+    """Write one ``NAME-NN.music.json`` per variant and ``manifest.json`` into ``out_dir``; return the manifest.
+
+    ``base`` is the score the set is built from: its ``bars`` and ``meter`` are kept, and everything else is drawn.
+    Raises ``BriefError`` listing every problem found.
+    """
+    if not isinstance(base, dict):
+        raise BriefError("score: a JSON object")
+    scores = generate(brief, seed, count, bars=base.get("bars"), meter=base.get("meter", 4), name=name)
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for s in scores:
+        path = out_dir / f"{s['name']}.music.json"
+        path.write_text(json.dumps(s, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+        rows.append({"file": path.name, "sha256": score_sha256(s), **variant_fields(s)})
+    manifest = {
+        "base_name": name,
+        "seed": seed,
+        "count": count,
+        "bars": base.get("bars"),
+        "meter": base.get("meter", 4),
+        "brief": brief,
+        "brief_sha256": _brief_sha256(brief),
+        "fields_changed": field_spread(scores),
+        "variants": rows,
+    }
+    text = json.dumps(manifest, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    (out_dir / MANIFEST).write_text(text, encoding="utf-8")
+    return manifest
