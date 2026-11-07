@@ -159,8 +159,10 @@ def render_variants(
         outputs = sorted(
             p.name for p in vdir.glob(f"{stem}*") if p.suffix == ".mp4" or p.name.endswith(".text_audit.json")
         )
-        target = float((variant.get("audio") or {}).get("loudness_lufs", loudness.DEFAULT_TARGET))
-        loud = loudness.measure_outputs(vdir, stem, target) if with_audio else {}
+        # Measure exactly the MP4s this render produced (not a folder glob: stale files and v10/v100 clashes).
+        target = loudness.target_for(variant)
+        videos = [o.paths["mp4"] for o in outs if o.paths.get("mp4")]
+        loud = loudness.measure_outputs(videos, target) if with_audio else {}
         entries.append({
             "index": i,
             "label": label,

@@ -39,16 +39,34 @@ def test_loudness_moves_by_the_gain_applied(tmp_path):
     loud, quiet = tmp_path / "loud.wav", tmp_path / "quiet.wav"
     _quiet(exe, "-f", "lavfi", "-i", "sine=frequency=1000:duration=5", "-ac", "2", str(loud))
     _quiet(exe, "-f", "lavfi", "-i", "sine=frequency=1000:duration=5", "-ac", "2", "-af", "volume=-6dB", str(quiet))
-    a, b = loudness.measure_lufs(loud), loudness.measure_lufs(quiet)
+    a, _ = loudness.measure_lufs(loud)
+    b, _ = loudness.measure_lufs(quiet)
     assert a is not None and b is not None
     assert abs((a - b) - 6.0) < 0.2
 
 
-def test_a_file_without_audio_is_not_measured(tmp_path):
+def test_a_file_without_audio_is_unmeasured_with_a_reason(tmp_path):
     exe = _ffmpeg()
-    silent = tmp_path / "silent.mp4"
-    _quiet(exe, "-f", "lavfi", "-i", "color=c=black:s=64x64:d=1", "-an", str(silent))
-    assert loudness.measure_lufs(silent) is None
+    silent_video = tmp_path / "silent.mp4"
+    _quiet(exe, "-f", "lavfi", "-i", "color=c=black:s=64x64:d=1", "-an", str(silent_video))
+    value, reason = loudness.measure_lufs(silent_video)
+    assert value is None and reason
+    assert loudness.check(value, -14.0, reason)["within_tolerance"] is None
+
+
+def test_silent_audio_is_a_miss(tmp_path):
+    exe = _ffmpeg()
+    silence = tmp_path / "silence.wav"
+    _quiet(exe, "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "2", str(silence))
+    value, reason = loudness.measure_lufs(silence)
+    assert value is None and reason == "silent"
+    assert loudness.check(value, -14.0, reason)["within_tolerance"] is False
+
+
+def test_an_unreadable_file_gives_a_reason_and_does_not_raise(tmp_path):
+    _ffmpeg()
+    value, reason = loudness.measure_lufs(tmp_path / "missing.wav")
+    assert value is None and reason
 
 
 def test_a_miss_is_reported_and_not_an_error():
@@ -58,7 +76,32 @@ def test_a_miss_is_reported_and_not_an_error():
     ok = loudness.check(-14.0, -14.0)
     assert loudness.all_ok({"a.mp4": miss, "b.mp4": ok}) is False
     assert loudness.all_ok({"a.mp4": ok}) is True
-    assert loudness.all_ok({"a.mp4": loudness.check(None, -14.0)}) is None
+
+
+def test_one_unmeasured_file_never_passes_the_verdict():
+    ok = loudness.check(-14.0, -14.0)
+    unmeasured = loudness.check(None, -14.0, "ffmpeg exited 1")
+    assert loudness.all_ok({"a.mp4": ok, "b.mp4": unmeasured}) is None
+    assert loudness.all_ok({"a.mp4": unmeasured}) is None
+    assert loudness.all_ok({}) is None
+
+
+def test_a_missing_or_bad_target_falls_back_to_the_default():
+    assert loudness.target_for({}) == -14.0
+    assert loudness.target_for({"audio": {"loudness_lufs": None}}) == -14.0
+    assert loudness.target_for({"audio": {"loudness_lufs": "loud"}}) == -14.0
+    assert loudness.target_for({"audio": {"loudness_lufs": True}}) == -14.0
+    assert loudness.target_for({"audio": {"loudness_lufs": -16}}) == -16.0
+
+
+def test_only_the_files_the_variant_produced_are_measured(tmp_path):
+    exe = _ffmpeg()
+    mine = tmp_path / "v01.mp4"
+    stale = tmp_path / "v01_old.mp4"
+    _quiet(exe, "-f", "lavfi", "-i", "sine=frequency=1000:duration=2", "-ac", "2", str(mine))
+    _quiet(exe, "-f", "lavfi", "-i", "sine=frequency=1000:duration=2", "-ac", "2", "-af", "volume=-20dB", str(stale))
+    report = loudness.measure_outputs([mine], -14.0)
+    assert set(report) == {"v01.mp4"}
 
 
 def test_audio_music_takes_one_score_per_variant(demo, work):
@@ -88,6 +131,6 @@ def test_each_variant_renders_its_own_score_and_is_measured(demo, work):
         assert mp4s, entry["loudness"]
         for name, res in mp4s.items():
             assert res["target"] == -14.0, name
-            assert res["lufs"] is not None, name
+            assert res["lufs"] is not None, (name, res)
             assert res["within_tolerance"] is True, (name, res)
         assert entry["loudness_ok"] is True

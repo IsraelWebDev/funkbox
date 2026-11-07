@@ -162,12 +162,13 @@ def cmd_variants(a) -> int:
         print(f"v{entry['index']:02d} {entry['label']}: {state}; {', '.join(entry['outputs'])}")
         for fname, res in (entry.get("loudness") or {}).items():
             if res["lufs"] is None:
-                print(f"    loudness {fname}: not measured")
+                flag = " - MISSES" if res["within_tolerance"] is False else ""
+                print(f"    loudness {fname}: {res['reason'] or 'not measured'}{flag}")
             elif res["within_tolerance"]:
-                print(f"    loudness {fname}: {res['lufs']:.1f} LUFS, target {res['target']:g}: ok")
+                print(f"    loudness {fname}: {res['lufs']:.2f} LUFS, target {res['target']:g}: ok")
             else:
-                print(f"    loudness {fname}: {res['lufs']:.1f} LUFS, target {res['target']:g}: "
-                      f"MISSES by {res['off_by_lu']:+.1f} LU")
+                print(f"    loudness {fname}: {res['lufs']:.2f} LUFS, target {res['target']:g}: "
+                      f"MISSES by {res['off_by_lu']:+.2f} LU")
     if "sheet" in manifest:
         ok = manifest["sheet"].get("audit_ok")
         print(f"contact sheet: {'audit OK' if ok else 'audit FAILED' if ok is False else 'no audit'}")
