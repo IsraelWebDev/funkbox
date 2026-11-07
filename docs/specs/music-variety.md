@@ -1,6 +1,6 @@
 # Spec: music variety
 
-Status: MV-1 and MV-2 done (`funkbox music vary` writes a set and a manifest; merged c493c43). MV-3 done on card/mv-3: `audio.music` takes the score list, and each rendered variant is measured against the target. Effort: small to medium. Source: product feedback. Every demo reel uses the same music at a different tempo, so the demos sound alike.
+Status: MV-1 and MV-2 done (`funkbox music vary` writes a set and a manifest; merged c493c43). MV-3 done (merged): `audio.music` takes the score list, and each rendered variant is measured against the target. The music cards are complete. Effort: small to medium. Source: product feedback. Every demo reel uses the same music at a different tempo, so the demos sound alike.
 
 ## Problem
 
