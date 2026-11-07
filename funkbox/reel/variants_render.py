@@ -134,7 +134,7 @@ def render_variants(
     written if a text audit or the sheet fails.
     """
     from ..config import funk_out
-    from . import render
+    from . import loudness, render
 
     variants, labels = expand_reel(reel, vary, base_dir=base_dir, deep=True)
     root = Path(out_dir) if out_dir else funk_out()
@@ -159,6 +159,8 @@ def render_variants(
         outputs = sorted(
             p.name for p in vdir.glob(f"{stem}*") if p.suffix == ".mp4" or p.name.endswith(".text_audit.json")
         )
+        target = float((variant.get("audio") or {}).get("loudness_lufs", loudness.DEFAULT_TARGET))
+        loud = loudness.measure_outputs(vdir, stem, target) if with_audio else {}
         entries.append({
             "index": i,
             "label": label,
@@ -167,6 +169,8 @@ def render_variants(
             "reel_sha256": reel_hash,
             "outputs": outputs,
             "audit_ok": (all(o.audit_ok for o in outs) if audit else None),
+            "loudness": loud,  # a report: measured on the file, not part of the manifest hash
+            "loudness_ok": loudness.all_ok(loud),
             "render_seconds": round(time.perf_counter() - t0, 2),
         })
 

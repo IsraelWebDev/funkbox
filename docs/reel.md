@@ -93,6 +93,14 @@ funkbox reel variants demo.reel.json --vary variants.json --count 3 --sheet --na
 - Drafts are the default (540 px, 24 fps, no depth model); `--full` renders every variant at full quality. At most 12 variants per run.
 - To render one chosen variant in full, copy its `vNN.reel.json` into the original reel's folder first (its asset paths are relative to that folder), then run `funkbox reel render` on the copy.
 - The MCP tool is `reel_variants`. It takes `reel` (a path, or a JSON object), `vary` (a JSON object or its text), `name` (required unless `project` is given), `draft` (default true), `sheet`, `sheet_video` and `project`, and it returns the manifest. It has no `count`, `out`, no-audio or `full` options.
+- Music per variant: `audio.music` takes a list of score paths, one per variant. Make the set with `funkbox music vary SCORE.music.json --brief brief.json --seed 7 --count 3` (the CLI prints each file), then point the vary file at those files, relative to the reel's folder:
+
+  ```
+  {"audio.music": ["music/BED-01.music.json", "music/BED-02.music.json", "music/BED-03.music.json"]}
+  ```
+
+  Each path must exist and stay inside the project. The check runs before any render.
+- Loudness: each rendered MP4 is measured after the render (EBU R128, integrated) against the reel's `audio.loudness_lufs` (default -14). The result is in the manifest per file (`loudness`, `loudness_ok`) and printed under each variant. A file more than 1 LU from the target is reported as `MISSES`; the run still succeeds, and the manifest is still written. The loudness report is not part of `manifest_sha256`.
 - Not built yet: `--still` (PNG openings), `from`/`to` keys, speed, and grid order.
 
 ## Shot lists for specific briefs
