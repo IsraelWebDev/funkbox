@@ -1,6 +1,6 @@
 # Spec: music variety
 
-Status: proposed. Effort: small to medium. Source: product feedback. Every demo reel uses the same music at a different tempo, so the demos sound alike.
+Status: MV-1 done (brief validation and seeded generator, 18 tests). MV-2 and MV-3 next. Effort: small to medium. Source: product feedback. Every demo reel uses the same music at a different tempo, so the demos sound alike.
 
 ## Problem
 
