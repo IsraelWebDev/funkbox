@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import random
 import re
 from typing import Any
@@ -18,6 +19,7 @@ from typing import Any
 from .score import SCALES, check
 
 ALLOWED = {"bpm_range", "keys", "scales", "programs", "drum_patterns", "swing", "arrangement"}
+# "build" is the only arrangement and is always applied (pad alone, then bass from bar two).
 ARRANGEMENTS = ("build",)
 MAX_VARIANTS = 12
 MAX_DRAWS = 50  # redraws per variant before the brief is called too small
@@ -60,12 +62,14 @@ def validate_brief(brief: Any) -> list[str]:
     errs: list[str] = []
     bad = set(brief) - ALLOWED
     if bad:
-        errs.append(f"brief: unknown keys {sorted(bad)}")
+        errs.append(f"brief: unknown keys {sorted(map(str, bad))}")
     br = brief.get("bpm_range")
     if not (isinstance(br, list) and len(br) == 2 and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in br)):
         errs.append("bpm_range: two numbers [low, high]")
     elif not 30 <= br[0] <= br[1] <= 240:
         errs.append("bpm_range: 30 <= low <= high <= 240")
+    elif math.ceil(br[0]) > math.floor(br[1]):
+        errs.append("bpm_range: no whole bpm inside the range")
     keys = brief.get("keys")
     if not _nonempty(keys):
         errs.append("keys: a non-empty list of note names like D, F#, Bb")
@@ -75,7 +79,7 @@ def validate_brief(brief: Any) -> list[str]:
     if not _nonempty(scales):
         errs.append("scales: a non-empty list of scale names")
     else:
-        errs += [f"scales: {s!r} is not a scale ({', '.join(SCALES)})" for s in scales if s not in SCALES]
+        errs += [f"scales: {s!r} is not a scale ({', '.join(SCALES)})" for s in scales if not (isinstance(s, str) and s in SCALES)]
     programs = brief.get("programs")
     if not _nonempty(programs):
         errs.append("programs: a non-empty list of General MIDI numbers 0..127")
@@ -85,7 +89,7 @@ def validate_brief(brief: Any) -> list[str]:
     if not _nonempty(drums):
         errs.append(f"drum_patterns: a non-empty list of {', '.join(DRUM_PATTERNS)}")
     else:
-        errs += [f"drum_patterns: {d!r} is not a pattern" for d in drums if d not in DRUM_PATTERNS]
+        errs += [f"drum_patterns: {d!r} is not a pattern" for d in drums if not (isinstance(d, str) and d in DRUM_PATTERNS)]
     swing = brief.get("swing")
     if not _nonempty(swing):
         errs.append("swing: a non-empty list of values 0..0.5")
@@ -111,7 +115,7 @@ def _draw(brief: dict, rng: random.Random, bars: int, name: str) -> dict:
     )
     score = {
         "name": name,
-        "bpm": rng.randint(int(lo), int(hi)),
+        "bpm": rng.randint(math.ceil(lo), math.floor(hi)),
         "meter": 4,
         "key": rng.choice(brief["keys"]),
         "scale": rng.choice(brief["scales"]),

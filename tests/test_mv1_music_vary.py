@@ -103,3 +103,44 @@ def test_generate_refuses_a_bad_seed_count_and_meter_together():
 def test_generate_refuses_more_than_the_variant_limit():
     with pytest.raises(BriefError, match="count: 1..12"):
         generate(BRIEF, 1, MAX_VARIANTS + 1)
+
+def _base_brief():
+    return {
+        "bpm_range": [90, 100],
+        "keys": ["D"],
+        "scales": ["minor"],
+        "programs": [0],
+        "drum_patterns": ["straight"],
+        "swing": [0.0],
+    }
+
+
+def test_unhashable_list_items_are_refused_not_crashed():
+    from funkbox.music.vary import validate_brief
+
+    b = _base_brief()
+    b["scales"] = [["minor"]]
+    b["drum_patterns"] = [{"a": 1}]
+    errs = validate_brief(b)
+    assert any(e.startswith("scales:") for e in errs)
+    assert any(e.startswith("drum_patterns:") for e in errs)
+
+
+def test_fractional_bpm_range_stays_inside_the_range():
+    from funkbox.music.vary import validate_brief, generate
+
+    b = _base_brief()
+    b["bpm_range"] = [120.2, 120.8]
+    assert any(e.startswith("bpm_range:") for e in validate_brief(b))
+    b["bpm_range"] = [120.2, 125.8]
+    for s in generate(b, seed=1, count=3):
+        assert 121 <= s["bpm"] <= 125
+
+
+def test_mixed_type_unknown_keys_are_reported_not_crashed():
+    from funkbox.music.vary import validate_brief
+
+    b = _base_brief()
+    b[1] = 0
+    errs = validate_brief(b)
+    assert any(e.startswith("brief: unknown keys") for e in errs)
