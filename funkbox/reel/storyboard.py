@@ -3,7 +3,7 @@ duration and copy IDs printed BELOW each frame (never on it). The agent iterates
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -38,10 +38,10 @@ def _reason(e: Exception) -> str:
     text = " ".join(str(e).split())
     if isinstance(e, OSError):
         if e.filename:
-            name, label = Path(str(e.filename)).name, e.strerror or type(e).__name__
+            name, label = PureWindowsPath(str(e.filename)).name, e.strerror or type(e).__name__
         else:  # no filename: the path sits in the message instead (config.resolve_path: "file not found: <path>")
             tail = text.rpartition(": ")[2].strip("'\"")
-            name, label = (Path(tail).name, text.rpartition(": ")[0]) if tail else ("", text)
+            name, label = (PureWindowsPath(tail).name, text.rpartition(": ")[0]) if tail else ("", text)
         if name:
             text = f"{label}: {name}"
     if text.startswith("cannot decode "):
@@ -51,7 +51,7 @@ def _reason(e: Exception) -> str:
         if ffmpeg:  # drop the path; keep the ffmpeg error the way ffmpeg phrased it
             text = ffmpeg
         else:  # no ffmpeg error after the path: the exception name stands in, with the file name only
-            text = f"{type(e).__name__}: cannot decode {Path(path).name}"
+            text = f"{type(e).__name__}: cannot decode {PureWindowsPath(path).name}"
     return text[:80] or type(e).__name__
 
 
