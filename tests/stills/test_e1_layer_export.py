@@ -43,7 +43,11 @@ def poster_doc(photo, w=128, h=96):
 
 
 def other_poster(w=128, h=96):
-    return {"version": 1, "canvas": {"width": w, "height": h}, "layers": [{"id": "x", "type": "solid", "color": "#ffffff"}]}
+    return {
+        "version": 1,
+        "canvas": {"width": w, "height": h},
+        "layers": [{"id": "x", "type": "solid", "color": "#ffffff"}],
+    }
 
 
 def cli_command(*args):
@@ -91,7 +95,10 @@ def test_schema_refuses_layer_ids_that_differ_only_in_case():
         {
             "version": 1,
             "canvas": {"width": 128, "height": 96},
-            "layers": [{"id": "Bg", "type": "solid", "color": "#000000"}, {"id": "bg", "type": "solid", "color": "#ffffff"}],
+            "layers": [
+                {"id": "Bg", "type": "solid", "color": "#000000"},
+                {"id": "bg", "type": "solid", "color": "#ffffff"},
+            ],
         }
     )
     assert any("duplicate layer id 'bg'" in e for e in errs), errs
