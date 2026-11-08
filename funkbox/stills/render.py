@@ -480,6 +480,12 @@ def plan_layers(r: Rendered, out_dir: str | Path, name: str) -> LayerPlan:
     if not NAME_RE.match(name or ""):
         raise ValueError(f"bad output name {name!r}: use 1-60 of letters, digits, _ and -")
     d = fence_out(out_dir)
+    man = d / f"{name}.layers.json"
+    if man.is_dir():
+        raise ValueError(
+            f"{man} is a folder, not a manifest, so the --layers export cannot write its manifest; "
+            "rename or remove the folder, then re-run"
+        )
     todo = [(lay, f"{name}-{lay.id}.png") for lay in r.layers]
     for _, fname in todo:
         n = len(str(d / fname))
@@ -563,21 +569,24 @@ def write_layers(r: Rendered, out_dir: str | Path, name: str) -> dict[str, Path]
         )
     except BaseException as first:
         # The manifest goes first. If it cannot go, the layer files stay, so no manifest lists a missing file.
+        # This export's .part files are removed on both paths.
+        parts = [d / (f + ".part") for f in sorted(wanted)]
         left = _remove_all([man, man.with_name(man.name + ".part")])
         if left:
-            why = "the layer files were kept, because the manifest could not be removed"
+            why = " (the layer files were kept, because the manifest could not be removed)"
+            left += _remove_all(parts)
         else:
-            left = _remove_all([d / f for f in touched] + [d / (f + ".part") for f in sorted(wanted)])
+            left = _remove_all([d / f for f in touched] + parts)
             why = ""
         if left:
             raise OSError(
-                f"layer export of {name!r} failed ({first}); these files could not be removed: {', '.join(left)}"
-                + (f" ({why})" if why else "")
-                + ". Remove them by hand before re-running the export."
+                f"layer export of {name!r} failed ({first}); these files could not be removed: {', '.join(left)}{why}. "
+                "Remove them by hand before re-running the export."
             ) from first
         raise
     paths["layers"] = man
     return paths
+
 
 def render_poster(doc: Any, out_dir: str | Path, name: str = "", base_dir: str | Path | None = None) -> dict[str, Path]:
     """Render ``doc`` at full resolution and write ``<name>.png`` (and .jpg/.webp/.ora as the doc's export asks),

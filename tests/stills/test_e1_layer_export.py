@@ -58,7 +58,7 @@ def run_cli(*args):
 
 def run_cli_failing(*args):
     r = subprocess.run(cli_command(*args), cwd=ROOT, capture_output=True, text=True)
-    assert r.returncode != 0, r.stdout
+    assert r.returncode == 1, (r.returncode, r.stdout, r.stderr)
     return r.stdout + r.stderr
 
 
@@ -348,3 +348,41 @@ def test_a_case_only_clash_with_another_posters_file_says_so(work, gl):  # noqa:
     with pytest.raises(ValueError, match="differs only in case"):
         render.write_layers(render.render_document(poster_doc(photo), work), out, "demo")
     assert not (out / "demo.layers.json").exists()
+
+def test_cli_refuses_a_folder_named_like_the_manifest_before_writing_anything(work, gl):  # noqa: F811
+    photo = assets.save_noise(work / "photo.png", 128, 96, 1, alpha=True)
+    out = work / "dirman"
+    (out / "demo.layers.json").mkdir(parents=True)
+    before = sorted(os.listdir(out))
+    pj = write_poster(work, poster_doc(photo))
+    msg = run_cli_failing(pj, "--out", out, "--name", "demo", "--layers")
+    assert "is a folder, not a manifest" in msg
+    assert sorted(os.listdir(out)) == before  # no file created, none removed
+    assert (out / "demo.layers.json").is_dir()
+    for leftover in ("demo.png", "demo.poster.json", "demo.text_audit.json"):
+        assert not (out / leftover).exists(), leftover
+
+
+def test_when_the_manifest_cannot_be_removed_this_exports_part_files_are_still_removed(  # noqa: F811
+    work, gl, monkeypatch
+):
+    photo = assets.save_noise(work / "photo.png", 128, 96, 1, alpha=True)
+    out = work / "partkeep"
+    render.write_layers(render.render_document(poster_doc(photo), work), out, "demo")  # a complete export
+    leftover = out / "demo-bg.png.part"  # a partial file from an interrupted export of this name
+    leftover.write_bytes(b"partial")
+    real = render._unlink
+
+    def locked_manifest(p):
+        if p.name == "demo.layers.json":
+            raise OSError("file is locked by another program")
+        real(p)
+
+    monkeypatch.setattr(render, "_unlink", locked_manifest)
+    with pytest.raises(OSError) as info:
+        render.write_layers(render.render_document(poster_doc(photo), work), out, "demo")
+    assert "could not be removed: demo.layers.json" in str(info.value)
+    assert isinstance(info.value.__cause__, OSError)
+    assert not leftover.exists()  # the .part files go even though the manifest stayed
+    assert (out / "demo.layers.json").exists()  # the manifest stayed, so the layer files stayed too
+    assert (out / "demo-bg.png").exists() and (out / "demo-pic.png").exists()

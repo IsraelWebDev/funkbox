@@ -1,6 +1,6 @@
 # Spec: poster layer export
 
-Status: E1, revised after the second review of commit f7fa119 (branch `feat/e1-layer-export`). Effort: small. Source: owner list, item E1. Unblocks desktop gap item 4 (poster layers for GIMP).
+Status: E1, revised after the third review of commit 46d9d4d (branch `feat/e1-layer-export`). Effort: small. Source: owner list, item E1. Unblocks desktop gap item 4 (poster layers for GIMP).
 
 ## Problem
 
@@ -97,8 +97,10 @@ A refused name, folder, collision or path writes nothing at all, not even the fo
 
 ## Failure and re-run
 
-- If any step after the checks fails with an error, `write_layers` removes the manifest first, then every layer file of this name and every `.part` file of this export. A failed export therefore leaves no layer file and no manifest, and the composed files are untouched. An identical re-run then succeeds.
-- If a file cannot be removed, the error says which files remain. If the manifest itself cannot be removed, the layer files are kept, so no manifest ever lists a file that is missing. The error then says so.
+- If any step after the checks fails with an error, `write_layers` removes the manifest first. It then removes the layer files that the old manifest listed, the layer files this export writes, and every `.part` file of this export. A layer file that no manifest lists is never removed by a failed export. The composed files are untouched. A failed export therefore leaves no manifest and no layer file of this export, and an identical re-run then succeeds.
+- If a file cannot be removed, the error says which files remain. If the manifest itself cannot be removed, the layer files are kept, so no manifest ever lists a file that is missing; this export's `.part` files are still removed. The error then says so.
+- The cleanup-failure error is an `OSError` raised `from` the original exception. The original stays available as `__cause__`, and its text is in the message. The error type is therefore `OSError` even when the original was another type.
+- A folder named `<name>.layers.json` is refused before anything is written, with a message saying it is a folder.
 - A hard crash (power loss, a process killed mid-export) runs no cleanup. Layer files can then remain with no manifest, and an identical re-run refuses them by name. Delete those files by hand, then re-run.
 - On Windows, a file held open by another program (GIMP) makes `os.replace` or the removal fail; the export then fails with the error above.
 
@@ -109,7 +111,10 @@ A refused name, folder, collision or path writes nothing at all, not even the fo
 
 ## Rules
 
-1. The compose path is not changed. The composed-name check runs in `write_outputs` and is also run before it by the CLI. It refuses only in the collision case and writes the same bytes otherwise.
+1. The compose path is not changed. The composed-name check runs in ``write_outputs`` and is also run before it by the CLI. It refuses only in the collision case and writes the same bytes otherwise.
+   Two intended exceptions to the byte-identical rule, and only these:
+   (a) a plain render (without `--layers`) refuses a composed name that a readable manifest lists as a layer file (the collision guard), which is the one case where the composed output is refused rather than written;
+   (b) a manifest over 1 MB, or one that cannot be parsed, is treated as missing, so a plain render no longer refuses a name that only that manifest claims.
 2. The composed PNG is byte-identical with and without `--layers`.
 3. The folder fence (`fence_out`) and the name check (`NAME_RE`) apply. A refused name or folder writes nothing.
 4. Layer files and the manifest are deterministic: the same poster gives the same bytes.
@@ -117,7 +122,7 @@ A refused name, folder, collision or path writes nothing at all, not even the fo
 
 ## Tests
 
-All in `tests/stills/test_e1_layer_export.py` (19 tests):
+All in `tests/stills/test_e1_layer_export.py` (21 tests):
 
 1. `test_schema_refuses_layer_ids_that_differ_only_in_case`
 2. `test_cli_layers_flag_leaves_the_composed_png_byte_identical`
@@ -137,13 +142,15 @@ All in `tests/stills/test_e1_layer_export.py` (19 tests):
 16. `test_cli_refuses_a_too_long_path_before_creating_the_folder`
 17. `test_a_deeply_nested_or_oversized_manifest_does_not_break_a_plain_render`
 18. `test_a_name_that_differs_only_in_case_is_the_same_layer_file_on_windows` (Windows only)
-19. `test_a_case_only_clash_with_another_posters_file_says_so` (Windows only)
+19. ``test_a_case_only_clash_with_another_posters_file_says_so`` (Windows only)
+20. ``test_cli_refuses_a_folder_named_like_the_manifest_before_writing_anything``
+21. ``test_when_the_manifest_cannot_be_removed_this_exports_part_files_are_still_removed``
 
 Also run unchanged: `tests/stills/test_s2_poster.py`, and `tests/test_funkbox_cli.py -k "real_runs or stills_cli"`.
 
 ## Done when
 
-- `python -m pytest -q tests/stills/test_e1_layer_export.py tests/stills/test_s2_poster.py` passes (49 tests: 19 new, 30 existing).
+- `python -m pytest -q tests/stills/test_e1_layer_export.py tests/stills/test_s2_poster.py` passes (51 tests: 21 new, 30 existing).
 - `ruff check` passes on the changed Python files, using the system Python's ruff, because ruff is not installed in the project venv.
 
 ## Open questions
