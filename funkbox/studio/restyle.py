@@ -23,9 +23,7 @@ PICTURE_MAX_PIXELS = 40_000_000
 SEED_MAX = 2**32 - 1
 UNUSABLE_RESULT = "restyle model returned no usable image"
 NOT_READABLE = "picture is not a readable image"
-TOO_LARGE = (
-    f"picture is larger than {PICTURE_MAX_SIDE} pixels a side or {PICTURE_MAX_PIXELS // 1_000_000} megapixels"
-)
+TOO_LARGE = f"picture is larger than {PICTURE_MAX_SIDE} pixels a side or {PICTURE_MAX_PIXELS // 1_000_000} megapixels"
 
 #: ``model(init, prompt, strength, steps, seed) -> PIL.Image``; ``init`` is RGB at the model side
 Model = Callable[[Image.Image, str, float, int, int], Image.Image]

@@ -24,12 +24,14 @@ Add `restyle_png` in `funkbox/studio/restyle.py`. It takes the picture as bytes,
 ```python
 RESTYLE_MIN_SIDE = 64
 RESTYLE_MAX_SIDE = 2048
-PICTURE_MAX_BYTES = 40 * 1024 * 1024   # 41,943,040 bytes
-PICTURE_MAX_SIDE = 8192                # pixels, per side
-PICTURE_MAX_PIXELS = 40_000_000        # total pixels
+PICTURE_MAX_BYTES = 40 * 1024 * 1024  # 41,943,040 bytes
+PICTURE_MAX_SIDE = 8192  # pixels, per side
+PICTURE_MAX_PIXELS = 40_000_000  # total pixels
 SEED_MAX = 2**32 - 1
 
+
 class RestyleError(ValueError): ...
+
 
 def restyle_png(
     picture: bytes,
