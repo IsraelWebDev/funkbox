@@ -38,7 +38,9 @@ def build() -> dict:
         {
             "name": t.name,
             "area": t.name.split("_", 1)[0],
-            "description": (t.description or "").strip(),
+            # Collapse all whitespace: docstring continuation indentation differs between Python versions,
+            # and the committed catalog must be the same on every supported version.
+            "description": " ".join((t.description or "").split()),
             "input_schema": _schema(t),
         }
         for t in registry_tools()
