@@ -42,7 +42,7 @@ a full synth; the mix gets one room reverb and a gentle limiter at about -16 dBF
 The brief is JSON, and the tool reports every problem in it at once:
 
 - `bpm_range`: `[low, high]`, the tempo band.
-- `keys` and `scales`: lists to choose from, one per variant. Keys are note names such as `D` or `Bb`. Scales are `major`, `minor`, `harmonic-minor`, `dorian`, `mixolydian`, `phrygian`, `freygish`, `misheberach`, `pentatonic`, `minor-pentatonic` and `blues`.
+- `keys` and `scales`: lists to choose from, one per variant. Keys are note names such as `D` or `Bb`. Scales are `major`, `minor`, `harmonic-minor`, `dorian`, `mixolydian`, `phrygian`, `freygish` (also `ahava-raba`), `misheberach`, `pentatonic`, `minor-pentatonic` and `blues`.
 - `programs`: General MIDI programs for the pad and bass.
 - `drum_patterns`: any of `straight`, `half-time`, `shuffle`.
 - `swing`: a list of values from 0 to 0.5; one is picked per variant.
