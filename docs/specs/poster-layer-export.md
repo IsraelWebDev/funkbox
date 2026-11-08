@@ -1,6 +1,6 @@
 # Spec: poster layer export
 
-Status: E1, revised after the fourth review of commit be13ead (branch `feat/e1-layer-export`). Effort: small. Source: owner list, item E1. Unblocks desktop gap item 4 (poster layers for GIMP).
+Status: merged as PR #2 (merge 0b0d8a2, from feat/e1-layer-export, after four review rounds). Effort: small. Source: owner list, item E1. Unblocks desktop gap item 4 (poster layers for GIMP).
 
 ## Problem
 

@@ -56,6 +56,7 @@ If these tools are missing, funkbox isn't installed. Follow `AGENTS.md` in the f
      ramps, `source.focus` / `fit: "contain"` + `pad`, `"audio": {"bpm": 110}` with `"duration": "beats:N"`,
      and `"formats"` for 9:16 + 16:9 from one edit. See `docs/reel.md`, "Shot lists for specific briefs",
      and `reel_templates`. Run `reel_validate` (it checks every format) and `reel_storyboard(format=...)`.
+   - **Options** (details in `docs/reel.md` and `docs/music.md`): `"type": "explainer"` or `"tech"` for a type preset; `"hook": true` for a title on shot 1; `shots[].callouts` for labels and `shots[].annotations` for drawn arrows and marks; `end_card.template: "bottom-banner"` for a headline typed at the bottom. Music sets: `funkbox music vary SCORE.music.json --brief brief.json --seed N`.
    - Framing only crops and scales; never promise or attempt to alter what a recording shows.
 6. **Render:** `project_render(project, draft=True)` takes ~40 s on the laptop. When the
    user likes it, render the full version: 1080x1920, ~4 min for 25 s (each extra format adds

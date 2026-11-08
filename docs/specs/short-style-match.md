@@ -1,6 +1,6 @@
 # Spec: short style match
 
-Status: card 1 measured (see Card 1 results). Card 2 built: type presets and fonts (explainer, tech; both fonts bundled with OFL licences). The explainer keeps music at -14 dB, since the -18 change waits for the listening check. Cards 5 and 6 (callout tags, annotations) built; see Callout tags and Annotations in docs/reel.md. Cards 1-4 are merged per the Funkbox project doc. Card 7 (end banner) built as the bottom-banner template; see End banner in docs/reel.md. Effort: medium overall; cards 1-3 are small. Source: a reference short the author shared (YouTube adP2iO2E15k, 98 s, 9:16). It was analysed from frames, cut times, motion, colour and audio levels. Nothing from the video is copied or embedded here.
+Status: all seven cards merged. Card 1 is the voice-to-music measurement (7720610; see Card 1 results). Cards 2 to 7 built and merged: card 2 type presets and fonts (ed43308), card 3 hook and pacing (2bc9639), card 4 word highlight (aa503c6), card 5 callout tags (54a778a), card 6 annotations (383c910), card 7 end banner as the bottom-banner template (8aa45e7; review fixes 8075362). The explainer keeps music at -14 dB, since the -18 change waits for the listening check. See Callout tags, Annotations and End banner in docs/reel.md. Effort: medium overall; cards 1-3 are small. Source: a reference short the author shared (YouTube adP2iO2E15k, 98 s, 9:16). It was analysed from frames, cut times, motion, colour and audio levels. Nothing from the video is copied or embedded here.
 
 ## Problem
 

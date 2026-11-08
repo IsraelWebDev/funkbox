@@ -157,7 +157,7 @@ One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP ser
 - [docs/loops.md](docs/loops.md): loops, shader contract, recipes, presets, adding an effect
 - [docs/reel.md](docs/reel.md): the ad engine, the projects flow, the copy lock
 - [docs/stills.md](docs/stills.md): posters, edits, typography, variations, sizes, motion, SVG/PDF, OpenRaster, tracing, comparing
-- [docs/music.md](docs/music.md): scores, instruments, music for reels
+- [docs/music.md](docs/music.md): scores, instruments, music for reels, and music variety
 - [docs/video.md](docs/video.md): video files: info, scene cuts, trims, subtitles
 - [docs/studio.md](docs/studio.md): FastSD images and GIMP on demand
 - [docs/migration-v4.md](docs/migration-v4.md): old scripts and tool names to the new ones
