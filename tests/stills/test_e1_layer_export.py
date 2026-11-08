@@ -85,6 +85,7 @@ def failing_save_on_layer(monkeypatch, n):
 
     monkeypatch.setattr(render, "_save_layer_png", fails)
 
+
 def test_schema_refuses_layer_ids_that_differ_only_in_case():
     errs = schema.check(
         {
@@ -151,6 +152,7 @@ def test_layer_export_refuses_a_bad_name_or_folder_before_writing(work, gl):  # 
     with pytest.raises(ValueError, match="outside the allowed"):
         render.write_layers(r, "/tmp/stills-elsewhere", "demo")
     assert not (work / "x").exists()
+
 
 def test_a_failed_layer_write_leaves_no_layer_file_and_an_identical_rerun_succeeds(work, gl, monkeypatch):  # noqa: F811
     photo = assets.save_noise(work / "photo.png", 128, 96, 1, alpha=True)
@@ -243,6 +245,7 @@ def test_a_layer_path_of_260_characters_or_more_is_refused_before_anything_is_wr
     with pytest.raises(ValueError, match="characters"):
         render.check_layer_export(r, deep, "demo")
     assert not deep.exists()
+
 
 def test_stale_layer_files_are_removed_after_the_manifest_and_a_failed_removal_leaves_nothing(  # noqa: F811
     work, gl, monkeypatch
@@ -349,6 +352,7 @@ def test_a_case_only_clash_with_another_posters_file_says_so(work, gl):  # noqa:
         render.write_layers(render.render_document(poster_doc(photo), work), out, "demo")
     assert not (out / "demo.layers.json").exists()
 
+
 def test_cli_refuses_a_folder_named_like_the_manifest_before_writing_anything(work, gl):  # noqa: F811
     photo = assets.save_noise(work / "photo.png", 128, 96, 1, alpha=True)
     out = work / "dirman"
@@ -382,7 +386,7 @@ def test_when_the_manifest_cannot_be_removed_this_exports_part_files_are_still_r
     with pytest.raises(OSError) as info:
         render.write_layers(render.render_document(poster_doc(photo), work), out, "demo")
     assert "could not be removed: demo.layers.json" in str(info.value)
-    assert isinstance(info.value.__cause__, OSError)
+    assert str(info.value.__cause__) == "file is locked by another program"
     assert not leftover.exists()  # the .part files go even though the manifest stayed
     assert (out / "demo.layers.json").exists()  # the manifest stayed, so the layer files stayed too
     assert (out / "demo-bg.png").exists() and (out / "demo-pic.png").exists()

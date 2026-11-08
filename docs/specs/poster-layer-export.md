@@ -1,6 +1,6 @@
 # Spec: poster layer export
 
-Status: E1, revised after the third review of commit 46d9d4d (branch `feat/e1-layer-export`). Effort: small. Source: owner list, item E1. Unblocks desktop gap item 4 (poster layers for GIMP).
+Status: E1, revised after the fourth review of commit be13ead (branch `feat/e1-layer-export`). Effort: small. Source: owner list, item E1. Unblocks desktop gap item 4 (poster layers for GIMP).
 
 ## Problem
 
@@ -48,7 +48,8 @@ In the same folder as the composed PNG (the poster's `out/` for a project poster
 
 ## Ownership and readable manifests
 
-- A manifest counts only if it is at most 1 MB, parses as JSON, and is nested shallowly enough for the parser. Anything else is treated as missing, so a damaged manifest cannot break a plain render.
+- A manifest counts as missing in each of the shapes listed under Rules, exception (b), so a damaged manifest cannot break a plain render. A manifest with `"layers": []` is readable and lists no files; it is not missing.
+- An entry of a readable manifest whose `id` is not a string is skipped; the other entries still count.
 - The layer files owned by `<name>` are the ones its readable manifest lists.
 - A manifest deleted or damaged by hand removes that protection; the files it listed are then unprotected.
 
@@ -97,7 +98,7 @@ A refused name, folder, collision or path writes nothing at all, not even the fo
 
 ## Failure and re-run
 
-- If any step after the checks fails with an error, `write_layers` removes the manifest first. It then removes the layer files that the old manifest listed, the layer files this export writes, and every `.part` file of this export. A layer file that no manifest lists is never removed by a failed export. The composed files are untouched. A failed export therefore leaves no manifest and no layer file of this export, and an identical re-run then succeeds.
+- If any step after the checks fails with an error, `write_layers` removes the manifest first. If the manifest is removed, the failed export also removes the layer files that the old manifest listed, the layer files this export writes, and every `.part` file of this export. In that case it leaves no layer file of this export, and an identical re-run then succeeds. A layer file that no manifest lists is never removed by a failed export. The composed files are untouched. If the manifest cannot be removed, the next bullet applies.
 - If a file cannot be removed, the error says which files remain. If the manifest itself cannot be removed, the layer files are kept, so no manifest ever lists a file that is missing; this export's `.part` files are still removed. The error then says so.
 - The cleanup-failure error is an `OSError` raised `from` the original exception. The original stays available as `__cause__`, and its text is in the message. The error type is therefore `OSError` even when the original was another type.
 - A folder named `<name>.layers.json` is refused before anything is written, with a message saying it is a folder.
@@ -114,7 +115,13 @@ A refused name, folder, collision or path writes nothing at all, not even the fo
 1. The compose path is not changed. The composed-name check runs in ``write_outputs`` and is also run before it by the CLI. It refuses only in the collision case and writes the same bytes otherwise.
    Two intended exceptions to the byte-identical rule, and only these:
    (a) a plain render (without `--layers`) refuses a composed name that a readable manifest lists as a layer file (the collision guard), which is the one case where the composed output is refused rather than written;
-   (b) a manifest over 1 MB, or one that cannot be parsed, is treated as missing, so a plain render no longer refuses a name that only that manifest claims.
+   (b) a manifest is treated as missing, so a plain render no longer refuses a name that only that manifest claims, when it is any of these shapes:
+      - over 1 MB;
+      - not readable as UTF-8 JSON, including a file that cannot be read at all (for example a folder);
+      - JSON that is not an object (for example `[]` or a string);
+      - an object without a `layers` key;
+      - an object whose `layers` is not a list of objects that each have an `id` (one bad entry makes the whole manifest missing);
+      - JSON nested so deeply that parsing raises `RecursionError`.
 2. The composed PNG is byte-identical with and without `--layers`.
 3. The folder fence (`fence_out`) and the name check (`NAME_RE`) apply. A refused name or folder writes nothing.
 4. Layer files and the manifest are deterministic: the same poster gives the same bytes.
@@ -152,6 +159,10 @@ Also run unchanged: `tests/stills/test_s2_poster.py`, and `tests/test_funkbox_cl
 
 - `python -m pytest -q tests/stills/test_e1_layer_export.py tests/stills/test_s2_poster.py` passes (51 tests: 21 new, 30 existing).
 - `ruff check` passes on the changed Python files, using the system Python's ruff, because ruff is not installed in the project venv.
+
+## Known limitations
+
+- A file that another process writes between the collision check and the write can be removed by a later failure in the same export, because the wanted names are treated as this export's own files. This version does not handle it and does not lock the folder.
 
 ## Open questions
 
