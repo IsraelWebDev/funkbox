@@ -1,0 +1,11 @@
+{
+  "description": "Talking-head explainer: condensed caption face over the speaker, serif display face, speech-first audio.",
+  "caption_style": "red-box",
+  "font_caption": "fonts/Oswald-SemiBold.ttf",
+  "font_display": "fonts/DMSerifDisplay-Regular.ttf",
+  "font_fallback": "fonts/Rubik-Bold.ttf",
+  "music_gain_db": -14,
+  "duck_db": -10,
+  "snap_cuts_to_beats": false,
+  "hebrew_test": "שלום, זה משפט בעברית"
+}

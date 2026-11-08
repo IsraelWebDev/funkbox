@@ -103,6 +103,19 @@ funkbox reel variants demo.reel.json --vary variants.json --count 3 --sheet --na
 - Loudness: each rendered MP4 is measured after the render (EBU R128, integrated) against the reel's `audio.loudness_lufs` (default -14). The result is in the manifest per file (`loudness`, `loudness_ok`) and printed under each variant. A file more than 1 LU from the target is reported as `MISSES`; the run still succeeds, and the manifest is still written. The loudness report is not part of `manifest_sha256`.
 - Not built yet: `--still` (PNG openings), `from`/`to` keys, speed, and grid order.
 
+## Type presets: one setting per kind of video
+
+`"type": "explainer"` in a reel picks `templates/types/explainer.json`. A preset fills the fields the reel leaves unset: `brand.font_caption`, `brand.font_display`, `brand.font_fallback`, `audio.music_gain_db`, `audio.duck_db`, `audio.snap_cuts_to_beats`, and the caption style of each shot that has a caption. A field the reel sets always wins. A reel without a `type` is read exactly as before.
+
+Shipped types:
+- `explainer`: a condensed caption face, a serif display face, speech-first audio.
+- `tech`: Inter captions, Space Grotesk display, bold-pop captions.
+
+Every preset keeps `brand.font_fallback` (bundled Rubik Bold, which draws Latin, Hebrew and Cyrillic). A caption the main font cannot draw falls back per text block, and `validate` warns and names the characters it draws in the fallback.
+
+Every font a preset uses is bundled in `fonts/` with its OFL licence beside it, so presets work offline. The tests check each bundled font's licence and that each type's fallback draws its Hebrew test line.
+
+Not yet: the `--type` flag on the CLI and a project-wide default type. Presets set only the fields above; pacing and end-card keys come with later cards.
 ## Shot lists for specific briefs
 
 `project_auto_reel` is a first draft. When a brief gives exact timings, framing or mostly screen recordings, edit the

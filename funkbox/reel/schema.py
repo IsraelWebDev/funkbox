@@ -7,8 +7,11 @@ The schema has NO free-text fields. Text reaches pixels only through the copy de
 
 from __future__ import annotations
 
+import copy
+import json
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 SAFE_AREAS = ("reels", "landscape", "none")
@@ -222,6 +225,7 @@ class Reel:
     base_dir: str | None = None  # folder of the reel file; paths resolve against it
     formats: list[Format] = field(default_factory=list)  # extra output formats (see materialize)
     format_id: str | None = None  # set when this Reel is one format's variant
+    preset: str | None = None  # the templates/types preset this reel was built with, if any
     warnings: list[str] = field(default_factory=list)  # non-fatal notes from parsing (e.g. brand.from fallback)
 
     def shot(self, shot_id: str) -> Shot:
@@ -673,11 +677,77 @@ def _resolve_brand_from(frm: str, base_dir: str | None, warnings: list[str]) -> 
     return chosen
 
 
+#: Type presets: templates/types/<name>.json. A preset sets the fields below only where the reel leaves them unset.
+TYPES_DIR = Path(__file__).resolve().parents[2] / "templates" / "types"
+TYPE_BRAND_KEYS = ("font_caption", "font_display", "font_fallback")
+TYPE_AUDIO_KEYS = ("music_gain_db", "duck_db", "snap_cuts_to_beats")
+TYPE_KEYS = (*TYPE_BRAND_KEYS, *TYPE_AUDIO_KEYS, "caption_style")
+TYPE_META_KEYS = ("description", "hebrew_test")  # documentation only; never applied to a reel
+
+
+def list_types() -> list[str]:
+    return sorted(p.stem for p in TYPES_DIR.glob("*.json"))
+
+
+def load_type(name: str, errs: list[str]) -> dict | None:
+    """The preset ``name``, or None with the problem appended to ``errs``."""
+    have = list_types()
+    if name not in have:
+        errs.append(f"type: no such type {name!r}; have {have}")
+        return None
+    try:
+        preset = json.loads((TYPES_DIR / f"{name}.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        errs.append(f"templates/types/{name}.json: {e}")
+        return None
+    if not isinstance(preset, dict):
+        errs.append(f"templates/types/{name}.json: must be a JSON object")
+        return None
+    bad = sorted(set(preset) - set(TYPE_KEYS) - set(TYPE_META_KEYS))
+    if bad:
+        errs.append(f"templates/types/{name}.json: unknown key(s) {bad}; a preset may set {list(TYPE_KEYS)}")
+        return None
+    return preset
+
+
+def _fill(out: dict, section: str, key: str, value: Any) -> None:
+    sec = out.setdefault(section, {})
+    if isinstance(sec, dict) and sec.get(key) is None:  # an explicit reel field always wins; null means unset
+        sec[key] = value
+
+
+def apply_type(d: Any, errs: list[str]) -> Any:
+    """The reel with its ``type`` preset filled in. A reel without a type comes back as the same object, so it is
+    unchanged; otherwise the input is copied, never modified."""
+    if not isinstance(d, dict) or not isinstance(d.get("type"), str):
+        return d
+    preset = load_type(d["type"], errs)
+    if preset is None:
+        return d
+    out = copy.deepcopy(d)
+    for k in TYPE_BRAND_KEYS:
+        if k in preset:
+            _fill(out, "brand", k, preset[k])
+    for k in TYPE_AUDIO_KEYS:
+        if k in preset:
+            _fill(out, "audio", k, preset[k])
+    shots = out.get("shots")
+    if "caption_style" in preset and isinstance(shots, list):
+        for sh in shots:
+            if isinstance(sh, dict) and isinstance(sh.get("caption"), dict):
+                if sh["caption"].get("style") is None:
+                    sh["caption"]["style"] = preset["caption_style"]
+    return out
+
+
 def parse_reel(d: Any, base_dir: str | None = None) -> Reel:
     """Parse a reel dict. Raises ReelError listing every problem."""
-    errs: list[str] = scan_forbidden(d)
+    errs: list[str] = []
+    d = apply_type(d, errs)
+    errs += scan_forbidden(d)
     r = _R(d, "", errs)
     reel = Reel(base_dir=base_dir)
+    reel.preset = r.s("type", None, pattern=ID_RE)
     reel.version = int(r.num("version", 3, 3, 3, integer=True))
     s = r.sub("settings")
     reel.settings = Settings(

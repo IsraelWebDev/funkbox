@@ -39,6 +39,9 @@ class ReelVariantError(ValueError):
 
 def variant_hash(reel: dict) -> str:
     """sha256 of the canonical JSON of a reel: equal reels give equal hashes."""
+    from .schema import apply_type
+
+    reel = apply_type(reel, [])  # a typed reel hashes with its preset, so a changed preset changes the hash
     blob = json.dumps(reel, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
