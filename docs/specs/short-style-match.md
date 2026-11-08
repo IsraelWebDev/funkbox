@@ -1,6 +1,6 @@
 # Spec: short style match
 
-Status: card 1 measured (see Card 1 results). Card 2 built: type presets and fonts (explainer, tech; both fonts bundled with OFL licences). The explainer keeps music at -14 dB, since the -18 change waits for the listening check. Cards 3-7 proposed. Effort: medium overall; cards 1-3 are small. Source: a reference short the author shared (YouTube adP2iO2E15k, 98 s, 9:16). It was analysed from frames, cut times, motion, colour and audio levels. Nothing from the video is copied or embedded here.
+Status: card 1 measured (see Card 1 results). Card 2 built: type presets and fonts (explainer, tech; both fonts bundled with OFL licences). The explainer keeps music at -14 dB, since the -18 change waits for the listening check. Card 5 (callout tags, feature 4) built; see Callout tags in docs/reel.md. Cards 3-4 and 6-7 remain proposed. Effort: medium overall; cards 1-3 are small. Source: a reference short the author shared (YouTube adP2iO2E15k, 98 s, 9:16). It was analysed from frames, cut times, motion, colour and audio levels. Nothing from the video is copied or embedded here.
 
 ## Problem
 

@@ -185,12 +185,23 @@ class CaptionSpec:
 
 
 @dataclass
+class Callout:
+    copy_id: str = ""
+    at: tuple = (0.5, 0.5)  # the label's centre, as fractions of the frame
+    line_to: tuple | None = None  # optional end of a leader line from `at`
+    start: float = 0.0  # seconds into the shot
+    end: float | None = None  # seconds into the shot; None = the shot's end
+    style: str = "callout"
+
+
+@dataclass
 class Shot:
     id: str = ""
     source: Source = field(default_factory=Source)
     motion: Motion = field(default_factory=Motion)
     product: ProductSpec | None = None
     caption: CaptionSpec | None = None
+    callouts: list = field(default_factory=list)  # Callout labels; see _parse_callout
     vo: str | None = None  # copy id spoken during the shot
     duration: float | str = "auto"  # seconds | "auto" | "beats:N"
     transition_in: str = "cut"
@@ -613,6 +624,39 @@ def _parse_caption(r: _R) -> CaptionSpec:
     return c
 
 
+def _point(r: _R, k: str) -> tuple | None:
+    """A point as fractions of the frame: [x, y], each from 0 to 1."""
+    v = r.raw(k, None)
+    if v is None:
+        return None
+    if not (
+        isinstance(v, list) and len(v) == 2 and all(isinstance(c, (int, float)) and not isinstance(c, bool) for c in v)
+    ):
+        r.errs.append(f"{r._p(k)}: expected [x, y] as fractions of the frame, got {v!r}")
+        return None
+    x, y = float(v[0]), float(v[1])
+    if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
+        r.errs.append(f"{r._p(k)}: {v!r} is outside the frame (each value from 0 to 1)")
+        return None
+    return (x, y)
+
+
+def _parse_callout(r: _R) -> Callout:
+    co = Callout(copy_id=r.s("copy_id", "", required=True) or "")
+    if not r.has("at"):
+        r.errs.append(f"{r._p('at')}: required")
+    co.at = _point(r, "at") or (0.5, 0.5)
+    co.line_to = _point(r, "line_to")
+    co.start = r.num("start", 0.0, lo=0.0, hi=600.0)
+    if r.raw("end", None) is not None:
+        co.end = r.num("end", 0.0, lo=0.0, hi=600.0)
+        if co.end <= co.start:
+            r.errs.append(f"{r._p('end')}: {co.end} must be after start ({co.start})")
+    co.style = r.s("style", "callout", pattern=ID_RE) or "callout"
+    r.finish()
+    return co
+
+
 def _parse_shot(r: _R, idx: int) -> Shot:
     sh = Shot(id=r.s("id", f"s{idx + 1}", pattern=ID_RE) or f"s{idx + 1}")
     sh.source = _parse_source(r.sub("source"), sh.id)
@@ -621,6 +665,14 @@ def _parse_shot(r: _R, idx: int) -> Shot:
         sh.product = _parse_product(r.sub("product"))
     if r.has("caption"):
         sh.caption = _parse_caption(r.sub("caption"))
+    raw_callouts = r.raw("callouts", None)
+    if raw_callouts is not None:
+        if not isinstance(raw_callouts, list):
+            r.errs.append(f"{r._p('callouts')}: expected a list of callouts")
+        else:
+            sh.callouts = [
+                _parse_callout(_R(cd, f"{r.path}.callouts[{j}]", r.errs)) for j, cd in enumerate(raw_callouts)
+            ]
     vo = r.raw("vo", None)
     if vo is not None and not isinstance(vo, str):
         r.errs.append(f"{r.path}.vo: expected a copy id string")

@@ -138,6 +138,22 @@ A caption can put a pill behind the word the typewriter has reached. Set it in a
 - A caption cannot switch off its style's pill yet; use a style without one.
 - The text audit records the copy only, not the highlight.
 
+## Callout tags
+
+A shot can carry labels that point at a place in the picture. Each label shows a line of deck copy, centred on an anchor point, with an optional leader line to a second point:
+
+    "callouts": [{"copy_id": "hook", "at": [0.5, 0.3], "line_to": [0.5, 0.9], "start": 0.5, "end": 2.0}]
+
+- `copy_id` (required): a copy line in the deck. The text comes from the deck, so the text audit lists it.
+- `at` (required): the label's centre, as [x, y] fractions of the frame, from 0 to 1.
+- `line_to` (optional): the end of the leader line, in the same units. The line runs from the label's centre to this point and ends in a dot. Without it the label is drawn alone.
+- `start`, `end` (optional): seconds into the shot when the label shows. They default to 0 and the end of the shot. `end` must come after `start`.
+- `style` (optional): a caption style. Default `callout` (templates/captions/callout.json).
+
+Labels are drawn over the shot's caption. The label box and the leader line take the style's box colour, which is the brand's text colour (white by default). The optional red sub-label in the spec is not built yet.
+
+The label must stay inside the safe area for the format. A label that would sit in the top or bottom band, or past the side margins, is a validation error: move `at` towards the middle. The window must also fit the shot: `start` must come before the shot ends, and `end` must not be later. For `auto` and `beats:N` shots, the shot length is the one the timeline resolves.
+
 ## Shot lists for specific briefs
 
 `project_auto_reel` is a first draft. When a brief gives exact timings, framing or mostly screen recordings, edit the
