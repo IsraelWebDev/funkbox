@@ -7,6 +7,7 @@
     funkbox poster export-ora X.poster.json [--out DIR] [--name N]
     funkbox poster ora-check FILE.ora
     funkbox poster render X.poster.json --formats png,svg,pdf                      (vector files, text as outlines)
+    funkbox poster render X.poster.json --layers                                   (+ <name>-<id>.png per layer)
     funkbox poster sizes X.poster.json --sizes story,landscape,square [--fit-to content] [--formats png,pdf]
     funkbox poster animate X.poster.json [--scale 0.5] [--gif] [--seconds 6] [--fps 30] [--name N] [--out DIR]
     funkbox poster compare CANDIDATE.png|X.poster.json REFERENCE.png [--fit cover|stretch] [--name N] [--out DIR]
@@ -89,7 +90,13 @@ def cmd_poster_render(a, formats=None) -> int:
     r = render.render_document(doc, base)
     if formats is None and getattr(a, "formats", None):
         formats = [f.strip() for f in a.formats.split(",") if f.strip()]
-    paths = render.write_outputs(r, _outdir(a, doc), a.name or r.doc.name, formats)
+    out, name = _outdir(a, doc), a.name or r.doc.name
+    layers = getattr(a, "layers", False)
+    if layers:  # every --layers refusal happens here, before the composed files or the folder are written
+        render.check_layer_export(r, out, name, formats)
+    paths = render.write_outputs(r, out, name, formats)
+    if layers:
+        paths.update(render.write_layers(r, out, name))
     print(api.describe(r))
     _print_paths(paths)
     return 0
@@ -273,6 +280,11 @@ def add_cli(sub) -> None:
         p.add_argument("--project")
         if name == "render":
             p.add_argument("--formats", help="comma list overriding the poster's export list, e.g. png,svg,pdf")
+            p.add_argument(
+                "--layers",
+                action="store_true",
+                help="also write each visible layer as <name>-<id>.png and <name>.layers.json",
+            )
         p.set_defaults(fn=fn)
     p = psub.add_parser("sizes", help="the same poster for other canvases (story, landscape, ...) and a sheet")
     p.add_argument("poster")

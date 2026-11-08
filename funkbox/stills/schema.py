@@ -316,10 +316,10 @@ def _check_layers(layers: Any, where: str, errs: list[str], seen: set[str], dept
         if lid is not None:
             if not isinstance(lid, str) or not ID_RE.match(lid):
                 errs.append(f"{w}: id must match {ID_RE.pattern}")
-            elif lid in seen:
-                errs.append(f"{w}: duplicate layer id {lid!r}")
+            elif lid.lower() in seen:
+                errs.append(f"{w}: duplicate layer id {lid!r} (ids are compared without case, so 'Bg' and 'bg' clash)")
             else:
-                seen.add(lid)
+                seen.add(lid.lower())
         bad = set(lay) - COMMON - TYPE_KEYS[t]
         if bad:
             errs.append(f"{w}: unknown keys {sorted(bad)} for a {t} layer; have {sorted(COMMON | TYPE_KEYS[t])}")
