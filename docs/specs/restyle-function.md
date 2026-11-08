@@ -1,6 +1,6 @@
 # Spec: restyle as a function (E2)
 
-Status: planned, before code. Effort: small. Source: owner list, item E2. Unblocks desktop gap item 6 (restyle) for the hosted image worker.
+Status: built; amended after independent review (see Revision). Effort: small. Source: owner list, item E2. Unblocks desktop gap item 6 (restyle) for the hosted image worker.
 
 ## Problem
 
@@ -8,12 +8,12 @@ img2img exists only behind FastSD's paths. `funkbox/studio/images.py` `restyle()
 
 ## Goal
 
-Add `restyle_png` in `funkbox/studio/restyle.py`. It takes the picture as bytes, a prompt, a strength, a seed and an optional size, and returns PNG bytes. It applies the same strength and step rules as the existing img2img path (`funkbox/studio/sdcore.py`: `STRENGTH_MIN`/`STRENGTH_MAX`, `clamp_steps`). It does no file I/O and no network, and its errors contain no file path and no prompt text.
+Add `restyle_png` in `funkbox/studio/restyle.py`. It takes the picture as bytes, a prompt, a strength, a seed and an optional size, and returns PNG bytes. It uses the strength range in `sdcore` (`STRENGTH_MIN`, `STRENGTH_MAX`) and the step rule `steps * strength >= 1`, which this module computes itself (Rule 1). It does no file I/O and no network, and its errors contain no file path and no prompt text.
 
 ## Non-goals
 
 - No change to `funkbox image restyle`, `images.restyle()`, the `image_restyle` MCP tool, or FastSD's CLI path. The existing behaviour stays as it is.
-- No change to `sdcore.py`. It is copied into the FastSD folder by `sync_launcher`, so editing it would change what gets synced.
+- No change to `sdcore.py`. It is copied into the FastSD folder by `sync_launcher`, so editing it would change what gets synced. `sdcore.clamp_steps` is not called (Rule 1 explains why).
 - The module does not load SD-Turbo. The caller passes the model in as a callable. Wiring a production model (on the hosted worker or on the laptop) is a separate item.
 - No text-to-image or upscale function.
 - No steps input. The rule fixes the steps.
@@ -24,6 +24,8 @@ Add `restyle_png` in `funkbox/studio/restyle.py`. It takes the picture as bytes,
 ```python
 RESTYLE_MIN_SIDE = 64
 RESTYLE_MAX_SIDE = 2048
+PICTURE_MAX_BYTES = 40 * 1024 * 1024   # 41,943,040 bytes
+SEED_MAX = 2**32 - 1
 
 class RestyleError(ValueError): ...
 
@@ -38,30 +40,30 @@ def restyle_png(
 ) -> bytes: ...
 ```
 
-The model callable is `model(init, prompt, strength, steps, seed)`. `init` is an RGB Pillow image already at the model side (see Rule 2). It returns a Pillow image. Its size is not trusted and is fitted to the output size (Rule 4).
+The model callable is `model(init, prompt, strength, steps, seed)`. `init` is an RGB Pillow image already at the model side (Rule 2). It returns a Pillow image, which is then fitted to the output size (Rule 4).
 
 ## Inputs
 
 | Name | Type | Rule |
 |---|---|---|
-| `picture` | bytes | Any image Pillow can open (PNG, JPEG, ...). Not decodable gives `RestyleError`. Alpha is dropped by converting to RGB. |
+| `picture` | bytes | Any image Pillow can open. That includes GIF (the first frame is used), PNG and JPEG, and this is deliberate. Empty input, input that does not decode, or input longer than `PICTURE_MAX_BYTES` (40 MiB, checked before decoding) gives `RestyleError`. Alpha is dropped by converting to RGB. |
 | `prompt` | str | Non-empty after stripping whitespace. |
 | `strength` | float | Finite, `0.05 <= strength <= 0.95`. Booleans and NaN are rejected. |
 | `seed` | int | `0 <= seed <= 2**32 - 1`. Negative values are rejected (see open questions). |
-| `size` | (int, int) or None | Each side `64..2048`. None means the input picture's own width and height, and that size is checked the same way. |
+| `size` | (int, int) or None | Each side `64..2048`. None means the picture's own width and height, and that picture size is checked against the same range. The error names "picture" in that case and "size" when the caller passed one. |
 | `model` | callable | Keyword-only, required. |
 
 ## Outputs
 
-PNG bytes, RGB mode. The decoded size is exactly `size`, or the input picture's size when `size` is None. The function writes no text chunks and no path into the PNG.
+PNG bytes, RGB mode. The decoded size is exactly `size`, or the picture's own size when `size` is None. The function writes no text chunks and no path into the PNG.
 
 ## Rules
 
-1. **Step rule.** Steps are `sdcore.clamp_steps(1, strength)[0]`, so `steps * strength >= 1` always holds. At 0.05 that is 20 steps (`MAX_STEPS`). At 0.5 it is 2. The model is never called with fewer steps than the rule needs.
-2. **Model side.** Each side of `size` is rounded down to a multiple of 64 with `sdcore.round64` (bounds 256 to 1024). The input is centre-cropped to that side with `sdcore.cover_resize`, then passed to the model.
+1. **Step rule.** Steps are the fewest integers with `steps * strength >= 1`, checked in exact rational arithmetic on the float value (`fractions.Fraction`). This is `steps_for()` in `restyle.py`. `sdcore.clamp_steps` is not used: its 1e-9 tolerance can return one step too few. For strength 0.3333333332333 it returns 3, and `3 * 0.3333333332333 < 1`, so the model would run zero steps. Expected values: 0.05 gives 20, 0.25 gives 4, 0.3 gives 4, 0.5 gives 2, 0.95 gives 2, 1/3 gives 4, and 0.3333333332333 gives 4. The model is never called with fewer steps than the rule needs, and the count is never more than `sdcore.MAX_STEPS` (20).
+2. **Model side.** Each side of the output size is rounded down to a multiple of 64 with `sdcore.round64` (bounds 256 to 1024). The picture is centre-cropped to that side with `sdcore.cover_resize`, then passed to the model.
 3. **Checks before the model.** Every input check runs before the model is called. An invalid call never reaches the model.
-4. **Output fit.** The model's result is centre-cropped and resized to exactly `size` with `sdcore.cover_resize`. So output size always equals the requested size, whatever the model returns.
-5. **Errors.** Every error is `RestyleError`, a `ValueError`. Messages name the field and its allowed range. They never include the prompt, the picture bytes, a file path, or the model's exception text. A model failure is re-raised as `RestyleError("restyle model failed")` with `from None`, so the original text is dropped.
+4. **Result.** The model's result must be a Pillow image with both sides at least 1 that can be converted to RGB. Other modes that convert (L, RGBA, P, F, I;16, CMYK and so on) are accepted and converted. A non-image, a zero-size image, or a result whose conversion or resize fails gives `RestyleError("restyle model returned no usable image")`. Accepted results are centre-cropped and resized to exactly the output size with `sdcore.cover_resize`.
+5. **Errors.** Every error is a `RestyleError`, a `ValueError`. Messages name the field and its allowed range. They never include the prompt, the picture bytes, a file path, or the model's exception text. A model failure gives `RestyleError("restyle model failed")`. Every `RestyleError` is raised outside any `except` block, so `__context__` and `__cause__` are both None, and nothing from the original exception is reachable through the error.
 6. **No I/O.** No file access, no network, no module-level state. The function adds no randomness: the same model, inputs and seed give the same output.
 
 ## Licence note (product copy, not code)
@@ -74,12 +76,14 @@ Before restyle is sold, the product copy must say this. The licence notice must 
 
 `tests/test_e2_restyle.py`. A stub model stands in for SD-Turbo. Nothing is downloaded and nothing calls the network.
 
-1. Step rule: strengths 0.05, 0.3, 0.5 and 0.95 each reach the stub with `steps * strength >= 1` and with steps equal to `clamp_steps(1, strength)[0]`. Strength 0.05 gives 20.
-2. Strength range: 0.04, 0.96, NaN, infinity and a boolean raise `RestyleError`, and the stub is never called.
-3. Output size: no size gives an output the same size as the input. An explicit size gives that size. A small input with a larger size works. The stub receives an init image whose sides are multiples of 64.
-4. Error text: a prompt that contains a file path and a unique marker, with an invalid strength, gives an error that contains neither the marker nor the path. A model that raises with a path and the marker gives a `RestyleError` with neither in its text. Non-image bytes, an empty prompt, a negative seed and an out-of-range size each give `RestyleError`.
-5. Output format: the result starts with the PNG signature and decodes as RGB.
-6. Determinism: the same stub and inputs give identical bytes twice. The seed reaches the stub unchanged.
+1. Step rule: the boundary value 0.3333333332333, plus 1/3, 0.05, 0.95, 0.25, 0.3 and 0.5, each with its literal expected step count. Each count is checked with exact arithmetic (`steps * strength >= 1`, and `(steps - 1) * strength < 1`). Strength 0.05 gives 20.
+2. Strength range: 0.04, 0.96, NaN, infinity, a boolean, a string and None are refused, and the stub is never called. 0.05 and 0.95 are accepted with step counts 20 and 2.
+3. Output size: no size gives an output the same size as the picture. Sizes 64 and 2048 are accepted. An explicit size is the output size, and the model side is a multiple of 64 (500x700 gives a 448x640 model side). A model result of another size is fitted. Sizes 32, 63, 2049, 4096, a 1-tuple, a string, a boolean and a float side are refused. A picture out of range is reported as "picture", and a bad size as "size".
+4. Pictures: a GIF is accepted, an empty or non-image input is refused, and the stub is not called. A picture over `PICTURE_MAX_BYTES` is refused before decoding (the message names the 40 MiB limit). A picture of exactly that length still goes on to decoding.
+5. Model results: a zero-size result, a zero-height result, None, a string, and an object whose conversion raises are all refused with the "no usable image" message. Results in L, RGBA, P, F, I;16 and CMYK are converted to RGB.
+6. Error text: a prompt with a path and a unique marker, with a bad strength, a bad seed, a bad size, a bad picture, or a model returning None, gives an error with neither the marker nor the path. A model that raises with both gives `"restyle model failed"` with `__context__` and `__cause__` both None.
+7. Output format: the result starts with the PNG signature and decodes as RGB.
+8. Determinism: the same stub and inputs give identical bytes twice. The seed, prompt and strength reach the stub unchanged.
 
 Run: `C:\dev\funkbox\.venv\Scripts\python.exe -m pytest -q tests/test_e2_restyle.py` from the worktree root.
 
@@ -92,7 +96,7 @@ Run: `C:\dev\funkbox\.venv\Scripts\python.exe -m pytest -q tests/test_e2_restyle
 
 ## Done when
 
-- `docs/specs/restyle-function.md` (this file) is committed before the code.
+- `docs/specs/restyle-function.md` (this file) is committed.
 - `funkbox/studio/restyle.py` and `tests/test_e2_restyle.py` exist and the targeted test file passes.
 - `images.py`, `sdcore.py` and the MCP tools are unchanged.
 - The report states the 2 vCPU timing as not measured here, unless the hosted box measures it.
@@ -102,3 +106,7 @@ Run: `C:\dev\funkbox\.venv\Scripts\python.exe -m pytest -q tests/test_e2_restyle
 - Which side supplies the production `model` callable, and where does it run (hosted worker or laptop FastSD)?
 - Should a negative seed mean random, as the CLI does with -1? The spec rejects it so hosted results can be reproduced.
 - Is 2048 the right ceiling for `size`?
+
+## Revision
+
+The first version of this spec was written before the code. This revision follows an independent review of commit 6a1791a. It changes the step rule to exact arithmetic (Rule 1), makes unusable model results a named error (Rule 4), keeps errors free of chained exceptions (Rule 5), names the picture in size errors, adds the 40 MiB input limit, states that GIF input is accepted, and strengthens the tests.
