@@ -30,6 +30,61 @@ def _labels(plan: R.Plan, sp: ShotSpan) -> list[str]:
     return [f"{sh.id}  {sp.duration:.2f}s  {sh.source.kind}", f"{cap}{vo}", f"{mid}  in:{sh.transition_in}"]
 
 
+def _reason(e: Exception) -> str:
+    """One short line for why the beat grid could not be made. A ``cannot decode <path>: ...`` message
+    (decode_mono) loses the path and keeps the ffmpeg error after it (harmless labels such as "Error opening
+    input file: ..." stay); an OSError keeps the first label and the file name. If the ffmpeg error is empty,
+    the exception class name plus "cannot decode <file name>" stands in. What is left is cut to 80 characters."""
+    text = " ".join(str(e).split())
+    if isinstance(e, OSError):
+        if e.filename:
+            name, label = Path(str(e.filename)).name, e.strerror or type(e).__name__
+        else:  # no filename: the path sits in the message instead (config.resolve_path: "file not found: <path>")
+            tail = text.rpartition(": ")[2].strip("'\"")
+            name, label = (Path(tail).name, text.rpartition(": ")[0]) if tail else ("", text)
+        if name:
+            text = f"{label}: {name}"
+    if text.startswith("cannot decode "):
+        path, _, ffmpeg = text[len("cannot decode ") :].partition(": ")
+        if ffmpeg.startswith(path + ": "):  # decode_mono echoes ffmpeg's own "<path>: <error>" line
+            ffmpeg = ffmpeg[len(path) + 2 :]
+        if ffmpeg:  # drop the path; keep the ffmpeg error the way ffmpeg phrased it
+            text = ffmpeg
+        else:  # no ffmpeg error after the path: the exception name stands in, with the file name only
+            text = f"{type(e).__name__}: cannot decode {Path(path).name}"
+    return text[:80] or type(e).__name__
+
+
+def beat_grid_lines(plan: R.Plan) -> list[str]:
+    """The beat grid the reel is cut against: tempo, beat count (up to the end of the reel), the first 8 beats, and
+    for every cut the distance in ms to the nearest beat. ``["beat grid: none"]`` when the reel has no grid."""
+    from . import audio, timeline
+
+    try:
+        beats = audio.beat_grid_for(plan.reel)
+    except (ValueError, RuntimeError, OSError) as e:  # missing, undecodable, short or silent music: still prints
+        return [f"beat grid: none ({_reason(e)})"]
+    if not beats or len(beats) < 2:
+        return ["beat grid: none"]
+    total = plan.spans[-1].end if plan.spans else 0.0
+    n = sum(1 for b in beats if b <= total + 1e-6)
+    bpm = 60.0 / timeline.beat_period(beats)
+    lines = [
+        f"beat grid: {bpm:.1f} BPM, {n} beats in {total:.1f}s",
+        "first beats (s): " + ", ".join(f"{b:.3f}" for b in beats[:8]),
+    ]
+    for sp in plan.spans[1:]:  # a cut is where a shot starts, after the first
+        d = min(abs(sp.start - b) for b in beats)
+        lines.append(f"cut {sp.id} at {sp.start:.2f}s: {d * 1000:.0f} ms from the nearest beat")
+    return lines
+
+
+def print_beat_grid(plan: R.Plan, file=None) -> None:
+    """Print ``beat_grid_lines`` (the CLI's storyboard report; the MCP tool must not print to stdout)."""
+    for line in beat_grid_lines(plan):
+        print(line, file=file)
+
+
 def storyboard(
     plan: R.Plan, out: str | Path | None = None, tile_w: int = 270, cols: int | None = None, depth_mode: str = "cached"
 ) -> Image.Image:

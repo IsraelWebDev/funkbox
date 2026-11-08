@@ -59,6 +59,206 @@ def test_storyboard_has_one_tile_per_shot_plus_end_card(demo, gl, work):
         assert tile.getextrema()[1] - tile.getextrema()[0] > 20
 
 
+def test_storyboard_report_prints_the_beat_grid_and_cut_distances(demo, gl, capsys):
+    from funkbox.reel import render
+    from funkbox.reel.storyboard import print_beat_grid
+
+    d = small_demo_reel(demo)
+    d["audio"] = {**d.get("audio", {}), "bpm": 120}  # a fixed grid: one beat = 0.5 s
+    plan = render.prepare(d, demo)
+    print_beat_grid(plan)
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith("beat grid: 120.0 BPM, ") and " beats in " in lines[0]
+    assert lines[1] == "first beats (s): " + ", ".join(f"{k * 0.5:.3f}" for k in range(8))
+    cuts = lines[2:]
+    assert len(cuts) == len(plan.spans) - 1  # one line per cut: every shot start after the first
+    for line, sp in zip(cuts, plan.spans[1:]):
+        beat_ms = abs(sp.start - round(sp.start / 0.5) * 0.5) * 1000
+        assert line == f"cut {sp.id} at {sp.start:.2f}s: {beat_ms:.0f} ms from the nearest beat"
+
+
+def test_storyboard_report_uses_the_detected_grid_of_the_music(demo, gl, capsys):
+    from funkbox.reel import audio, render
+    from funkbox.reel.storyboard import print_beat_grid
+
+    d = small_demo_reel(demo)
+    assert d["audio"].get("music") and not d["audio"].get("bpm")  # detected from click120.wav
+    plan = render.prepare(d, demo)
+    grid = audio.beat_grid_for(plan.reel)
+    print_beat_grid(plan)
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith("beat grid: ") and " BPM, " in lines[0], lines[0]
+    assert lines[1] == "first beats (s): " + ", ".join(f"{b:.3f}" for b in grid[:8])
+    for line, sp in zip(lines[2:], plan.spans[1:]):
+        ms = min(abs(sp.start - b) for b in grid) * 1000
+        assert line == f"cut {sp.id} at {sp.start:.2f}s: {ms:.0f} ms from the nearest beat"
+
+
+def test_storyboard_report_says_none_without_a_grid(demo, gl, capsys):
+    from funkbox.reel import render
+    from funkbox.reel.storyboard import print_beat_grid
+
+    d = small_demo_reel(demo)
+    d["audio"] = {"voiceover": True}  # no music, no bpm
+    for sh in d["shots"]:
+        if str(sh.get("duration", "")).startswith("beats:"):
+            sh["duration"] = 1.0
+    print_beat_grid(render.prepare(d, demo))
+    assert capsys.readouterr().out.strip() == "beat grid: none"
+
+
+def test_storyboard_report_says_why_when_the_beat_grid_cannot_be_made(demo, gl, capsys, monkeypatch):
+    from funkbox.reel import audio, render
+    from funkbox.reel.storyboard import beat_grid_lines, print_beat_grid
+
+    plan = render.prepare(small_demo_reel(demo), demo)
+
+    def boom(exc):
+        def f(reel):
+            raise exc
+
+        return f
+
+    monkeypatch.setattr(audio, "beat_grid_for", boom(RuntimeError("cannot decode x.wav: Invalid data")))
+    assert beat_grid_lines(plan) == ["beat grid: none (Invalid data)"]
+    monkeypatch.setattr(audio, "beat_grid_for", boom(ValueError("audio too short or silent for tempo estimation")))
+    print_beat_grid(plan)  # does not raise
+    assert capsys.readouterr().out.strip() == "beat grid: none (audio too short or silent for tempo estimation)"
+    monkeypatch.setattr(audio, "beat_grid_for", boom(RuntimeError("x" * 500 + "\nnext line")))
+    (line,) = beat_grid_lines(plan)
+    assert line.startswith("beat grid: none (") and line.endswith(")") and len(line) < 120 and "\n" not in line
+
+
+def test_project_storyboard_prints_the_same_beat_grid_as_reel_storyboard(demo, gl, capsys, monkeypatch):
+    from types import SimpleNamespace
+
+    from funkbox.reel import autoreel, cli, render, storyboard as sbmod
+
+    reel = demo / "small.reel.json"
+    reel.write_text(json.dumps(small_demo_reel(demo)))
+    monkeypatch.setattr(sbmod, "storyboard", lambda plan, out=None, **kw: None)  # the sheet is not under test
+    monkeypatch.setattr(autoreel, "auto_reel", lambda *a, **kw: SimpleNamespace(path=reel, text=lambda: "auto: ok"))
+
+    cli.cmd_storyboard(SimpleNamespace(reel=str(reel), project=None, format=None, output=str(demo / "sb.png"), tile=120))
+    reel_out = capsys.readouterr().out.splitlines()
+    args = SimpleNamespace(
+        project="demo", length=None, style=None, pace=None, cta=None, music=None, clip_share=None,
+        product_every=None, formats=None, bpm=None,
+    )  # fmt: skip
+    cli.cmd_project_auto(args)
+    project_out = capsys.readouterr().out.splitlines()
+
+    expected = sbmod.beat_grid_lines(render.prepare(str(reel)))
+    assert expected[0].startswith("beat grid: ") and len(expected) > 2
+    assert reel_out[-len(expected) :] == expected
+    assert project_out[-len(expected) :] == expected
+    assert project_out[-len(expected) - 1].startswith("storyboard: ")
+
+
+def test_storyboard_reason_drops_the_path_and_keeps_the_ffmpeg_error(demo, gl, monkeypatch):
+    from funkbox.reel import audio, render
+    from funkbox.reel.storyboard import beat_grid_lines
+
+    plan = render.prepare(small_demo_reel(demo), demo)
+    long_path = "C:\\" + "\\".join(["a-very-long-folder-name"] * 6) + "\\song.wav"
+
+    def boom(exc):
+        def f(reel):
+            raise exc
+
+        return f
+
+    msg = f"cannot decode {long_path}: {long_path}: Invalid data found when processing input"
+    monkeypatch.setattr(audio, "beat_grid_for", boom(RuntimeError(msg)))
+    assert beat_grid_lines(plan) == ["beat grid: none (Invalid data found when processing input)"]
+    msg = f"cannot decode {long_path}: Error opening input file: zzz"
+    monkeypatch.setattr(audio, "beat_grid_for", boom(RuntimeError(msg)))
+    (line,) = beat_grid_lines(plan)
+    # the path goes, the ffmpeg error stays whole (even the harmless "Error opening input file:" part)
+    assert line == "beat grid: none (Error opening input file: zzz)" and "a-very-long-folder-name" not in line
+    msg = f"cannot decode {long_path}: Error opening input file: " + "z" * 200
+    monkeypatch.setattr(audio, "beat_grid_for", boom(RuntimeError(msg)))
+    (line,) = beat_grid_lines(plan)
+    assert line == "beat grid: none (Error opening input file: " + "z" * 54 + ")"  # 80 characters after the prefix
+    assert "a-very-long-folder-name" not in line
+    monkeypatch.setattr(audio, "beat_grid_for", boom(RuntimeError("cannot decode x.wav: ")))
+    (line,) = beat_grid_lines(plan)  # nothing left after the path: the class name plus the message
+    assert line.startswith("beat grid: none (RuntimeError: cannot decode x.wav") and len(line) < 120
+    msg = f"cannot decode {long_path}: "  # same fallback with a long path: no folder name may leak either
+    monkeypatch.setattr(audio, "beat_grid_for", boom(RuntimeError(msg)))
+    (line,) = beat_grid_lines(plan)
+    assert line.startswith("beat grid: none (RuntimeError: cannot decode song.wav") and len(line) < 120, line
+    assert "a-very-long-folder-name" not in line, line
+
+
+def test_a_missing_music_file_is_a_readable_validate_error_and_a_storyboard_note(demo, gl, work, capsys):
+    import shutil
+
+    from funkbox.reel import render, validate
+    from funkbox.reel.schema import ReelError
+    from funkbox.reel.storyboard import beat_grid_lines, print_beat_grid, storyboard
+
+    d = small_demo_reel(demo)
+    assert d["audio"].get("music") and not d["audio"].get("bpm")
+    song = work / "missing-song.wav"
+    shutil.copy(demo / "inputs/music/click120.wav", song)
+    d["audio"] = {**d["audio"], "music": str(song)}
+    plan = render.prepare(d, demo)  # the music is there now: the reel validates and the grid is detected
+
+    song.unlink()  # ...and then it is gone: validate says so, readably (no traceback), and prepare refuses the reel
+    rep = validate.validate(d, base_dir=demo)
+    assert not rep.ok and any("missing-song.wav" in e for e in rep.errors), rep.errors
+    with pytest.raises(ReelError, match="missing-song.wav"):
+        render.prepare(d, demo)
+
+    storyboard(plan, work / "sb-missing.png", tile_w=100)  # the sheet is written, then the grid line
+    assert (work / "sb-missing.png").exists()
+    (line,) = beat_grid_lines(plan)
+    assert line.startswith("beat grid: none (") and "missing-song.wav" in line and len(line) < 120
+    assert str(work) not in line
+    print_beat_grid(plan)  # does not raise
+    assert capsys.readouterr().out.strip() == line
+
+
+def test_cli_storyboard_writes_the_sheet_and_says_why_when_the_music_vanishes(demo, gl, work, capsys, monkeypatch):
+    """The CLI path a user runs after validating: the music file is deleted while the sheet is being drawn -
+    after prepare has validated it. The command still writes the contact sheet and reports beat grid: none
+    (...) on stdout - no traceback. cmd_storyboard looks up storyboard.storyboard when it runs, so the swap
+    takes effect."""
+    import shutil
+    from types import SimpleNamespace
+
+    from funkbox.reel import cli
+    from funkbox.reel import storyboard as sbmod
+
+    d = small_demo_reel(demo)
+    song = work / "vanishing.wav"
+    shutil.copy(demo / "inputs/music/click120.wav", song)
+    d["audio"] = {**d["audio"], "music": str(song)}
+    reel_json = demo / "vanishing.reel.json"  # the CLI resolves the reel's relative paths from its own folder
+    reel_json.write_text(json.dumps(d))
+
+    real = sbmod.storyboard
+
+    def drawing(plan, out=None, **kw):  # the real sheet is drawn, and the song vanishes as it is rendered
+        img = real(plan, out, **kw)
+        song.unlink()
+        assert not song.exists()
+        return img
+
+    monkeypatch.setattr(sbmod, "storyboard", drawing)
+    out = work / "sb-vanished.png"
+    rc = cli.cmd_storyboard(
+        SimpleNamespace(reel=str(reel_json), project=None, format=None, output=str(out), tile=100)
+    )
+    assert rc == 0 and out.exists(), (rc, out)
+    lines = capsys.readouterr().out.splitlines()
+    assert any(" tiles in " in ln for ln in lines), lines
+    (line,) = [ln for ln in lines if ln.startswith("beat grid")]
+    assert line.startswith("beat grid: none (") and line.endswith(")"), line
+    assert "vanishing.wav" in line and len(line) < 120 and "\\" not in line, line
+
+
 def test_cli_validate_still_storyboard_beats_cutout(demo, gl, work):
     env = {**os.environ, "REEL_DEPTH": "stub", "REEL_TTS": "stub", "PYTHONPATH": str(ROOT)}
     reel = demo / "small.reel.json"
@@ -73,6 +273,7 @@ def test_cli_validate_still_storyboard_beats_cutout(demo, gl, work):
     assert r.returncode == 0 and "OK" in r.stdout, r.stderr
     r = run("storyboard", reel, "-o", work / "sb.png", "--tile", 120)
     assert r.returncode == 0 and (work / "sb.png").exists(), r.stderr
+    assert "beat grid: " in r.stdout and "ms from the nearest beat" in r.stdout, r.stdout  # the demo has music
     r = run("still", reel, "--shot", "s3", "--t", "0.4", "-o", work / "s3.png", "--width", 270)
     assert r.returncode == 0 and Image.open(work / "s3.png").size == (270, 480), r.stderr
     r = run("beats", demo / "inputs/music/click120.wav")
