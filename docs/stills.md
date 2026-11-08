@@ -102,8 +102,14 @@ sharpen, posterize, halftone, duotone `[dark, light]`, pixelate, chroma, vignett
 `image_edit` never writes the source: it builds a one-image poster, renders it, and writes `<stem>-<name|n>.png` (n
 counts up, nothing is overwritten) with the sidecar that re-renders it to the same pixels. Ops run in order and
 geometry ops (`crop` with `aspect` + `anchor` or `x,y,w,h`; `resize`; `rotate`; `flip`; `remove_background`;
-`trim_even`) come first. Then `adjust`, `filter`, `vignette`, `overlay {path, x, y, scale, blend, opacity}`,
+`trim_even`) come first. Then `adjust`, `filter`, `vignette`, `overlay {path, x, y, scale, blend, opacity, depth, shadow}`,
 `text {copy_id|text}` and `border`. `remove_background` uses the reel's cut-out and reports its quality score.
+
+`overlay` takes two optional keys, both off by default. `depth` (0 to 1) scales the overlay by how near its spot is,
+using the relative depth model: `scale * (1 + depth * (2 * d - 1))`; it needs the depth model and says so when it is
+missing. `shadow` is a number (opacity) or `{opacity, light, distance, blur, squash}`: a flattened shadow of the
+overlay's silhouette on the ground, cast away from the light (`light` is the angle the light comes from, 0 = above,
+90 = right). The shadow fades with the overlay's own `opacity`.
 
 ## OpenRaster
 
