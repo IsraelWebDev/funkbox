@@ -127,7 +127,9 @@ render path only.
 
 - Third review: a depth-cache clear failure becomes an error row (it was outside the error handling). The funkbox.toml
   refusal is tested through `main()`, with `CONFIG_ROOT` pointed at a temporary folder. Header text is collapsed to
-  one line. The onnxruntime header test reads the expected version from package metadata.
+  one line. The onnxruntime test compares the function's value with the installed distribution's version (skipped only when the
+  module cannot be imported). No test reads the repository's funkbox.toml: an autouse fixture points CONFIG_ROOT at a
+  temporary folder.
 
 ## Open questions
 

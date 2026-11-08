@@ -19,6 +19,12 @@ bench = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(bench)
 
 
+@pytest.fixture(autouse=True)
+def _config_in_tmp(tmp_path, monkeypatch):
+    """No test reads the repository's funkbox.toml: main() and depth_override() use a temporary folder."""
+    monkeypatch.setattr(bench, "CONFIG_ROOT", tmp_path)
+
+
 def _info() -> dict:
     return {
         "nt": False,
@@ -127,9 +133,14 @@ def test_per_second_columns_are_the_totals_divided_by_the_output_seconds():
 
 def test_header_has_an_onnxruntime_line():
     try:
-        expected = importlib.metadata.version("onnxruntime")  # read from the package metadata, not from the function under test
-    except importlib.metadata.PackageNotFoundError:
-        pytest.skip("onnxruntime is not installed here")
+        import onnxruntime  # noqa: F401 - the import name; onnxruntime-gpu and onnxruntime-directml provide it too
+    except ImportError:
+        pytest.skip("the onnxruntime module cannot be imported here, so there is no version to check")
+    # The version comes from the installed distribution that provides the module, not from the function under test.
+    dists = importlib.metadata.packages_distributions().get("onnxruntime", [])
+    assert dists, "onnxruntime imports, but no installed distribution provides it"
+    expected = importlib.metadata.version(dists[0])
+    assert bench.onnxruntime_version() == expected
     info = _info()
     info["onnxruntime"] = expected
     assert f"onnxruntime: {expected}" in bench.header_lines(info)
@@ -178,7 +189,6 @@ def test_reel_depth_in_funkbox_toml_is_read_and_is_an_override(tmp_path, monkeyp
 
 def test_reel_depth_in_funkbox_toml_refuses_through_main(tmp_path, monkeypatch, capsys):
     (tmp_path / "funkbox.toml").write_text('reel_depth = "model"\n', encoding="utf-8")
-    monkeypatch.setattr(bench, "CONFIG_ROOT", tmp_path)  # main() reads the config from this temporary folder
     _no_setup_no_tracking(monkeypatch)
     with pytest.raises(SystemExit) as exc:
         bench.main(["--sizes", "540x960"])
