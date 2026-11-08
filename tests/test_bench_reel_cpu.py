@@ -4,6 +4,7 @@ No real renders: every render is a stub, and the child-process tracking is not i
 """
 
 import csv
+import importlib.metadata
 import importlib.util
 import io
 import sys
@@ -124,12 +125,14 @@ def test_per_second_columns_are_the_totals_divided_by_the_output_seconds():
     assert agg["wall_per_output_s"] == pytest.approx(84.72 / 24.5)
 
 
-def test_header_has_an_onnxruntime_line_built_from_the_real_version():
+def test_header_has_an_onnxruntime_line():
+    try:
+        expected = importlib.metadata.version("onnxruntime")  # read from the package metadata, not from the function under test
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("onnxruntime is not installed here")
     info = _info()
-    info["onnxruntime"] = bench.onnxruntime_version()
-    lines = bench.header_lines(info)
-    assert f"onnxruntime: {bench.onnxruntime_version()}" in lines
-    assert any(line.startswith("onnxruntime: ") for line in lines)
+    info["onnxruntime"] = expected
+    assert f"onnxruntime: {expected}" in bench.header_lines(info)
 
 
 def test_onnxruntime_version_is_unknown_when_the_import_fails(monkeypatch):
@@ -171,6 +174,16 @@ def test_reel_depth_in_funkbox_toml_is_read_and_is_an_override(tmp_path, monkeyp
     assert bench.depth_override(tmp_path) == ""  # no funkbox.toml in the temporary folder
     (tmp_path / "funkbox.toml").write_text('reel_depth = "model"\n', encoding="utf-8")
     assert bench.depth_override(tmp_path) == "model"
+
+
+def test_reel_depth_in_funkbox_toml_refuses_through_main(tmp_path, monkeypatch, capsys):
+    (tmp_path / "funkbox.toml").write_text('reel_depth = "model"\n', encoding="utf-8")
+    monkeypatch.setattr(bench, "CONFIG_ROOT", tmp_path)  # main() reads the config from this temporary folder
+    _no_setup_no_tracking(monkeypatch)
+    with pytest.raises(SystemExit) as exc:
+        bench.main(["--sizes", "540x960"])
+    assert exc.value.code == 2
+    assert "REEL_DEPTH" in capsys.readouterr().err
 
 
 def test_median_of_three_takes_the_middle_run_by_cpu_total():
@@ -217,6 +230,22 @@ def test_a_failed_child_handle_makes_the_row_partial_and_the_next_window_is_clea
     assert second["note"] == ""
 
 
+def test_clear_cache_failure_becomes_an_error_row_and_the_csv_is_printed(monkeypatch, capsys, tmp_path):
+    def clear_locked():
+        raise PermissionError("locked by another process: depth_x.npy")
+
+    def render(plan, out_dir, depth_mode):
+        return SimpleNamespace(duration=24.5)
+
+    _no_setup_no_tracking(monkeypatch, _fake_setup(tmp_path, render, clear_locked))
+    code = bench.main(["--sizes", "540x960", "--depth", "on"])
+    assert code == 1
+    table = _table(capsys.readouterr().out)
+    row = dict(zip(table[0], table[1]))
+    assert row["status"] == "error"
+    assert "PermissionError" in row["note"]
+
+
 def test_render_error_gives_an_error_row_and_exit_code_1(monkeypatch, capsys, tmp_path):
     def render(plan, out_dir, depth_mode):
         if out_dir.name == "warmup":
@@ -231,6 +260,21 @@ def test_render_error_gives_an_error_row_and_exit_code_1(monkeypatch, capsys, tm
     assert row["status"] == "error"
     assert "boom" in row["note"]
     assert row["cpu_total_s"] == ""
+
+
+def test_warm_up_error_message_stays_on_one_header_line(monkeypatch, capsys, tmp_path):
+    def render(plan, out_dir, depth_mode):
+        if out_dir.name == "warmup":
+            raise RuntimeError("line one\r\nline two\rthree")
+        return SimpleNamespace(duration=24.5)
+
+    _no_setup_no_tracking(monkeypatch, _fake_setup(tmp_path, render, lambda: None))
+    code = bench.main(["--sizes", "540x960", "--depth", "off"])
+    out = capsys.readouterr().out
+    assert code == 1
+    warm = [line for line in out.split("\n") if line.startswith("# warm-up")]
+    assert len(warm) == 1
+    assert "line one line two three" in warm[0]
 
 
 def test_warm_up_failure_still_prints_the_csv_and_exits_1(monkeypatch, capsys, tmp_path):

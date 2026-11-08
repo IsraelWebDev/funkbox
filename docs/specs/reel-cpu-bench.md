@@ -77,7 +77,8 @@ Status values:
   `OpenProcess` returned no handle. That child is missing from `cpu_children_s` and `cpu_total_s`, so both are lower
   than the true values. The note says that some runs had a child handle that could not be opened.
 - `not run`: the case cannot run on this host. The note gives the reason. Numeric cells are empty.
-- `error`: a timed render raised an exception. The note gives it. Numeric cells are empty.
+- `error`: a timed render, or the depth-cache clear before it (for example a locked `.npy` file), raised an exception.
+  The note gives it. Numeric cells are empty.
 
 Exit codes: 0 when the warm-up worked and no row is `error` (`ok`, `partial` and `not run` all give 0); 1 when any row
 is `error` or the warm-up failed; 2 for bad arguments, an unknown size, or a `REEL_DEPTH` / `reel_depth` override.
@@ -99,7 +100,8 @@ Rendered MP4s are written under `FUNK_OUT/bench-reel-cpu/`.
 
 - Tests use stub renders only. They cover: the columns and CSV shape; the per-second columns; the median rule (odd
   and even counts); the `partial` status, including a failed child handle followed by a clean window; the error row
-  and exit code 1; the warm-up failure (CSV still printed, exit 1); the warm-up depth mode for each `--depth` value;
+  and exit code 1; a depth-cache clear that raises (error row, CSV still printed, exit 1); the warm-up failure
+  (CSV still printed, exit 1), including a multi-line error message kept on one header line;
   depth-off passed to the render with the cache cleared only before depth-on; the refusals (unknown size, `REEL_DEPTH`
   in the environment, `reel_depth` in a temporary `funkbox.toml`); the onnxruntime line in the header.
 - Not tested in the repository: the `OpenProcess` call itself and the Windows `GetProcessTimes` read. The tests drive
@@ -122,6 +124,10 @@ render path only.
   `partial` note no longer counts processes, because runs can differ. The tests now cover the per-second columns, the
   `partial` path, the warm-up failure, the warm-up depth mode, and the `funkbox.toml` override. The `Setup` class is
   now a plain class, not a dataclass, so the tests need no global module registration.
+
+- Third review: a depth-cache clear failure becomes an error row (it was outside the error handling). The funkbox.toml
+  refusal is tested through `main()`, with `CONFIG_ROOT` pointed at a temporary folder. Header text is collapsed to
+  one line. The onnxruntime header test reads the expected version from package metadata.
 
 ## Open questions
 

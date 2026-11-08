@@ -159,11 +159,15 @@ def parse_sizes(text: str) -> list[str]:
     return sizes
 
 
+# Where funkbox.toml is read for reel_depth. None means the checkout; tests point it at a temporary folder.
+CONFIG_ROOT: Path | None = None
+
+
 def depth_override(root: Path | None = None) -> str:
     """The REEL_DEPTH value (or reel_depth from funkbox.toml under ``root``) if one is set, else ''."""
     from funkbox.config import get
 
-    return get(root).reel_depth or ""
+    return get(root if root is not None else CONFIG_ROOT).reel_depth or ""
 
 
 def onnxruntime_version() -> str:
@@ -248,9 +252,14 @@ def _cell(v):
     return v
 
 
+def _one_line(text: str) -> str:
+    """Collapse carriage returns, newlines and the other line separators to single spaces."""
+    return " ".join(str(text).splitlines())
+
+
 def write_csv(rows: list[dict], header: list[str], stream) -> None:
     for line in header:
-        stream.write(f"# {line}\n")
+        stream.write(f"# {_one_line(line)}\n")
     writer = csv.writer(stream, lineterminator="\n")
     writer.writerow(COLUMNS)
     for row in rows:
@@ -264,16 +273,18 @@ def measure(setup: Setup, size: str, depth: str, out_dir: Path, repeat: int) -> 
     runs: list[dict] = []
     notes: list[str] = []
     for _ in range(repeat):
-        if depth == "on":
-            setup.clear_depth_cache()
-        setup.plan.reel.settings.width, setup.plan.reel.settings.height = w, h  # in memory only; the reel file is not written
-        stop_children = child_cpu_meter()
-        cpu0, wall0 = time.process_time(), time.perf_counter()
+        stop_children = None
         try:
+            if depth == "on":
+                setup.clear_depth_cache()  # a locked cache file raises here, and the case becomes an error row
+            setup.plan.reel.settings.width, setup.plan.reel.settings.height = w, h  # in memory only; the reel file is not written
+            stop_children = child_cpu_meter()
+            cpu0, wall0 = time.process_time(), time.perf_counter()
             out = setup.render(setup.plan, out_dir, depth_mode)
         except Exception as exc:  # keep the other rows; this one is marked as an error
-            stop_children()
-            return blank_row(size, depth, "error", f"{type(exc).__name__}: {str(exc)[:200]}".replace("\n", " "))
+            if stop_children is not None:
+                stop_children()
+            return blank_row(size, depth, "error", _one_line(f"{type(exc).__name__}: {str(exc)[:200]}"))
         wall = time.perf_counter() - wall0
         cpu_python = time.process_time() - cpu0
         cpu_children = stop_children()
@@ -399,7 +410,7 @@ def main(argv: list[str] | None = None) -> int:
             "one-time costs of the other size are not warmed"
         )
     except Exception as exc:  # the timed rows still run; the header and the exit code report the failure
-        warm_error = f"{type(exc).__name__}: {str(exc)[:200]}".replace("\n", " ")
+        warm_error = _one_line(f"{type(exc).__name__}: {str(exc)[:200]}")
         setup.info["warm"] = f"error {warm_error}; the timed rows are not warmed"
     rows = run_rows(setup, sizes, depths, args.repeat)
     write_csv(rows, header_lines(setup.info), sys.stdout)
