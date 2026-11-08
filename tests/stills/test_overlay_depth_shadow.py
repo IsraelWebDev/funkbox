@@ -1,6 +1,7 @@
 """Overlay ``depth`` (scale by how near the spot is) and ``shadow`` (a flattened shadow cast away from the light)."""
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -34,6 +35,10 @@ def layers(res):
     return json.loads(res.paths["sidecar"].read_text())["layers"]
 
 
+def shadow_of(res):
+    return next(lay for lay in layers(res) if lay["id"].startswith("shadow"))
+
+
 def silhouette(path):
     a = np.asarray(Image.open(path).convert("RGBA"))[..., 3]
     ys, xs = np.nonzero(a)
@@ -52,9 +57,8 @@ def test_shadow_falls_straight_down_under_a_light_from_above(base, cutout, work)
     )
     assert Image.open(res.paths["png"]).size == (W, H)
     assert [lay["id"] for lay in layers(res)] == ["src", "shadow2", "overlay1"]
-    sh = next(lay for lay in layers(res) if lay["id"].startswith("shadow"))
     # the overlay's silhouette is x 110..130, y 70..90; the shadow lands 16 px lower, squashed to 6 px
-    assert silhouette(sh["path"]) == (110, 130, 100, 106)
+    assert silhouette(shadow_of(res)["path"]) == (110, 130, 100, 106)
 
 
 def test_light_from_the_right_throws_the_shadow_left(base, cutout, work):
@@ -62,19 +66,41 @@ def test_light_from_the_right_throws_the_shadow_left(base, cutout, work):
     res = edit.edit_image(
         base, [{"op": "overlay", "path": str(cutout), "scale": 0.25, "shadow": shadow}], out_dir=work / "right"
     )
-    sh = next(lay for lay in layers(res) if lay["id"].startswith("shadow"))
-    assert silhouette(sh["path"]) == (94, 114, 84, 90)
+    assert silhouette(shadow_of(res)["path"]) == (94, 114, 84, 90)
 
 
 def test_shadow_number_is_its_opacity(base, cutout, work):
     # a bare number is the opacity; every other setting takes its default, so both spellings give the same file
     def shadow_file(shadow, name):
         ops = [{"op": "overlay", "path": str(cutout), "scale": 0.25, "shadow": shadow}]
-        res = edit.edit_image(base, ops, out_dir=work / name)
-        return next(lay for lay in layers(res) if lay["id"].startswith("shadow"))["path"]
+        return shadow_of(edit.edit_image(base, ops, out_dir=work / name))["path"]
 
     spelled = {"opacity": 0.5, "light": 45, "distance": 0.02, "blur": 0.01, "squash": 0.25}
     assert shadow_file(0.5, "num") == shadow_file(spelled, "dict")
+
+
+def test_shadow_opacity_is_applied_to_the_shadow_pixels(base, cutout, work):
+    res = edit.edit_image(
+        base,
+        [{"op": "overlay", "path": str(cutout), "scale": 0.25, "shadow": {"opacity": 0.5, "blur": 0}}],
+        out_dir=work / "half",
+    )
+    alpha = np.asarray(Image.open(shadow_of(res)["path"]).convert("RGBA"))[..., 3]
+    assert alpha.max() == 128  # round(255 * 0.5)
+
+
+def test_shadow_fades_with_the_overlay_it_belongs_to(base, cutout, work):
+    ops = [{"op": "overlay", "path": str(cutout), "scale": 0.25, "opacity": 0.5, "shadow": {"opacity": 1, "blur": 0}}]
+    res = edit.edit_image(base, ops, out_dir=work / "fade")
+    alpha = np.asarray(Image.open(shadow_of(res)["path"]).convert("RGBA"))[..., 3]
+    assert alpha.max() == 128  # shadow 1.0 * overlay 0.5
+
+
+def test_shadow_follows_a_geometry_op_before_the_overlay(base, cutout, work):
+    ops = [{"op": "rotate", "deg": 90}, {"op": "overlay", "path": str(cutout), "scale": 0.25, "shadow": True}]
+    res = edit.edit_image(base, ops, out_dir=work / "rot")
+    assert Image.open(res.paths["png"]).size == (H, W)  # rotate 90 turns the 240x160 picture
+    assert Image.open(shadow_of(res)["path"]).size == (H, W)
 
 
 def test_depth_scales_the_overlay_by_how_near_its_spot_is(base, cutout, work, monkeypatch):
@@ -94,6 +120,25 @@ def test_depth_scales_the_overlay_by_how_near_its_spot_is(base, cutout, work, mo
     assert overlay_scale(0.75) == pytest.approx(0.5 * 0.5)  # far:  1 + 0.5 * (2 * 0 - 1)
 
 
+def test_depth_cache_tells_apart_pictures_with_the_same_bytes(work, cutout, monkeypatch):
+    seen = []
+
+    def record(path):
+        seen.append(Path(path))
+        w, h = Image.open(path).size
+        return np.zeros((h, w), np.float32)
+
+    monkeypatch.setattr(reel_depth, "estimate_depth", record)
+    # a flat 240x160 and a flat 160x240 picture hold identical bytes; their depth maps must not be shared
+    wide, tall = work / "wide.png", work / "tall.png"
+    Image.new("RGB", (240, 160), (90, 90, 90)).save(wide)
+    Image.new("RGB", (160, 240), (90, 90, 90)).save(tall)
+    ops = [{"op": "overlay", "path": str(cutout), "depth": 0.5}]
+    edit.edit_image(wide, ops, out_dir=work / "cw")
+    edit.edit_image(tall, ops, out_dir=work / "ct")
+    assert seen[0] != seen[1]
+
+
 def test_depth_without_the_model_says_so(base, cutout, work, monkeypatch):
     def gone(path):
         raise reel_depth.DepthUnavailable("no model file")
@@ -105,8 +150,19 @@ def test_depth_without_the_model_says_so(base, cutout, work, monkeypatch):
 
 @pytest.mark.parametrize(
     "bad",
-    [{"depth": 2}, {"depth": True}, {"shadow": {"colour": 1}}, {"shadow": {"opacity": 1.5}}, {"shadow": "dark"}],
+    [
+        {"depth": 2},
+        {"depth": True},
+        {"shadow": {"colour": 1}},
+        {"shadow": {"opacity": 1.5}},
+        {"shadow": "dark"},
+        {"x": "left"},
+        {"y": float("nan")},
+        {"scale": float("inf")},
+        {"scale": 0},
+        {"opacity": 2},
+    ],
 )
-def test_bad_depth_or_shadow_values_are_refused(base, cutout, work, bad):
+def test_bad_overlay_values_are_refused_with_an_edit_error(base, cutout, work, bad):
     with pytest.raises(edit.EditError):
         edit.edit_image(base, [{"op": "overlay", "path": str(cutout), **bad}], out_dir=work / "bad")

@@ -260,12 +260,23 @@ def _shadow_spec(v: Any) -> dict | None:
     return spec if spec["opacity"] > 0 else None
 
 
+def _overlay_place(body: dict) -> tuple[float, float, float, float]:
+    """x, y (centre, canvas fractions), scale and opacity of an overlay, checked."""
+    return (
+        _num(body.get("x", 0.5), "x", -10, 10),
+        _num(body.get("y", 0.5), "y", -10, 10),
+        _num(body.get("scale", 1.0), "scale", 0.001, 100),
+        _num(body.get("opacity", 1.0), "opacity", 0, 1),
+    )
+
+
 def _depth_factor(shaped: Image.Image, x: float, y: float, strength: float) -> float:
     """1 + strength * (2 * depth - 1) at the overlay's centre: near ground keeps or grows its size, far ground shrinks."""
     from funkbox.reel import depth as reel_depth  # the depth model is optional, so it is imported only when asked for
 
     rgb = shaped.convert("RGB")
-    src = funk_out() / "cache" / "depth-src" / f"{hashlib.sha1(rgb.tobytes()).hexdigest()}.png"
+    key = hashlib.sha1(f"{rgb.width}x{rgb.height}|".encode() + rgb.tobytes()).hexdigest()
+    src = funk_out() / "cache" / "depth-src" / f"{key}.png"
     if not src.exists():
         src.parent.mkdir(parents=True, exist_ok=True)
         tmp = src.with_suffix(".part")
@@ -283,18 +294,18 @@ def _depth_factor(shaped: Image.Image, x: float, y: float, strength: float) -> f
 
 
 def _shadow_layer(ov_path: str, W: int, H: int, x: float, y: float, scale: float, spec: dict) -> Path | None:
-    """A canvas-sized shadow PNG: the overlay's silhouette squashed onto the ground and pushed away from the light."""
+    """A canvas-sized shadow (LA PNG): the overlay's silhouette squashed onto the ground and pushed away from the light."""
     im = Image.open(ov_path)
     im.load()
     alpha = place_image(ImageOps.exif_transpose(im).convert("RGBA"), W, H, "contain", x, y, scale)[..., 3]
-    ys, xs = np.nonzero(alpha)
-    if ys.size == 0:
+    rows, cols = np.flatnonzero(alpha.any(axis=1)), np.flatnonzero(alpha.any(axis=0))
+    if rows.size == 0:
         return None
-    x0, x1, y0, y1 = int(xs.min()), int(xs.max()) + 1, int(ys.min()), int(ys.max()) + 1
+    y0, y1, x0, x1 = int(rows[0]), int(rows[-1]) + 1, int(cols[0]), int(cols[-1]) + 1
     short = min(W, H)
     sh = max(1, round((y1 - y0) * spec["squash"]))
-    sprite = Image.fromarray(np.ascontiguousarray(alpha[y0:y1, x0:x1])).resize((x1 - x0, sh), Image.BILINEAR)
-    sprite = sprite.point(lambda v: round(v * spec["opacity"]))
+    sprite = Image.fromarray(np.ascontiguousarray(alpha[y0:y1, x0:x1]))
+    sprite = sprite.resize((x1 - x0, sh), Image.BILINEAR).point(lambda v: round(v * spec["opacity"]))
     t = math.radians(spec["light"])
     dx, dy = -math.sin(t) * spec["distance"] * short, math.cos(t) * spec["distance"] * short
     mask = Image.new("L", (W, H), 0)
@@ -309,8 +320,7 @@ def _shadow_layer(ov_path: str, W: int, H: int, x: float, y: float, scale: float
     if not out.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
         tmp = out.with_suffix(".part")
-        black = Image.new("L", (W, H), 0)
-        Image.merge("RGBA", (black, black, black, mask)).save(tmp, format="PNG")
+        Image.merge("LA", (Image.new("L", (W, H), 0), mask)).save(tmp, format="PNG")
         os.replace(tmp, out)
     return out
 
@@ -377,11 +387,14 @@ def build_doc(
             shadow = _shadow_spec(body.pop("shadow", None))
             ov_path = resolve_path(body.pop("path")).as_posix()
             lay = {"id": next_id("overlay"), "type": "image", "fit": "contain", "path": ov_path, **body}
-            x, y = float(body.get("x", 0.5)), float(body.get("y", 0.5))
+            x, y, s_ov, op_alpha = _overlay_place(body)
             if depth_k:
-                lay["scale"] = float(body.get("scale", 1.0)) * _depth_factor(shaped, x, y, depth_k)
+                s_ov *= _depth_factor(shaped, x, y, depth_k)
+                lay["scale"] = s_ov
             if shadow:
-                sh = _shadow_layer(ov_path, W, H, x, y, float(lay.get("scale", 1.0)), shadow)
+                # the shadow fades with the overlay it belongs to
+                shadow = {**shadow, "opacity": shadow["opacity"] * op_alpha}
+                sh = _shadow_layer(ov_path, W, H, x, y, s_ov, shadow) if shadow["opacity"] > 0 else None
                 if sh is not None:
                     root.append({"id": next_id("shadow"), "type": "image", "path": sh.as_posix(), "fit": "stretch"})
             root.append(lay)
