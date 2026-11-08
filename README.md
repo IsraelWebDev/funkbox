@@ -182,3 +182,8 @@ FUNK_GL_BACKEND=egl pytest -q        # leave the variable out when a GPU driver 
 MIT, see [LICENSE](LICENSE). Optional components keep their own licences (GPL-3.0 for piper-tts, espeak-ng used by kokoro-onnx, and gimp-mcp,
 which are installed on request and not bundled). FastSD images are covered by the Stability AI Community License
 (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
+
+
+## Plan-driven renders (proposed, not live)
+
+The tools and their input schemas are listed in [docs/catalog.json](https://github.com/IsraelWebDev/funkbox/blob/main/docs/catalog.json). The file is generated from the MCP server: `python -m funkbox catalog` (`--check` verifies it). The website is proposed to plan a render from this catalog: an AI planner writes a plan of these tools, the server checks the plan, and a preview runs it at low resolution or shows a storyboard before a paid render runs the same stored plan. Nothing here changes how the local tools work today. Decision and sign-offs: [docs/adr-plan-driven-renders.md in IsraelWebDev/funkbox-online](https://github.com/IsraelWebDev/funkbox-online/blob/main/docs/adr-plan-driven-renders.md).
