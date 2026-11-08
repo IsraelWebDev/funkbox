@@ -391,6 +391,44 @@ def write_outputs(r: Rendered, out_dir: str | Path, name: str, formats: list[str
     return paths
 
 
+def write_layers(r: Rendered, out_dir: str | Path, name: str) -> dict[str, Path]:
+    """Write each visible top-level layer as ``<name>-<layer-id>.png`` (RGBA, canvas size, straight alpha; its own
+    raster, fx and mask, but not its blend or opacity) and ``<name>.layers.json``: the layers in composite order,
+    bottom first. Nothing about the composed image changes; call it after ``write_outputs``."""
+    if not NAME_RE.match(name or ""):
+        raise ValueError(f"bad output name {name!r}: use 1-60 of letters, digits, _ and -")
+    d = fence_out(out_dir)
+    d.mkdir(parents=True, exist_ok=True)
+    index = {lay["id"]: i for i, lay in enumerate(r.doc.layers)}
+    paths: dict[str, Path] = {}
+    entries: list[dict] = []
+    for lay in r.layers:
+        fname = f"{name}-{lay.id}.png"
+        arr = np.ascontiguousarray(lay.rgba)
+        p = d / fname
+        Image.fromarray(arr).save(p, format="PNG")
+        h, w = arr.shape[:2]
+        entries.append(
+            {
+                "index": index[lay.id],
+                "id": lay.id,
+                "type": lay.type,
+                "file": fname,
+                "width": w,
+                "height": h,
+                "blend": lay.blend,
+                "opacity": lay.opacity,
+            }
+        )
+        paths[f"layer:{lay.id}"] = p
+    man = d / f"{name}.layers.json"
+    _atomic_json(
+        man,
+        {"name": name, "width": r.width, "height": r.height, "order": "bottom-to-top", "layers": entries},
+    )
+    paths["layers"] = man
+    return paths
+
 def render_poster(doc: Any, out_dir: str | Path, name: str = "", base_dir: str | Path | None = None) -> dict[str, Path]:
     """Render ``doc`` at full resolution and write ``<name>.png`` (and .jpg/.webp/.ora as the doc's export asks),
     ``<name>.text_audit.json`` and the reproducible sidecar ``<name>.poster.json``. Returns the paths by kind."""
