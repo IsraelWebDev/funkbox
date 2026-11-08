@@ -37,15 +37,15 @@ a full synth; the mix gets one room reverb and a gentle limiter at about -16 dBF
 
 ## Variety: several scores from one brief
 
-`funkbox music vary SCORE.music.json --brief brief.json --seed 7 --count 6` writes a set next to the base score (or into `--out`): one `NAME-NN.music.json` per variant and a `manifest.json`. The base score's bars and meter are kept. Each variant draws its own tempo, key, scale, programs, drum pattern, swing and chord progression, so the set does not sound like one song at different speeds.
+`funkbox music vary SCORE.music.json --brief brief.json --seed 7 --count 6` writes a set next to the base score (or into the folder given by `--out`): one file per variant and a `manifest.json`. For `song.music.json` the variants are `song-01.music.json`, `song-02.music.json`, and so on. The base score's bars and meter are kept. Each variant draws its own tempo, key, scale, programs, drum pattern, swing and chord progression, so the set does not sound like one song at different speeds.
 
-The brief is JSON. `validate_brief` lists every problem at once:
+The brief is JSON, and the tool reports every problem in it at once:
 
 - `bpm_range`: `[low, high]`, the tempo band.
-- `keys` and `scales`: lists to choose from.
+- `keys` and `scales`: lists to choose from, one per variant. Keys are note names such as `D` or `Bb`. Scales are `major`, `minor`, `harmonic-minor`, `dorian`, `mixolydian`, `phrygian`, `freygish`, `misheberach`, `pentatonic`, `minor-pentatonic` and `blues`.
 - `programs`: General MIDI programs for the pad and bass.
 - `drum_patterns`: any of `straight`, `half-time`, `shuffle`.
-- `swing`: values from 0 to 0.5.
+- `swing`: a list of values from 0 to 0.5; one is picked per variant.
 - `arrangement` (optional): the only accepted value is `build`.
 
 ```json
@@ -55,4 +55,4 @@ The brief is JSON. `validate_brief` lists every problem at once:
 
 `--seed` is required, so a set can be reproduced; `--count` defaults to 6. Duplicate variants are redrawn, and every score is checked before it is written. A set that already exists in the folder is refused unless you pass `--force`, which replaces it.
 
-To use a set in a reel, list the files under `audio.music` in a variants file, one per variant (see Variants in `docs/reel.md`). Each rendered variant is then loudness-checked against the reel's target.
+To use a set in a reel, list the files under `audio.music` in a variants file, one per variant (see Variants in `docs/reel.md`). Each rendered variant is then measured against the reel's loudness target. A file more than 1 LU off is reported as MISSES, and the run still succeeds.
