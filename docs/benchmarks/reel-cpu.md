@@ -17,10 +17,10 @@ local time 03:07 to 03:18. Status for all four laptop rows: `ok`.
 
 | Host | Size | Depth | Output (s) | CPU, this process (s) | CPU, child processes / ffmpeg (s) | CPU total (s) | CPU s per output s | Wall (s) | Wall s per output s |
 |---|---|---|---|---|---|---|---|---|---|
-| laptop (zvislaptop, iGPU present) | 540x960 | on | 24.50 | 89.37 | 35.04 | 124.41 | 5.08 | 54.31 | 2.22 |
-| laptop (zvislaptop, iGPU present) | 540x960 | off | 24.50 | 34.10 | 32.06 | 66.16 | 2.70 | 42.69 | 1.74 |
-| laptop (zvislaptop, iGPU present) | 720x1280 | on | 24.50 | 117.84 | 49.10 | 166.94 | 6.81 | 84.72 | 3.46 |
-| laptop (zvislaptop, iGPU present) | 720x1280 | off | 24.50 | 70.73 | 56.60 | 127.33 | 5.20 | 82.75 | 3.38 |
+| laptop (Windows, iGPU present) | 540x960 | on | 24.50 | 89.37 | 35.04 | 124.41 | 5.08 | 54.31 | 2.22 |
+| laptop (Windows, iGPU present) | 540x960 | off | 24.50 | 34.10 | 32.06 | 66.16 | 2.70 | 42.69 | 1.74 |
+| laptop (Windows, iGPU present) | 720x1280 | on | 24.50 | 117.84 | 49.10 | 166.94 | 6.81 | 84.72 | 3.46 |
+| laptop (Windows, iGPU present) | 720x1280 | off | 24.50 | 70.73 | 56.60 | 127.33 | 5.20 | 82.75 | 3.38 |
 | 2 vCPU hosted box: not measured | 540x960 | on | not measured | not measured | not measured | not measured | not measured | not measured | not measured |
 | 2 vCPU hosted box: not measured | 540x960 | off | not measured | not measured | not measured | not measured | not measured | not measured | not measured |
 | 2 vCPU hosted box: not measured | 720x1280 | on | not measured | not measured | not measured | not measured | not measured | not measured | not measured |
@@ -87,7 +87,7 @@ the models folder, the depth-cache folder and the warm-up line.
 ```
 # timer: cpu = time.process_time() (this process, all threads) + child processes (ffmpeg); wall = time.perf_counter()
 # child cpu: GetProcessTimes on each child process handle (Windows)
-# host: ZvisLaptop Windows-11-10.0.26300-SP0; python 3.12.13
+# host: Windows laptop Windows-11-10.0.26300-SP0; python 3.12.13
 # gl: Intel(R) Iris(R) Xe Graphics (software=False)
 # depth model: available at C:\dev\funkbox\models\depth_anything_v2_small.onnx
 # reel: examples/reel_demo/demo.reel.json at 30 fps, voice-over and music on

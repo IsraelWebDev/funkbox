@@ -87,7 +87,7 @@ Rendered MP4s are written under `FUNK_OUT/bench-reel-cpu/`.
 
 ## Host caveat
 
-- The laptop (zvislaptop, Windows, Intel iGPU present) is not the hosted box. The hosted box is 2 vCPU with no GPU.
+- The laptop (Windows, Intel iGPU present) is not the hosted box. The hosted box is 2 vCPU with no GPU.
   Its row stays "not measured" until someone runs the script there.
 - Laptop numbers are a reference point. They are not scaled to the host, because core count, clock and BLAS
   threading all differ.
