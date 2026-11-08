@@ -32,7 +32,9 @@ def test_grid_shape_is_as_square_as_the_count_allows(n, shape):
 
 def test_index_label_is_accepted_and_other_label_forms_are_refused(work, monkeypatch):
     monkeypatch.setenv("FUNK_INPUTS", str(work))
-    (work / "copy.json").write_text(json.dumps({"brand_name": "T", "lines": {"hook": {"text": "HI."}}}), encoding="utf-8")
+    (work / "copy.json").write_text(
+        json.dumps({"brand_name": "T", "lines": {"hook": {"text": "HI."}}}), encoding="utf-8"
+    )
 
     def reel(label):
         cells = [{"video": "a.mp4", "label": label}, {"video": "b.mp4"}]
@@ -42,8 +44,14 @@ def test_index_label_is_accepted_and_other_label_forms_are_refused(work, monkeyp
             "brand": {"primary": "#c8102e", "secondary": "#1a1a1a", "text": "#ffffff"},
             "copy": "copy.json",
             "audio": {"voiceover": False},
-            "shots": [{"id": "s1", "source": {"grid": {"cols": 2, "rows": 1, "cells": cells}},
-                       "motion": {"type": "none"}, "duration": 2}],
+            "shots": [
+                {
+                    "id": "s1",
+                    "source": {"grid": {"cols": 2, "rows": 1, "cells": cells}},
+                    "motion": {"type": "none"},
+                    "duration": 2,
+                }
+            ],
         }
 
     for good in ({"index": True}, "hook"):  # the index form, and an ordinary copy id
@@ -55,8 +63,16 @@ def test_index_label_is_accepted_and_other_label_forms_are_refused(work, monkeyp
 
 
 def test_contact_sheet_has_one_index_entry_per_variant_with_the_matching_digits(demo, work):
-    manifest = render_variants(plain_reel(demo), {"brand.palette": [WARM, DARK]}, "demo", base_dir=demo,
-                               out_dir=work, draft=True, with_audio=False, sheet=True)
+    manifest = render_variants(
+        plain_reel(demo),
+        {"brand.palette": [WARM, DARK]},
+        "demo",
+        base_dir=demo,
+        out_dir=work,
+        draft=True,
+        with_audio=False,
+        sheet=True,
+    )
     vdir = work / "demo-variants"
     assert (vdir / "contact_sheet.png").exists()
     assert not (vdir / "contact_sheet.mp4").exists(), "the sheet video is kept only when asked for"
@@ -81,11 +97,20 @@ def test_a_failed_sheet_is_raised_after_the_manifest_is_written(demo, work, monk
 
     monkeypatch.setattr(render, "render_reel", fake)
     with pytest.raises(ReelVariantError, match="contact sheet: text audit failed"):
-        render_variants(plain_reel(demo), {"brand.palette": [WARM, DARK]}, "demo", base_dir=demo,
-                        out_dir=work, draft=True, with_audio=False, sheet=True)
+        render_variants(
+            plain_reel(demo),
+            {"brand.palette": [WARM, DARK]},
+            "demo",
+            base_dir=demo,
+            out_dir=work,
+            draft=True,
+            with_audio=False,
+            sheet=True,
+        )
     manifest = json.loads((work / "demo-variants" / "variants.json").read_text(encoding="utf-8"))
     assert manifest["sheet"]["audit_ok"] is False
     assert len(manifest["variants"]) == 2
+
 
 def test_a_sheet_that_cannot_render_is_recorded_with_its_traceback_and_raised(demo, work, monkeypatch):
     real = render.render_reel
@@ -97,8 +122,16 @@ def test_a_sheet_that_cannot_render_is_recorded_with_its_traceback_and_raised(de
 
     monkeypatch.setattr(render, "render_reel", boom)
     with pytest.raises(ReelVariantError, match="contact sheet: ValueError: boom"):
-        render_variants(plain_reel(demo), {"brand.palette": [WARM, DARK]}, "demo", base_dir=demo,
-                        out_dir=work, draft=True, with_audio=False, sheet=True)
+        render_variants(
+            plain_reel(demo),
+            {"brand.palette": [WARM, DARK]},
+            "demo",
+            base_dir=demo,
+            out_dir=work,
+            draft=True,
+            with_audio=False,
+            sheet=True,
+        )
     manifest = json.loads((work / "demo-variants" / "variants.json").read_text(encoding="utf-8"))
     assert manifest["sheet"]["audit_ok"] is False and "boom" in manifest["sheet"]["error"]
     assert "Traceback" in manifest["sheet"]["traceback"]
@@ -112,7 +145,15 @@ def test_a_variant_with_no_video_is_a_clear_sheet_error_not_a_crash(demo, work, 
 
     monkeypatch.setattr(render, "render_formats", audit_only)
     with pytest.raises(ReelVariantError, match="has no video to show"):
-        render_variants(plain_reel(demo), {"brand.palette": [WARM, DARK]}, "demo", base_dir=demo,
-                        out_dir=work, draft=True, with_audio=False, sheet=True)
+        render_variants(
+            plain_reel(demo),
+            {"brand.palette": [WARM, DARK]},
+            "demo",
+            base_dir=demo,
+            out_dir=work,
+            draft=True,
+            with_audio=False,
+            sheet=True,
+        )
     manifest = json.loads((work / "demo-variants" / "variants.json").read_text(encoding="utf-8"))
     assert manifest["sheet"]["audit_ok"] is False
