@@ -843,7 +843,10 @@ def _build_audio(plan: Plan, out_dir: Path, name: str, fps: int) -> Path | None:
 def _audit_json(r: Renderer, plan: Plan, name: str, out_dir: Path) -> dict:
     """Write <name>.text_audit.json: every string drawn, its copy id and frame range."""
     from . import audio
-    voice = audio.voice_audit_entries(plan.deck, plan.spans, plan.reel.settings.fps) if plan.reel.audio.voiceover else []
+
+    voice = (
+        audio.voice_audit_entries(plan.deck, plan.spans, plan.reel.settings.fps) if plan.reel.audio.voiceover else []
+    )
     entries = sorted(r.audit_report() + voice, key=lambda e: (e["first_frame"], e["shot"], e["slot"], e["instance"]))
     expected = set()
     for sh in plan.reel.shots:
@@ -874,7 +877,9 @@ def _audit_json(r: Renderer, plan: Plan, name: str, out_dir: Path) -> dict:
     doc = {
         "reel": name,
         "copy_deck": deck,
-        "tts": {"mode": audio.tts_mode(plan.reel.audio.voice), "voice": plan.reel.audio.voice} if plan.reel.audio.voiceover else None,
+        "tts": {"mode": audio.tts_mode(plan.reel.audio.voice), "voice": plan.reel.audio.voice}
+        if plan.reel.audio.voiceover
+        else None,
         "fps": plan.reel.settings.fps,
         "ok": ok,
         "missing": missing,

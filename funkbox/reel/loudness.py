@@ -36,9 +36,25 @@ def measure_lufs(path: str | Path) -> tuple[float | None, str | None]:
         return None, "ffmpeg not found"
     try:
         proc = subprocess.run(
-            [exe, "-hide_banner", "-nostats", "-i", str(path), "-map", "0:a:0",
-             "-af", "ebur128=framelog=quiet", "-f", "null", "-"],
-            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT_S,
+            [
+                exe,
+                "-hide_banner",
+                "-nostats",
+                "-i",
+                str(path),
+                "-map",
+                "0:a:0",
+                "-af",
+                "ebur128=framelog=quiet",
+                "-f",
+                "null",
+                "-",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=TIMEOUT_S,
         )
     except (OSError, subprocess.SubprocessError) as e:
         return None, f"ffmpeg could not run: {e}"
@@ -52,7 +68,9 @@ def measure_lufs(path: str | Path) -> tuple[float | None, str | None]:
     if value.endswith("inf"):
         return None, "silent"
     lufs = float(value)
-    if lufs <= ABSOLUTE_GATE_LUFS:  # no block passed the absolute gate: nothing audible (some builds print -70, not -inf)
+    if (
+        lufs <= ABSOLUTE_GATE_LUFS
+    ):  # no block passed the absolute gate: nothing audible (some builds print -70, not -inf)
         return None, "silent"
     return lufs, None
 
@@ -61,11 +79,21 @@ def check(lufs: float | None, target: float, reason: str | None = None) -> dict:
     """The report for one file: the measured value, the target, the offset, and whether it is within tolerance."""
     if lufs is None:
         # Silent is a miss; any other failure is unmeasured (None), with its reason kept.
-        return {"lufs": None, "target": target, "off_by_lu": None,
-                "within_tolerance": False if reason == "silent" else None, "reason": reason}
+        return {
+            "lufs": None,
+            "target": target,
+            "off_by_lu": None,
+            "within_tolerance": False if reason == "silent" else None,
+            "reason": reason,
+        }
     off = round(lufs - target, 2)
-    return {"lufs": round(lufs, 2), "target": target, "off_by_lu": off,
-            "within_tolerance": abs(off) <= TOLERANCE_LU, "reason": None}
+    return {
+        "lufs": round(lufs, 2),
+        "target": target,
+        "off_by_lu": off,
+        "within_tolerance": abs(off) <= TOLERANCE_LU,
+        "reason": None,
+    }
 
 
 def measure_outputs(paths, target: float) -> dict:
