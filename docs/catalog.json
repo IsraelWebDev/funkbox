@@ -1,8 +1,8 @@
 {
   "catalog_version": 1,
-  "engine_version": "4.4.0",
+  "engine_version": "4.4.1",
   "server": "funkbox",
-  "tool_count": 49,
+  "tool_count": 50,
   "tools": [
     {
       "area": "apps",
@@ -58,7 +58,7 @@
     },
     {
       "area": "image",
-      "description": "Edit a COPY of a picture; the original is never touched. ops run in order, geometry first (crop, resize, rotate,\nflip, remove_background, trim_even), then adjust {brightness, contrast, saturation, hue, ...}, filter {blur, sharpen,\n...}, vignette, overlay {path, x, y, scale, blend, opacity}, text {copy_id|text, ...}, border {px, color}.\nWrites <out>/edits/<stem>-<name|n>.png, a sidecar that re-renders it, and a before/after sheet.",
+      "description": "Edit a COPY of a picture; the original is never touched. ops run in order, geometry first (crop, resize, rotate,\nflip, remove_background, trim_even), then adjust {brightness, contrast, saturation, hue, ...}, filter {blur, sharpen,\n...}, vignette, overlay {path, x, y, scale, blend, opacity, depth, shadow}, text {copy_id|text, ...}, border {px, color}.\nWrites <out>/edits/<stem>-<name|n>.png, a sidecar that re-renders it, and a before/after sheet.",
       "input_schema": {
         "properties": {
           "casual": {
@@ -1645,6 +1645,71 @@
         "type": "object"
       },
       "name": "reel_validate"
+    },
+    {
+      "area": "reel",
+      "description": "Render several variants of one reel, one per position in ``vary`` (a JSON object, or its text), e.g.\n{\"shots.s1.source\": [\"clips/a.mp4\", \"clips/b.mp4\"], \"brand.palette\": [\"#f6f7f4,#0f7c6e\", \"#0f1216,#4fd1b9\"]}.\nAll lists must be the same length (at most 12 variants). Every variant is validated before any render, then\nrendered and text-audited against the approved copy into <out>/<name>-variants/. sheet=true also builds\ncontact_sheet.png, one numbered cell per variant's opening. Returns the manifest (variants.json).",
+      "input_schema": {
+        "properties": {
+          "draft": {
+            "default": true,
+            "title": "Draft",
+            "type": "boolean"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          },
+          "reel": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reel"
+          },
+          "sheet": {
+            "default": false,
+            "title": "Sheet",
+            "type": "boolean"
+          },
+          "sheet_video": {
+            "default": false,
+            "title": "Sheet Video",
+            "type": "boolean"
+          },
+          "vary": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": "",
+            "title": "Vary"
+          }
+        },
+        "title": "reel_variantsArguments",
+        "type": "object"
+      },
+      "name": "reel_variants"
     },
     {
       "area": "video",
