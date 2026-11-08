@@ -357,6 +357,7 @@ def write_outputs(r: Rendered, out_dir: str | Path, name: str, formats: list[str
         raise ValueError(f"bad output name {name!r}: use 1-60 of letters, digits, _ and -")
     d = fence_out(out_dir)
     d.mkdir(parents=True, exist_ok=True)
+    _refuse_composed_names(d, name, formats or r.doc.exports)
     paths: dict[str, Path] = {}
     img = r.pil
     for f in formats or r.doc.exports:
@@ -388,6 +389,202 @@ def write_outputs(r: Rendered, out_dir: str | Path, name: str, formats: list[str
     side = d / f"{name}.poster.json"
     _atomic_json(side, r.resolved)
     paths["sidecar"] = side
+    return paths
+
+
+# A layer file is "<name>-<layer-id>.png". Names and ids may both contain "-", so a layer file can equal another
+# poster's composed file or layer file. The writers refuse those collisions instead of overwriting. Windows file names
+# ignore case, so every comparison of file names below is casefolded.
+WIN_PATH_LIMIT = 260
+MANIFEST_MAX_BYTES = 1 << 20  # a larger manifest is treated as unreadable
+
+
+@dataclass
+class LayerPlan:
+    folder: Path
+    name: str
+    todo: list[tuple[LayerOut, str]]  # (layer, file name) for each visible layer, in composite order
+    owned: set[str]  # layer files the last readable manifest of this name lists
+
+
+def _save_layer_png(im: Image.Image, path: Path) -> None:
+    im.save(path, format="PNG")
+
+
+def _unlink(p: Path) -> None:
+    p.unlink(missing_ok=True)
+
+
+def _read_manifest(path: Path) -> dict | None:
+    """The parsed manifest at ``path``; None if it is missing, over MANIFEST_MAX_BYTES, not JSON, or nested too deep."""
+    try:
+        if path.stat().st_size > MANIFEST_MAX_BYTES:
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _manifest_ids(man: dict | None) -> list | None:
+    try:
+        return [e["id"] for e in man["layers"]] if man else []
+    except (KeyError, TypeError):
+        return None
+
+
+def _layer_files_of(d: Path, name: str) -> set[str]:
+    """The layer files the last readable ``<name>.layers.json`` in ``d`` lists."""
+    ids = _manifest_ids(_read_manifest(d / f"{name}.layers.json")) or []
+    return {f"{name}-{i}.png" for i in ids if isinstance(i, str) and schema.ID_RE.match(i)}
+
+
+def _layer_files_in(d: Path) -> set[str]:
+    """Every layer file, casefolded, that some readable ``*.layers.json`` in ``d`` lists."""
+    out: set[str] = set()
+    for man_path in d.glob("*.layers.json"):
+        name = man_path.name[: -len(".layers.json")]
+        for i in _manifest_ids(_read_manifest(man_path)) or []:
+            if isinstance(i, str):
+                out.add(f"{name}-{i}.png".casefold())
+    return out
+
+
+def _refuse_composed_names(d: Path, name: str, formats) -> None:
+    claimed = _layer_files_in(d)
+    for f in formats:
+        if f"{name}.{f}".casefold() in claimed:
+            raise ValueError(
+                f"{name}.{f} is the layer file of another poster's --layers export in {d}, so it is not overwritten; "
+                "choose another --name"
+            )
+
+
+def _clash_message(d: Path, fname: str) -> str:
+    actual = next((x for x in os.listdir(d) if x.casefold() == fname.casefold()), fname)
+    if actual != fname:
+        return (
+            f"{d / actual} exists and is not a layer file of this poster; its name differs only in case from {fname}, "
+            "and Windows treats them as one file, so it is not overwritten. Choose another --name or layer id"
+        )
+    return (
+        f"{d / fname} exists and is not a layer file of this poster, so it is not overwritten; "
+        "choose another --name or layer id"
+    )
+
+
+def plan_layers(r: Rendered, out_dir: str | Path, name: str) -> LayerPlan:
+    """The checks ``write_layers`` makes, without writing anything: the name, the folder, the length of every layer
+    path (before any folder is created), and that no layer file would overwrite a file this poster did not write last
+    time."""
+    if not NAME_RE.match(name or ""):
+        raise ValueError(f"bad output name {name!r}: use 1-60 of letters, digits, _ and -")
+    d = fence_out(out_dir)
+    man = d / f"{name}.layers.json"
+    if man.is_dir():
+        raise ValueError(
+            f"{man} is a folder, not a manifest, so the --layers export cannot write its manifest; "
+            "rename or remove the folder, then re-run"
+        )
+    todo = [(lay, f"{name}-{lay.id}.png") for lay in r.layers]
+    for _, fname in todo:
+        n = len(str(d / fname))
+        if n >= WIN_PATH_LIMIT:
+            raise ValueError(
+                f"layer file {fname} would have a path of {n} characters (the limit is {WIN_PATH_LIMIT - 1}): "
+                "use a shorter --name, a shorter layer id or a shorter output folder"
+            )
+    owned = _layer_files_of(d, name)
+    owned_cf = {f.casefold() for f in owned}
+    for _, fname in todo:
+        if fname.casefold() not in owned_cf and (d / fname).exists():
+            raise ValueError(_clash_message(d, fname))
+    return LayerPlan(d, name, todo, owned)
+
+
+def check_layer_export(r: Rendered, out_dir: str | Path, name: str, formats: list[str] | None = None) -> LayerPlan:
+    """Every refusal a ``--layers`` export can make, run before anything is written.
+    Call it before ``write_outputs``."""
+    plan = plan_layers(r, out_dir, name)
+    _refuse_composed_names(plan.folder, name, formats or r.doc.exports)
+    return plan
+
+
+def _remove_all(paths: list[Path]) -> list[str]:
+    """Remove each path that is there; return the names that could not be removed."""
+    left: list[str] = []
+    for p in paths:
+        try:
+            _unlink(p)
+        except OSError:
+            left.append(p.name)
+    return left
+
+
+def write_layers(r: Rendered, out_dir: str | Path, name: str) -> dict[str, Path]:
+    """Write each visible top-level layer as ``<name>-<layer-id>.png`` (RGBA, canvas size, straight alpha; the layer's
+    own raster, fx and mask, but not its blend or opacity), then ``<name>.layers.json`` listing the layers in
+    composite order, bottom first (an empty list when every layer is hidden).
+    Order: check everything (``plan_layers``); delete the manifest; delete the layer files the last export wrote and
+    this one does not need; write each layer to a ``.part`` file and move it into place; write the manifest last.
+    If a step after the checks fails, every file of this name is removed (the manifest first), so an identical re-run
+    works. If a file cannot be removed, the error says which. The composed files are not touched. Call
+    ``check_layer_export`` before ``write_outputs`` as well."""
+    plan = plan_layers(r, out_dir, name)
+    d, todo, owned = plan.folder, plan.todo, plan.owned
+    index = {lay["id"]: i for i, lay in enumerate(r.doc.layers)}
+    wanted = {fname for _, fname in todo}
+    touched = sorted(owned | wanted)
+    man = d / f"{name}.layers.json"
+    d.mkdir(parents=True, exist_ok=True)
+    paths: dict[str, Path] = {}
+    entries: list[dict] = []
+    try:
+        _unlink(man)
+        for old in sorted(owned - wanted):
+            _unlink(d / old)
+        for lay, fname in todo:
+            arr = np.ascontiguousarray(lay.rgba)
+            p = d / fname
+            tmp = p.with_name(fname + ".part")
+            _save_layer_png(Image.fromarray(arr), tmp)
+            os.replace(tmp, p)
+            h, w = arr.shape[:2]
+            entries.append(
+                {
+                    "index": index[lay.id],
+                    "id": lay.id,
+                    "type": lay.type,
+                    "file": fname,
+                    "width": w,
+                    "height": h,
+                    "blend": lay.blend,
+                    "opacity": lay.opacity,
+                }
+            )
+            paths[f"layer:{lay.id}"] = p
+        _atomic_json(
+            man,
+            {"name": name, "width": r.width, "height": r.height, "order": "bottom-to-top", "layers": entries},
+        )
+    except BaseException as first:
+        # The manifest goes first. If it cannot go, the layer files stay, so no manifest lists a missing file.
+        # This export's .part files are removed on both paths.
+        parts = [d / (f + ".part") for f in sorted(wanted)]
+        left = _remove_all([man, man.with_name(man.name + ".part")])
+        if left:
+            why = " (the layer files were kept, because the manifest could not be removed)"
+            left += _remove_all(parts)
+        else:
+            left = _remove_all([d / f for f in touched] + parts)
+            why = ""
+        if left:
+            raise OSError(
+                f"layer export of {name!r} failed ({first}); these files could not be removed: {', '.join(left)}{why}. "
+                "Remove them by hand before re-running the export."
+            ) from first
+        raise
+    paths["layers"] = man
     return paths
 
 
