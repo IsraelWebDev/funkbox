@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from funkbox.config import funk_out
 from funkbox.reel import depth as reel_depth
 from funkbox.stills import edit
 from stills_fixtures import work  # noqa: F401
@@ -166,3 +167,17 @@ def test_depth_without_the_model_says_so(base, cutout, work, monkeypatch):
 def test_bad_overlay_values_are_refused_with_an_edit_error(base, cutout, work, bad):
     with pytest.raises(edit.EditError):
         edit.edit_image(base, [{"op": "overlay", "path": str(cutout), **bad}], out_dir=work / "bad")
+
+
+def test_shadow_on_a_wide_canvas_with_the_overlay_hanging_off_the_edge(work, cutout):
+    wide = work / "wide2.png"
+    Image.new("RGB", (300, 100), (90, 90, 90)).save(wide)
+    ops = [{"op": "overlay", "path": str(cutout), "scale": 0.5, "x": 0.9, "y": 1.1, "shadow": True}]
+    res = edit.edit_image(wide, ops, out_dir=work / "wide")
+    assert Image.open(res.paths["png"]).size == (300, 100)
+    assert Image.open(shadow_of(res)["path"]).size == (300, 100)
+
+
+def test_no_partial_files_are_left_behind(base, cutout, work):
+    edit.edit_image(base, [{"op": "overlay", "path": str(cutout), "scale": 0.25, "shadow": True}], out_dir=work / "tmp")
+    assert not list((funk_out() / "cache").rglob("*.part"))
