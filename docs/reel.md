@@ -154,6 +154,19 @@ Labels are drawn over the shot's caption. The label box and the leader line take
 
 The label must stay inside the safe area for the format. A label that would sit in the top or bottom band, or past the side margins, is a validation error: move `at` towards the middle. The window must also fit the shot: `start` must come before the shot ends, and `end` must not be later. For `auto` and `beats:N` shots, the shot length is the one the timeline resolves.
 
+## Annotations
+
+A shot can carry drawn shapes over its picture: arrows, dashed guide lines, an X and a check sticker. They are drawn in frame pixels, in the brand's primary colour, and draw on over 0.4 s:
+
+    "annotations": [{"type": "arrow", "points": [[0.2, 0.5], [0.8, 0.5]], "start": 0.5, "end": 2.0}]
+
+- `type` (required): `arrow` takes two points (tail and head; the arrowhead appears once the shaft is drawn). `dashed` takes two or more points, drawn as a polyline. `x` and `check` take one point, the centre. Both stickers are 12% of the frame width across.
+- `points`: [x, y] fractions of the frame, each from 0 to 1.
+- `start`, `end` (optional): seconds into the shot. They default to 0 and the end of the shot, and `end` must come after `start`. The window must fit the shot, as for callouts, including `auto` and `beats:N` shots.
+- `draw` (optional, default true): `false` shows the whole shape at once instead of drawing it on.
+
+Shapes carry no text, so they are not in the text audit. The spec's sidecar listing is not built; the reel JSON is the record. There is no per-shape colour yet.
+
 ## Shot lists for specific briefs
 
 `project_auto_reel` is a first draft. When a brief gives exact timings, framing or mostly screen recordings, edit the

@@ -44,6 +44,97 @@ def hex_rgb(h: str) -> tuple[int, int, int]:
     return int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)
 
 
+ANNOTATION_DRAW_S = 0.4  # seconds for a shape to draw on, when its ``draw`` is true
+
+
+def _progress(t: float, start: float, draw: bool) -> float:
+    """How much of an annotation is drawn at time ``t``: 0 to 1, never falling as ``t`` rises."""
+    if not draw:
+        return 1.0 if t >= start else 0.0
+    return min(1.0, max(0.0, (t - start) / ANNOTATION_DRAW_S))
+
+
+def _partial(poly: list, p: float) -> list:
+    """The first ``p`` (0 to 1) of a polyline, measured by length."""
+    if p >= 1.0 or len(poly) < 2:
+        return poly
+    seg = [float(np.hypot(b[0] - a[0], b[1] - a[1])) for a, b in zip(poly, poly[1:])]
+    left = p * sum(seg)
+    out = [poly[0]]
+    for (a, b), n in zip(zip(poly, poly[1:]), seg):
+        if left >= n:
+            out.append(b)
+            left -= n
+            continue
+        if n > 0 and left > 0:
+            f = left / n
+            out.append((a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f))
+        break
+    return out
+
+
+def _dash_pieces(poly: list, W: int, p: float) -> list:
+    """Dash segments along a polyline, drawn over its first ``p`` (0 to 1). The sample grid follows the whole line, so a
+    dash stays put as ``p`` rises: on for 4% of the frame width, then off for 3%."""
+    dash, period = 0.04 * W, 0.07 * W
+    lengths = [float(np.hypot(b[0] - a[0], b[1] - a[1])) for a, b in zip(poly, poly[1:])]
+    limit = p * sum(lengths)
+    samples, s = [], 0.0  # (x, y, on), about one per pixel of the whole line
+    for (a, b), n in zip(zip(poly, poly[1:]), lengths):
+        steps = max(1, int(n))
+        for k in range(steps):
+            f = k / steps
+            pos = s + f * n
+            if pos > limit:
+                break
+            samples.append((a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, pos % period < dash))
+        s += n
+    if poly and p >= 1.0:
+        samples.append((poly[-1][0], poly[-1][1], s % period < dash))
+    return [((x0, y0), (x1, y1)) for (x0, y0, o0), (x1, y1, o1) in zip(samples, samples[1:]) if o0 and o1]
+
+
+def _draw_annotation(fr: np.ndarray, an, p: float, rgb: tuple, W: int, H: int) -> np.ndarray:
+    """An annotation drawn at progress ``p`` over the frame, in frame pixels."""
+    from PIL import ImageDraw
+
+    if p <= 0 or not an.points:
+        return fr
+    px = [(x * W, y * H) for x, y in an.points]
+    lines = []  # pixel polylines to stroke
+    if an.type == "arrow":
+        a, b = px[0], px[1]
+        lines.append(_partial([a, b], p))
+        if p >= 1.0:  # the head appears once the shaft is drawn
+            ux, uy = b[0] - a[0], b[1] - a[1]
+            n = float(np.hypot(ux, uy)) or 1.0
+            back = (-ux / n, -uy / n)
+            head = max(8.0, 0.035 * W)
+            for ang in (0.45, -0.45):
+                cs, sn = float(np.cos(ang)), float(np.sin(ang))
+                wx = back[0] * cs - back[1] * sn
+                wy = back[0] * sn + back[1] * cs
+                lines.append([b, (b[0] + head * wx, b[1] + head * wy)])
+    elif an.type == "dashed":
+        lines.extend(list(piece) for piece in _dash_pieces(px, W, p))
+    elif an.type == "x":  # two strokes: the first, then the second
+        c, S = px[0], 0.06 * W
+        lines.append(_partial([(c[0] - S, c[1] - S), (c[0] + S, c[1] + S)], min(1.0, 2 * p)))
+        lines.append(_partial([(c[0] + S, c[1] - S), (c[0] - S, c[1] + S)], min(1.0, max(0.0, 2 * p - 1))))
+    elif an.type == "check":
+        c, S = px[0], 0.12 * W
+        lines.append(
+            _partial([(c[0] - 0.5 * S, c[1]), (c[0] - 0.15 * S, c[1] + 0.35 * S), (c[0] + 0.5 * S, c[1] - 0.35 * S)], p)
+        )
+    img = Image.fromarray(fr)
+    d = ImageDraw.Draw(img)
+    w = max(2, round(0.008 * W))
+    for ln in lines:
+        if len(ln) >= 2:
+            d.line([(float(x), float(y)) for x, y in ln], fill=tuple(rgb), width=w, joint="curve")
+    return np.array(img)
+
+
 def _leader(fr: np.ndarray, a: tuple, b: tuple, rgb: tuple, W: int, H: int) -> np.ndarray:
     """A straight leader line from the fraction point ``a`` to ``b`` (a dot at ``b``), drawn over the frame."""
     from PIL import ImageDraw
@@ -428,6 +519,7 @@ class Renderer:
         fr = self._overlay_product(fr, span, local)
         fr = self._overlay_caption(fr, span, local)
         fr = self._overlay_callouts(fr, span, local)
+        fr = self._overlay_annotations(fr, span, local)
         return fr
 
     def product(self, span: ShotSpan) -> product_mod.ProductCompositor | None:
@@ -570,6 +662,20 @@ class Renderer:
             rgb = captions_mod.colour(style.box, self.reel.brand) or (255, 255, 255)
             got = stt.extra[("callout", i)] = (lay, rgb)
         return got
+
+    def _overlay_annotations(self, fr: np.ndarray, span: ShotSpan, local: int) -> np.ndarray:
+        """Annotation shapes on screen at this frame, each at its draw-on progress. They carry no text, so the audit skips them."""
+        sh = self.reel.shots[span.index]
+        if not sh.annotations:
+            return fr
+        t = local / self.fps
+        rgb = hex_rgb(self.reel.brand.primary)
+        for an in sh.annotations:
+            end = span.duration if an.end is None else an.end
+            if not (an.start <= t < end):
+                continue
+            fr = _draw_annotation(fr, an, _progress(t, an.start, an.draw), rgb, self.w, self.h)
+        return fr
 
     def _overlay_callouts(self, fr: np.ndarray, span: ShotSpan, local: int) -> np.ndarray:
         """Callout labels (and their leader lines) that are on screen at this frame: start <= t < end."""

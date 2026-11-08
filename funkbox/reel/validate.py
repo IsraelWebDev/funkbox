@@ -125,7 +125,7 @@ def _validate_one(src, base_dir, *, vo_durations, beats, deep: bool, fmt: str | 
         _check_files(reel, rep)
         _check_templates_and_fit(reel, rep)
     _check_timeline(reel, rep, vo_durations, beats)
-    _check_callout_times(reel, rep)
+    _check_windows(reel, rep)
     if deep:
         _check_grid(reel, rep, beats)
         _check_grid_geometry(reel, rep)
@@ -377,18 +377,27 @@ def _check_timeline(reel: Reel, rep: Report, vo: dict[str, float] | None, beats:
     rep.info.update(total_seconds=total, shots=len(reel.shots), summary=f"{len(reel.shots)} shots, {total:.2f}s total")
 
 
-def _check_callout_times(reel: Reel, rep: Report) -> None:
-    """A callout window must start and end inside its shot. ``auto`` and ``beats:N`` shots only have a length once the timeline is built, so this runs after it."""
+def _window_error(where: str, start: float, end: float | None, duration: float) -> str | None:
+    """A callout or annotation window must start before its shot ends, and end no later than the shot."""
+    if start >= duration:
+        return f"{where}: starts at {start}s, at or after the shot ({duration:.2f}s)"
+    if end is not None and end > duration:
+        return f"{where}: ends at {end}s, after the shot ({duration:.2f}s)"
+    return None
+
+
+def _check_windows(reel: Reel, rep: Report) -> None:
+    """Callout and annotation windows against each shot's resolved length. ``auto`` and ``beats:N`` shots only have a
+    length once the timeline is built, so this runs after it."""
     for i, sh in enumerate(reel.shots):
         sp = next((s for s in rep.spans if s.kind == "shot" and s.index == i), None)
         if sp is None:
             continue
-        for j, co in enumerate(sh.callouts):
-            where = f"shots[{i}] ({sh.id}).callouts[{j}]"
-            if co.start >= sp.duration:
-                rep.errors.append(f"{where}: starts at {co.start}s, at or after the shot ({sp.duration:.2f}s)")
-            elif co.end is not None and co.end > sp.duration:
-                rep.errors.append(f"{where}: ends at {co.end}s, after the shot ({sp.duration:.2f}s)")
+        for kind, items in (("callouts", sh.callouts), ("annotations", sh.annotations)):
+            for j, it in enumerate(items):
+                err = _window_error(f"shots[{i}] ({sh.id}).{kind}[{j}]", it.start, it.end, sp.duration)
+                if err:
+                    rep.errors.append(err)
 
 
 def _check_grid(reel: Reel, rep: Report, beats: list[float] | None) -> None:
