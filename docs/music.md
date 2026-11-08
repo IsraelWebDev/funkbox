@@ -34,3 +34,8 @@ A reel can name the score directly: `"audio": {"music": "song.music.json"}`. It 
 The player (`funkbox/music/sf2.py`) is numpy only: preset and instrument zones, loops, tuning, the volume envelope,
 attenuation and pan. It leaves out SoundFont modulators, filters and LFOs, so some instruments sound plainer than in
 a full synth; the mix gets one room reverb and a gentle limiter at about -16 dBFS RMS.
+
+
+## Plan-driven renders (proposed, not live)
+
+The tools and their input schemas are listed in [docs/catalog.json](https://github.com/IsraelWebDev/funkbox/blob/main/docs/catalog.json). The file is generated from the MCP server: `python -m funkbox catalog` (`--check` verifies it). The website is proposed to plan a render from this catalog: an AI planner writes a plan of these tools, the server checks the plan, and a preview runs it at low resolution or shows a storyboard before a paid render runs the same stored plan. Nothing here changes how the local tools work today. Decision and sign-offs: [docs/adr-plan-driven-renders.md in IsraelWebDev/funkbox-online](https://github.com/IsraelWebDev/funkbox-online/blob/main/docs/adr-plan-driven-renders.md).
