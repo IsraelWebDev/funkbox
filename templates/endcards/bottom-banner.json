@@ -1,0 +1,8 @@
+{
+  "slots": ["headline"],
+  "bar_height": 0.0,
+  "headline": {"font": "display", "size": 0.066, "color": "text", "box": null, "padding": 0.0,
+               "max_width": 0.84, "line_height": 1.1, "align": "center",
+               "scale_in": 0.0, "cps": 14, "cursor": true},
+  "start": 0.2
+}

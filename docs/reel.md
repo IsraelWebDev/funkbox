@@ -167,6 +167,15 @@ A shot can carry drawn shapes over its picture: arrows, dashed guide lines, an X
 
 Shapes carry no text, so they are not in the text audit. The spec's sidecar listing is not built; the reel JSON is the record. There is no per-shape colour yet.
 
+## End banner
+
+`bottom-banner` is a headline-only end-card template. Its headline is bottom-anchored (so a long headline is checked against the frame) on the brand primary colour, types at 14 characters a second, and shows a cursor. It has no sub-line, URL or product.
+
+- Length: `end_card.duration` (default 5 s, 0.5 to 30 s). The banner starts at 0.2 s. Typing takes about characters / 14 seconds, so for a banner of 3 to 6 s, pick a duration that covers the typing plus a short hold.
+- Reveal: `end_card.headline_reveal` is `typewriter` by default. Set `none` to show the headline at once.
+- Copy: `copy.headline` only. A `sub` or `url` copy id is a validation error for this template.
+- The other templates keep their static URL: brand-split and centered-logo put it in both brand bars, and logo-clean puts it under the last text block.
+- The end-card renderer lays out `sub` and `url` only when the template declares those slots. Existing templates declare both, so their output is unchanged.
 ## Shot lists for specific briefs
 
 `project_auto_reel` is a first draft. When a brief gives exact timings, framing or mostly screen recordings, edit the

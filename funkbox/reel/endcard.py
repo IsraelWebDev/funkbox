@@ -89,7 +89,7 @@ class EndCardRenderer:
         self.bar_h = int(round(self.tpl["bar_height"] * H))
         self.static = self._background()
         self.product = None
-        if ec.template != "centered-logo":  # brand-split, logo-clean: headline + sub
+        if "sub" in self.tpl:  # brand-split, logo-clean: headline + sub (no sub slot: headline only)
             head = C.layout_block(
                 ec.copy["headline"], txt("headline"), sty("headline"), self.fonts, self.brand, W, H, safe_area="none"
             )
@@ -111,7 +111,7 @@ class EndCardRenderer:
                     match_color=0.0,
                 )
                 self.product = P.ProductCompositor(self.resolve(ec.product), spec, W, H)
-        else:  # centered-logo
+        else:  # centered-logo, bottom-banner: headline only
             head = C.layout_block(
                 ec.copy["headline"], txt("headline"), sty("headline"), self.fonts, self.brand, W, H, safe_area="none"
             )
@@ -124,26 +124,27 @@ class EndCardRenderer:
             lw = max(1, int(round(logo.width * lh / logo.height)))
             lx = int(round(lg["x"] * W)) if "x" in lg else (W - lw) // 2
             self.logo = (np.asarray(logo.resize((lw, lh), Image.LANCZOS)), lx, int(round(lg["y"] * H)))
-        us = sty("url")
-        url = C.layout_block(ec.copy["url"], txt("url"), us, self.fonts, self.brand, W, H, safe_area="none")
-        if self.bar_h > 0:  # url in both brand bars
-            for inst, cy in (("top", self.bar_h / 2), ("bottom", H - self.bar_h / 2)):
+        if "url" in self.tpl:  # a template with no url slot draws none
+            us = sty("url")
+            url = C.layout_block(ec.copy["url"], txt("url"), us, self.fonts, self.brand, W, H, safe_area="none")
+            if self.bar_h > 0:  # url in both brand bars
+                for inst, cy in (("top", self.bar_h / 2), ("bottom", H - self.bar_h / 2)):
+                    self.items.append(
+                        Item("url", inst, ec.copy["url"], replace(url, y0=int(round(cy - url.box_h / 2))), "none", 0.0)
+                    )
+            else:  # no bars: url once, under the last text block, after it has appeared
+                last = self.items[-1]
+                gap = int(round(float(self.tpl["url"].get("gap", 0.03)) * H))
                 self.items.append(
-                    Item("url", inst, ec.copy["url"], replace(url, y0=int(round(cy - url.box_h / 2))), "none", 0.0)
+                    Item(
+                        "url",
+                        "main",
+                        ec.copy["url"],
+                        replace(url, y0=last.lay.y0 + last.lay.box_h + gap),
+                        "pop",
+                        last.start + 0.3,
+                    )
                 )
-        else:  # no bars: url once, under the last text block, after it has appeared
-            last = self.items[-1]
-            gap = int(round(float(self.tpl["url"].get("gap", 0.03)) * H))
-            self.items.append(
-                Item(
-                    "url",
-                    "main",
-                    ec.copy["url"],
-                    replace(url, y0=last.lay.y0 + last.lay.box_h + gap),
-                    "pop",
-                    last.start + 0.3,
-                )
-            )
 
     # ---- static art
     def _background(self) -> np.ndarray:
