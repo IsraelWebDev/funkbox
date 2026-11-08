@@ -4,12 +4,21 @@ no download, no network, no GPU."""
 from __future__ import annotations
 
 import io
+import struct
+import zlib
 from fractions import Fraction
 
 import pytest
 from PIL import Image
 
-from funkbox.studio.restyle import PICTURE_MAX_BYTES, UNUSABLE_RESULT, RestyleError, restyle_png
+from funkbox.studio import sdcore
+from funkbox.studio.restyle import (
+    PICTURE_MAX_BYTES,
+    UNUSABLE_RESULT,
+    RestyleError,
+    restyle_png,
+    steps_for,
+)
 
 MARKER = "PROMPT-MARKER-7431"
 PATH = r"C:\dev\secret\inputs\cat.png"
@@ -20,6 +29,16 @@ def _png(w: int, h: int, color=(10, 200, 30)) -> bytes:
     buf = io.BytesIO()
     Image.new("RGB", (w, h), color).save(buf, format="PNG")
     return buf.getvalue()
+
+
+def _png_header(w: int, h: int) -> bytes:
+    """A PNG that declares w x h but carries no pixels: only the header is ever read."""
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    ihdr = struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", b"")
 
 
 def _gif(w: int, h: int) -> bytes:
@@ -55,6 +74,17 @@ class _BrokenConvert(Image.Image):
         raise ValueError("cannot convert")
 
 
+class _BadSize(Image.Image):
+    """A result whose size cannot be read."""
+
+    def __init__(self):
+        super().__init__()
+
+    @property
+    def size(self):
+        raise RuntimeError("no size")
+
+
 def _steps_rule_holds(steps: int, strength: float) -> bool:
     """steps * strength >= 1 in exact arithmetic, and no smaller step count also satisfies it."""
     s = Fraction(strength)
@@ -73,20 +103,39 @@ def test_step_rule_holds_exactly_and_is_minimal(strength, steps):
     assert _steps_rule_holds(got, strength)
 
 
+@pytest.mark.parametrize("bad", [0.0, -0.5, float("nan"), float("inf"), 1e-300, sdcore.STRENGTH_MIN - 0.01])
+def test_steps_for_refuses_strength_outside_the_range(bad):
+    with pytest.raises(ValueError):
+        steps_for(bad)
+
+
 def test_lowest_strength_needs_20_steps():
     m = StubModel()
-    restyle_png(_png(256, 256), "p", 0.05, 1, model=m)
+    restyle_png(_png(256, 256), "p", sdcore.STRENGTH_MIN, 1, model=m)
     assert m.calls[0]["steps"] == 20
 
 
 def test_strength_bounds_are_accepted_with_their_step_counts():
     m = StubModel()
-    restyle_png(_png(256, 256), "p", 0.05, 1, model=m)
-    restyle_png(_png(256, 256), "p", 0.95, 1, model=m)
+    restyle_png(_png(256, 256), "p", sdcore.STRENGTH_MIN, 1, model=m)
+    restyle_png(_png(256, 256), "p", sdcore.STRENGTH_MAX, 1, model=m)
     assert [c["steps"] for c in m.calls] == [20, 2]
 
 
-@pytest.mark.parametrize("strength", [0.04, 0.96, float("nan"), float("inf"), True, "0.5", None])
+@pytest.mark.parametrize(
+    "strength",
+    [
+        sdcore.STRENGTH_MIN - 0.01,
+        sdcore.STRENGTH_MAX + 0.01,
+        float("nan"),
+        float("inf"),
+        10**400,
+        -(10**400),
+        True,
+        "0.5",
+        None,
+    ],
+)
 def test_strength_outside_range_is_refused_before_the_model(strength):
     m = StubModel()
     with pytest.raises(RestyleError):
@@ -156,6 +205,13 @@ def test_gif_input_is_accepted_and_first_frame_used():
     assert _size(out) == (64, 64)
 
 
+@pytest.mark.parametrize("seed", [0, 2**32 - 1])
+def test_seed_limits_are_accepted(seed):
+    m = StubModel()
+    restyle_png(_png(256, 256), "p", 0.5, seed, model=m)
+    assert m.calls[0]["seed"] == seed
+
+
 def test_output_is_png_rgb():
     out = restyle_png(_png(256, 256), "p", 0.5, 1, model=StubModel())
     assert out[:8] == b"\x89PNG\r\n\x1a\n"
@@ -213,6 +269,21 @@ def test_picture_at_byte_limit_still_goes_to_decode():
         restyle_png(b"\x00" * PICTURE_MAX_BYTES, "p", 0.5, 1, model=StubModel())
 
 
+@pytest.mark.parametrize("declared", [(9000, 9000), (8193, 100), (8000, 6000)])
+def test_picture_declaring_too_many_pixels_is_refused_before_decode(declared):
+    m = StubModel()
+    with pytest.raises(RestyleError, match="larger than 8192 pixels a side or 40 megapixels"):
+        restyle_png(_png_header(*declared), "p", 0.5, 1, model=m)
+    assert m.calls == []
+
+
+def test_picture_at_pixel_limit_is_not_refused_as_too_large():
+    # 8192 x 4882 is just under 40 megapixels; the header alone is enough for the probe to pass the limit,
+    # and decoding then fails because there is no pixel data.
+    with pytest.raises(RestyleError, match="not a readable image"):
+        restyle_png(_png_header(8192, 4882), "p", 0.5, 1, model=StubModel())
+
+
 @pytest.mark.parametrize(
     "make",
     [
@@ -221,6 +292,7 @@ def test_picture_at_byte_limit_still_goes_to_decode():
         lambda init, seed: None,
         lambda init, seed: "not an image",
         lambda init, seed: _BrokenConvert(),
+        lambda init, seed: _BadSize(),
     ],
 )
 def test_unusable_model_result_is_refused(make):
@@ -241,6 +313,7 @@ def test_refusals_carry_no_path_or_prompt_text():
     text_prompt = f"{MARKER} at {PATH}"
     cases = [
         lambda: restyle_png(_png(256, 256), text_prompt, 2.0, 1, model=StubModel()),
+        lambda: restyle_png(_png(256, 256), text_prompt, 10**400, 1, model=StubModel()),
         lambda: restyle_png(_png(256, 256), text_prompt, 0.5, -1, model=StubModel()),
         lambda: restyle_png(_png(256, 256), text_prompt, 0.5, 1, (8, 8), model=StubModel()),
         lambda: restyle_png(f"{PATH} {MARKER}".encode(), text_prompt, 0.5, 1, model=StubModel()),
