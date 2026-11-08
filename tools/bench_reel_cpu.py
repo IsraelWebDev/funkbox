@@ -40,7 +40,15 @@ COLUMNS = (
     "status",
     "note",
 )
-NUMERIC = ("output_s", "cpu_python_s", "cpu_children_s", "cpu_total_s", "cpu_per_output_s", "wall_s", "wall_per_output_s")
+NUMERIC = (
+    "output_s",
+    "cpu_python_s",
+    "cpu_children_s",
+    "cpu_total_s",
+    "cpu_per_output_s",
+    "wall_s",
+    "wall_per_output_s",
+)
 RUN_FIELDS = ("output_s", "cpu_python_s", "cpu_children_s", "wall_s")
 PARTIAL_NOTE = "some runs had a child handle that could not be opened; cpu_children_s and cpu_total_s are low"
 TIMER_LINE = "timer: cpu = time.process_time() (this process, all threads) + child processes (ffmpeg); wall = time.perf_counter()"
@@ -240,7 +248,14 @@ def aggregate_runs(size: str, depth: str, runs: list[dict], notes: list[str] | t
     parts.extend(notes)
     status = "partial" if any(r["partial"] for r in runs) else "ok"
     return result_row(
-        size, depth, mid["output_s"], mid["cpu_python_s"], mid["cpu_children_s"], mid["wall_s"], status, "; ".join(parts)
+        size,
+        depth,
+        mid["output_s"],
+        mid["cpu_python_s"],
+        mid["cpu_children_s"],
+        mid["wall_s"],
+        status,
+        "; ".join(parts),
     )
 
 
@@ -277,7 +292,10 @@ def measure(setup: Setup, size: str, depth: str, out_dir: Path, repeat: int) -> 
         try:
             if depth == "on":
                 setup.clear_depth_cache()  # a locked cache file raises here, and the case becomes an error row
-            setup.plan.reel.settings.width, setup.plan.reel.settings.height = w, h  # in memory only; the reel file is not written
+            setup.plan.reel.settings.width, setup.plan.reel.settings.height = (
+                w,
+                h,
+            )  # in memory only; the reel file is not written
             stop_children = child_cpu_meter()
             cpu0, wall0 = time.process_time(), time.perf_counter()
             out = setup.render(setup.plan, out_dir, depth_mode)
@@ -381,7 +399,9 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="CPU seconds per second of output for the demo reel (CSV on stdout).")
     ap.add_argument("--sizes", default=",".join(SIZES), help="comma-separated; allowed: " + ", ".join(SIZES))
     ap.add_argument("--depth", choices=("both", "on", "off"), default="both")
-    ap.add_argument("--repeat", type=int, default=1, help="timed renders per row; the row is the median run by CPU total")
+    ap.add_argument(
+        "--repeat", type=int, default=1, help="timed renders per row; the row is the median run by CPU total"
+    )
     ap.add_argument("--out", type=Path, default=None, help="where the MP4s go (default FUNK_OUT/bench-reel-cpu)")
     args = ap.parse_args(argv)
     try:
