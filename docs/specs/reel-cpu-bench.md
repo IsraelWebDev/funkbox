@@ -1,6 +1,6 @@
 # Reel CPU benchmark (E4)
 
-Status: spec. Written before the first version of the script, and revised after two independent reviews (see
+Status: merged as PR #5 (merge 63507d8). Written before the first version of the script, and revised after two independent reviews (see
 "Revisions"). The table it produces lives in `docs/benchmarks/reel-cpu.md`. The owner decides D6 (hosted server
 profile) from that table. This item changes no hosting.
 

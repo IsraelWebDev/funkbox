@@ -1,6 +1,6 @@
 # Spec: voice without a GPL dependency on the hosted path (E3)
 
-Status: findings and a decision request. Not a feature. Done-when is NOT met. Branch: feat/e3-voice-licence, from main 8ba9550. Source: owner list item E3, decision D7. This note states no legal conclusion; the licence question goes to legal.
+Status: findings and a decision request, merged as PR #4 (merge 3e985d6) from feat/e3-voice-licence (base 8ba9550). Not a feature. Done-when is NOT met: decision D7 is still open. Source: owner list item E3, decision D7. This note states no legal conclusion; the licence question goes to legal.
 
 ## Why this matters
 

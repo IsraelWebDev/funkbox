@@ -1,6 +1,6 @@
 # Spec: restyle as a function (E2)
 
-Status: built; amended after two independent reviews (see Revision). Effort: small. Source: owner list, item E2. Unblocks desktop gap item 6 (restyle) for the hosted image worker.
+Status: merged as PR #3 (merge 321cabb); amended after two independent reviews (see Revision). Effort: small. Source: owner list, item E2. Unblocks desktop gap item 6 (restyle) for the hosted image worker.
 
 ## Problem
 

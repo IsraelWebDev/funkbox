@@ -34,3 +34,25 @@ A reel can name the score directly: `"audio": {"music": "song.music.json"}`. It 
 The player (`funkbox/music/sf2.py`) is numpy only: preset and instrument zones, loops, tuning, the volume envelope,
 attenuation and pan. It leaves out SoundFont modulators, filters and LFOs, so some instruments sound plainer than in
 a full synth; the mix gets one room reverb and a gentle limiter at about -16 dBFS RMS.
+
+## Variety: several scores from one brief
+
+`funkbox music vary SCORE.music.json --brief brief.json --seed 7 --count 6` writes a set next to the base score (or into `--out`): one `NAME-NN.music.json` per variant and a `manifest.json`. The base score's bars and meter are kept. Each variant draws its own tempo, key, scale, programs, drum pattern, swing and chord progression, so the set does not sound like one song at different speeds.
+
+The brief is JSON. `validate_brief` lists every problem at once:
+
+- `bpm_range`: `[low, high]`, the tempo band.
+- `keys` and `scales`: lists to choose from.
+- `programs`: General MIDI programs for the pad and bass.
+- `drum_patterns`: any of `straight`, `half-time`, `shuffle`.
+- `swing`: values from 0 to 0.5.
+- `arrangement` (optional): the only accepted value is `build`.
+
+```json
+{"bpm_range": [96, 112], "keys": ["D", "E", "A"], "scales": ["freygish", "minor"],
+ "programs": [0, 24, 32, 48], "drum_patterns": ["straight", "half-time", "shuffle"], "swing": [0, 0.1]}
+```
+
+`--seed` is required, so a set can be reproduced; `--count` defaults to 6. Duplicate variants are redrawn, and every score is checked before it is written. A set that already exists in the folder is refused unless you pass `--force`, which replaces it.
+
+To use a set in a reel, list the files under `audio.music` in a variants file, one per variant (see Variants in `docs/reel.md`). Each rendered variant is then loudness-checked against the reel's target.
