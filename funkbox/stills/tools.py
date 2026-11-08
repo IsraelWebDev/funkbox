@@ -101,7 +101,7 @@ def poster_variations(poster: dict | str, vary: dict, name: str = "var", project
 def image_edit(path: str, ops: list, name: str = "", project: str = "", copy: str = "", casual: bool = False) -> list:
     """Edit a COPY of a picture; the original is never touched. ops run in order, geometry first (crop, resize, rotate,
     flip, remove_background, trim_even), then adjust {brightness, contrast, saturation, hue, ...}, filter {blur, sharpen,
-    ...}, vignette, overlay {path, x, y, scale, blend, opacity}, text {copy_id|text, ...}, border {px, color}.
+    ...}, vignette, overlay {path, x, y, scale, blend, opacity, depth, shadow}, text {copy_id|text, ...}, border {px, color}.
     Writes <out>/edits/<stem>-<name|n>.png, a sidecar that re-renders it, and a before/after sheet."""
     res = on_gl(editmod.edit_image, path, ops, name, project=project or None, copy=copy or None, casual=casual)
     lines = [f"{k}: {v}" for k, v in res.paths.items()] + [api.describe(res.rendered)]
