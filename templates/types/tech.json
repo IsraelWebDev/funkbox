@@ -7,5 +7,6 @@
   "music_gain_db": -14,
   "duck_db": -10,
   "snap_cuts_to_beats": true,
+  "shot_target_s": 2.5,
   "hebrew_test": "בדיקה: מוצר חדש, עכשיו בחנויות"
 }

@@ -151,8 +151,16 @@ def cmd_variants(a) -> int:
     out_dir = a.out or (str(Path(src).parent / "out") if getattr(a, "project", None) else None)
     try:
         manifest = variants_render.render_variants(
-            reel, vary, name, base_dir=Path(src).parent, out_dir=out_dir, draft=not a.full,
-            audit=True, with_audio=not a.no_audio, sheet=a.sheet or a.sheet_video, sheet_video=a.sheet_video,
+            reel,
+            vary,
+            name,
+            base_dir=Path(src).parent,
+            out_dir=out_dir,
+            draft=not a.full,
+            audit=True,
+            with_audio=not a.no_audio,
+            sheet=a.sheet or a.sheet_video,
+            sheet_video=a.sheet_video,
         )
     except ReelVariantError as e:
         for problem in e.problems:
@@ -168,14 +176,17 @@ def cmd_variants(a) -> int:
             elif res["within_tolerance"]:
                 print(f"    loudness {fname}: {res['lufs']:.2f} LUFS, target {res['target']:g}: ok")
             else:
-                print(f"    loudness {fname}: {res['lufs']:.2f} LUFS, target {res['target']:g}: "
-                      f"MISSES by {res['off_by_lu']:+.2f} LU")
+                print(
+                    f"    loudness {fname}: {res['lufs']:.2f} LUFS, target {res['target']:g}: "
+                    f"MISSES by {res['off_by_lu']:+.2f} LU"
+                )
     if "sheet" in manifest:
         ok = manifest["sheet"].get("audit_ok")
         print(f"contact sheet: {'audit OK' if ok else 'audit FAILED' if ok is False else 'no audit'}")
     root = Path(out_dir) if out_dir else funk_out()
     print(f"manifest: {root / (name + '-variants') / 'variants.json'}")
     return 0
+
 
 def cmd_setup_models(a) -> int:
     from funkbox.reel import models
@@ -397,7 +408,9 @@ def cmd_timeline(a) -> int:
 def add_cli(sub) -> None:
     ap = sub.add_parser("reel", help="shot list -> vertical video ad: validate, storyboard, still, render, ...")
     rsub = ap.add_subparsers(
-        dest="verb", required=True, metavar="{validate,storyboard,still,render,variants,timeline,beats,cutout,setup-models}"
+        dest="verb",
+        required=True,
+        metavar="{validate,storyboard,still,render,variants,timeline,beats,cutout,setup-models}",
     )
     p = rsub.add_parser("timeline", help="drag-and-drop timeline page for a reel (shared with Claude)")
     p.add_argument("reel", nargs="?")
@@ -445,7 +458,9 @@ def add_cli(sub) -> None:
     p.add_argument("--sheet", action="store_true", help="also build contact_sheet.png, one numbered cell per variant")
     p.add_argument("--sheet-video", action="store_true", help="also render contact_sheet.mp4 (implies --sheet)")
     p.add_argument("--full", action="store_true", help="full quality (default: draft, 540 px, 24 fps, no depth model)")
-    p.add_argument("--audit", action="store_true", help="accepted for symmetry with render: the text audit is always written")
+    p.add_argument(
+        "--audit", action="store_true", help="accepted for symmetry with render: the text audit is always written"
+    )
     p.add_argument("--name")
     p.add_argument("--out", help="output folder (default FUNK_OUT / ./out)")
     p.add_argument("--no-audio", action="store_true")

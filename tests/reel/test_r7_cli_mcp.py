@@ -139,7 +139,9 @@ def test_project_storyboard_prints_the_same_beat_grid_as_reel_storyboard(demo, g
     monkeypatch.setattr(sbmod, "storyboard", lambda plan, out=None, **kw: None)  # the sheet is not under test
     monkeypatch.setattr(autoreel, "auto_reel", lambda *a, **kw: SimpleNamespace(path=reel, text=lambda: "auto: ok"))
 
-    cli.cmd_storyboard(SimpleNamespace(reel=str(reel), project=None, format=None, output=str(demo / "sb.png"), tile=120))
+    cli.cmd_storyboard(
+        SimpleNamespace(reel=str(reel), project=None, format=None, output=str(demo / "sb.png"), tile=120)
+    )
     reel_out = capsys.readouterr().out.splitlines()
     args = SimpleNamespace(
         project="demo", length=None, style=None, pace=None, cta=None, music=None, clip_share=None,
@@ -248,9 +250,7 @@ def test_cli_storyboard_writes_the_sheet_and_says_why_when_the_music_vanishes(de
 
     monkeypatch.setattr(sbmod, "storyboard", drawing)
     out = work / "sb-vanished.png"
-    rc = cli.cmd_storyboard(
-        SimpleNamespace(reel=str(reel_json), project=None, format=None, output=str(out), tile=100)
-    )
+    rc = cli.cmd_storyboard(SimpleNamespace(reel=str(reel_json), project=None, format=None, output=str(out), tile=100))
     assert rc == 0 and out.exists(), (rc, out)
     lines = capsys.readouterr().out.splitlines()
     assert any(" tiles in " in ln for ln in lines), lines

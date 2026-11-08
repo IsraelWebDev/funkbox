@@ -226,6 +226,8 @@ class Reel:
     formats: list[Format] = field(default_factory=list)  # extra output formats (see materialize)
     format_id: str | None = None  # set when this Reel is one format's variant
     preset: str | None = None  # the templates/types preset this reel was built with, if any
+    hook: bool = False  # shot 1's caption is a large title box for the first HOOK_SECONDS
+    shot_target_s: float | None = None  # pacing: the target length of auto shots, in seconds
     warnings: list[str] = field(default_factory=list)  # non-fatal notes from parsing (e.g. brand.from fallback)
 
     def shot(self, shot_id: str) -> Shot:
@@ -370,7 +372,9 @@ def _parse_grid_cell(r: _R) -> GridCell:
     if isinstance(raw_label, dict):
         label_index = set(raw_label) == {"index"} and raw_label["index"] is True
         if not label_index:
-            r.errs.append(f'{r._p("label")}: expected a copy id, or {{"index": true}} for the cell number, got {raw_label!r}')
+            r.errs.append(
+                f'{r._p("label")}: expected a copy id, or {{"index": true}} for the cell number, got {raw_label!r}'
+            )
     elif raw_label is not None:
         label = r.s("label", None, pattern=ID_RE)
     c = GridCell(
@@ -681,7 +685,8 @@ def _resolve_brand_from(frm: str, base_dir: str | None, warnings: list[str]) -> 
 TYPES_DIR = Path(__file__).resolve().parents[2] / "templates" / "types"
 TYPE_BRAND_KEYS = ("font_caption", "font_display", "font_fallback")
 TYPE_AUDIO_KEYS = ("music_gain_db", "duck_db", "snap_cuts_to_beats")
-TYPE_KEYS = (*TYPE_BRAND_KEYS, *TYPE_AUDIO_KEYS, "caption_style")
+TYPE_TOP_KEYS = ("hook", "shot_target_s")  # reel-level fields a preset may set
+TYPE_KEYS = (*TYPE_BRAND_KEYS, *TYPE_AUDIO_KEYS, *TYPE_TOP_KEYS, "caption_style")
 TYPE_META_KEYS = ("description", "hebrew_test")  # documentation only; never applied to a reel
 
 
@@ -731,6 +736,9 @@ def apply_type(d: Any, errs: list[str]) -> Any:
     for k in TYPE_AUDIO_KEYS:
         if k in preset:
             _fill(out, "audio", k, preset[k])
+    for k in TYPE_TOP_KEYS:
+        if k in preset and out.get(k) is None:
+            out[k] = preset[k]
     shots = out.get("shots")
     if "caption_style" in preset and isinstance(shots, list):
         for sh in shots:
@@ -748,6 +756,9 @@ def parse_reel(d: Any, base_dir: str | None = None) -> Reel:
     r = _R(d, "", errs)
     reel = Reel(base_dir=base_dir)
     reel.preset = r.s("type", None, pattern=ID_RE)
+    reel.hook = r.b("hook", False) if r.raw("hook", None) is not None else False
+    if r.raw("shot_target_s", None) is not None:
+        reel.shot_target_s = r.num("shot_target_s", 3.0, 0.5, 10.0)
     reel.version = int(r.num("version", 3, 3, 3, integer=True))
     s = r.sub("settings")
     reel.settings = Settings(
