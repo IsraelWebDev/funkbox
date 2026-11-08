@@ -5,8 +5,9 @@ Spec: docs/specs/reel-cpu-bench.md. Table: docs/benchmarks/reel-cpu.md. Output: 
     python tools/bench_reel_cpu.py                          # 540x960 and 720x1280, depth on and off
     python tools/bench_reel_cpu.py --sizes 540x960 --depth off --repeat 2
 
-The depth model and the voices are read from FUNK_MODELS (or the default models folder). Nothing is downloaded.
-Imports of funkbox happen inside main(), after the arguments are checked.
+Models come from FUNK_MODELS (or the default models folder). Nothing is downloaded. The script sets the depth mode
+itself, so it refuses to start when REEL_DEPTH is set or reel_depth is set in funkbox.toml.
+funkbox is imported only inside the functions that need it, after the arguments are checked.
 """
 
 from __future__ import annotations
@@ -15,11 +16,12 @@ import argparse
 import csv
 import os
 import platform
-import statistics
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -41,11 +43,13 @@ COLUMNS = (
     "note",
 )
 NUMERIC = ("output_s", "cpu_python_s", "cpu_children_s", "cpu_total_s", "cpu_per_output_s", "wall_s", "wall_per_output_s")
+RUN_FIELDS = ("output_s", "cpu_python_s", "cpu_children_s", "wall_s")
 TIMER_LINE = "timer: cpu = time.process_time() (this process, all threads) + child processes (ffmpeg); wall = time.perf_counter()"
 
 # time.process_time() does not see ffmpeg (clip decode, audio mix, H.264 encode), so child CPU is added separately.
 # Windows: subprocess.Popen is wrapped in this process only, each child's handle is kept, and GetProcessTimes is read
-# when the render ends. Elsewhere: the change in getrusage(RUSAGE_CHILDREN).
+# when the render ends. A child whose handle cannot be opened is counted as missing: the row becomes "partial".
+# Elsewhere: the change in getrusage(RUSAGE_CHILDREN).
 _WIN_HANDLES: list[int] = []
 _WIN_STATE = {"open_failed": 0}
 _K32 = None
@@ -124,12 +128,22 @@ def child_cpu_meter():
     return lambda: _rusage_children() - before
 
 
-def clear_depth_cache() -> None:
-    """Empty the depth cache so the ONNX inference is inside the timed render."""
-    from funkbox.config import funk_out
+@dataclass
+class Setup:
+    """Everything a run needs. Tests replace the render with a stub; the real one is _real_render."""
 
-    for f in (funk_out() / "cache" / "depth").glob("*.npy"):
-        f.unlink()
+    plan: object
+    render: Callable[[object, Path, str], object]  # (plan, out_dir, depth_mode) -> object with .duration (seconds)
+    clear_depth_cache: Callable[[], None]
+    depth_ok: bool
+    depth_reason: str
+    out_root: Path
+    info: dict  # facts for the header comments
+
+
+def size_pair(size: str) -> tuple[int, int]:
+    w, h = size.split("x")
+    return int(w), int(h)
 
 
 def parse_sizes(text: str) -> list[str]:
@@ -140,6 +154,40 @@ def parse_sizes(text: str) -> list[str]:
         if s not in SIZES:
             raise ValueError(f"unknown size {s!r}; this benchmark runs {' and '.join(SIZES)} only")
     return sizes
+
+
+def depth_override() -> str:
+    """The REEL_DEPTH value (or reel_depth from funkbox.toml) if one is set, else ''."""
+    from funkbox.config import get
+
+    return get().reel_depth or ""
+
+
+def onnxruntime_version() -> str:
+    try:
+        import onnxruntime
+    except Exception:  # noqa: BLE001 - any failure to import means the version is unknown
+        return "unknown"
+    return str(getattr(onnxruntime, "__version__", "unknown"))
+
+def header_lines(info: dict) -> list[str]:
+    if info["nt"]:
+        child = "GetProcessTimes on each child process handle (Windows)"
+    else:
+        child = "getrusage(RUSAGE_CHILDREN) delta (POSIX)"
+    return [
+        TIMER_LINE,
+        f"child cpu: {child}",
+        f"host: {info['host']}; python {info['python']}",
+        f"onnxruntime: {info['onnxruntime']}",
+        f"gl: {info['gl']} (software={info['software']})",
+        f"models folder: {info['models']}",
+        f"depth model: {info['depth']}",
+        f"depth cache: cleared before each depth-on render (only *.npy files in this folder): {info['depth_cache']}",
+        f"reel: examples/reel_demo/demo.reel.json at {info['fps']} fps, voice-over and music on",
+        f"warm-up: {info['warm']}",
+        f"mp4s: {info['out']}",
+    ]
 
 
 def result_row(size, depth, output_s, cpu_python_s, cpu_children_s, wall_s, status="ok", note="") -> dict:
@@ -164,6 +212,30 @@ def blank_row(size, depth, status, note) -> dict:
     return {"size": size, "depth": depth, **{k: None for k in NUMERIC}, "status": status, "note": note}
 
 
+def aggregate_runs(size: str, depth: str, runs: list[dict], notes: list[str] | tuple = ()) -> dict:
+    """One row from several runs. The row is the run with the median CPU total; with an even count it is the mean of
+    the two middle runs. Every column comes from that row, so the parts add up to the total. Status is partial if any
+    run is partial."""
+    ordered = sorted(runs, key=lambda r: r["cpu_total_s"])
+    n = len(ordered)
+    if n % 2:
+        mid = ordered[n // 2]
+        how = "the middle run"
+    else:
+        pair = ordered[n // 2 - 1 : n // 2 + 1]
+        mid = {k: sum(r[k] for r in pair) / 2 for k in RUN_FIELDS}
+        how = "the mean of the two middle runs"
+    parts = []
+    if n > 1:
+        totals = ", ".join(f"{r['cpu_total_s']:.1f}" for r in runs)
+        parts.append(f"median of {n} runs by CPU total ({how}); run totals {totals} s")
+    parts.extend(notes)
+    status = "partial" if any(r["partial"] for r in runs) else "ok"
+    return result_row(
+        size, depth, mid["output_s"], mid["cpu_python_s"], mid["cpu_children_s"], mid["wall_s"], status, "; ".join(parts)
+    )
+
+
 def _cell(v):
     if v is None:
         return ""
@@ -172,64 +244,130 @@ def _cell(v):
     return v
 
 
-def write_csv(rows: list[dict], header_lines: list[str], stream) -> None:
-    for line in header_lines:
+def write_csv(rows: list[dict], header: list[str], stream) -> None:
+    for line in header:
         stream.write(f"# {line}\n")
     writer = csv.writer(stream, lineterminator="\n")
     writer.writerow(COLUMNS)
     for row in rows:
         writer.writerow([_cell(row.get(c)) for c in COLUMNS])
 
-
-def measure(plan, size: str, depth: str, out_dir: Path, repeat: int) -> dict:
-    """Time the full reel render at one size and depth setting, ``repeat`` times; the row reports medians."""
-    from funkbox.reel.render import render_reel
-
-    w, h = (int(x) for x in size.split("x"))
+def measure(setup: Setup, size: str, depth: str, out_dir: Path, repeat: int) -> dict:
+    """Time the full reel render at one size and depth setting, ``repeat`` times."""
+    w, h = size_pair(size)
+    depth_mode = "model" if depth == "on" else "off"
     runs: list[dict] = []
     notes: list[str] = []
     for _ in range(repeat):
         if depth == "on":
-            clear_depth_cache()
-        plan.reel.settings.width, plan.reel.settings.height = w, h  # in memory only; the reel file is not written
+            setup.clear_depth_cache()
+        setup.plan.reel.settings.width, setup.plan.reel.settings.height = w, h  # in memory only; the reel file is not written
         stop_children = child_cpu_meter()
         cpu0, wall0 = time.process_time(), time.perf_counter()
         try:
-            out = render_reel(
-                None,
-                "bench",
-                plan=plan,
-                draft=False,
-                depth_mode="model" if depth == "on" else "off",
-                out_dir=out_dir,
-                with_audio=True,
-            )
+            out = setup.render(setup.plan, out_dir, depth_mode)
         except Exception as exc:  # keep the other rows; this one is marked as an error
             stop_children()
             return blank_row(size, depth, "error", f"{type(exc).__name__}: {str(exc)[:200]}".replace("\n", " "))
         wall = time.perf_counter() - wall0
         cpu_python = time.process_time() - cpu0
         cpu_children = stop_children()
-        if _WIN_STATE["open_failed"]:
-            note = f"child CPU not read for {_WIN_STATE['open_failed']} process(es)"
+        partial = _WIN_STATE["open_failed"] > 0
+        if partial:
+            note = f"child CPU not read for {_WIN_STATE['open_failed']} process(es) in at least one run"
             if note not in notes:
                 notes.append(note)
-        runs.append({"output_s": out.duration, "cpu_python_s": cpu_python, "cpu_children_s": cpu_children, "wall_s": wall})
+        runs.append(
+            {
+                "output_s": out.duration,
+                "cpu_python_s": cpu_python,
+                "cpu_children_s": cpu_children,
+                "wall_s": wall,
+                "cpu_total_s": cpu_python + cpu_children,
+                "partial": partial,
+            }
+        )
+    return aggregate_runs(size, depth, runs, notes)
 
-    med = {k: statistics.median(r[k] for r in runs) for k in ("output_s", "cpu_python_s", "cpu_children_s", "wall_s")}
-    parts = []
-    if len(runs) > 1:
-        cpu_totals = ", ".join(f"{r['cpu_python_s'] + r['cpu_children_s']:.1f}" for r in runs)
-        parts.append(f"median of {len(runs)} runs, each field separately; cpu totals {cpu_totals} s")
-    parts.extend(notes)
-    return result_row(size, depth, med["output_s"], med["cpu_python_s"], med["cpu_children_s"], med["wall_s"], "ok", "; ".join(parts))
+
+def run_rows(setup: Setup, sizes: list[str], depths: list[str], repeat: int) -> list[dict]:
+    rows = []
+    for size in sizes:
+        for depth in depths:
+            if depth == "on" and not setup.depth_ok:
+                rows.append(blank_row(size, depth, "not run", setup.depth_reason))
+                continue
+            rows.append(measure(setup, size, depth, setup.out_root / f"{size}-depth-{depth}", repeat))
+    return rows
+
+
+def exit_code(rows: list[dict]) -> int:
+    return 1 if any(r["status"] == "error" for r in rows) else 0
+
+
+def _real_render(plan, out_dir: Path, depth_mode: str):
+    from funkbox.reel.render import render_reel
+
+    return render_reel(None, "bench", plan=plan, draft=False, depth_mode=depth_mode, out_dir=out_dir, with_audio=True)
+
+
+def setup_environment(out_root: Path | None) -> Setup:
+    from funkbox.config import funk_out, models_dir
+    from funkbox.gl import context as glctx
+    from funkbox.reel import depth as depthmod
+    from funkbox.reel.render import prepare
+
+    try:
+        renderer = glctx.create_context().info.get("GL_RENDERER", "unknown")
+    except glctx.GLUnavailable as exc:
+        renderer = f"unavailable ({exc})"
+    plan = prepare(DEMO_REEL)
+    depth_ok = depthmod.available()
+    depth_reason = "" if depth_ok else depthmod.unavailable_reason()
+    depth_dir = funk_out() / "cache" / "depth"
+
+    def clear_depth_cache() -> None:
+        for f in depth_dir.glob("*.npy"):
+            f.unlink()
+
+    root = out_root or funk_out() / "bench-reel-cpu"
+    info = {
+        "nt": os.name == "nt",
+        "host": f"{platform.node()} {platform.platform()}",
+        "python": sys.version.split()[0],
+        "onnxruntime": onnxruntime_version(),
+        "gl": renderer,
+        "software": glctx.SOFTWARE,
+        "models": str(models_dir()),
+        "depth": f"available at {depthmod.model_path()}" if depth_ok else f"unavailable ({depth_reason})",
+        "depth_cache": str(depth_dir),
+        "fps": plan.reel.settings.fps,
+        "warm": "",
+        "out": str(root),
+    }
+    return Setup(
+        plan=plan,
+        render=_real_render,
+        clear_depth_cache=clear_depth_cache,
+        depth_ok=depth_ok,
+        depth_reason=depth_reason,
+        out_root=root,
+        info=info,
+    )
+
+
+def warm_up(setup: Setup, size: str) -> None:
+    """One untimed render at the first timed size, full settings, so the one-time costs are paid before timing."""
+    w, h = size_pair(size)
+    setup.plan.reel.settings.width, setup.plan.reel.settings.height = w, h
+    setup.render(setup.plan, setup.out_root / "warmup", "model" if setup.depth_ok else "off")
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="CPU seconds per second of output for the demo reel (CSV on stdout).")
     ap.add_argument("--sizes", default=",".join(SIZES), help="comma-separated; allowed: " + ", ".join(SIZES))
     ap.add_argument("--depth", choices=("both", "on", "off"), default="both")
-    ap.add_argument("--repeat", type=int, default=1, help="timed renders per row; the row reports medians")
+    ap.add_argument("--repeat", type=int, default=1, help="timed renders per row; the row is the median run by CPU total")
     ap.add_argument("--out", type=Path, default=None, help="where the MP4s go (default FUNK_OUT/bench-reel-cpu)")
     args = ap.parse_args(argv)
     try:
@@ -239,52 +377,23 @@ def main(argv: list[str] | None = None) -> int:
     if args.repeat < 1:
         ap.error("--repeat must be 1 or more")
     depths = ["on", "off"] if args.depth == "both" else [args.depth]
+    override = depth_override()
+    if override:
+        ap.error(
+            f"REEL_DEPTH is set to {override!r} (or reel_depth is set in funkbox.toml). The benchmark sets the depth "
+            "mode itself, so unset REEL_DEPTH and remove reel_depth from funkbox.toml, then run it again."
+        )
 
     install_child_tracking()
-
-    from funkbox.config import funk_out
-    from funkbox.gl import context as glctx
-    from funkbox.reel import depth as depthmod
-    from funkbox.reel.render import prepare, render_reel
-
-    try:
-        renderer = glctx.create_context().info.get("GL_RENDERER", "unknown")
-    except glctx.GLUnavailable as exc:
-        renderer = f"unavailable ({exc})"
-    out_root = args.out or funk_out() / "bench-reel-cpu"
-    plan = prepare(DEMO_REEL)
-    depth_ok = depthmod.available()
-
-    # Untimed warm-up: imports, fonts, GL, depth session and voice-line cache. A draft render is enough for that.
-    render_reel(None, "warmup", plan=plan, draft=True, depth_mode="model" if depth_ok else "off", out_dir=out_root / "warmup")
-
-    rows: list[dict] = []
-    for size in sizes:
-        for depth in depths:
-            if depth == "on" and not depth_ok:
-                rows.append(blank_row(size, depth, "not run", depthmod.unavailable_reason()))
-                continue
-            rows.append(measure(plan, size, depth, out_root / f"{size}-depth-{depth}", args.repeat))
-
-    if os.name == "nt":
-        child_line = "child cpu: GetProcessTimes on each child process handle (Windows)"
-    else:
-        child_line = "child cpu: getrusage(RUSAGE_CHILDREN) delta (POSIX)"
-    header = [
-        TIMER_LINE,
-        child_line,
-        f"host: {platform.node()} {platform.platform()}; python {sys.version.split()[0]}",
-        f"gl: {renderer} (software={glctx.SOFTWARE})",
-        (
-            f"depth model: available at {depthmod.model_path()}"
-            if depth_ok
-            else f"depth model: unavailable ({depthmod.unavailable_reason()})"
-        ),
-        f"reel: examples/reel_demo/demo.reel.json at {plan.reel.settings.fps} fps, voice-over and music on",
-        f"mp4s: {out_root}",
-    ]
-    write_csv(rows, header, sys.stdout)
-    return 1 if any(r["status"] == "error" for r in rows) else 0
+    setup = setup_environment(args.out)
+    warm_up(setup, sizes[0])
+    setup.info["warm"] = (
+        f"one untimed full-settings render at {sizes[0]}, depth {'on' if setup.depth_ok else 'off'}; "
+        "one-time costs of the other size are not warmed"
+    )
+    rows = run_rows(setup, sizes, depths, args.repeat)
+    write_csv(rows, header_lines(setup.info), sys.stdout)
+    return exit_code(rows)
 
 
 if __name__ == "__main__":
