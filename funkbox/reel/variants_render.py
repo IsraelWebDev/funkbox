@@ -42,12 +42,14 @@ def build_sheet_reel(base: dict, cells: list[str]) -> dict:
         reel.pop(key, None)
     reel["audio"] = {"voiceover": False}
     grid_cells = [{"video": v, "fit": "cover", "label": {"index": True}} for v in cells]
-    reel["shots"] = [{
-        "id": "sheet",
-        "source": {"grid": {"cols": cols, "rows": rows, "cells": grid_cells}},
-        "motion": {"type": "none"},
-        "duration": SHEET_SECONDS,
-    }]
+    reel["shots"] = [
+        {
+            "id": "sheet",
+            "source": {"grid": {"cols": cols, "rows": rows, "cells": grid_cells}},
+            "motion": {"type": "none"},
+            "duration": SHEET_SECONDS,
+        }
+    ]
     return reel
 
 
@@ -75,8 +77,13 @@ def _clear_stale(vdir: Path) -> None:
     """Remove the outputs of an earlier run here, so no file outlives the manifest that describes it."""
     for p in vdir.glob("v[0-9][0-9]*"):
         p.unlink(missing_ok=True)
-    for name in ("variants.json", "variants.json.tmp", "contact_sheet.png", "contact_sheet.mp4",
-                 "contact_sheet.text_audit.json"):
+    for name in (
+        "variants.json",
+        "variants.json.tmp",
+        "contact_sheet.png",
+        "contact_sheet.mp4",
+        "contact_sheet.text_audit.json",
+    ):
         (vdir / name).unlink(missing_ok=True)
 
 
@@ -86,7 +93,9 @@ def _write_atomic(path: Path, text: str) -> None:
     os.replace(tmp, path)
 
 
-def _sheet(reel: dict, entries: list[dict], vdir: Path, base_dir, draft: bool, sheet_video: bool) -> tuple[dict, str | None]:
+def _sheet(
+    reel: dict, entries: list[dict], vdir: Path, base_dir, draft: bool, sheet_video: bool
+) -> tuple[dict, str | None]:
     """Render the contact sheet. Returns (sheet info, error): a failure is recorded in the info and returned, never raised here."""
     from . import render
 
@@ -98,8 +107,13 @@ def _sheet(reel: dict, entries: list[dict], vdir: Path, base_dir, draft: bool, s
     cells = [str(vdir / next(n for n in e["outputs"] if n.endswith(".mp4"))) for e in entries]
     try:
         out = render.render_reel(
-            build_sheet_reel(reel, cells), "contact_sheet",
-            base_dir=base_dir, out_dir=vdir, draft=draft, audit=True, with_audio=False,
+            build_sheet_reel(reel, cells),
+            "contact_sheet",
+            base_dir=base_dir,
+            out_dir=vdir,
+            draft=draft,
+            audit=True,
+            with_audio=False,
         )
     except Exception as e:  # recorded with its traceback in the manifest, and raised after it, so it is never silent
         msg = f"contact sheet: {type(e).__name__}: {e}"
@@ -114,6 +128,7 @@ def _sheet(reel: dict, entries: list[dict], vdir: Path, base_dir, draft: bool, s
         "audit_ok": out.audit_ok,
     }
     return info, None
+
 
 def render_variants(
     reel: dict,
@@ -163,18 +178,20 @@ def render_variants(
         target = loudness.target_for(variant)
         videos = [o.paths["mp4"] for o in outs if o.paths.get("mp4")]
         loud = loudness.measure_outputs(videos, target) if with_audio else {}
-        entries.append({
-            "index": i,
-            "label": label,
-            "vary": {k: vals[i - 1] for k, vals in vary.items()},
-            "reel": f"{stem}.reel.json",
-            "reel_sha256": reel_hash,
-            "outputs": outputs,
-            "audit_ok": (all(o.audit_ok for o in outs) if audit else None),
-            "loudness": loud,  # a report: measured on the file, not part of the manifest hash
-            "loudness_ok": loudness.all_ok(loud),
-            "render_seconds": round(time.perf_counter() - t0, 2),
-        })
+        entries.append(
+            {
+                "index": i,
+                "label": label,
+                "vary": {k: vals[i - 1] for k, vals in vary.items()},
+                "reel": f"{stem}.reel.json",
+                "reel_sha256": reel_hash,
+                "outputs": outputs,
+                "audit_ok": (all(o.audit_ok for o in outs) if audit else None),
+                "loudness": loud,  # a report: measured on the file, not part of the manifest hash
+                "loudness_ok": loudness.all_ok(loud),
+                "render_seconds": round(time.perf_counter() - t0, 2),
+            }
+        )
 
     sheet_info, sheet_error = None, None
     if sheet:
@@ -192,8 +209,11 @@ def render_variants(
     if sheet:
         manifest["sheet"] = sheet_info
     _write_atomic(vdir / "variants.json", json.dumps(manifest, indent=2, ensure_ascii=False))
-    failed = [f"variant {e['index']}: text audit failed (see {vdir}/v{e['index']:02d}*.text_audit.json)"
-              for e in entries if e["audit_ok"] is False]
+    failed = [
+        f"variant {e['index']}: text audit failed (see {vdir}/v{e['index']:02d}*.text_audit.json)"
+        for e in entries
+        if e["audit_ok"] is False
+    ]
     if sheet_error:
         failed.append(sheet_error)
     elif sheet_info is not None and sheet_info["audit_ok"] is False:

@@ -31,6 +31,8 @@ DEFAULT_CPS = 28.0  # when cps is "auto" but no shot duration is known
 SAFE_TOP, SAFE_BOTTOM = 0.14, 0.22  # reels safe area
 LAND_TOP, LAND_BOTTOM = 0.07, 0.12  # landscape safe area (player controls)
 CAPTION_DELAY = 0.1  # seconds after the shot starts
+HOOK_SECONDS = 0.8  # the hook title shows for this long from the start of the reel
+HOOK_SIZE = 1.4  # the hook title is this many times the caption's size
 NAME_RE = re.compile(r"^[A-Za-z0-9_\-]{1,40}$")
 TEMPLATES = FUNKBOX / "templates"
 
@@ -404,6 +406,15 @@ def wrap(text: str, font: ImageFont.FreeTypeFont, avail: float) -> tuple[list[tu
             lines.append(cur)
         pos += len(para) + 1
     return lines, ok
+
+
+def hook_style(style: Style) -> Style:
+    """The hook title: the caption's text in the display font, HOOK_SIZE times larger, always boxed, centred."""
+    from dataclasses import replace
+
+    size = style.size if style.size == "auto" else style.size * HOOK_SIZE
+    box = style.box if style.box not in (None, "auto") else "primary"
+    return replace(style, font="display", size=size, box=box, x=None, y=None)
 
 
 def layout_block(

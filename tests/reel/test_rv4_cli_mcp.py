@@ -93,7 +93,21 @@ def test_cli_renders_each_variant_and_writes_the_manifest(demo, work, gl, capsys
 def test_cli_sheet_adds_a_contact_sheet_with_its_audit(demo, work, gl, capsys):
     reel = write_reel(demo, "rv4-sheet.reel.json")
     vary = write_vary(work, {"brand.palette": [WARM, DARK]})
-    rc = main(["reel", "variants", str(reel), "--vary", str(vary), "--sheet", "--no-audio", "--out", str(work), "--name", "sheet4"])
+    rc = main(
+        [
+            "reel",
+            "variants",
+            str(reel),
+            "--vary",
+            str(vary),
+            "--sheet",
+            "--no-audio",
+            "--out",
+            str(work),
+            "--name",
+            "sheet4",
+        ]
+    )
     out = capsys.readouterr().out
     assert rc == 0, out
     assert "contact sheet: audit OK" in out
