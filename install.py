@@ -315,7 +315,9 @@ def venv_ok(py: Path) -> bool:
     `uv python uninstall`-ed, or installed from inside packaged Claude Desktop: see msix_config_dirs)."""
     if not py.exists():
         return False
-    if sys.platform == "win32":  # a Windows program starts with "MZ"; anything else cannot run, and launching it can hang
+    if (
+        sys.platform == "win32"
+    ):  # a Windows program starts with "MZ"; anything else cannot run, and launching it can hang
         try:
             with py.open("rb") as f:
                 if f.read(2) != b"MZ":

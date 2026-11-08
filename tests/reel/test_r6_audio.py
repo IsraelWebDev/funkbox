@@ -128,7 +128,9 @@ def test_a_bass_drone_without_a_kick_falls_back_to_the_full_band_phase():
     y = np.zeros(int(SR * 12.0))
     k = 0
     while k * P128 < 11.8:
-        h = np.diff(np.concatenate([[0.0], rng.standard_normal(int(0.04 * SR)) * np.exp(-np.arange(int(0.04 * SR)) / SR * 90)]))
+        h = np.diff(
+            np.concatenate([[0.0], rng.standard_normal(int(0.04 * SR)) * np.exp(-np.arange(int(0.04 * SR)) / SR * 90)])
+        )
         i0 = int((k * P128 + P128 / 2) * SR)
         n = min(len(h), len(y) - i0)
         if n > 0:

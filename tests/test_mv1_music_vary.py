@@ -71,8 +71,15 @@ def test_build_arrangement_holds_the_bass_back_for_one_bar():
 
 
 def test_a_brief_too_small_for_the_count_is_refused_not_repeated():
-    small = dict(BRIEF, keys=["D"], scales=["dorian"], programs=[0], drum_patterns=["straight"], swing=[0.0],
-                 bpm_range=[100, 100])
+    small = dict(
+        BRIEF,
+        keys=["D"],
+        scales=["dorian"],
+        programs=[0],
+        drum_patterns=["straight"],
+        swing=[0.0],
+        bpm_range=[100, 100],
+    )
     with pytest.raises(BriefError, match="could not find 12 different scores"):
         generate(small, 1, 12)
 
@@ -103,6 +110,7 @@ def test_generate_refuses_a_bad_seed_count_and_meter_together():
 def test_generate_refuses_more_than_the_variant_limit():
     with pytest.raises(BriefError, match="count: 1..12"):
         generate(BRIEF, 1, MAX_VARIANTS + 1)
+
 
 def _base_brief():
     return {

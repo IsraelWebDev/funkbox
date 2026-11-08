@@ -103,6 +103,7 @@ def cmd_vary(a) -> int:
     print(f"manifest: {out / 'manifest.json'}")
     return 0
 
+
 def add_cli(sub) -> None:
     ap = sub.add_parser("music", help="music from a short score with real General MIDI instruments")
     ms = ap.add_subparsers(dest="verb", required=True, metavar="{render,instruments,vary}")
