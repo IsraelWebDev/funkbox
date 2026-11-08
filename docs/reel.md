@@ -116,6 +116,12 @@ Every preset keeps `brand.font_fallback` (bundled Rubik Bold, which draws Latin,
 Every font a preset uses is bundled in `fonts/` with its OFL licence beside it, so presets work offline. The tests check each bundled font's licence and that each type's fallback draws its Hebrew test line.
 
 Not yet: the `--type` flag on the CLI and a project-wide default type. Presets set only the fields above; pacing and end-card keys come with later cards.
+
+## Hook title and shot length
+
+`"hook": true` on a reel (or in a type preset) draws shot 1's caption as a title for the first 0.8 s: the display font, 1.4 times the caption size, in a box, centred. The caption then starts at 0.8 s on its own reveal clock. The title wraps to as many lines as fit at that size; a two-line title is not forced. Validate needs a caption with a copy line on shot 1 and checks the title fits every format.
+
+`"shot_target_s": 2.5` sets the length of `auto` shots: a shot with a voiceover line lasts at least its line plus padding and at least the target; a shot with no voiceover lasts the target (default 1.5 s). The tech preset sets 2.5. Cuts still follow the voiceover; cuts at sentence ends are not separate. With beat snapping on (the tech preset), a cut can move up to a quarter second earlier, so a shot may end just under its target.
 ## Shot lists for specific briefs
 
 `project_auto_reel` is a first draft. When a brief gives exact timings, framing or mostly screen recordings, edit the

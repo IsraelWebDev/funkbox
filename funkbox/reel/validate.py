@@ -215,6 +215,28 @@ def _check_templates_and_fit(reel: Reel, rep: Report) -> None:
                 f"shots[{i}] ({sh.id}).caption: copy {c.copy_id!r} draws {fontsmod.describe(used)} in the fallback "
                 f"font {fonts.fallback.name} (the caption font {fonts.caption.name} has no glyph for them)"
             )
+    if reel.hook:  # the hook title is shot 1's caption, large and boxed: it must fit this format
+        c0 = reel.shots[0].caption
+        d0, target = reel.shots[0].duration, reel.shot_target_s
+        if (isinstance(d0, float) and d0 < captions.HOOK_SECONDS) or (d0 == "auto" and target is not None and target < captions.HOOK_SECONDS):
+            rep.errors.append(f"shots[0] ({reel.shots[0].id}).duration: the hook needs at least {captions.HOOK_SECONDS} s on shot 1")
+        if c0 is None or c0.copy_id not in rep.deck.lines:
+            rep.errors.append("hook: true needs a caption with a copy line on shots[0]; its text is the hook title")
+        else:
+            try:
+                captions.layout_block(
+                    c0.copy_id,
+                    rep.deck.text(c0.copy_id),
+                    captions.hook_style(captions.load_style(c0.style)),
+                    fonts,
+                    reel.brand,
+                    W,
+                    H,
+                    anchor="center",
+                    safe_area=reel.settings.safe_area,
+                )
+            except (captions.CaptionFitError, ValueError) as e:
+                rep.errors.append(f"shots[0] ({reel.shots[0].id}).hook: {e}")
     for i, sh in enumerate(reel.shots):  # grid labels: the same fit check, on the cell
         g = sh.source.grid
         if g is None:
