@@ -503,22 +503,52 @@ class Renderer:
             return None
         c = self.reel.shots[span.index].caption
         assert c is not None
-        t = local / self.fps - captions_mod.CAPTION_DELAY
+        hold = captions_mod.HOOK_SECONDS if span.index == 0 and self.hook_layout() is not None else 0.0
+        t = local / self.fps - captions_mod.CAPTION_DELAY - hold  # shot 1's caption starts after the hook title
         return captions_mod.render_caption(lay, c.reveal, t, span.vo_dur, span.duration)
 
+    def hook_layout(self) -> captions_mod.Layout | None:
+        """The hook title over shot 1 (reel ``hook``): shot 1's caption text, in the display font, large and boxed."""
+        if not self.reel.hook or self.reel.shots[0].caption is None:
+            return None
+        stt = self._state.setdefault(0, _ShotState())
+        lay = stt.extra.get("hook")
+        if lay is None:
+            c = self.reel.shots[0].caption
+            style = captions_mod.hook_style(captions_mod.load_style(c.style))
+            lay = stt.extra["hook"] = captions_mod.layout_block(
+                c.copy_id,
+                self.deck.text(c.copy_id),
+                style,
+                self.fonts(),
+                self.reel.brand,
+                self.w,
+                self.h,
+                anchor="center",
+                safe_area=self.reel.settings.safe_area,
+            )
+        return lay
+
     def _overlay_caption(self, fr: np.ndarray, span: ShotSpan, local: int) -> np.ndarray:
-        spr = self.caption_sprite(span, local)
+        # during the hook window, shot 1's caption is the hook title; the caption starts after it
+        hook = self.hook_layout() if span.index == 0 and local / self.fps < captions_mod.HOOK_SECONDS else None
+        if hook is not None:
+            lay, slot = hook, "hook"
+            spr = captions_mod.render_caption(hook, "none", local / self.fps)
+        else:
+            lay, slot = self.caption_layout(span), "caption"
+            spr = self.caption_sprite(span, local)
         if spr is None:
             return fr
         if self.audit is not None:
             self._note(
                 "caption",
                 span,
-                "caption",
+                slot,
                 "main",
                 self.reel.shots[span.index].caption.copy_id,
                 span.start_frame + local,
-                self.caption_layout(span),
+                lay,
                 spr,
             )
         return spr.over(fr)
