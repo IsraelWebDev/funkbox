@@ -44,6 +44,19 @@ def hex_rgb(h: str) -> tuple[int, int, int]:
     return int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)
 
 
+def _leader(fr: np.ndarray, a: tuple, b: tuple, rgb: tuple, W: int, H: int) -> np.ndarray:
+    """A straight leader line from the fraction point ``a`` to ``b`` (a dot at ``b``), drawn over the frame."""
+    from PIL import ImageDraw
+
+    img = Image.fromarray(fr)
+    d = ImageDraw.Draw(img)
+    p, q = (a[0] * W, a[1] * H), (b[0] * W, b[1] * H)
+    w = max(2, round(0.006 * W))
+    d.line([p, q], fill=tuple(rgb), width=w)
+    d.ellipse([q[0] - w, q[1] - w, q[0] + w, q[1] + w], fill=tuple(rgb))
+    return np.array(img)
+
+
 # --------------------------------------------------------------------------- #
 # Video source: stream-decoded through ffmpeg (never loads a whole clip into RAM)
 # --------------------------------------------------------------------------- #
@@ -414,6 +427,7 @@ class Renderer:
         fr = self._source_frame(span, local, note=True)
         fr = self._overlay_product(fr, span, local)
         fr = self._overlay_caption(fr, span, local)
+        fr = self._overlay_callouts(fr, span, local)
         return fr
 
     def product(self, span: ShotSpan) -> product_mod.ProductCompositor | None:
@@ -533,6 +547,48 @@ class Renderer:
                 safe_area=self.reel.settings.safe_area,
             )
         return lay
+
+    def callout_layout(self, span: ShotSpan, i: int) -> tuple:
+        """The label of callout ``i`` on this shot, centred on its anchor and pulled into the safe area, and its colour."""
+        co = self.reel.shots[span.index].callouts[i]
+        stt = self._state.setdefault(span.index, _ShotState())
+        got = stt.extra.get(("callout", i))
+        if got is None:
+            style = captions_mod.load_style(co.style)
+            base = captions_mod.layout_block(
+                co.copy_id,
+                self.deck.text(co.copy_id),
+                style,
+                self.fonts(),
+                self.reel.brand,
+                self.w,
+                self.h,
+                anchor="center",
+                safe_area=self.reel.settings.safe_area,
+            )
+            lay, _ = captions_mod.place_callout(base, co.at, self.w, self.h, self.reel.settings.safe_area)
+            rgb = captions_mod.colour(style.box, self.reel.brand) or (255, 255, 255)
+            got = stt.extra[("callout", i)] = (lay, rgb)
+        return got
+
+    def _overlay_callouts(self, fr: np.ndarray, span: ShotSpan, local: int) -> np.ndarray:
+        """Callout labels (and their leader lines) that are on screen at this frame: start <= t < end."""
+        sh = self.reel.shots[span.index]
+        t = local / self.fps
+        for i, co in enumerate(sh.callouts):
+            end = span.duration if co.end is None else co.end
+            if not (co.start <= t < end):
+                continue
+            lay, rgb = self.callout_layout(span, i)
+            spr = captions_mod.render_caption(lay, "none", 0.0)  # the whole label at once
+            if spr is None:
+                continue
+            if co.line_to is not None:
+                fr = _leader(fr, co.at, co.line_to, rgb, self.w, self.h)
+            if self.audit is not None:
+                self._note("callout", span, "callout", str(i), co.copy_id, span.start_frame + local, lay, spr)
+            fr = spr.over(fr)
+        return fr
 
     def _overlay_caption(self, fr: np.ndarray, span: ShotSpan, local: int) -> np.ndarray:
         # during the hook window, shot 1's caption is the hook title; the caption starts after it

@@ -421,6 +421,33 @@ def hook_style(style: Style) -> Style:
     return replace(style, font="display", size=size, box=box, x=None, y=None)
 
 
+def _safe_band(H: int, safe_area: str) -> tuple:
+    """Top and bottom of the caption safe band, in pixels."""
+    if safe_area == "reels":
+        return SAFE_TOP * H, H - SAFE_BOTTOM * H
+    if safe_area == "landscape":  # 16:9 / square players: title-safe margins, controls at the bottom
+        return LAND_TOP * H, H - LAND_BOTTOM * H
+    return 0.04 * H, H - 0.04 * H
+
+
+def safe_box(W: int, H: int, safe_area: str) -> tuple:
+    """The rectangle (left, top, right, bottom) a callout label must stay inside: the caption safe band, 4% side margins."""
+    top, bot = _safe_band(H, safe_area)
+    return 0.04 * W, top, 0.96 * W, bot
+
+
+def place_callout(lay: Layout, at: tuple, W: int, H: int, safe_area: str) -> tuple:
+    """Centre a laid-out label on the anchor ``at`` (fractions of the frame). Returns (layout, inside): the layout is
+    pulled into the safe box if the anchor would put it outside, and ``inside`` is True when no pull was needed."""
+    left, top, right, bottom = safe_box(W, H, safe_area)
+    x0 = at[0] * W - lay.box_w / 2
+    y0 = at[1] * H - lay.box_h / 2
+    inside = left <= x0 and top <= y0 and x0 + lay.box_w <= right and y0 + lay.box_h <= bottom
+    x0 = min(max(x0, left), max(left, right - lay.box_w))
+    y0 = min(max(y0, top), max(top, bottom - lay.box_h))
+    return replace(lay, x0=int(round(x0)), y0=int(round(y0))), inside
+
+
 def layout_block(
     copy_id: str,
     text: str,
@@ -436,12 +463,7 @@ def layout_block(
     """Lay out a copy line. Raises CaptionFitError (naming the copy id) if it cannot fit."""
     min_px = max(8, math.ceil(MIN_SIZE * H))
     px = max(min_px, int(round(effective_size(style, text) * H)))
-    if safe_area == "reels":
-        top, bot = SAFE_TOP * H, H - SAFE_BOTTOM * H
-    elif safe_area == "landscape":  # 16:9 / square players: title-safe margins, controls at the bottom
-        top, bot = LAND_TOP * H, H - LAND_BOTTOM * H
-    else:
-        top, bot = 0.04 * H, H - 0.04 * H
+    top, bot = _safe_band(H, safe_area)
     while True:
         font = fonts.get(style.font, px, text)
         pad = int(round(style.padding * px))

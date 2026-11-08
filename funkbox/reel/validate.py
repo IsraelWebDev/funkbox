@@ -125,6 +125,7 @@ def _validate_one(src, base_dir, *, vo_durations, beats, deep: bool, fmt: str | 
         _check_files(reel, rep)
         _check_templates_and_fit(reel, rep)
     _check_timeline(reel, rep, vo_durations, beats)
+    _check_callout_times(reel, rep)
     if deep:
         _check_grid(reel, rep, beats)
         _check_grid_geometry(reel, rep)
@@ -215,6 +216,47 @@ def _check_templates_and_fit(reel: Reel, rep: Report) -> None:
                 f"shots[{i}] ({sh.id}).caption: copy {c.copy_id!r} draws {fontsmod.describe(used)} in the fallback "
                 f"font {fonts.fallback.name} (the caption font {fonts.caption.name} has no glyph for them)"
             )
+    for i, sh in enumerate(reel.shots):  # callout labels: copy in the deck, fits, inside the safe area, within the shot
+        for j, co in enumerate(sh.callouts):
+            where = f"shots[{i}] ({sh.id}).callouts[{j}]"
+            if co.copy_id not in rep.deck.lines:
+                rep.errors.append(f"{where}: copy {co.copy_id!r} is not in the deck")
+                continue
+            try:
+                captions.load_style(co.style)
+            except ValueError as e:
+                rep.errors.append(f"{where}: {e}")
+                continue
+            err = captions.check_caption(
+                co.copy_id,
+                rep.deck.text(co.copy_id),
+                co.style,
+                "center",
+                fonts,
+                reel.brand,
+                W,
+                H,
+                reel.settings.safe_area,
+            )
+            if err:
+                rep.errors.append(f"{where}: {err}")
+                continue
+            lay = captions.layout_block(
+                co.copy_id,
+                rep.deck.text(co.copy_id),
+                captions.load_style(co.style),
+                fonts,
+                reel.brand,
+                W,
+                H,
+                anchor="center",
+                safe_area=reel.settings.safe_area,
+            )
+            _, inside = captions.place_callout(lay, co.at, W, H, reel.settings.safe_area)
+            if not inside:
+                rep.errors.append(
+                    f"{where}: the label leaves the safe area at this anchor; move `at` towards the middle"
+                )
     if reel.hook:  # the hook title is shot 1's caption, large and boxed: it must fit this format
         c0 = reel.shots[0].caption
         d0, target = reel.shots[0].duration, reel.shot_target_s
@@ -333,6 +375,20 @@ def _check_timeline(reel: Reel, rep: Report, vo: dict[str, float] | None, beats:
     rep.warnings += timeline.warnings(rep.spans)
     total = timeline.total_seconds(rep.spans)
     rep.info.update(total_seconds=total, shots=len(reel.shots), summary=f"{len(reel.shots)} shots, {total:.2f}s total")
+
+
+def _check_callout_times(reel: Reel, rep: Report) -> None:
+    """A callout window must start and end inside its shot. ``auto`` and ``beats:N`` shots only have a length once the timeline is built, so this runs after it."""
+    for i, sh in enumerate(reel.shots):
+        sp = next((s for s in rep.spans if s.kind == "shot" and s.index == i), None)
+        if sp is None:
+            continue
+        for j, co in enumerate(sh.callouts):
+            where = f"shots[{i}] ({sh.id}).callouts[{j}]"
+            if co.start >= sp.duration:
+                rep.errors.append(f"{where}: starts at {co.start}s, at or after the shot ({sp.duration:.2f}s)")
+            elif co.end is not None and co.end > sp.duration:
+                rep.errors.append(f"{where}: ends at {co.end}s, after the shot ({sp.duration:.2f}s)")
 
 
 def _check_grid(reel: Reel, rep: Report, beats: list[float] | None) -> None:
