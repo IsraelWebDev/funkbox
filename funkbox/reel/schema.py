@@ -372,7 +372,9 @@ def _parse_grid_cell(r: _R) -> GridCell:
     if isinstance(raw_label, dict):
         label_index = set(raw_label) == {"index"} and raw_label["index"] is True
         if not label_index:
-            r.errs.append(f'{r._p("label")}: expected a copy id, or {{"index": true}} for the cell number, got {raw_label!r}')
+            r.errs.append(
+                f'{r._p("label")}: expected a copy id, or {{"index": true}} for the cell number, got {raw_label!r}'
+            )
     elif raw_label is not None:
         label = r.s("label", None, pattern=ID_RE)
     c = GridCell(

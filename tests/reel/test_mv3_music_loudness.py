@@ -19,8 +19,16 @@ BRIEF = {
     "drum_patterns": ["straight", "half-time"],
     "swing": [0.0, 0.2],
 }
-BASE = {"name": "bed", "bpm": 100, "meter": 4, "key": "D", "scale": "minor", "bars": 8, "swing": 0.0,
-        "tracks": [{"name": "pad", "program": 0, "octave": 4, "notes": "[^1 ^3 ^5]/1"}]}
+BASE = {
+    "name": "bed",
+    "bpm": 100,
+    "meter": 4,
+    "key": "D",
+    "scale": "minor",
+    "bars": 8,
+    "swing": 0.0,
+    "tracks": [{"name": "pad", "program": 0, "octave": 4, "notes": "[^1 ^3 ^5]/1"}],
+}
 
 
 def _ffmpeg():

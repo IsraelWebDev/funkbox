@@ -18,7 +18,17 @@ from pydantic import BaseModel, Field
 
 from funkbox.config import funk_home, funk_inputs, funk_out, resolve_path
 from funkbox.mcp_util import Context, on_gl, png as _png, safe, safe_async
-from funkbox.reel import approval, autoreel, brand as brandmod, captions, copydeck, endcard, ingest as ingestmod, render, variants_render
+from funkbox.reel import (
+    approval,
+    autoreel,
+    brand as brandmod,
+    captions,
+    copydeck,
+    endcard,
+    ingest as ingestmod,
+    render,
+    variants_render,
+)
 from funkbox.reel import project as projmod
 from funkbox.reel.schema import ANCHORS, MOTION_TYPES, REVEALS, TRANSITIONS
 from funkbox.reel.storyboard import storyboard as _storyboard
@@ -258,8 +268,15 @@ def reel_variants(
             base = Path(src).parent
             src = json.loads(Path(src).read_text(encoding="utf-8-sig"))
         return variants_render.render_variants(
-            src, vary_map, name, base_dir=base, out_dir=out_dir, draft=draft, audit=True,
-            sheet=sheet or sheet_video, sheet_video=sheet_video,
+            src,
+            vary_map,
+            name,
+            base_dir=base,
+            out_dir=out_dir,
+            draft=draft,
+            audit=True,
+            sheet=sheet or sheet_video,
+            sheet_video=sheet_video,
         )
 
     return on_gl(go)

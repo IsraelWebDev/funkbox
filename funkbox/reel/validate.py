@@ -218,8 +218,12 @@ def _check_templates_and_fit(reel: Reel, rep: Report) -> None:
     if reel.hook:  # the hook title is shot 1's caption, large and boxed: it must fit this format
         c0 = reel.shots[0].caption
         d0, target = reel.shots[0].duration, reel.shot_target_s
-        if (isinstance(d0, float) and d0 < captions.HOOK_SECONDS) or (d0 == "auto" and target is not None and target < captions.HOOK_SECONDS):
-            rep.errors.append(f"shots[0] ({reel.shots[0].id}).duration: the hook needs at least {captions.HOOK_SECONDS} s on shot 1")
+        if (isinstance(d0, float) and d0 < captions.HOOK_SECONDS) or (
+            d0 == "auto" and target is not None and target < captions.HOOK_SECONDS
+        ):
+            rep.errors.append(
+                f"shots[0] ({reel.shots[0].id}).duration: the hook needs at least {captions.HOOK_SECONDS} s on shot 1"
+            )
         if c0 is None or c0.copy_id not in rep.deck.lines:
             rep.errors.append("hook: true needs a caption with a copy line on shots[0]; its text is the hook title")
         else:
