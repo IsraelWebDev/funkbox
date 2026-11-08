@@ -1,0 +1,11 @@
+{
+  "description": "Short tech or product video: geometric sans display and caption faces, bold pop captions.",
+  "caption_style": "bold-pop",
+  "font_caption": "fonts/Inter-SemiBold.ttf",
+  "font_display": "fonts/SpaceGrotesk-Bold.ttf",
+  "font_fallback": "fonts/Rubik-Bold.ttf",
+  "music_gain_db": -14,
+  "duck_db": -10,
+  "snap_cuts_to_beats": true,
+  "hebrew_test": "בדיקה: מוצר חדש, עכשיו בחנויות"
+}

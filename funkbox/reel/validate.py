@@ -191,6 +191,7 @@ def _check_funk2_text(reel: Reel, path: str, where: str, rep: Report) -> None:
 def _check_templates_and_fit(reel: Reel, rep: Report) -> None:
     """Caption styles exist, text fits at >= 0.032 x height (errors name the copy id), end-card slots."""
     from . import captions, endcard
+    from .. import fonts as fontsmod
 
     errs_before = len(rep.errors)
     try:
@@ -208,6 +209,12 @@ def _check_templates_and_fit(reel: Reel, rep: Report) -> None:
         )
         if err:
             rep.errors.append(f"shots[{i}] ({sh.id}).caption: {err}")
+        used = captions.fallback_chars(fonts, "caption", rep.deck.text(c.copy_id))
+        if used:
+            rep.warnings.append(
+                f"shots[{i}] ({sh.id}).caption: copy {c.copy_id!r} draws {fontsmod.describe(used)} in the fallback "
+                f"font {fonts.fallback.name} (the caption font {fonts.caption.name} has no glyph for them)"
+            )
     for i, sh in enumerate(reel.shots):  # grid labels: the same fit check, on the cell
         g = sh.source.grid
         if g is None:

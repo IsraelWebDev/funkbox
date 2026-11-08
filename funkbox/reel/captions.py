@@ -192,6 +192,18 @@ class Fonts:
 DEFAULT_FALLBACK = "fonts/Rubik-Bold.ttf"  # bundled: Latin, Hebrew, Cyrillic
 
 
+def fallback_chars(fonts: Fonts, which: str, text: str) -> list[str]:
+    """The characters of ``text`` that the slot's font lacks and the fallback draws. Empty when the slot's font
+    draws all of it or there is no fallback. validate reports them, so a fallback never happens silently."""
+    from .. import fonts as fontsmod
+
+    main = fonts.caption if which == "caption" else fonts.display
+    if fonts.fallback is None:
+        return []
+    fb_miss = set(fontsmod.missing(fonts.fallback, text))
+    return [c for c in fontsmod.missing(main, text) if c not in fb_miss]
+
+
 def fonts_for(brand, base_dir) -> Fonts:
     """A brand's fonts: paths or names (funkbox.fonts), plus the optional fallback."""
     from .. import fonts as fontsmod
