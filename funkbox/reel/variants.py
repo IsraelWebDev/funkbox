@@ -20,9 +20,7 @@ VIDEO_EXTS = (".mp4", ".mov", ".webm", ".m4v")
 SOURCE_KINDS = ("image", "video", "color", "funk2", "grid")
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 _PALETTE = re.compile(r"^\s*(#[0-9a-fA-F]{6})\s*,\s*(#[0-9a-fA-F]{6})\s*$")
-_ALLOWED = (
-    "shots.<id>.source, shots.<id>.motion, brand.palette, audio.music, captions.<shot>.copy_id"
-)
+_ALLOWED = "shots.<id>.source, shots.<id>.motion, brand.palette, audio.music, captions.<shot>.copy_id"
 
 
 class ReelVariantError(ValueError):
@@ -67,9 +65,7 @@ def expand_reel(
         else:
             errors.append(f"vary[{key!r}] must be a non-empty list of values")
     if len(lengths) > 1:
-        errors.append(
-            f"vary lists must all have the same length (got {sorted(lengths)}); each position is one variant"
-        )
+        errors.append(f"vary lists must all have the same length (got {sorted(lengths)}); each position is one variant")
     if errors:
         raise ReelVariantError(errors)
 

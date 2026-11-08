@@ -27,7 +27,12 @@ def deck_with(lines, pronounce=None, tmp_path=None):
 def audit(tmp_path, deck, spans, voiceover=True):
     """Run the real _audit_json on a minimal plan (one voiced shot, s1, speaking copy id 'hook')."""
     shot = SimpleNamespace(id="s1", vo="hook", caption=None, source=SimpleNamespace(grid=None))
-    reel = SimpleNamespace(audio=SimpleNamespace(voiceover=voiceover, voice="kokoro:af_heart"), settings=SimpleNamespace(fps=30), shots=[shot], end_card=None)
+    reel = SimpleNamespace(
+        audio=SimpleNamespace(voiceover=voiceover, voice="kokoro:af_heart"),
+        settings=SimpleNamespace(fps=30),
+        shots=[shot],
+        end_card=None,
+    )
     plan = SimpleNamespace(deck=deck, spans=spans, reel=reel)
     out = render._audit_json(SimpleNamespace(audit_report=lambda: []), plan, "t", tmp_path)
     return json.loads(Path(out["path"]).read_text(encoding="utf-8"))
@@ -136,6 +141,7 @@ def test_voiceover_without_a_tts_engine_raises(monkeypatch):
     with pytest.raises(RuntimeError, match="needs a TTS voice"):
         audio.synthesize(deck, "hook", None)
 
+
 def test_longest_pronounce_key_wins():
     deck = deck_with({"other": {"text": "GLOW MOP."}}, pronounce={"GLOW": "glow", "GLOW MOP": "glow mop"})
     [e] = audio.voice_audit_entries(deck, [span("s1", "other", 0.0, 1.0)], 30)
@@ -153,6 +159,7 @@ def test_pronounce_matches_whole_words_only():
 def test_end_spans_never_get_a_voice_entry():
     deck = deck_with({"hook": {"text": "HI."}})
     assert audio.voice_audit_entries(deck, [span("end", "hook", 0.0, 1.0, kind="end")], 30) == []
+
 
 def test_pronounce_leading_boundary():
     deck = deck_with({"other": {"text": "BOXFUNK."}}, pronounce={"FUNK": "fun"})

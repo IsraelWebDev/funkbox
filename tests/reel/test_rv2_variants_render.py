@@ -11,6 +11,7 @@ from funkbox.reel import render
 from funkbox.reel.variants import ReelVariantError, variant_hash
 from funkbox.reel.variants_render import render_variants
 
+
 def plain_reel(demo):
     """The demo reel with voiceover and music off and 3 s shots (a caption needs room to finish typing)."""
     d = json.loads((demo / "demo.reel.json").read_text(encoding="utf-8"))
@@ -19,6 +20,7 @@ def plain_reel(demo):
         sh["duration"] = 3.0
         sh.pop("vo", None)
     return d
+
 
 WARM = "#f6f7f4,#0f7c6e"
 DARK = "#0f1216,#4fd1b9"
@@ -118,16 +120,25 @@ def test_editing_the_approved_copy_refuses_the_whole_run(work, monkeypatch):
         "settings": {"width": 270, "height": 480, "fps": 10},
         "brand": {"primary": "#c8102e", "secondary": "#1a1a1a", "text": "#ffffff"},
         "copy": "copy.json",
-        "shots": [{
-            "id": "s1",
-            "source": {"color": "#202020"},
-            "duration": 1.0,
-            "caption": {"copy_id": "hook", "style": "red-box", "reveal": "none"},
-        }],
+        "shots": [
+            {
+                "id": "s1",
+                "source": {"color": "#202020"},
+                "duration": 1.0,
+                "caption": {"copy_id": "hook", "style": "red-box", "reveal": "none"},
+            }
+        ],
     }
     cj = d / "copy.json"
     cj.write_text(cj.read_text(encoding="utf-8").replace("LOOK CLOSER.", "LOOK CLOSER!"), encoding="utf-8")
     with pytest.raises(ReelVariantError, match="changed since approval"):
-        render_variants(reel, {"brand.palette": [WARM, DARK]}, "lock",
-                        base_dir=d, out_dir=work / "out", draft=True, with_audio=False)
+        render_variants(
+            reel,
+            {"brand.palette": [WARM, DARK]},
+            "lock",
+            base_dir=d,
+            out_dir=work / "out",
+            draft=True,
+            with_audio=False,
+        )
     assert not (work / "out").exists(), "nothing may be created when the copy lock refuses the run"
