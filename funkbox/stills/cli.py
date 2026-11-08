@@ -90,9 +90,13 @@ def cmd_poster_render(a, formats=None) -> int:
     r = render.render_document(doc, base)
     if formats is None and getattr(a, "formats", None):
         formats = [f.strip() for f in a.formats.split(",") if f.strip()]
-    paths = render.write_outputs(r, _outdir(a, doc), a.name or r.doc.name, formats)
-    if getattr(a, "layers", False):
-        paths.update(render.write_layers(r, _outdir(a, doc), a.name or r.doc.name))
+    out, name = _outdir(a, doc), a.name or r.doc.name
+    layers = getattr(a, "layers", False)
+    if layers:  # every --layers refusal happens here, before the composed files or the folder are written
+        render.check_layer_export(r, out, name, formats)
+    paths = render.write_outputs(r, out, name, formats)
+    if layers:
+        paths.update(render.write_layers(r, out, name))
     print(api.describe(r))
     _print_paths(paths)
     return 0
