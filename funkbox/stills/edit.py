@@ -30,6 +30,7 @@ import math
 import os
 import re
 import shutil
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -279,7 +280,7 @@ def _depth_factor(shaped: Image.Image, x: float, y: float, strength: float) -> f
     src = funk_out() / "cache" / "depth-src" / f"{key}.png"
     if not src.exists():
         src.parent.mkdir(parents=True, exist_ok=True)
-        tmp = src.with_suffix(".part")
+        tmp = src.with_name(f"{src.stem}.{uuid.uuid4().hex}.part")
         rgb.save(tmp, format="PNG")
         os.replace(tmp, src)
     try:
@@ -319,7 +320,7 @@ def _shadow_layer(ov_path: str, W: int, H: int, x: float, y: float, scale: float
     out = funk_out() / "cache" / "shadow" / f"{key}.png"
     if not out.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
-        tmp = out.with_suffix(".part")
+        tmp = out.with_name(f"{out.stem}.{uuid.uuid4().hex}.part")
         Image.merge("LA", (Image.new("L", (W, H), 0), mask)).save(tmp, format="PNG")
         os.replace(tmp, out)
     return out
