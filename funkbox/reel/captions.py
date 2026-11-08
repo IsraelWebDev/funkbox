@@ -11,7 +11,8 @@ from __future__ import annotations
 import json
 import math
 import re
-from dataclasses import dataclass, field
+import unicodedata
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
 
@@ -20,7 +21,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from funkbox.config import ROOT as FUNKBOX
 
-from .schema import HEX_RE, Brand
+from .schema import HEX_RE, Brand, parse_highlight
 
 MIN_SIZE = 0.032  # of frame height; below this the validator errors
 AUTO_SIZE_BIG, AUTO_SIZE_SMALL = 0.062, 0.046  # of frame height, at <= AUTO_N_SHORT / >= AUTO_N_LONG chars
@@ -38,6 +39,7 @@ TEMPLATES = FUNKBOX / "templates"
 
 _STYLE_KEYS = {
     "font",
+    "highlight",
     "size",
     "color",
     "box",
@@ -84,6 +86,7 @@ class Style:
     x: float | None = None  # left edge (fraction of width); None = centred
     y: float | None = None  # top (fraction of height); None = anchored
     gap: float = 0.0
+    highlight: tuple | None = None  # (colour, radius) of the word pill, from parse_highlight
 
 
 def parse_style(d: dict, where: str = "style") -> Style:
@@ -95,6 +98,7 @@ def parse_style(d: dict, where: str = "style") -> Style:
     if bad:
         raise ValueError(f"{where}: unknown keys {bad}")
     s = Style(**d)
+    s = replace(s, highlight=parse_highlight(d.get("highlight"), f"{where}.highlight"))
     if s.font not in ("caption", "display"):
         raise ValueError(f"{where}: font must be 'caption' or 'display'")
     if s.align not in ("left", "center"):
@@ -554,6 +558,38 @@ class Sprite:
         return out
 
 
+def _has_rtl(s: str) -> bool:
+    """True if the text has a right-to-left character (Hebrew, Arabic and similar)."""
+    return any(unicodedata.bidirectional(ch) in ("R", "AL") for ch in s)
+
+
+def highlight_box(lay: Layout, strings: list[str | None]) -> tuple[int, int, int, int] | None:
+    """The word pill of a revealed caption: (x0, y0, x1, y1) in the text box, or None.
+
+    It covers the last word typed so far, the word the typewriter has reached; spaces around it are not covered.
+    A blank line (a paragraph break) carries no word, so the pill stays on the last word before it.
+    A line with right-to-left text gets no pill: its words are reordered on screen, so their place is not computed here.
+    The check reads the characters, not the Pillow build, so the answer is the same with or without raqm.
+    """
+    typed = [i for i, s in enumerate(strings) if s is not None and s.strip()]
+    if not typed:
+        return None
+    last = typed[-1]
+    s = strings[last]
+    a, b = lay.lines[last]
+    if _has_rtl(lay.text[a:b]):  # the whole line, not the typed prefix, so the pill does not flicker while typing
+        return None
+    w = list(re.finditer(r"\S+", s))[-1]
+    font = lay.font  # the pill is the word's own advance: no padding into the spaces either side
+    x0 = lay.line_x(last) + font.getlength(s[: w.start()])
+    x1 = lay.line_x(last) + font.getlength(s[: w.end()])
+    x0, x1 = max(0, int(math.floor(x0))), min(lay.box_w, int(math.ceil(x1)))
+    if x1 <= x0:
+        return None
+    y0 = last * lay.line_h + lay.pad
+    return x0, y0, x1, y0 + lay.line_h
+
+
 def draw_block(
     lay: Layout, strings: list[str | None], t: float = 1e9, anim: str = "none", cursor_on: bool = False
 ) -> Sprite | None:
@@ -585,6 +621,16 @@ def draw_block(
         d.rectangle((m, m, m + max(4, lay.px // 8) - 1, m + bh - 1), fill=(*acc, 255))
     stroke = int(round(st.stroke * lay.px))
     sc = colour(st.stroke_color, br) or (0, 0, 0)
+    if st.highlight is not None:  # the word pill goes behind the text
+        box = highlight_box(lay, strings)
+        if box is not None:
+            x0, y0, x1, y1 = box
+            hc = colour(st.highlight[0], br) or text_c
+            d.rounded_rectangle(
+                (m + x0, m + y0, m + min(x1, bw) - 1, m + y1 - 1),
+                radius=int(round(st.highlight[1] * (y1 - y0))),
+                fill=(*hc, 255),
+            )
     for i, s in enumerate(strings):
         if s is None:
             continue

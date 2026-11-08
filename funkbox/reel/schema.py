@@ -181,6 +181,7 @@ class CaptionSpec:
     style: str = "red-box"
     reveal: str = "none"
     anchor: str = "bottom"
+    highlight: tuple | None = None  # (colour, radius) of the word pill; see parse_highlight
 
 
 @dataclass
@@ -576,6 +577,24 @@ def _parse_product(r: _R) -> ProductSpec:
     return p
 
 
+def parse_highlight(v: Any, where: str) -> tuple[str, float] | None:
+    """A word highlight: {"color": primary|secondary|text|#rrggbb, "radius": 0..0.5} -> (color, radius). None = off."""
+    if v is None:
+        return None
+    if not isinstance(v, dict):
+        raise ValueError(f'{where}: must be an object like {{"color": "primary", "radius": 0.3}}')
+    bad = sorted(set(v) - {"color", "radius"})
+    if bad:
+        raise ValueError(f"{where}: unknown keys {bad}")
+    color = v.get("color", "secondary")  # dark on the default red box; primary would vanish into it
+    if color not in ("primary", "secondary", "text") and not HEX_RE.match(str(color)):
+        raise ValueError(f"{where}.color={color!r} must be primary|secondary|text or #rrggbb")
+    radius = v.get("radius", 0.3)
+    if isinstance(radius, bool) or not isinstance(radius, (int, float)) or not 0 <= radius <= 0.5:
+        raise ValueError(f"{where}.radius={radius!r} must be a number from 0 to 0.5")
+    return (str(color), float(radius))
+
+
 def _parse_caption(r: _R) -> CaptionSpec:
     c = CaptionSpec(
         copy_id=r.s("copy_id", "", required=True) or "",
@@ -583,6 +602,11 @@ def _parse_caption(r: _R) -> CaptionSpec:
         reveal=r.s("reveal", "none", REVEALS) or "none",
         anchor=r.s("anchor", "bottom", ANCHORS) or "bottom",
     )
+    if r.raw("highlight", None) is not None:
+        try:
+            c.highlight = parse_highlight(r.raw("highlight"), f"{r.path}.highlight")
+        except ValueError as e:
+            r.errs.append(str(e))
     r.finish()
     return c
 

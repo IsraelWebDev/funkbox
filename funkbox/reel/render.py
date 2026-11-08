@@ -458,6 +458,8 @@ class Renderer:
         if lay is None:
             c = sh.caption
             style = captions_mod.load_style(c.style)
+            if c.highlight is not None:  # a caption's own highlight overrides its style's
+                style = replace(style, highlight=c.highlight)
             fr = None
             if style.box == "auto" or c.anchor == "auto":
                 fr = self._caption_free_mid_frame(span)
@@ -515,7 +517,10 @@ class Renderer:
         lay = stt.extra.get("hook")
         if lay is None:
             c = self.reel.shots[0].caption
-            style = captions_mod.hook_style(captions_mod.load_style(c.style))
+            style = captions_mod.load_style(c.style)
+            if c.highlight is not None:  # the caption's own highlight, as in caption_layout
+                style = replace(style, highlight=c.highlight)
+            style = captions_mod.hook_style(style)
             lay = stt.extra["hook"] = captions_mod.layout_block(
                 c.copy_id,
                 self.deck.text(c.copy_id),

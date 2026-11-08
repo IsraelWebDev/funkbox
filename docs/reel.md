@@ -122,6 +122,22 @@ Not yet: the `--type` flag on the CLI and a project-wide default type. Presets s
 `"hook": true` on a reel (or in a type preset) draws shot 1's caption as a title for the first 0.8 s: the display font, 1.4 times the caption size, in a box, centred. The caption then starts at 0.8 s on its own reveal clock. The title wraps to as many lines as fit at that size; a two-line title is not forced. Validate needs a caption with a copy line on shot 1 and checks the title fits every format.
 
 `"shot_target_s": 2.5` sets the length of `auto` shots: a shot with a voiceover line lasts at least its line plus padding and at least the target; a shot with no voiceover lasts the target (default 1.5 s). The tech preset sets 2.5. Cuts still follow the voiceover; cuts at sentence ends are not separate. With beat snapping on (the tech preset), a cut can move up to a quarter second earlier, so a shot may end just under its target.
+## Word highlight
+
+A caption can put a pill behind the word the typewriter has reached. Set it in a caption style file, templates/captions/<name>.json (every caption in that style gets it), or on one caption (it overrides the style):
+
+    templates/captions/<name>.json: "highlight": {"color": "secondary", "radius": 0.3}
+    "caption": {"copy_id": "hook", "highlight": {"color": "#ffd400"}}
+
+- `color`: `primary`, `secondary`, `text` (palette colours) or `#rrggbb`. Default `secondary`, which shows on the default red box. A colour equal to the box or the text colour hides the pill, or the words with it. `lower-third` has a secondary box, so give its pill another colour.
+- `radius`: corner rounding from 0 (square) to 0.5 (fully round). Default 0.3.
+- The pill covers the last word typed so far and moves on word by word. It does not cover spaces, and it follows the reveal. With reveal `none` (the default) the whole caption shows at once, so the pill stays on the last word; use reveal `words` for a pill that moves.
+- A blank line (a paragraph break) keeps the pill on the last word before it.
+- A line with any right-to-left text gets no pill: their words are reordered on screen, so the pill would not sit on the right word.
+- Word timing is estimated from characters per second. The voice path has no per-word timings yet, so on voiced shots the pill can drift from the spoken word.
+- A caption cannot switch off its style's pill yet; use a style without one.
+- The text audit records the copy only, not the highlight.
+
 ## Shot lists for specific briefs
 
 `project_auto_reel` is a first draft. When a brief gives exact timings, framing or mostly screen recordings, edit the
