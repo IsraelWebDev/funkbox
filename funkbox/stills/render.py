@@ -357,6 +357,13 @@ def write_outputs(r: Rendered, out_dir: str | Path, name: str, formats: list[str
         raise ValueError(f"bad output name {name!r}: use 1-60 of letters, digits, _ and -")
     d = fence_out(out_dir)
     d.mkdir(parents=True, exist_ok=True)
+    claimed = _layer_files_in(d)
+    for f in formats or r.doc.exports:
+        if f"{name}.{f}" in claimed:
+            raise ValueError(
+                f"{name}.{f} is the layer file of another poster's --layers export in {d}, so it is not overwritten; "
+                "choose another --name"
+            )
     paths: dict[str, Path] = {}
     img = r.pil
     for f in formats or r.doc.exports:
@@ -391,22 +398,81 @@ def write_outputs(r: Rendered, out_dir: str | Path, name: str, formats: list[str
     return paths
 
 
+# A layer file is "<name>-<layer-id>.png". Names and ids may both contain "-", so a layer file can equal another
+# poster's composed file or layer file. The writers refuse those collisions instead of overwriting.
+WIN_PATH_LIMIT = 260
+
+
+def _save_layer_png(im: Image.Image, path: Path) -> None:
+    im.save(path, format="PNG")
+
+
+def _layer_files_of(d: Path, name: str) -> set[str]:
+    """The layer files the last ``<name>.layers.json`` in ``d`` lists (none if it is missing or unreadable)."""
+    try:
+        man = json.loads((d / f"{name}.layers.json").read_text(encoding="utf-8"))
+        ids = [e["id"] for e in man["layers"]]
+    except (OSError, ValueError, KeyError, TypeError):
+        return set()
+    return {f"{name}-{i}.png" for i in ids if isinstance(i, str) and schema.ID_RE.match(i)}
+
+
+def _layer_files_in(d: Path) -> set[str]:
+    """Every layer file that some ``*.layers.json`` in ``d`` lists."""
+    out: set[str] = set()
+    for man in d.glob("*.layers.json"):
+        name = man.name[: -len(".layers.json")]
+        try:
+            ids = [e["id"] for e in json.loads(man.read_text(encoding="utf-8"))["layers"]]
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        out.update(f"{name}-{i}.png" for i in ids if isinstance(i, str))
+    return out
+
+
 def write_layers(r: Rendered, out_dir: str | Path, name: str) -> dict[str, Path]:
-    """Write each visible top-level layer as ``<name>-<layer-id>.png`` (RGBA, canvas size, straight alpha; its own
-    raster, fx and mask, but not its blend or opacity) and ``<name>.layers.json``: the layers in composite order,
-    bottom first. Nothing about the composed image changes; call it after ``write_outputs``."""
+    """Write each visible top-level layer as ``<name>-<layer-id>.png`` (RGBA, canvas size, straight alpha; the layer's
+    own raster, fx and mask, but not its blend or opacity), then ``<name>.layers.json`` listing the layers in composite
+    order, bottom first (an empty list when every layer is hidden). Before it writes anything it refuses a layer file
+    that would overwrite a file this poster did not write last time, and a path of 260 characters or more. Layer files
+    the last export wrote and this one does not need are removed. The composed files are not touched; call it after
+    ``write_outputs``."""
     if not NAME_RE.match(name or ""):
         raise ValueError(f"bad output name {name!r}: use 1-60 of letters, digits, _ and -")
     d = fence_out(out_dir)
-    d.mkdir(parents=True, exist_ok=True)
     index = {lay["id"]: i for i, lay in enumerate(r.doc.layers)}
+    todo = [(lay, f"{name}-{lay.id}.png") for lay in r.layers]
+    for _, fname in todo:
+        n = len(str(d / fname))
+        if n >= WIN_PATH_LIMIT:
+            raise ValueError(
+                f"layer file {fname} would have a path of {n} characters (the limit is {WIN_PATH_LIMIT - 1}): "
+                "use a shorter --name, a shorter layer id or a shorter output folder"
+            )
+    mine = _layer_files_of(d, name)
+    for _, fname in todo:
+        if (d / fname).exists() and fname not in mine:
+            raise ValueError(
+                f"{d / fname} exists and is not a layer file of this poster, so it is not overwritten; "
+                "choose another --name or layer id"
+            )
+    d.mkdir(parents=True, exist_ok=True)
+    wanted = {fname for _, fname in todo}
+    for old in sorted(mine - wanted):
+        (d / old).unlink(missing_ok=True)
+    (d / f"{name}.layers.json").unlink(missing_ok=True)  # no manifest may outlive a failed export
     paths: dict[str, Path] = {}
     entries: list[dict] = []
-    for lay in r.layers:
-        fname = f"{name}-{lay.id}.png"
+    for lay, fname in todo:
         arr = np.ascontiguousarray(lay.rgba)
         p = d / fname
-        Image.fromarray(arr).save(p, format="PNG")
+        tmp = p.with_name(fname + ".part")
+        try:
+            _save_layer_png(Image.fromarray(arr), tmp)
+            os.replace(tmp, p)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
         h, w = arr.shape[:2]
         entries.append(
             {
@@ -428,6 +494,7 @@ def write_layers(r: Rendered, out_dir: str | Path, name: str) -> dict[str, Path]
     )
     paths["layers"] = man
     return paths
+
 
 def render_poster(doc: Any, out_dir: str | Path, name: str = "", base_dir: str | Path | None = None) -> dict[str, Path]:
     """Render ``doc`` at full resolution and write ``<name>.png`` (and .jpg/.webp/.ora as the doc's export asks),

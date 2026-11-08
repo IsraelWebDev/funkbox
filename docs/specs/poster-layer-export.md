@@ -1,6 +1,6 @@
 # Spec: poster layer export
 
-Status: E1 in progress on branch `feat/e1-layer-export`. Effort: small. Source: owner list, item E1. Unblocks desktop gap item 4 (poster layers for GIMP).
+Status: E1, revised after review of commit 0d4f801 (branch `feat/e1-layer-export`). Effort: small. Source: owner list, item E1. Unblocks desktop gap item 4 (poster layers for GIMP).
 
 ## Problem
 
@@ -12,7 +12,7 @@ Status: E1 in progress on branch `feat/e1-layer-export`. Effort: small. Source: 
 
 ## Non-goals
 
-- Changing the compose path, the post passes, or the composed PNG in any way.
+- Changing the compose path, the post passes, or the composed PNG's bytes in any way.
 - Exporting hidden layers (`visible: false`). They do not contribute to the composite, so they get no file and no manifest entry.
 - Exporting the children of a group. A group is one layer; its children are already composited into it.
 - Exporting the poster-level post passes (grain, vignette, ...). They are not part of any layer. The sum of the layers is the flat composite before those passes, which is not written as a file in this item.
@@ -34,18 +34,24 @@ In the same folder as the composed PNG (the poster's `out/` for a project poster
 
 - `<name>.png` (and the other exports): unchanged.
 - `<name>-<layer-id>.png`: one per visible top-level layer.
-- `<name>.layers.json`: the manifest.
+- `<name>.layers.json`: the manifest. Written last, atomically.
 
-## File names
+## File names and collisions
 
-- `<name>` must match the existing `NAME_RE` (letters, digits, `_`, `-`, 1 to 60 characters).
-- `<layer-id>` already matches `ID_RE` in `funkbox/stills/schema.py` (letters, digits, `_`, `-`, 1 to 40 characters), and ids are unique, so the file names are safe and do not collide.
+- `<name>` matches `NAME_RE` (letters, digits, `_`, `-`, 1 to 60 characters).
+- `<layer-id>` matches `ID_RE` in `funkbox/stills/schema.py` (letters, digits, `_`, `-`, 1 to 40 characters).
+- Layer ids are unique ignoring case (`schema.py` refuses `Bg` next to `bg`), because Windows file names are case-insensitive and `demo-Bg.png` and `demo-bg.png` are one file.
+- The separator stays `-`, as the owner specified. `-` is allowed by both `NAME_RE` and `ID_RE`, so a separator change cannot be a clean guarantee. Instead, collisions are refused, never overwritten:
+  1. `write_layers` refuses, before it writes anything, a layer file that already exists unless the previous `<name>.layers.json` in the folder lists it. The refusal names the file.
+  2. `write_outputs` refuses a composed file (`<name>.png` and the other image exports) that some `*.layers.json` in the folder lists as a layer file. The refusal names the file.
+  Both checks run before any file is written. A manifest deleted by hand removes that protection; the layer files it listed are then unprotected.
 
 ## Layer PNG format
 
 - RGBA PNG, straight alpha, transparency kept.
 - Size: the canvas size of the poster at full scale (`width` x `height`), the same for every layer.
 - Content: the layer after its own raster, its own `adjust`/`filters` and its own `mask`/`clip`, which is exactly the array the compositor blends. Blend mode and opacity are not applied.
+- Each file is first written to `<file>.part` in the same folder and then moved into place with `os.replace`.
 
 ## Manifest format
 
@@ -64,31 +70,58 @@ In the same folder as the composed PNG (the poster's `out/` for a project poster
 }
 ```
 
-- `layers` is in composite order, first entry at the bottom, the same order as the poster's `layers` array.
+- `layers` is in composite order, first entry at the bottom, the same order as the poster's `layers` array. If every layer is hidden, `layers` is `[]`.
 - `index` is the position in the poster's `layers` array. Hidden layers leave gaps in it.
 - `width` and `height` are read from the written array, so they always match the PNG.
 
+## Order of operations (what `write_layers` does)
+
+1. Check the name (`NAME_RE`) and the folder (`fence_out`).
+2. Refuse a layer file whose path is 260 characters or more (the Windows limit), before any folder is created.
+3. Refuse a layer file that exists and is not listed by the previous manifest of this name (see collisions, point 1).
+4. Create the folder.
+5. Delete the layer files the previous manifest listed that this run does not write (stale files).
+6. Delete the previous `<name>.layers.json`. From here on, no manifest from an old run survives.
+7. For each visible layer: write `<file>.part`, then `os.replace` it onto `<file>`. On any error, delete the `.part` file and raise.
+8. Write the new manifest last.
+
+A failed export therefore leaves no manifest. Some layer PNGs may be new and some old, so the next successful export or re-render is needed before the set is used. The composed PNG is never touched by `write_layers`.
+
+## Path length
+
+- A layer file name is at most 105 characters: name 60, separator 1, id 40, `.png` 4.
+- `write_layers` refuses any layer file whose full path is 260 characters or more. A full-length name and id therefore need an output folder of at most 153 characters. A shorter name or id, or a shorter folder, is the fix.
+
 ## Rules
 
-1. The compose path is not changed. The flag only adds writes after `write_outputs` has finished.
+1. The compose path is not changed. `write_outputs` gains only the refusal in collision point 2. It writes no different bytes in any other case.
 2. The composed PNG is byte-identical with and without `--layers`.
 3. The same folder fence (`fence_out`) and name check (`NAME_RE`) apply. A refused name or folder writes nothing.
 4. Layer files and the manifest are deterministic: the same poster gives the same bytes.
-5. Hidden layers are not written and do not appear in the manifest.
+5. Hidden layers are not written and do not appear in the manifest. A layer that was visible in the previous export and is hidden now loses its file.
 
 ## Tests
 
-`tests/stills/test_e1_layer_export.py`, in the style of `test_s2_poster.py`:
+All in `tests/stills/test_e1_layer_export.py`:
 
-1. `test_cli_layers_flag_leaves_the_composed_png_byte_identical`: a poster with three visible layers (a solid, a semi-transparent image, a second solid with alpha) and one hidden layer. Render through the CLI with and without `--layers` into two folders, and compare the composed PNG bytes.
-2. `test_layer_pngs_and_manifest_match_the_compositor`: with `--layers`, each visible layer has one RGBA PNG at poster size, the pixels equal `Rendered.layers[i].rgba`, the hidden layer has no file, and the manifest lists the visible ids in order with the right sizes, blend and opacity.
-3. `test_layer_export_refuses_a_bad_name_or_folder`: a bad `--name` or a folder outside the allowed roots raises before any file is written.
+1. `test_schema_refuses_layer_ids_that_differ_only_in_case`: `Bg` and `bg` are a duplicate.
+2. `test_cli_layers_flag_leaves_the_composed_png_byte_identical`: CLI with and without `--layers`; the composed PNG bytes are equal, and no layer files exist without the flag.
+3. `test_cli_layers_flag_writes_one_png_per_visible_layer_and_a_manifest`: one RGBA PNG per visible layer at poster size, the hidden layer absent, the manifest order and indices (with the gap).
+4. `test_cli_layer_pngs_equal_the_compositor_layers_with_mask_and_fx_applied`: each layer PNG written by the CLI equals the in-process layer array; the inverted layer is inverted, the radial-masked layer has alpha 255 at the centre and 0 in the corner, and the semi-transparent layer keeps alpha 128.
+5. `test_layer_export_refuses_a_bad_name_or_folder_before_writing`: bad name and folder outside the allowed roots.
+6. `test_a_failed_layer_write_leaves_no_manifest_and_does_not_touch_the_composed_png`: a save that fails on the second layer leaves no manifest, no `.part` file, and the composed PNG unchanged.
+7. `test_a_layer_hidden_on_the_next_render_loses_its_file`: the stale file is removed and the new manifest does not list it.
+8. `test_when_every_layer_is_hidden_the_manifest_lists_none`: composed PNG written, manifest with `"layers": []`, no layer files.
+9. `test_a_layer_export_refuses_to_overwrite_another_posters_composed_file`: collision point 1.
+10. `test_a_composed_file_refuses_to_overwrite_another_posters_layer_file`: collision point 2.
+11. `test_a_layer_path_of_260_characters_or_more_is_refused_before_anything_is_written`: the path limit, with no folder created.
+
+Also run unchanged: `tests/stills/test_s2_poster.py`, and the `poster render` tests in `tests/test_funkbox_cli.py` (`real_runs`, `stills_cli`).
 
 ## Done when
 
-- The three tests pass with `python -m pytest -q tests/stills/test_e1_layer_export.py`.
-- The existing targeted tests that touch the poster render (`tests/stills/test_s2_poster.py`) still pass.
-- The branch `feat/e1-layer-export` has one commit with only the spec, the code and the test.
+- `python -m pytest -q tests/stills/test_e1_layer_export.py tests/stills/test_s2_poster.py` passes (41 tests).
+- The branch `feat/e1-layer-export` holds the first E1 commit (0d4f801) and the review-fix commit on top of it. The first commit is not amended.
 
 ## Open questions
 
