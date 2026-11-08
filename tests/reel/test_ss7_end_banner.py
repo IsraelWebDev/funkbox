@@ -1,5 +1,6 @@
 import numpy as np
 
+from funkbox.reel import captions as C
 from funkbox.reel import endcard as E
 from funkbox.reel import render
 from funkbox.reel.validate import validate
@@ -53,20 +54,40 @@ def test_banner_types_at_the_bottom_and_leaves_the_top_alone(demo, gl):
         top = int(0.6 * H)
         band = slice(int(0.78 * H), H)
         r.audit = {}
-        ink = {}
+        ink, edge = {}, {}
         for k in range(last + 1):
             fr = r.shot_frame(span, k)
             diff = np.abs(fr.astype(np.int16) - static.astype(np.int16)).sum(axis=2)
             assert np.array_equal(fr[:top], static[:top]), k
-            ink[k] = int((diff[band] > 60).sum())
+            hit = diff[band] > 60
+            ink[k] = int(hit.sum())
+            cols = np.nonzero(hit.any(axis=0))[0]
+            edge[k] = int(cols.max()) if cols.size else -1
         first = min(k for k, v in ink.items() if v > 0)
-        assert (
-            sum(1 for k in ink if 0 < ink[k] < ink[last]) >= 0.5 * FPS
-        )  # spread over half a second or more, not one pop
         assert first > 0.2 * FPS  # nothing is typed before the template's start
-        assert ink[first] < ink[last]  # the text grows: it types rather than appearing whole
+        # Typing moves the right-hand edge of the text along, letter by letter. A pop-in with a
+        # blinking cursor gives at most two edge positions (text end, and text end with the cursor).
+        assert len({edge[k] for k in range(first, last + 1)}) >= 4
+        assert ink[first] < ink[last]
         entry = {(e["slot"], e["instance"]): e for e in r.audit_report()}
         assert set(entry) == {("headline", "main")}
         assert entry[("headline", "main")]["text"] == r.deck.text("end_head")
+        done = entry[("headline", "main")]["complete_frame"]
+        assert done is not None and done <= last  # the full line is reached inside the span
+    finally:
+        r.release()
+
+
+def test_headline_is_checked_against_the_frame(demo, gl):
+    r = make_renderer(demo, banner_reel({"headline": "end_head"}))
+    try:
+        ec = r.endcard()
+        head = [it for it in ec.items if it.slot == "headline"]
+        assert head and head[0].lay.y0 >= 0.6 * H
+        assert head[0].lay.y0 + head[0].lay.box_h <= H
+        style = C.parse_style(E.load_template("bottom-banner")["headline"], "bottom-banner.headline")
+        long = "A longer end line for the banner test. " * 4
+        lay = C.layout_block(long, long, style, ec.fonts, ec.brand, W, H, safe_area="none")
+        assert lay.y0 >= 0 and lay.y0 + lay.box_h <= H
     finally:
         r.release()

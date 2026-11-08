@@ -89,7 +89,7 @@ class EndCardRenderer:
         self.bar_h = int(round(self.tpl["bar_height"] * H))
         self.static = self._background()
         self.product = None
-        if "sub" in self.tpl:  # brand-split, logo-clean: headline + sub (no sub slot: headline only)
+        if "sub" in self.tpl["slots"]:  # brand-split, logo-clean: headline + sub (no sub slot: headline only)
             head = C.layout_block(
                 ec.copy["headline"], txt("headline"), sty("headline"), self.fonts, self.brand, W, H, safe_area="none"
             )
@@ -124,7 +124,7 @@ class EndCardRenderer:
             lw = max(1, int(round(logo.width * lh / logo.height)))
             lx = int(round(lg["x"] * W)) if "x" in lg else (W - lw) // 2
             self.logo = (np.asarray(logo.resize((lw, lh), Image.LANCZOS)), lx, int(round(lg["y"] * H)))
-        if "url" in self.tpl:  # a template with no url slot draws none
+        if "url" in self.tpl["slots"]:  # a template with no url slot draws none
             us = sty("url")
             url = C.layout_block(ec.copy["url"], txt("url"), us, self.fonts, self.brand, W, H, safe_area="none")
             if self.bar_h > 0:  # url in both brand bars
