@@ -88,13 +88,14 @@ def cmd_storyboard(a) -> int:
 
     from funkbox.config import funk_out
     from funkbox.reel import render
-    from funkbox.reel.storyboard import storyboard
+    from funkbox.reel.storyboard import print_beat_grid, storyboard
 
     plan = render.prepare(_reel_arg(a), fmt=a.format)
     t0 = time.perf_counter()
     out = Path(a.output) if a.output else funk_out() / "storyboard.png"
     storyboard(plan, out, tile_w=a.tile)
     print(f"{out}  ({len(plan.spans)} tiles in {time.perf_counter() - t0:.1f}s)")
+    print_beat_grid(plan)
     return 0
 
 
@@ -313,7 +314,7 @@ def cmd_project_copy_diff(a) -> int:
 
 def cmd_project_auto(a) -> int:
     from funkbox.reel import autoreel, render
-    from funkbox.reel.storyboard import storyboard
+    from funkbox.reel.storyboard import print_beat_grid, storyboard
 
     res = autoreel.auto_reel(
         a.project,
@@ -332,6 +333,7 @@ def cmd_project_auto(a) -> int:
     sb = res.path.parent / "out" / f"{a.project}-storyboard.png"
     storyboard(plan, sb, tile_w=270)
     print(f"storyboard: {sb}")
+    print_beat_grid(plan)
     return 0
 
 

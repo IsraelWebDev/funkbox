@@ -182,7 +182,10 @@ no shot length is known). Every other style keeps its fixed numbers, so existing
 
 **Beat grid.** `"audio": {"bpm": 110, "beat_offset": 0.0}` sets a fixed grid (one beat = 60 / 110 = 0.545 s) without
 analysing any music. `"duration": "beats:4"` (halves allowed: `beats:1.5`) and `snap_cuts_to_beats` use it. Without `bpm`
-the grid is detected from `audio.music`.
+the grid is detected from `audio.music`: the tempo comes from the whole spectrum, the phase (where the beats fall) from
+the low band (kick range, up to 150 Hz), so off-beat hi-hats do not pull the grid half a beat late. With no clear
+low-band pulse the phase falls back to the whole spectrum. `funkbox reel storyboard` and `project auto` print
+the grid (BPM, beat count, first 8 beats) and each cut's distance in ms to the nearest beat, or `beat grid: none`.
 
 **Formats.** `"formats": ["9x16", "16x9"]` (presets `9x16`, `16x9`, `1x1`, `4x5`, or `{"id", "width", "height",
 "safe_area"}`) renders the same edit at each size: `reel_render` / `project_render` write `<name>-9x16.mp4` and
