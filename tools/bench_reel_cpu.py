@@ -19,9 +19,7 @@ import platform
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -44,6 +42,7 @@ COLUMNS = (
 )
 NUMERIC = ("output_s", "cpu_python_s", "cpu_children_s", "cpu_total_s", "cpu_per_output_s", "wall_s", "wall_per_output_s")
 RUN_FIELDS = ("output_s", "cpu_python_s", "cpu_children_s", "wall_s")
+PARTIAL_NOTE = "some runs had a child handle that could not be opened; cpu_children_s and cpu_total_s are low"
 TIMER_LINE = "timer: cpu = time.process_time() (this process, all threads) + child processes (ffmpeg); wall = time.perf_counter()"
 
 # time.process_time() does not see ffmpeg (clip decode, audio mix, H.264 encode), so child CPU is added separately.
@@ -74,6 +73,14 @@ def _win_kernel32():
     return _K32
 
 
+def _on_child_started(handle) -> None:
+    """Called with the handle OpenProcess returned for a new child (0 or None when it failed)."""
+    if handle:
+        _WIN_HANDLES.append(handle)
+    else:
+        _WIN_STATE["open_failed"] += 1
+
+
 def install_child_tracking() -> None:
     """Windows only: keep a handle to every child process started from now on."""
     if os.name != "nt":
@@ -83,11 +90,7 @@ def install_child_tracking() -> None:
     class _TrackedPopen(subprocess.Popen):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
-            handle = k32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, self.pid)
-            if handle:
-                _WIN_HANDLES.append(handle)
-            else:
-                _WIN_STATE["open_failed"] += 1
+            _on_child_started(k32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, self.pid))
 
     subprocess.Popen = _TrackedPopen
 
@@ -120,25 +123,25 @@ def _rusage_children() -> float:
 
 def child_cpu_meter():
     """Start counting child-process CPU. Returns a function that stops the count and gives seconds."""
+    _WIN_STATE["open_failed"] = 0  # per window, on every platform
     if os.name == "nt":
-        _WIN_STATE["open_failed"] = 0
         _win_child_seconds()  # forget children that finished before this window
         return _win_child_seconds
     before = _rusage_children()
     return lambda: _rusage_children() - before
 
 
-@dataclass
 class Setup:
     """Everything a run needs. Tests replace the render with a stub; the real one is _real_render."""
 
-    plan: object
-    render: Callable[[object, Path, str], object]  # (plan, out_dir, depth_mode) -> object with .duration (seconds)
-    clear_depth_cache: Callable[[], None]
-    depth_ok: bool
-    depth_reason: str
-    out_root: Path
-    info: dict  # facts for the header comments
+    def __init__(self, *, plan, render, clear_depth_cache, depth_ok, depth_reason, out_root, info):
+        self.plan = plan
+        self.render = render  # (plan, out_dir, depth_mode) -> object with .duration (seconds)
+        self.clear_depth_cache = clear_depth_cache
+        self.depth_ok = depth_ok
+        self.depth_reason = depth_reason
+        self.out_root = out_root
+        self.info = info  # facts for the header comments
 
 
 def size_pair(size: str) -> tuple[int, int]:
@@ -156,11 +159,11 @@ def parse_sizes(text: str) -> list[str]:
     return sizes
 
 
-def depth_override() -> str:
-    """The REEL_DEPTH value (or reel_depth from funkbox.toml) if one is set, else ''."""
+def depth_override(root: Path | None = None) -> str:
+    """The REEL_DEPTH value (or reel_depth from funkbox.toml under ``root``) if one is set, else ''."""
     from funkbox.config import get
 
-    return get().reel_depth or ""
+    return get(root).reel_depth or ""
 
 
 def onnxruntime_version() -> str:
@@ -169,6 +172,7 @@ def onnxruntime_version() -> str:
     except Exception:  # noqa: BLE001 - any failure to import means the version is unknown
         return "unknown"
     return str(getattr(onnxruntime, "__version__", "unknown"))
+
 
 def header_lines(info: dict) -> list[str]:
     if info["nt"]:
@@ -252,6 +256,7 @@ def write_csv(rows: list[dict], header: list[str], stream) -> None:
     for row in rows:
         writer.writerow([_cell(row.get(c)) for c in COLUMNS])
 
+
 def measure(setup: Setup, size: str, depth: str, out_dir: Path, repeat: int) -> dict:
     """Time the full reel render at one size and depth setting, ``repeat`` times."""
     w, h = size_pair(size)
@@ -273,10 +278,8 @@ def measure(setup: Setup, size: str, depth: str, out_dir: Path, repeat: int) -> 
         cpu_python = time.process_time() - cpu0
         cpu_children = stop_children()
         partial = _WIN_STATE["open_failed"] > 0
-        if partial:
-            note = f"child CPU not read for {_WIN_STATE['open_failed']} process(es) in at least one run"
-            if note not in notes:
-                notes.append(note)
+        if partial and PARTIAL_NOTE not in notes:
+            notes.append(PARTIAL_NOTE)
         runs.append(
             {
                 "output_s": out.duration,
@@ -356,11 +359,11 @@ def setup_environment(out_root: Path | None) -> Setup:
     )
 
 
-def warm_up(setup: Setup, size: str) -> None:
+def warm_up(setup: Setup, size: str, depth_mode: str) -> None:
     """One untimed render at the first timed size, full settings, so the one-time costs are paid before timing."""
     w, h = size_pair(size)
     setup.plan.reel.settings.width, setup.plan.reel.settings.height = w, h
-    setup.render(setup.plan, setup.out_root / "warmup", "model" if setup.depth_ok else "off")
+    setup.render(setup.plan, setup.out_root / "warmup", depth_mode)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -386,14 +389,21 @@ def main(argv: list[str] | None = None) -> int:
 
     install_child_tracking()
     setup = setup_environment(args.out)
-    warm_up(setup, sizes[0])
-    setup.info["warm"] = (
-        f"one untimed full-settings render at {sizes[0]}, depth {'on' if setup.depth_ok else 'off'}; "
-        "one-time costs of the other size are not warmed"
-    )
+    # The warm-up runs depth inference only when a depth-on row will run, so a depth-off run writes no depth cache.
+    warm_depth = "model" if (setup.depth_ok and "on" in depths) else "off"
+    warm_error = None
+    try:
+        warm_up(setup, sizes[0], warm_depth)
+        setup.info["warm"] = (
+            f"one untimed full-settings render at {sizes[0]}, depth {warm_depth}; "
+            "one-time costs of the other size are not warmed"
+        )
+    except Exception as exc:  # the timed rows still run; the header and the exit code report the failure
+        warm_error = f"{type(exc).__name__}: {str(exc)[:200]}".replace("\n", " ")
+        setup.info["warm"] = f"error {warm_error}; the timed rows are not warmed"
     rows = run_rows(setup, sizes, depths, args.repeat)
     write_csv(rows, header_lines(setup.info), sys.stdout)
-    return exit_code(rows)
+    return 1 if (warm_error is not None or exit_code(rows)) else 0
 
 
 if __name__ == "__main__":

@@ -1,4 +1,7 @@
-"""Reel CPU benchmark (E4): columns, header, median, status, error and cache handling, and the refusals. No real renders."""
+"""Reel CPU benchmark (E4): columns, header, medians, status, errors, warm-up and cache handling, and the refusals.
+
+No real renders: every render is a stub, and the child-process tracking is not installed.
+"""
 
 import csv
 import importlib.util
@@ -12,7 +15,6 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 _SPEC = importlib.util.spec_from_file_location("bench_reel_cpu", ROOT / "tools" / "bench_reel_cpu.py")
 bench = importlib.util.module_from_spec(_SPEC)
-sys.modules[_SPEC.name] = bench  # dataclasses looks the module up by name
 _SPEC.loader.exec_module(bench)
 
 
@@ -61,6 +63,20 @@ def _table(text: str):
     return list(csv.reader(line for line in text.splitlines() if not line.startswith("#")))
 
 
+def _no_setup_no_tracking(monkeypatch, setup=None):
+    """Stop main() before any real setup or child tracking; with a setup, use that instead of the real one."""
+
+    def must_not_run(*args, **kwargs):
+        raise AssertionError("setup or child tracking ran where it must not")
+
+    if setup is None:
+        monkeypatch.setattr(bench, "setup_environment", must_not_run)
+    else:
+        monkeypatch.setattr(bench, "setup_environment", lambda out_root: setup)
+    monkeypatch.setattr(bench, "install_child_tracking", lambda: None if setup is not None else must_not_run())
+    monkeypatch.delenv("REEL_DEPTH", raising=False)
+
+
 def test_columns_are_the_agreed_ones():
     assert bench.COLUMNS == (
         "size",
@@ -85,8 +101,7 @@ def test_csv_has_header_and_every_row_has_all_columns():
     ]
     buf = io.StringIO()
     bench.write_csv(rows, ["timer: test line"], buf)
-    lines = buf.getvalue().splitlines()
-    assert lines[0] == "# timer: test line"
+    assert buf.getvalue().splitlines()[0] == "# timer: test line"
     table = _table(buf.getvalue())
     assert table[0] == list(bench.COLUMNS)
     assert all(len(r) == len(bench.COLUMNS) for r in table[1:])
@@ -100,9 +115,21 @@ def test_csv_has_header_and_every_row_has_all_columns():
     assert "with a comma" in not_run["note"]
 
 
-def test_header_has_an_onnxruntime_line():
-    lines = bench.header_lines(_info())
-    assert "onnxruntime: 1.0.0" in lines
+def test_per_second_columns_are_the_totals_divided_by_the_output_seconds():
+    row = bench.result_row("720x1280", "on", 24.5, 117.84, 49.10, 84.72)
+    assert row["cpu_per_output_s"] == pytest.approx((117.84 + 49.10) / 24.5)
+    assert row["wall_per_output_s"] == pytest.approx(84.72 / 24.5)
+    agg = bench.aggregate_runs("720x1280", "on", [_run(117.84, 49.10, 84.72)])
+    assert agg["cpu_per_output_s"] == pytest.approx((117.84 + 49.10) / 24.5)
+    assert agg["wall_per_output_s"] == pytest.approx(84.72 / 24.5)
+
+
+def test_header_has_an_onnxruntime_line_built_from_the_real_version():
+    info = _info()
+    info["onnxruntime"] = bench.onnxruntime_version()
+    lines = bench.header_lines(info)
+    assert f"onnxruntime: {bench.onnxruntime_version()}" in lines
+    assert any(line.startswith("onnxruntime: ") for line in lines)
 
 
 def test_onnxruntime_version_is_unknown_when_the_import_fails(monkeypatch):
@@ -123,29 +150,27 @@ def test_parse_sizes_accepts_only_the_two_sizes():
 
 
 def test_unknown_size_is_refused_before_any_setup(monkeypatch, capsys):
-    def must_not_run(*args, **kwargs):
-        raise AssertionError("setup or a render started for an unknown size")
-
-    monkeypatch.setattr(bench, "setup_environment", must_not_run)
-    monkeypatch.setattr(bench, "install_child_tracking", must_not_run)
+    _no_setup_no_tracking(monkeypatch)
     with pytest.raises(SystemExit) as exc:
         bench.main(["--sizes", "1920x1080"])
     assert exc.value.code == 2
     assert "unknown size" in capsys.readouterr().err
 
 
-def test_reel_depth_override_is_refused_before_any_setup(monkeypatch, capsys):
+def test_reel_depth_env_is_refused_before_any_setup(monkeypatch, capsys):
+    _no_setup_no_tracking(monkeypatch)
     monkeypatch.setenv("REEL_DEPTH", "model")
-
-    def must_not_run(*args, **kwargs):
-        raise AssertionError("setup ran while REEL_DEPTH was set")
-
-    monkeypatch.setattr(bench, "setup_environment", must_not_run)
-    monkeypatch.setattr(bench, "install_child_tracking", must_not_run)
     with pytest.raises(SystemExit) as exc:
         bench.main(["--sizes", "540x960"])
     assert exc.value.code == 2
     assert "REEL_DEPTH" in capsys.readouterr().err
+
+
+def test_reel_depth_in_funkbox_toml_is_read_and_is_an_override(tmp_path, monkeypatch):
+    monkeypatch.delenv("REEL_DEPTH", raising=False)
+    assert bench.depth_override(tmp_path) == ""  # no funkbox.toml in the temporary folder
+    (tmp_path / "funkbox.toml").write_text('reel_depth = "model"\n', encoding="utf-8")
+    assert bench.depth_override(tmp_path) == "model"
 
 
 def test_median_of_three_takes_the_middle_run_by_cpu_total():
@@ -169,9 +194,27 @@ def test_median_of_four_is_the_mean_of_the_two_middle_runs():
 
 def test_a_partial_run_makes_the_row_partial():
     runs = [_run(10, 5, 1), _run(10, 5, 1, partial=True)]
-    row = bench.aggregate_runs("540x960", "off", runs, ["child CPU not read for 1 process(es) in at least one run"])
+    row = bench.aggregate_runs("540x960", "off", runs, [bench.PARTIAL_NOTE])
     assert row["status"] == "partial"
-    assert "child CPU not read" in row["note"]
+    assert "could not be opened" in row["note"]
+
+
+def test_a_failed_child_handle_makes_the_row_partial_and_the_next_window_is_clean(tmp_path):
+    def render_with_failed_handle(plan, out_dir, depth_mode):
+        bench._on_child_started(0)  # what the tracked Popen does when OpenProcess returns NULL
+        return SimpleNamespace(duration=24.5)
+
+    def render_clean(plan, out_dir, depth_mode):
+        return SimpleNamespace(duration=24.5)
+
+    setup = _fake_setup(tmp_path, render_with_failed_handle, lambda: None)
+    first = bench.measure(setup, "540x960", "off", tmp_path / "a", 1)
+    assert first["status"] == "partial"
+    assert "could not be opened" in first["note"]
+    setup.render = render_clean
+    second = bench.measure(setup, "540x960", "off", tmp_path / "b", 1)
+    assert second["status"] == "ok"
+    assert second["note"] == ""
 
 
 def test_render_error_gives_an_error_row_and_exit_code_1(monkeypatch, capsys, tmp_path):
@@ -180,10 +223,7 @@ def test_render_error_gives_an_error_row_and_exit_code_1(monkeypatch, capsys, tm
             return SimpleNamespace(duration=1.0)
         raise RuntimeError("boom")
 
-    setup = _fake_setup(tmp_path, render, lambda: None)
-    monkeypatch.setattr(bench, "setup_environment", lambda out_root: setup)
-    monkeypatch.setattr(bench, "install_child_tracking", lambda: None)
-    monkeypatch.delenv("REEL_DEPTH", raising=False)
+    _no_setup_no_tracking(monkeypatch, _fake_setup(tmp_path, render, lambda: None))
     code = bench.main(["--sizes", "540x960", "--depth", "off"])
     assert code == 1
     table = _table(capsys.readouterr().out)
@@ -193,30 +233,50 @@ def test_render_error_gives_an_error_row_and_exit_code_1(monkeypatch, capsys, tm
     assert row["cpu_total_s"] == ""
 
 
-def test_depth_off_after_depth_on_does_not_read_the_cache(tmp_path):
-    cache: dict = {}
-    clears: list[int] = []
-    seen: list[tuple] = []
+def test_warm_up_failure_still_prints_the_csv_and_exits_1(monkeypatch, capsys, tmp_path):
+    def render(plan, out_dir, depth_mode):
+        if out_dir.name == "warmup":
+            raise RuntimeError("warm boom")
+        return SimpleNamespace(duration=24.5)
 
-    def get_depth(mode):  # the same shape as funkbox depth.get_depth: "off" returns before the cache is consulted
-        if mode == "off":
-            return None
-        if "frame" in cache:
-            return "from cache"
-        cache["frame"] = True
-        return "computed"
+    _no_setup_no_tracking(monkeypatch, _fake_setup(tmp_path, render, lambda: None))
+    code = bench.main(["--sizes", "540x960", "--depth", "off"])
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "# warm-up: error RuntimeError: warm boom; the timed rows are not warmed" in out.splitlines()
+    table = _table(out)
+    assert table[0] == list(bench.COLUMNS)
+    row = dict(zip(table[0], table[1]))
+    assert row["status"] == "ok"  # the timed render itself worked
 
-    def clear():
-        cache.clear()
-        clears.append(1)
+
+@pytest.mark.parametrize("flag, expected", [("off", "off"), ("on", "model"), ("both", "model")])
+def test_warm_up_runs_depth_only_when_a_depth_on_row_will_run(monkeypatch, capsys, tmp_path, flag, expected):
+    warm_modes = []
+
+    def render(plan, out_dir, depth_mode):
+        if out_dir.name == "warmup":
+            warm_modes.append(depth_mode)
+        return SimpleNamespace(duration=24.5)
+
+    _no_setup_no_tracking(monkeypatch, _fake_setup(tmp_path, render, lambda: None))
+    bench.main(["--sizes", "540x960", "--depth", flag])
+    assert warm_modes == [expected]
+
+
+def test_depth_off_is_passed_to_render(tmp_path):
+    # funkbox/reel/depth.py get_depth() returns None for "off" before it looks at the cache. This test only checks
+    # that the benchmark passes "off" to the render, and clears the depth cache before the depth-on render only.
+    clears = []
+    modes = []
 
     def render(plan, out_dir, depth_mode):
         if out_dir.name != "warmup":
-            seen.append((depth_mode, get_depth(depth_mode)))
+            modes.append(depth_mode)
         return SimpleNamespace(duration=24.5)
 
-    setup = _fake_setup(tmp_path, render, clear)
+    setup = _fake_setup(tmp_path, render, lambda: clears.append(1))
     rows = bench.run_rows(setup, ["540x960"], ["on", "off"], 1)
-    assert seen == [("model", "computed"), ("off", None)]
-    assert len(clears) == 1  # cleared before the depth-on render only
+    assert modes == ["model", "off"]
+    assert len(clears) == 1
     assert [r["status"] for r in rows] == ["ok", "ok"]

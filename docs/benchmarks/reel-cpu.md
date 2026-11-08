@@ -1,12 +1,15 @@
 # Reel CPU benchmark: results
 
-Measured by `tools/bench_reel_cpu.py`. Method, sizes, columns and status values: `docs/specs/reel-cpu-bench.md`.
+Method, sizes, columns and status values: `docs/specs/reel-cpu-bench.md`. The table below was measured by the first
+version of the script (commit 68636b9); see Provenance.
 The owner decides D6 (hosted server profile) from this table. This file changes no hosting.
 
 Reel: `examples/reel_demo/demo.reel.json`. Output is 24.50 s at 30 fps, with voice-over, a music bed and five
 parallax shots. It is not the 23-second reel from the owner's note.
 
 ## Table
+
+Measured by the first version of `tools/bench_reel_cpu.py` (commit 68636b9).
 
 Each laptop row is the median of 2 timed renders. With two runs the median equals the mean, so every column is the
 mean of the two runs. CPU seconds are the process's own time plus its child processes (ffmpeg). Run on 2026-11-08,

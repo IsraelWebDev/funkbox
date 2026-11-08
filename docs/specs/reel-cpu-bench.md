@@ -1,6 +1,6 @@
 # Reel CPU benchmark (E4)
 
-Status: spec. Written before the first version of the script, and revised after an independent review (see
+Status: spec. Written before the first version of the script, and revised after two independent reviews (see
 "Revisions"). The table it produces lives in `docs/benchmarks/reel-cpu.md`. The owner decides D6 (hosted server
 profile) from that table. This item changes no hosting.
 
@@ -30,11 +30,15 @@ repository (see Open questions).
 - Depth cache: before each depth-on render the script deletes every `*.npy` file in `FUNK_OUT/cache/depth`. That is
   the depth cache funkbox uses for all reels, not a benchmark-only folder, so the deletion touches it too. The header
   names the folder. Depth-off renders do not read the cache. The clearing makes the ONNX inference part of the timing.
-- Warm-up: one untimed render at the first timed size, at full settings, with depth on when the model exists. It warms
-  imports, fonts, the GL context, the ONNX session and the voice-line cache (`FUNK_OUT/cache/tts`), so voice
-  synthesis is not in the timed numbers. The one-time costs of the first size are therefore excluded. The second size
-  gets no warm-up, so its one-time costs are in its timed numbers. The first render of a new voice line pays
-  synthesis once.
+- Warm-up: one untimed render at the first timed size, at full settings. Its depth mode is `model` only when the
+  depth model exists and a depth-on row will run (`--depth on` or `both`). A depth-off-only run warms with depth off,
+  so it writes no depth cache at all. The warm-up warms imports, fonts, the GL context, the ONNX session and the
+  voice-line cache (`FUNK_OUT/cache/tts`), so voice synthesis is not in the timed numbers. The one-time costs of the
+  first size are therefore excluded. The second size gets no warm-up, so its one-time costs are in its timed numbers.
+  The first render of a new voice line pays synthesis once.
+- Warm-up failure: if the warm-up render raises, the script keeps going. The header's warm-up line reads
+  `error <message>; the timed rows are not warmed`, the timed rows still run and are reported as usual, and the exit
+  code is 1 even if every timed row is `ok`.
 - Repeats: `--repeat N`, default 1. The row is the run with the median CPU total. With an even N it is the mean of
   the two middle runs. Every column comes from that row, so `cpu_python_s + cpu_children_s = cpu_total_s` holds.
 - Models: read from `FUNK_MODELS` (or the default models folder), and the folder is printed in the header. The script
@@ -59,22 +63,24 @@ repository (see Open questions).
 stdout, CSV. Lines starting with `#` are header comments, in this order: the timer; the child-CPU method; host and
 Python version; the onnxruntime version (`unknown` when the import fails); the GL renderer and whether it is software;
 the models folder; the depth model path, or why it is unavailable; the depth cache folder that is cleared before each
-depth-on render; the reel's fps; the warm-up; the MP4 folder. Then one header row and one row per case. Columns, in
-this order:
+depth-on render; the reel's fps; the warm-up (or its error); the MP4 folder. Then one header row and one row per
+case. Columns, in this order:
 
 `size, depth, output_s, cpu_python_s, cpu_children_s, cpu_total_s, cpu_per_output_s, wall_s, wall_per_output_s, status, note`
+
+`cpu_per_output_s` is `cpu_total_s / output_s`, and `wall_per_output_s` is `wall_s / output_s`.
 
 Status values:
 
 - `ok`: every run read its child-process CPU.
-- `partial` (Windows only): in at least one run, a child process could not be opened for CPU reading, so
-  `OpenProcess` failed. That child is missing from `cpu_children_s` and `cpu_total_s`, so both are lower than the
-  true values. The note gives the count.
+- `partial` (Windows only): in at least one run, a child process could not be opened for CPU reading, because
+  `OpenProcess` returned no handle. That child is missing from `cpu_children_s` and `cpu_total_s`, so both are lower
+  than the true values. The note says that some runs had a child handle that could not be opened.
 - `not run`: the case cannot run on this host. The note gives the reason. Numeric cells are empty.
-- `error`: a render raised an exception. The note gives it. Numeric cells are empty.
+- `error`: a timed render raised an exception. The note gives it. Numeric cells are empty.
 
-Exit codes: 0 when no row is `error` (`ok`, `partial` and `not run` all give 0); 1 when any row is `error`; 2 for bad
-arguments, an unknown size, or a `REEL_DEPTH` / `reel_depth` override.
+Exit codes: 0 when the warm-up worked and no row is `error` (`ok`, `partial` and `not run` all give 0); 1 when any row
+is `error` or the warm-up failed; 2 for bad arguments, an unknown size, or a `REEL_DEPTH` / `reel_depth` override.
 
 Rendered MP4s are written under `FUNK_OUT/bench-reel-cpu/`.
 
@@ -89,6 +95,17 @@ Rendered MP4s are written under `FUNK_OUT/bench-reel-cpu/`.
   header of every run.
 - The Linux child-CPU path (`RUSAGE_CHILDREN`) is written for the host but is not exercised by the laptop run.
 
+## Test coverage
+
+- Tests use stub renders only. They cover: the columns and CSV shape; the per-second columns; the median rule (odd
+  and even counts); the `partial` status, including a failed child handle followed by a clean window; the error row
+  and exit code 1; the warm-up failure (CSV still printed, exit 1); the warm-up depth mode for each `--depth` value;
+  depth-off passed to the render with the cache cleared only before depth-on; the refusals (unknown size, `REEL_DEPTH`
+  in the environment, `reel_depth` in a temporary `funkbox.toml`); the onnxruntime line in the header.
+- Not tested in the repository: the `OpenProcess` call itself and the Windows `GetProcessTimes` read. The tests drive
+  the same handler with a failed handle (0), so the `partial` logic is tested, but the Windows calls are verified
+  only by reading the code and by the laptop run. The laptop run had no `partial` rows.
+
 ## Not in scope
 
 No change to hosting, CI, `copy.json`, `install.py`, `projects/`, or the render code. The script calls the public
@@ -96,14 +113,15 @@ render path only.
 
 ## Revisions after review
 
-- REEL_DEPTH guard: the script refuses to start (exit 2) instead of clearing the override.
-- The onnxruntime version is printed in the header.
-- `partial` status added for a failed child-process handle on Windows.
-- The row is now the median run by CPU total (components from that run), not per-field medians.
-- The depth cache folder is named in the header and in this spec.
-- The warm-up now uses full settings at the first size, not a draft render.
-- The models folder is printed in the header. The laptop run used `FUNK_MODELS=C:\dev\funkbox\models` (the main
-  checkout's models, read only).
+- First review: REEL_DEPTH guard (refuse, exit 2) instead of clearing the override; onnxruntime line in the header;
+  `partial` status for a failed child handle; the row is the median run by CPU total, not per-field medians; the depth
+  cache folder is named in the header and here; the warm-up uses full settings at the first size; the models folder
+  is in the header; the laptop run used `FUNK_MODELS=C:\dev\funkbox\models` (read only).
+- Second review: a warm-up failure no longer stops the script. It is recorded in the header, the timed rows still run,
+  and the exit code is 1. The warm-up depth mode follows `--depth`, so a depth-off-only run writes no depth cache. The
+  `partial` note no longer counts processes, because runs can differ. The tests now cover the per-second columns, the
+  `partial` path, the warm-up failure, the warm-up depth mode, and the `funkbox.toml` override. The `Setup` class is
+  now a plain class, not a dataclass, so the tests need no global module registration.
 
 ## Open questions
 
