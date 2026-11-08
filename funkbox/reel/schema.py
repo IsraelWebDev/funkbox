@@ -202,6 +202,7 @@ class Shot:
     product: ProductSpec | None = None
     caption: CaptionSpec | None = None
     callouts: list = field(default_factory=list)  # Callout labels; see _parse_callout
+    annotations: list = field(default_factory=list)  # Annotation shapes; see _parse_annotation
     vo: str | None = None  # copy id spoken during the shot
     duration: float | str = "auto"  # seconds | "auto" | "beats:N"
     transition_in: str = "cut"
@@ -629,14 +630,19 @@ def _point(r: _R, k: str) -> tuple | None:
     v = r.raw(k, None)
     if v is None:
         return None
+    return _xy(v, r._p(k), r.errs)
+
+
+def _xy(v, where: str, errs: list) -> tuple | None:
+    """One [x, y] point as fractions of the frame, each from 0 to 1. A bad point records an error at ``where``."""
     if not (
         isinstance(v, list) and len(v) == 2 and all(isinstance(c, (int, float)) and not isinstance(c, bool) for c in v)
     ):
-        r.errs.append(f"{r._p(k)}: expected [x, y] as fractions of the frame, got {v!r}")
+        errs.append(f"{where}: expected [x, y] as fractions of the frame, got {v!r}")
         return None
     x, y = float(v[0]), float(v[1])
     if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
-        r.errs.append(f"{r._p(k)}: {v!r} is outside the frame (each value from 0 to 1)")
+        errs.append(f"{where}: {v!r} is outside the frame (each value from 0 to 1)")
         return None
     return (x, y)
 
@@ -657,6 +663,48 @@ def _parse_callout(r: _R) -> Callout:
     return co
 
 
+@dataclass
+class Annotation:
+    type: str = "arrow"  # arrow | dashed | x | check
+    points: list = field(default_factory=list)  # [(x, y), ...] fractions of the frame
+    start: float = 0.0  # seconds into the shot
+    end: float | None = None  # seconds into the shot; None = the shot's end
+    draw: bool = True  # draw on over a short time; False shows the whole shape at once
+
+
+ANNOTATION_TYPES = ("arrow", "dashed", "x", "check")
+ANNOTATION_POINTS = {"arrow": (2, 2), "dashed": (2, None), "x": (1, 1), "check": (1, 1)}  # (fewest, most)
+
+
+def _parse_annotation(r: _R) -> Annotation:
+    an = Annotation(type=r.s("type", "", required=True) or "")
+    if an.type and an.type not in ANNOTATION_TYPES:
+        r.errs.append(f"{r._p('type')}: expected one of {', '.join(ANNOTATION_TYPES)}, got {an.type!r}")
+    raw = r.raw("points", None)
+    if raw is None:
+        r.errs.append(f"{r._p('points')}: required")
+    elif not isinstance(raw, list):
+        r.errs.append(f"{r._p('points')}: expected a list of [x, y] points")
+    else:
+        pts = [_xy(v, f"{r._p('points')}[{j}]", r.errs) for j, v in enumerate(raw)]
+        if an.type in ANNOTATION_POINTS:
+            least, most = ANNOTATION_POINTS[an.type]
+            if len(raw) < least or (most is not None and len(raw) > most):
+                want = f"{least} points" if least == most else f"at least {least} points"
+                r.errs.append(f"{r._p('points')}: {an.type} takes {want}, got {len(raw)}")
+        if all(p is not None for p in pts):
+            an.points = pts
+    an.start = r.num("start", 0.0, lo=0.0, hi=600.0)
+    if r.raw("end", None) is not None:
+        n0 = len(r.errs)
+        an.end = r.num("end", 0.0, lo=0.0, hi=600.0)
+        if len(r.errs) == n0 and an.end <= an.start:
+            r.errs.append(f"{r._p('end')}: {an.end} must be after start ({an.start})")
+    an.draw = r.b("draw", True)
+    r.finish()
+    return an
+
+
 def _parse_shot(r: _R, idx: int) -> Shot:
     sh = Shot(id=r.s("id", f"s{idx + 1}", pattern=ID_RE) or f"s{idx + 1}")
     sh.source = _parse_source(r.sub("source"), sh.id)
@@ -672,6 +720,14 @@ def _parse_shot(r: _R, idx: int) -> Shot:
         else:
             sh.callouts = [
                 _parse_callout(_R(cd, f"{r.path}.callouts[{j}]", r.errs)) for j, cd in enumerate(raw_callouts)
+            ]
+    raw_ann = r.raw("annotations", None)
+    if raw_ann is not None:
+        if not isinstance(raw_ann, list):
+            r.errs.append(f"{r._p('annotations')}: expected a list of annotations")
+        else:
+            sh.annotations = [
+                _parse_annotation(_R(an, f"{r.path}.annotations[{j}]", r.errs)) for j, an in enumerate(raw_ann)
             ]
     vo = r.raw("vo", None)
     if vo is not None and not isinstance(vo, str):
