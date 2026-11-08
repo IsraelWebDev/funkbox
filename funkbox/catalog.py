@@ -11,6 +11,7 @@ kind and host-path flags are not in the registry yet; they are a follow-up in th
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 from pathlib import Path
 
@@ -38,7 +39,9 @@ def build() -> dict:
         {
             "name": t.name,
             "area": t.name.split("_", 1)[0],
-            "description": (t.description or "").strip(),
+            # cleandoc removes the indentation Python 3.13 strips from docstrings at compile time, so the catalog
+            # is the same on 3.12 (CI) and 3.13 (the laptop)
+            "description": inspect.cleandoc(t.description or ""),
             "input_schema": _schema(t),
         }
         for t in registry_tools()
