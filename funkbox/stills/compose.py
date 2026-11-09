@@ -18,7 +18,7 @@ import json
 import numbers
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image
 
 from funkbox.reel.motion import Camera
 from funkbox.reel.product import ProductCompositor
@@ -75,40 +75,22 @@ def _open_picture(data: bytes, *, need_alpha: bool) -> Image.Image:
     return probe
 
 
-def _fill_holes(mask: np.ndarray) -> np.ndarray:
-    """Background that does not touch the border is a hole: fill it."""
-    lab, n = _components(~mask)
-    if n == 0:
-        return mask
-    edge = np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]])
-    touching = [int(v) for v in np.unique(edge) if v]
-    return mask | ((lab > 0) & ~np.isin(lab, touching))
-
-
-def _dilate(mask: np.ndarray, iterations: int) -> np.ndarray:
-    out = mask
-    for _ in range(iterations):
-        p = np.pad(out, 1)
-        out = out | p[:-2, 1:-1] | p[2:, 1:-1] | p[1:-1, :-2] | p[1:-1, 2:]
-    return out
-
-
 def cutout_rgba(cutout_png: bytes) -> np.ndarray:
-    """The cut-out as HxWx4 uint8: its largest blob, holes filled (a hole takes the picture's own colour and is
-    opaque), the edge softened. Anything outside the blob is transparent, so a second blob never shows."""
+    """The cut-out as HxWx4 uint8: the cat is its largest opaque blob together with the translucent edge that
+    touches it. Transparent gaps stay transparent (the photo shows through them), and any other blob is dropped,
+    so a speck, or a blob inside a gap, never shows."""
     rgba = np.asarray(_open_picture(cutout_png, need_alpha=True).convert("RGBA"))
     alpha = rgba[..., 3].astype(np.float32) / 255.0
     labels, count = _components(alpha > 0.5)
     if count == 0:
         raise ComposeError("no cat found in the cut-out")
     sizes = np.bincount(labels.ravel())[1:]
-    blob = labels == (int(np.argmax(sizes)) + 1)
-    filled = _fill_holes(blob)
-    holes = filled & ~blob
-    coverage = np.maximum(alpha, holes.astype(np.float32))
-    reach = _dilate(filled, 2)
-    blur = np.asarray(Image.fromarray((reach * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.0)))
-    soft = np.clip(blur.astype(np.float32) / 255.0 * coverage * reach, 0.0, 1.0)
+    core = labels == (int(np.argmax(sizes)) + 1)
+    # the cat's region: any pixel with some opacity, joined to the core through opacity
+    region, _ = _components(alpha > 0.02)
+    ids = np.unique(region[core])
+    cat = np.isin(region, ids[ids > 0])
+    soft = np.clip(alpha * cat, 0.0, 1.0)
     ys, xs = np.where(soft > 0.05)
     if ys.size == 0:
         raise ComposeError("no cat found in the cut-out")

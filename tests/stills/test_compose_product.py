@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from funkbox.stills.compose import ComposeError, compose_product
+from funkbox.stills.compose import ComposeError, compose_product, cutout_rgba
 
 W, H = 240, 160
 
@@ -171,15 +171,44 @@ def test_the_picture_is_drawn_by_the_reel_product_compositor(photo, red_square, 
     assert drawn == [(H, W, 3)]
 
 
-def test_a_hole_in_the_cut_out_is_filled_with_the_cat(photo):
-    # an opaque red ring with a transparent hole in its middle: the hole is cat, so it must be drawn as cat
+def test_a_transparent_gap_in_the_cut_out_stays_transparent(photo):
+    # a ring with a transparent interior: the gap (between legs, say) shows the photo, not a patch of stored colour
     im = Image.new("RGBA", (60, 60), (0, 0, 0, 0))
     im.paste((255, 0, 0, 255), (10, 10, 50, 50))
-    im.paste((255, 0, 0, 0), (20, 20, 40, 40))  # the hole: colour kept, alpha zero
+    im.paste((0, 0, 0, 0), (20, 20, 40, 40))
     out, sidecar = compose_product(photo, png(im), {"shadow": 0, "match": 0})
     L, T, R, B = sidecar["cat_box"]
-    centre = decode(out)[(T + B) // 2, (L + R) // 2]
-    assert centre[0] > 200 and centre[1] < 60 and centre[2] < 60
+    assert tuple(decode(out)[(T + B) // 2, (L + R) // 2]) == (90, 120, 90)
+
+
+def test_a_blob_enclosed_by_the_ring_is_not_drawn(photo):
+    # a blue speck inside the ring's gap, separated from the ring by transparency
+    im = Image.new("RGBA", (60, 60), (0, 0, 0, 0))
+    im.paste((255, 0, 0, 255), (10, 10, 50, 50))
+    im.paste((0, 0, 0, 0), (20, 20, 40, 40))
+    im.paste((0, 0, 255, 255), (28, 28, 30, 30))
+    out, _ = compose_product(photo, png(im), {"shadow": 0, "match": 0})
+    assert not np.any(decode(out)[..., 2] > 200)
+
+
+def test_a_feathered_edge_is_kept_in_full(photo):
+    # an opaque core with a translucent halo 6 px out: the halo belongs to the cat and is not cropped away
+    im = Image.new("RGBA", (60, 60), (0, 0, 0, 0))
+    im.paste((255, 0, 0, 60), (14, 14, 46, 46))
+    im.paste((255, 0, 0, 255), (20, 20, 40, 40))
+    cut = cutout_rgba(png(im))
+    assert cut.shape[1] == 32 and cut.shape[0] == 32
+
+
+def test_an_rgb_cut_out_with_a_colour_key_counts_as_alpha(photo):
+    # PNG transparency as a colour key: the key colour is the background
+    im = Image.new("RGB", (60, 60), (0, 255, 0))
+    im.paste((255, 0, 0), (10, 10, 50, 50))
+    buf = io.BytesIO()
+    im.save(buf, format="PNG", transparency=(0, 255, 0))
+    out, sidecar = compose_product(photo, buf.getvalue(), {"shadow": 0, "match": 0})
+    L, T, R, B = sidecar["cat_box"]
+    assert R - L == pytest.approx(B - T, abs=3)
 
 
 def test_a_speck_near_the_cat_is_not_drawn(photo):
@@ -231,3 +260,24 @@ def test_the_drawn_cat_matches_the_sidecar_box(photo, red_square):
     L, T, R, B = sidecar["cat_box"]
     assert xs.min() == pytest.approx(L, abs=2) and xs.max() + 1 == pytest.approx(R, abs=2)
     assert ys.min() == pytest.approx(T, abs=2) and ys.max() + 1 == pytest.approx(B, abs=2)
+
+
+@pytest.mark.parametrize("value", [np.float32(0.3), np.int64(0), np.float64(0.5)])
+def test_numpy_scalars_are_accepted_as_settings(photo, red_square, value):
+    compose_product(photo, red_square, {"cx": value})
+
+
+@pytest.mark.parametrize("value", [np.bool_(True), float("nan"), np.array(0.5)])
+def test_odd_numbers_are_refused_as_settings(photo, red_square, value):
+    with pytest.raises(ComposeError):
+        compose_product(photo, red_square, {"cx": value})
+
+
+def test_the_size_check_runs_before_the_colour_match(photo, monkeypatch):
+    from funkbox.reel.product import ProductCompositor
+
+    called = []
+    monkeypatch.setattr(ProductCompositor, "fit_transform", lambda self, *a, **k: called.append(1))
+    with pytest.raises(ComposeError, match="too wide"):
+        compose_product(photo, png(Image.new("RGBA", (2048, 1), (255, 0, 0, 255))), {"match": 1.0})
+    assert called == []
