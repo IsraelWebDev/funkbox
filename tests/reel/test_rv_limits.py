@@ -20,8 +20,15 @@ def test_a_second_run_into_a_folder_being_written_is_refused(demo, work):
     lock = vdir / ".run.lock"
     lock.write_text("pid 1\n", encoding="utf-8")
     with pytest.raises(ReelVariantError, match="another run"):
-        render_variants(plain_reel(demo), {"brand.palette": [WARM, DARK]}, "lk", base_dir=demo, out_dir=work,
-                        draft=True, with_audio=False)
+        render_variants(
+            plain_reel(demo),
+            {"brand.palette": [WARM, DARK]},
+            "lk",
+            base_dir=demo,
+            out_dir=work,
+            draft=True,
+            with_audio=False,
+        )
     assert lock.exists(), "the refused run must not remove the lock it did not take"
 
 
@@ -31,8 +38,15 @@ def test_a_failed_run_writes_a_partial_record_and_releases_the_lock(demo, work, 
 
     monkeypatch.setattr(render, "render_formats", boom)
     with pytest.raises(RuntimeError, match="encoder died"):
-        render_variants(plain_reel(demo), {"brand.palette": [WARM, DARK]}, "pt", base_dir=demo, out_dir=work,
-                        draft=True, with_audio=False)
+        render_variants(
+            plain_reel(demo),
+            {"brand.palette": [WARM, DARK]},
+            "pt",
+            base_dir=demo,
+            out_dir=work,
+            draft=True,
+            with_audio=False,
+        )
     vdir = work / "pt-variants"
     partial = json.loads((vdir / "variants.partial.json").read_text(encoding="utf-8"))
     assert partial["complete"] is False and partial["error"] == "encoder died" and partial["variants"] == []
