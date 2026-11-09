@@ -387,6 +387,11 @@ def _handler(ed: Editor):
         def do_POST(self):
             u = urlparse(self.path)
             if self.headers.get("Origin") not in (None, ed.url.rstrip("/")):
+                # read the body before refusing: closing with unread bytes can reset the socket before the 403 arrives
+                try:
+                    self.rfile.read(max(0, int(self.headers.get("Content-Length", "0") or 0)))
+                except ValueError:
+                    pass
                 return self._json(403, {"error": "cross-origin request refused"})
             try:
                 n = int(self.headers.get("Content-Length", "0"))
