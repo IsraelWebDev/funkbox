@@ -466,7 +466,7 @@ def add_cli(sub) -> None:
     p.add_argument("--no-audio", action="store_true")
     p.set_defaults(fn=cmd_variants)
     p = rsub.add_parser("setup-models", help="download + verify the depth, voice and LaMa models (once)")
-    p.add_argument("--only", nargs="*", choices=["depth", "voice", "lama"])
+    p.add_argument("--only", nargs="*", choices=["depth", "voice", "lama", "mobilesam"])
     p.add_argument("--force", action="store_true")
     p.set_defaults(fn=cmd_setup_models)
     p = rsub.add_parser("cutout", help="alpha cut-out of a product photo on a plain background")

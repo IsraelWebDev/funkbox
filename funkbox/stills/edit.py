@@ -8,7 +8,8 @@ Ops (each ``{"op": "<name>", ...}``, applied in order; ``{"crop": {...}}`` is ac
   rotate {deg}                      clockwise, canvas grows to fit
   flip {axis: "h"|"v"}
   remove_background                 reel's cut-out (cropped to the subject) with its quality score
-  inpaint {mask, grow}              fill the white part of a mask PNG from its surroundings (LaMa; needs the model)
+  inpaint {mask | point, grow}      fill the white part of a mask PNG, or the object under point [x, y] (MobileSAM
+                                    picks it), from its surroundings (LaMa; needs the models)
   adjust {brightness, contrast, saturation, hue, levels, temperature, invert}
   filter {blur, sharpen, posterize, halftone, duotone, pixelate, chroma, vignette}
   overlay {path, x, y, scale, blend, opacity, depth, shadow}
@@ -68,7 +69,7 @@ OP_KEYS = {
     "rotate": {"deg"},
     "flip": {"axis"},
     "remove_background": set(),
-    "inpaint": {"mask", "grow"},
+    "inpaint": {"mask", "point", "grow"},
     "vignette": {"amount"},
     "border": {"px", "color"},
     "overlay": {"path", "x", "y", "scale", "blend", "opacity", "depth", "shadow"},
@@ -202,27 +203,54 @@ def _remove_background(im: Image.Image, ctx: RCtx) -> Image.Image:
     return out.convert("RGBA")
 
 
+def _point_mask(im: Image.Image, pt: Any) -> Image.Image:
+    from . import segment as seg
+
+    if (
+        not isinstance(pt, (list, tuple))
+        or len(pt) != 2
+        or any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in pt)
+    ):
+        raise EditError("inpaint.point: use [x, y] in picture pixels")
+    x, y = float(pt[0]), float(pt[1])
+    W, H = im.size
+    if not (0 <= x < W and 0 <= y < H):
+        raise EditError(f"inpaint.point [{x:g}, {y:g}] is outside the {W}x{H} picture")
+    try:
+        m = seg.click_mask(np.asarray(im.convert("RGB")), x, y)
+    except seg.SegmentUnavailable as e:
+        raise EditError(f"inpaint point needs the MobileSAM model: {e}") from e
+    return Image.fromarray(m.astype(np.uint8) * 255)
+
+
 def _inpaint(im: Image.Image, op: dict, ctx: RCtx) -> Image.Image:
     from . import inpaint as lama
 
-    if "mask" not in op:
-        raise EditError("inpaint needs mask: a path to a PNG where white marks what to remove")
-    try:
-        mpath = resolve_path(op["mask"])
-    except (FileNotFoundError, ValueError) as e:
-        raise EditError(f"inpaint: mask not found or outside the allowed folders: {op['mask']}") from e
+    if ("mask" in op) == ("point" in op):
+        raise EditError("inpaint needs exactly one of mask (a PNG where white marks what to remove) or point [x, y]")
+    if "point" in op:
+        mask = _point_mask(im, op["point"])
+    else:
+        try:
+            mpath = resolve_path(op["mask"])
+        except (FileNotFoundError, ValueError) as e:
+            raise EditError(f"inpaint: mask not found or outside the allowed folders: {op['mask']}") from e
+        mask = Image.open(mpath)
+        mask.load()
     g = op.get("grow", 4)
     if isinstance(g, bool) or not isinstance(g, (int, float)) or not 0 <= g <= 64:
         raise EditError("inpaint.grow: use a whole number of pixels from 0 to 64")
-    mask = Image.open(mpath)
-    mask.load()
     try:
         out = lama.inpaint_image(im, mask, int(g))
     except lama.InpaintUnavailable as e:
         raise EditError(f"inpaint needs the LaMa model: {e}") from e
     except lama.MaskTooLarge as e:
         raise EditError(f"inpaint: {e}") from e
-    ctx.info["inpaint"] = {"grow": int(g), "mask": mpath.name}
+    ctx.info["inpaint"] = {
+        "grow": int(g),
+        "mask": Path(op["mask"]).name if "mask" in op else "click",
+        "point": op.get("point"),
+    }
     return out.convert("RGBA")
 
 
