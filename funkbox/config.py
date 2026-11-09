@@ -139,6 +139,15 @@ def _truthy(v: str) -> bool:
     return v.strip().lower() in ("1", "true", "yes", "on")
 
 
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def _default_fastsd_device() -> str:
+    """ "GPU" is the Intel iGPU through OpenVINO, a Windows setup; macOS and Linux default to "CPU"."""
+    return "GPU" if _is_windows() else "CPU"
+
+
 def _headless_linux() -> bool:
     return sys.platform == "linux" and "DISPLAY" not in os.environ and "WAYLAND_DISPLAY" not in os.environ
 
@@ -195,7 +204,7 @@ def get(root: Path | str | None = None) -> Config:
         fastsd_port=num("fastsd_port", 8000, int),
         gimp_port=num("gimp_port", 9877, int),
         idle_min=num("idle_min", 20.0),
-        fastsd_device=raw("fastsd_device") or "GPU",
+        fastsd_device=raw("fastsd_device") or _default_fastsd_device(),
         fake_sd=_truthy(raw("fake_sd") or ""),
         reel_depth=(raw("reel_depth") or "").strip().lower(),
         reel_tts=(raw("reel_tts") or "").strip().lower(),

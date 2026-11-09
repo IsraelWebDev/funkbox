@@ -15,6 +15,8 @@
 FastSD shuts itself down after 20 idle minutes if funkbox started it (`STUDIO_FASTSD_IDLE_MIN`). 512x512 stays
 warm (~3-5 s per image); the first image at any other size recompiles the iGPU model (~2.5 min).
 
+The FastSD run step (start, stop, config) works on Windows, macOS and Linux. `FASTSD_DEVICE` (or `fastsd_device` in `funkbox.toml`) defaults to `GPU` on Windows (the Intel iGPU through OpenVINO) and to `CPU` on macOS and Linux; setting it always wins.
+
 **Why GIMP is started by you, not by Claude:** Claude Desktop is a sandboxed (MSIX) app that kills everything an MCP
 server launched when it stops that server, so a Claude-launched GIMP would close and lose unsaved work. It also
 sees a virtualized `%APPDATA%`. The **GIMP + MCP** shortcut (`funkbox/studio/GIMP-MCP.cmd`, rendered from `GIMP-MCP.cmd.template` by `install.py --with gimp`) runs in your normal session: it
