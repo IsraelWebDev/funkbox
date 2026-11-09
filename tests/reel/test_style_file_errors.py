@@ -44,10 +44,8 @@ def test_bad_highlight_radius_in_a_caption_style_is_a_reel_error(demo, tmp_path,
     assert any("radius" in e for e in rep.errors), rep.text()
 
 
-
 def _endcard_template(tmp_path, monkeypatch, name, drop):
     """brand-split with one style block removed, its slot list unchanged."""
-    from funkbox.reel import captions as C
 
     tpl = json.loads((captions.TEMPLATES / "endcards" / "brand-split.json").read_text(encoding="utf-8"))
     del tpl[drop]
