@@ -694,11 +694,13 @@ def _parse_annotation(r: _R) -> Annotation:
                 r.errs.append(f"{r._p('points')}: {an.type} takes {want}, got {len(raw)}")
         if all(p is not None for p in pts):
             an.points = pts
+    n_start = len(r.errs)
     an.start = r.num("start", 0.0, lo=0.0, hi=600.0)
+    start_ok = len(r.errs) == n_start  # compare end only with a start that parsed
     if r.raw("end", None) is not None:
         n0 = len(r.errs)
         an.end = r.num("end", 0.0, lo=0.0, hi=600.0)
-        if len(r.errs) == n0 and an.end <= an.start:
+        if start_ok and len(r.errs) == n0 and an.end <= an.start:
             r.errs.append(f"{r._p('end')}: {an.end} must be after start ({an.start})")
     an.draw = r.b("draw", True)
     r.finish()

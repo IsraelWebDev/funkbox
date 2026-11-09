@@ -297,7 +297,16 @@ def layer_source(layer: Layer, base_dir: str | Path | None) -> str:
     if layer.source is not None:
         return layer.source
     if layer.shader:
-        return resolve_path(layer.shader, base_dir).read_text(encoding="utf-8-sig")
+        try:
+            path = resolve_path(layer.shader, base_dir)
+        except FileNotFoundError as e:  # built-in shaders (shaders/*.frag) live under FUNK_HOME
+            from ..config import get
+
+            raise FileNotFoundError(
+                f"{e}. Built-in shaders are looked up under FUNK_HOME ({get().home}); set FUNK_HOME to the "
+                "engine checkout that has shaders/"
+            ) from e
+        return path.read_text(encoding="utf-8-sig")
     raise ValueError("shader layer needs `shader` (path) or `source` (inline GLSL)")
 
 

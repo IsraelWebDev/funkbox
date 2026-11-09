@@ -73,6 +73,42 @@ def _manifest_hash(base_hash: str, vary: dict, flags: dict, variants: list[dict]
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
+def _render_each(variants, labels, vary, vdir, entries, *, base_dir, draft, audit, with_audio) -> None:
+    """Render every variant in order, appending one entry per finished variant to ``entries``."""
+    from . import loudness, render
+
+    for i, (variant, label) in enumerate(zip(variants, labels), start=1):
+        stem = f"v{i:02d}"
+        reel_hash = variant_hash(variant)
+        (vdir / f"{stem}.reel.json").write_text(json.dumps(variant, indent=2, ensure_ascii=False), encoding="utf-8")
+        t0 = time.perf_counter()
+        outs = render.render_formats(
+            variant, stem, base_dir=base_dir, out_dir=vdir, draft=draft, audit=audit, with_audio=with_audio
+        )
+        # Names come from disk, not from the render result, so an unmuxed silent file is listed too.
+        outputs = sorted(
+            p.name for p in vdir.glob(f"{stem}*") if p.suffix == ".mp4" or p.name.endswith(".text_audit.json")
+        )
+        # Measure exactly the MP4s this render produced (not a folder glob: stale files and v10/v100 clashes).
+        target = loudness.target_for(variant)
+        videos = [o.paths["mp4"] for o in outs if o.paths.get("mp4")]
+        loud = loudness.measure_outputs(videos, target) if with_audio else {}
+        entries.append(
+            {
+                "index": i,
+                "label": label,
+                "vary": {k: vals[i - 1] for k, vals in vary.items()},
+                "reel": f"{stem}.reel.json",
+                "reel_sha256": reel_hash,
+                "outputs": outputs,
+                "audit_ok": (all(o.audit_ok for o in outs) if audit else None),
+                "loudness": loud,  # a report: measured on the file, not part of the manifest hash
+                "loudness_ok": loudness.all_ok(loud),
+                "render_seconds": round(time.perf_counter() - t0, 2),
+            }
+        )
+
+
 def _clear_stale(vdir: Path) -> None:
     """Remove the outputs of an earlier run here, so no file outlives the manifest that describes it."""
     for p in vdir.glob("v[0-9][0-9]*"):
@@ -149,12 +185,50 @@ def render_variants(
     written if a text audit or the sheet fails.
     """
     from ..config import funk_out
-    from . import loudness, render
 
     variants, labels = expand_reel(reel, vary, base_dir=base_dir, deep=True)
     root = Path(out_dir) if out_dir else funk_out()
     vdir = root / f"{name}-variants"
     vdir.mkdir(parents=True, exist_ok=True)
+    lock = _take_lock(vdir)
+    try:
+        return _render_locked(
+            reel,
+            vary,
+            name,
+            variants,
+            labels,
+            vdir,
+            base_dir=base_dir,
+            draft=draft,
+            audit=audit,
+            with_audio=with_audio,
+            sheet=sheet,
+            sheet_video=sheet_video,
+        )
+    finally:
+        lock.unlink(missing_ok=True)
+
+
+def _take_lock(vdir: Path) -> Path:
+    """Create the folder's run lock. A second run into the same folder is refused rather than interleaved."""
+    lock = vdir / ".run.lock"
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        raise ReelVariantError(
+            [f"another run is writing {vdir}; wait for it, or delete {lock} if that run died"]
+        ) from None
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(f"pid {os.getpid()}\n")
+    return lock
+
+
+def _render_locked(
+    reel, vary, name, variants, labels, vdir, *, base_dir, draft, audit, with_audio, sheet, sheet_video
+) -> dict:
+    from . import render
+
     _clear_stale(vdir)
     flags = {"draft": draft, "audit": audit, "with_audio": with_audio}
     if sheet:
@@ -162,36 +236,21 @@ def render_variants(
     render._log(f"rendering {len(variants)} variants ({'draft' if draft else 'full'}) to {vdir}")
 
     entries: list[dict] = []
-    for i, (variant, label) in enumerate(zip(variants, labels), start=1):
-        stem = f"v{i:02d}"
-        reel_hash = variant_hash(variant)
-        (vdir / f"{stem}.reel.json").write_text(json.dumps(variant, indent=2, ensure_ascii=False), encoding="utf-8")
-        t0 = time.perf_counter()
-        outs = render.render_formats(
-            variant, stem, base_dir=base_dir, out_dir=vdir, draft=draft, audit=audit, with_audio=with_audio
+    try:
+        _render_each(
+            variants, labels, vary, vdir, entries, base_dir=base_dir, draft=draft, audit=audit, with_audio=with_audio
         )
-        # Names come from disk, not from the render result, so an unmuxed silent file is listed too.
-        outputs = sorted(
-            p.name for p in vdir.glob(f"{stem}*") if p.suffix == ".mp4" or p.name.endswith(".text_audit.json")
+    except BaseException as exc:
+        # keep what finished, so no output is left without a record of what it is
+        _write_atomic(
+            vdir / "variants.partial.json",
+            json.dumps(
+                {"name": name, "complete": False, "error": str(exc), "variants": entries},
+                indent=2,
+                ensure_ascii=False,
+            ),
         )
-        # Measure exactly the MP4s this render produced (not a folder glob: stale files and v10/v100 clashes).
-        target = loudness.target_for(variant)
-        videos = [o.paths["mp4"] for o in outs if o.paths.get("mp4")]
-        loud = loudness.measure_outputs(videos, target) if with_audio else {}
-        entries.append(
-            {
-                "index": i,
-                "label": label,
-                "vary": {k: vals[i - 1] for k, vals in vary.items()},
-                "reel": f"{stem}.reel.json",
-                "reel_sha256": reel_hash,
-                "outputs": outputs,
-                "audit_ok": (all(o.audit_ok for o in outs) if audit else None),
-                "loudness": loud,  # a report: measured on the file, not part of the manifest hash
-                "loudness_ok": loudness.all_ok(loud),
-                "render_seconds": round(time.perf_counter() - t0, 2),
-            }
-        )
+        raise
 
     sheet_info, sheet_error = None, None
     if sheet:
