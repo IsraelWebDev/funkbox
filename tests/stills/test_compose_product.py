@@ -169,3 +169,65 @@ def test_the_picture_is_drawn_by_the_reel_product_compositor(photo, red_square, 
     monkeypatch.setattr(ProductCompositor, "draw", spy)
     compose_product(photo, red_square)
     assert drawn == [(H, W, 3)]
+
+
+def test_a_hole_in_the_cut_out_is_filled_with_the_cat(photo):
+    # an opaque red ring with a transparent hole in its middle: the hole is cat, so it must be drawn as cat
+    im = Image.new("RGBA", (60, 60), (0, 0, 0, 0))
+    im.paste((255, 0, 0, 255), (10, 10, 50, 50))
+    im.paste((255, 0, 0, 0), (20, 20, 40, 40))  # the hole: colour kept, alpha zero
+    out, sidecar = compose_product(photo, png(im), {"shadow": 0, "match": 0})
+    L, T, R, B = sidecar["cat_box"]
+    centre = decode(out)[(T + B) // 2, (L + R) // 2]
+    assert centre[0] > 200 and centre[1] < 60 and centre[2] < 60
+
+
+def test_a_speck_near_the_cat_is_not_drawn(photo):
+    # a blue 2 px speck, 3 px from the cat's edge: it is a second blob, so it must not appear or widen the box
+    im = Image.new("RGBA", (60, 40), (0, 0, 0, 0))
+    im.paste((255, 0, 0, 255), (5, 5, 29, 29))
+    im.paste((0, 0, 255, 255), (32, 5, 34, 7))
+    out, sidecar = compose_product(photo, png(im), {"shadow": 0, "match": 0})
+    assert not np.any(decode(out)[..., 2] > 200)
+    L, T, R, B = sidecar["cat_box"]
+    assert R - L == pytest.approx(B - T, abs=3)
+
+
+def test_an_rgb_cut_out_without_alpha_is_refused(photo):
+    solid = io.BytesIO()
+    Image.new("RGB", (30, 30), (255, 0, 0)).save(solid, format="PNG")
+    with pytest.raises(ComposeError, match="PNG with alpha"):
+        compose_product(photo, solid.getvalue())
+
+
+def test_a_cut_out_too_wide_for_the_height_is_refused_before_any_resize(photo):
+    # 2048 x 1 at the default height would be a sprite about two million pixels wide
+    with pytest.raises(ComposeError, match="too wide"):
+        compose_product(photo, png(Image.new("RGBA", (2048, 1), (255, 0, 0, 255))))
+
+
+def test_a_cut_out_thin_and_tall_on_a_narrow_photo_is_refused(photo):
+    narrow = png(Image.new("RGB", (1, 2048)))
+    with pytest.raises(ComposeError, match="too wide"):
+        compose_product(narrow, png(Image.new("RGBA", (40, 1), (255, 0, 0, 255))), {"cy": 1, "height": 0.7})
+
+
+def test_colour_match_pulls_the_cat_toward_the_carpet(photo, red_square):
+    carpet = np.array([90, 120, 90])
+    plain, sidecar = compose_product(photo, red_square, {"shadow": 0, "match": 0})
+    matched, _ = compose_product(photo, red_square, {"shadow": 0, "match": 1.0})
+    L, T, R, B = sidecar["cat_box"]
+    y, x = (T + B) // 2, (L + R) // 2
+    a, b = decode(plain)[y, x], decode(matched)[y, x]
+    assert not np.array_equal(a, b)
+    assert np.linalg.norm(b - carpet) < np.linalg.norm(a - carpet)
+
+
+def test_the_drawn_cat_matches_the_sidecar_box(photo, red_square):
+    out, sidecar = compose_product(photo, red_square, {"shadow": 0, "match": 0})
+    pix = decode(out)
+    red = (pix[..., 0] > 200) & (pix[..., 1] < 60) & (pix[..., 2] < 60)
+    ys, xs = np.where(red)
+    L, T, R, B = sidecar["cat_box"]
+    assert xs.min() == pytest.approx(L, abs=2) and xs.max() + 1 == pytest.approx(R, abs=2)
+    assert ys.min() == pytest.approx(T, abs=2) and ys.max() + 1 == pytest.approx(B, abs=2)

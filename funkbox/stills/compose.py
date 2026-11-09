@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import numbers
 
 import numpy as np
 from PIL import Image, ImageFilter
@@ -45,7 +46,7 @@ def checked_params(params) -> dict:
     out = dict(DEFAULTS)
     for name, value in params.items():
         low, high = RANGES[name]
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= value <= high:
+        if isinstance(value, bool) or not isinstance(value, numbers.Real) or not low <= value <= high:
             raise ComposeError(f"{name} must be a number from {low} to {high}")
         out[name] = float(value)
     return out
@@ -60,7 +61,8 @@ def _open_picture(data: bytes, *, need_alpha: bool) -> Image.Image:
     except Exception:
         raise ComposeError("not a picture") from None
     if need_alpha:
-        if fmt != "PNG":
+        has_alpha = probe.mode in ("RGBA", "LA", "PA") or "transparency" in probe.info
+        if fmt != "PNG" or not has_alpha:
             raise ComposeError("the cut-out must be a PNG with alpha")
     elif fmt not in ALLOWED_FORMATS:
         raise ComposeError("the picture format is not supported")
@@ -92,17 +94,21 @@ def _dilate(mask: np.ndarray, iterations: int) -> np.ndarray:
 
 
 def cutout_rgba(cutout_png: bytes) -> np.ndarray:
-    """The cut-out as HxWx4 uint8, cropped to its largest blob, holes filled, edge softened."""
+    """The cut-out as HxWx4 uint8: its largest blob, holes filled (a hole takes the picture's own colour and is
+    opaque), the edge softened. Anything outside the blob is transparent, so a second blob never shows."""
     rgba = np.asarray(_open_picture(cutout_png, need_alpha=True).convert("RGBA"))
     alpha = rgba[..., 3].astype(np.float32) / 255.0
     labels, count = _components(alpha > 0.5)
     if count == 0:
         raise ComposeError("no cat found in the cut-out")
     sizes = np.bincount(labels.ravel())[1:]
-    keep = _fill_holes(labels == (int(np.argmax(sizes)) + 1))
-    keep = _dilate(keep, 2)
-    blur = np.asarray(Image.fromarray((keep * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.0)))
-    soft = np.clip(blur.astype(np.float32) / 255.0 * alpha, 0.0, 1.0)
+    blob = labels == (int(np.argmax(sizes)) + 1)
+    filled = _fill_holes(blob)
+    holes = filled & ~blob
+    coverage = np.maximum(alpha, holes.astype(np.float32))
+    reach = _dilate(filled, 2)
+    blur = np.asarray(Image.fromarray((reach * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.0)))
+    soft = np.clip(blur.astype(np.float32) / 255.0 * coverage * reach, 0.0, 1.0)
     ys, xs = np.where(soft > 0.05)
     if ys.size == 0:
         raise ComposeError("no cat found in the cut-out")
@@ -114,7 +120,8 @@ def cutout_rgba(cutout_png: bytes) -> np.ndarray:
 
 
 def compose_product(photo: bytes, cutout_png: bytes, params=None) -> tuple[bytes, dict]:
-    """The photo with the cut-out added, as PNG, and its sidecar. Raises ComposeError for any refused input."""
+    """The photo with the cut-out added, as PNG, and its sidecar. Raises ComposeError for any refused input.
+    An RGBA photo is drawn on its RGB only: the alpha channel of the photo is dropped."""
     settings = checked_params(params)
     pic = _open_picture(photo, need_alpha=False).convert("RGB")
     W, H = pic.size
@@ -132,13 +139,15 @@ def compose_product(photo: bytes, cutout_png: bytes, params=None) -> tuple[bytes
     )
     pc = ProductCompositor(None, spec, W, H, rgba=cut)
     cam = Camera(mode="kenburns", zoom=1.0)  # a still: no zoom, no pan
-    if spec.match_color > 0:
-        pc.fit_transform(frame, cam)
-    pl = pc.place(cam)
+    pl = pc.place(cam)  # the size is known before anything is resized
+    if pl.w > MAX_SIDE:
+        raise ComposeError("the cat is too wide for the picture at this height")
     x0, y0, x1, y1 = pl.box
     L, T, R, B = max(0, x0), max(0, y0), min(W, x1), min(H, y1)
     if R <= L or B <= T:
         raise ComposeError("the cat does not fit on the picture at this position")
+    if spec.match_color > 0:
+        pc.fit_transform(frame, cam)
 
     result = pc.draw(frame, cam)
     buffer = io.BytesIO()
