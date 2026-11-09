@@ -77,6 +77,105 @@ A reel can speak its copy with a local voice. Set `audio.voiceover: true` and a 
 - `--audit` writes the spoken lines into `<name>.text_audit.json` as `voiceover` entries.
 - A worked example with a music bed is in [`examples/voiceover_demo/`](../examples/voiceover_demo/README.md).
 
+## Variants: several versions of one ad
+
+`funkbox reel variants` renders N alternatives of one reel from a vary file. Each key maps to a list of values, all lists have the same length, and position i of every list makes variant i:
+
+```
+funkbox reel variants demo.reel.json --vary variants.json --count 3 --sheet --name demo
+```
+
+- Allowed keys: `shots.<id>.source` and `shots.<id>.motion`, `brand.palette`, `audio.music`, and `captions.<shot>.copy_id` (approved lines only). A key that writes copy, a literal `text`, or a file outside the project is refused.
+- Every variant is validated before any render starts. One invalid variant stops the whole run and names it.
+- Every variant is text-audited against the approved copy deck. The copy lock applies: an edited, unapproved `copy.json` refuses the run.
+- Output goes to `<name>-variants/`: `vNN.reel.json`, `vNN-<format>.mp4` (`vNN.mp4` when the reel declares no formats), `vNN-<format>.text_audit.json`, and `variants.json` (the manifest, with each variant's values and hashes). If any audit fails the command exits 1, and the manifest is still written.
+- `--sheet` also builds `contact_sheet.png`: one cell per variant, numbered 1 to N. The numbers are the only labels, so the copy is not changed, and the sheet has its own audit. `--sheet-video` also renders `contact_sheet.mp4`.
+- Drafts are the default (540 px, 24 fps, no depth model); `--full` renders every variant at full quality. At most 12 variants per run.
+- To render one chosen variant in full, copy its `vNN.reel.json` into the original reel's folder first (its asset paths are relative to that folder), then run `funkbox reel render` on the copy.
+- The MCP tool is `reel_variants`. It takes `reel` (a path, or a JSON object), `vary` (a JSON object or its text), `name` (required unless `project` is given), `draft` (default true), `sheet`, `sheet_video` and `project`, and it returns the manifest. It has no `count`, `out`, no-audio or `full` options.
+- Music per variant: `audio.music` takes a list of score paths, one per variant. Make the set with `funkbox music vary SCORE.music.json --brief brief.json --seed 7 --count 3` (the CLI prints each file), then point the vary file at those files, relative to the reel's folder:
+
+  ```
+  {"audio.music": ["music/BED-01.music.json", "music/BED-02.music.json", "music/BED-03.music.json"]}
+  ```
+
+  Each path must exist and stay inside the project. The check runs before any render.
+- Loudness: each rendered MP4 is measured after the render (EBU R128, integrated) against the reel's `audio.loudness_lufs` (default -14). The result is in the manifest per file (`loudness`, `loudness_ok`) and printed under each variant. A file more than 1 LU from the target is reported as `MISSES`; the run still succeeds, and the manifest is still written. The loudness report is not part of `manifest_sha256`.
+- Not built yet: `--still` (PNG openings), `from`/`to` keys, speed, and grid order.
+
+## Type presets: one setting per kind of video
+
+`"type": "explainer"` in a reel picks `templates/types/explainer.json`. A preset fills the fields the reel leaves unset: `brand.font_caption`, `brand.font_display`, `brand.font_fallback`, `audio.music_gain_db`, `audio.duck_db`, `audio.snap_cuts_to_beats`, and the caption style of each shot that has a caption. A field the reel sets always wins. A reel without a `type` is read exactly as before.
+
+Shipped types:
+- `explainer`: a condensed caption face, a serif display face, speech-first audio.
+- `tech`: Inter captions, Space Grotesk display, bold-pop captions.
+
+Every preset keeps `brand.font_fallback` (bundled Rubik Bold, which draws Latin, Hebrew and Cyrillic). A caption the main font cannot draw falls back per text block, and `validate` warns and names the characters it draws in the fallback.
+
+Every font a preset uses is bundled in `fonts/` with its OFL licence beside it, so presets work offline. The tests check each bundled font's licence and that each type's fallback draws its Hebrew test line.
+
+Not yet: the `--type` flag on the CLI and a project-wide default type. Presets set only the fields above; pacing and end-card keys come with later cards.
+
+## Hook title and shot length
+
+`"hook": true` on a reel (or in a type preset) draws shot 1's caption as a title for the first 0.8 s: the display font, 1.4 times the caption size, in a box, centred. The caption then starts at 0.8 s on its own reveal clock. The title wraps to as many lines as fit at that size; a two-line title is not forced. Validate needs a caption with a copy line on shot 1 and checks the title fits every format.
+
+`"shot_target_s": 2.5` sets the length of `auto` shots: a shot with a voiceover line lasts at least its line plus padding and at least the target; a shot with no voiceover lasts the target (default 1.5 s). The tech preset sets 2.5. Cuts still follow the voiceover; cuts at sentence ends are not separate. With beat snapping on (the tech preset), a cut can move up to a quarter second earlier, so a shot may end just under its target.
+## Word highlight
+
+A caption can put a pill behind the word the typewriter has reached. Set it in a caption style file, templates/captions/<name>.json (every caption in that style gets it), or on one caption (it overrides the style):
+
+    templates/captions/<name>.json: "highlight": {"color": "secondary", "radius": 0.3}
+    "caption": {"copy_id": "hook", "highlight": {"color": "#ffd400"}}
+
+- `color`: `primary`, `secondary`, `text` (palette colours) or `#rrggbb`. Default `secondary`, which shows on the default red box. A colour equal to the box or the text colour hides the pill, or the words with it. `lower-third` has a secondary box, so give its pill another colour.
+- `radius`: corner rounding from 0 (square) to 0.5 (fully round). Default 0.3.
+- The pill covers the last word typed so far and moves on word by word. It does not cover spaces, and it follows the reveal. With reveal `none` (the default) the whole caption shows at once, so the pill stays on the last word; use reveal `words` for a pill that moves.
+- A blank line (a paragraph break) keeps the pill on the last word before it.
+- A line with any right-to-left text gets no pill: their words are reordered on screen, so the pill would not sit on the right word.
+- Word timing is estimated from characters per second. The voice path has no per-word timings yet, so on voiced shots the pill can drift from the spoken word.
+- A caption cannot switch off its style's pill yet; use a style without one.
+- The text audit records the copy only, not the highlight.
+
+## Callout tags
+
+A shot can carry labels that point at a place in the picture. Each label shows a line of deck copy, centred on an anchor point, with an optional leader line to a second point:
+
+    "callouts": [{"copy_id": "hook", "at": [0.5, 0.3], "line_to": [0.5, 0.9], "start": 0.5, "end": 2.0}]
+
+- `copy_id` (required): a copy line in the deck. The text comes from the deck, so the text audit lists it.
+- `at` (required): the label's centre, as [x, y] fractions of the frame, from 0 to 1.
+- `line_to` (optional): the end of the leader line, in the same units. The line runs from the label's centre to this point and ends in a dot. Without it the label is drawn alone.
+- `start`, `end` (optional): seconds into the shot when the label shows. They default to 0 and the end of the shot. `end` must come after `start`.
+- `style` (optional): a caption style. Default `callout` (templates/captions/callout.json).
+
+Labels are drawn over the shot's caption. The label box and the leader line take the style's box colour, which is the brand's text colour (white by default). The optional red sub-label in the spec is not built yet.
+
+The label must stay inside the safe area for the format. A label that would sit in the top or bottom band, or past the side margins, is a validation error: move `at` towards the middle. The window must also fit the shot: `start` must come before the shot ends, and `end` must not be later. For `auto` and `beats:N` shots, the shot length is the one the timeline resolves.
+
+## Annotations
+
+A shot can carry drawn shapes over its picture: arrows, dashed guide lines, an X and a check sticker. They are drawn in frame pixels, in the brand's primary colour, and draw on over 0.4 s:
+
+    "annotations": [{"type": "arrow", "points": [[0.2, 0.5], [0.8, 0.5]], "start": 0.5, "end": 2.0}]
+
+- `type` (required): `arrow` takes two points (tail and head; the arrowhead appears once the shaft is drawn). `dashed` takes two or more points, drawn as a polyline. `x` and `check` take one point, the centre. Both stickers are 12% of the frame width across.
+- `points`: [x, y] fractions of the frame, each from 0 to 1.
+- `start`, `end` (optional): seconds into the shot. They default to 0 and the end of the shot, and `end` must come after `start`. The window must fit the shot, as for callouts, including `auto` and `beats:N` shots.
+- `draw` (optional, default true): `false` shows the whole shape at once instead of drawing it on.
+
+Shapes carry no text, so they are not in the text audit. The spec's sidecar listing is not built; the reel JSON is the record. There is no per-shape colour yet.
+
+## End banner
+
+`bottom-banner` is a headline-only end-card template. Its headline is bottom-anchored (so a long headline is checked against the frame) on the brand primary colour, types at 14 characters a second, and shows a cursor. It has no sub-line, URL or product.
+
+- Length: `end_card.duration` (default 5 s, 0.5 to 30 s). The banner starts at 0.2 s. Typing takes about characters / 14 seconds, so for a banner of 3 to 6 s, pick a duration that covers the typing plus a short hold.
+- Reveal: `end_card.headline_reveal` is `typewriter` by default. Set `none` to show the headline at once.
+- Copy: `copy.headline` only. A `sub` or `url` copy id is a validation error for this template.
+- The other templates keep their static URL: brand-split and centered-logo put it in both brand bars, and logo-clean puts it under the last text block.
+- The end-card renderer lays out `sub` and `url` only when the template declares those slots. Existing templates declare both, so their output is unchanged.
 ## Shot lists for specific briefs
 
 `project_auto_reel` is a first draft. When a brief gives exact timings, framing or mostly screen recordings, edit the
@@ -164,7 +263,10 @@ no shot length is known). Every other style keeps its fixed numbers, so existing
 
 **Beat grid.** `"audio": {"bpm": 110, "beat_offset": 0.0}` sets a fixed grid (one beat = 60 / 110 = 0.545 s) without
 analysing any music. `"duration": "beats:4"` (halves allowed: `beats:1.5`) and `snap_cuts_to_beats` use it. Without `bpm`
-the grid is detected from `audio.music`.
+the grid is detected from `audio.music`: the tempo comes from the whole spectrum, the phase (where the beats fall) from
+the low band (kick range, up to 150 Hz), so off-beat hi-hats do not pull the grid half a beat late. With no clear
+low-band pulse the phase falls back to the whole spectrum. `funkbox reel storyboard` and `project auto` print
+the grid (BPM, beat count, first 8 beats) and each cut's distance in ms to the nearest beat, or `beat grid: none`.
 
 **Formats.** `"formats": ["9x16", "16x9"]` (presets `9x16`, `16x9`, `1x1`, `4x5`, or `{"id", "width", "height",
 "safe_area"}`) renders the same edit at each size: `reel_render` / `project_render` write `<name>-9x16.mp4` and
@@ -175,3 +277,8 @@ prefixes problems with `[16x9]`. Safe areas: `reels` (keeps captions clear of th
 
 **`project_auto_reel` options.** `clip_share` (default: follows the assets, so mostly recordings gives mostly clips),
 `product_every` (2 = every other shot, 0 = only on the end card), `formats`, `bpm`.
+
+
+## Plan-driven renders (proposed, not live)
+
+The tools and their input schemas are listed in [docs/catalog.json](https://github.com/IsraelWebDev/funkbox/blob/main/docs/catalog.json). The file is generated from the MCP server: `python -m funkbox catalog` (`--check` verifies it). The website is proposed to plan a render from this catalog: an AI planner writes a plan of these tools, the server checks the plan, and a preview runs it at low resolution or shows a storyboard before a paid render runs the same stored plan. Nothing here changes how the local tools work today. Decision and sign-offs: [docs/adr-plan-driven-renders.md in IsraelWebDev/funkbox-online](https://github.com/IsraelWebDev/funkbox-online/blob/main/docs/adr-plan-driven-renders.md).

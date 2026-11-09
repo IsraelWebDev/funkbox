@@ -1,0 +1,1900 @@
+{
+  "catalog_version": 1,
+  "engine_version": "4.4.1",
+  "server": "funkbox",
+  "tool_count": 50,
+  "tools": [
+    {
+      "area": "apps",
+      "description": "Start 'fastsd', 'gimp' or 'all'. Idempotent. FastSD is launched and awaited. GIMP is opened by\nthe user via the 'GIMP + MCP' desktop shortcut: this returns what to ask them, or, with wait_s>0,\nwaits that long for GIMP's MCP port after you've asked.",
+      "input_schema": {
+        "properties": {
+          "service": {
+            "default": "all",
+            "title": "Service",
+            "type": "string"
+          },
+          "wait_s": {
+            "default": 0,
+            "title": "Wait S",
+            "type": "number"
+          }
+        },
+        "title": "apps_startArguments",
+        "type": "object"
+      },
+      "name": "apps_start"
+    },
+    {
+      "area": "apps",
+      "description": "Which local services are running (FastSD, GIMP's MCP port), the inputs folder, the image backend.",
+      "input_schema": {
+        "properties": {},
+        "title": "apps_statusArguments",
+        "type": "object"
+      },
+      "name": "apps_status"
+    },
+    {
+      "area": "apps",
+      "description": "Stop 'fastsd' (frees ~4 GB RAM). GIMP is never closed by funkbox (unsaved work).",
+      "input_schema": {
+        "properties": {
+          "force": {
+            "default": false,
+            "title": "Force",
+            "type": "boolean"
+          },
+          "service": {
+            "default": "fastsd",
+            "title": "Service",
+            "type": "string"
+          }
+        },
+        "title": "apps_stopArguments",
+        "type": "object"
+      },
+      "name": "apps_stop"
+    },
+    {
+      "area": "image",
+      "description": "Edit a COPY of a picture; the original is never touched. ops run in order, geometry first (crop, resize, rotate,\nflip, remove_background, inpaint {mask, grow}, trim_even), then adjust {brightness, contrast, saturation, hue, ...}, filter {blur, sharpen,\n...}, vignette, overlay {path, x, y, scale, blend, opacity, depth, shadow}, text {copy_id|text, ...}, border {px, color}.\nWrites <out>/edits/<stem>-<name|n>.png, a sidecar that re-renders it, and a before/after sheet.",
+      "input_schema": {
+        "properties": {
+          "casual": {
+            "default": false,
+            "title": "Casual",
+            "type": "boolean"
+          },
+          "copy": {
+            "default": "",
+            "title": "Copy",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "ops": {
+            "items": {},
+            "title": "Ops",
+            "type": "array"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "ops"
+        ],
+        "title": "image_editArguments",
+        "type": "object"
+      },
+      "name": "image_edit"
+    },
+    {
+      "area": "image",
+      "description": "Text-to-image with FastSD (SD-Turbo, OpenVINO on the iGPU); auto-starts FastSD. Aspect presets:\nsquare 512x512, portrait 512x768, landscape 768x512, story 512x896, wide 896x512. n=2-8 returns variations\n(seeds seed, seed+1, ... or random) as a contact sheet plus one file each in the inputs folder. seed -1 =\nrandom (the seeds used are reported). steps 1 is best for SD-Turbo. COST OF SIZE CHANGES: the model is\ncompiled per image size (~2-3 min the first time at each size); this tool answers with a warning and does\nnothing until you pass confirm_slow=true. PREFER 'square': SD-Turbo is trained at 512x512 and tall/wide sizes often duplicate the subject (two dogs stacked, a room on two floors); for 9:16 use square and let reel/stills cover-crop it (image_upscale first for sharper crops). Never request a product or text in the prompt. SD-Turbo output is\nunder the Stability AI Community License (free commercial use under US$1M annual revenue; Stability asks\ncommercial users to register).",
+      "input_schema": {
+        "properties": {
+          "aspect": {
+            "default": "square",
+            "title": "Aspect",
+            "type": "string"
+          },
+          "confirm_slow": {
+            "default": false,
+            "title": "Confirm Slow",
+            "type": "boolean"
+          },
+          "n": {
+            "default": 1,
+            "title": "N",
+            "type": "integer"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "negative_prompt": {
+            "default": "",
+            "title": "Negative Prompt",
+            "type": "string"
+          },
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          },
+          "seed": {
+            "default": -1,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "steps": {
+            "default": 1,
+            "title": "Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "image_generateArguments",
+        "type": "object"
+      },
+      "name": "image_generate"
+    },
+    {
+      "area": "image",
+      "description": "img2img: re-render an existing picture (a file in inputs/, out/ or the funkbox folder) following `prompt`.\nstrength 0.05 stays close to the original, 0.95 nearly ignores it. aspect None picks the preset closest to the\npicture's shape (it is cover-cropped to that size). SD-Turbo needs steps*strength >= 1, so steps are raised\nautomatically and reported. A size not used since FastSD started needs confirm_slow=true (see image_generate).\nSD-Turbo output is under the Stability AI Community License (free commercial use under US$1M annual revenue).",
+      "input_schema": {
+        "properties": {
+          "aspect": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Aspect"
+          },
+          "confirm_slow": {
+            "default": false,
+            "title": "Confirm Slow",
+            "type": "boolean"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          },
+          "seed": {
+            "default": -1,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "strength": {
+            "default": 0.5,
+            "title": "Strength",
+            "type": "number"
+          }
+        },
+        "required": [
+          "path",
+          "prompt"
+        ],
+        "title": "image_restyleArguments",
+        "type": "object"
+      },
+      "name": "image_restyle"
+    },
+    {
+      "area": "image",
+      "description": "Trace a picture (logo, emblem, flat art) into a vector SVG of a few flat colours, sharp at any size; use it as\nan `svg` layer. ``palette`` ([\"#rrggbb\", ...]) fixes the colours, else ``colors`` main colours are found.\n``smooth`` 0 = straight segments, 1 = curves; ``tolerance`` (px) trades detail for fewer points; ``detail`` is the\nlongest side traced. Reports a fidelity score (poster_compare of the trace against the original) and shows\noriginal | trace. Writes <out>/traces/<name>.svg and <name>.trace.png.\n\nLettering: ``lift_text`` takes text out of the artwork so live, exact text can go on top. Give the text colours\n([\"#1b224b\", ...], or {\"color\": \"#hex\", \"within\": [x, y, w, h]} to look only in that part of the picture, as\nfractions), or \"auto\". Letter-sized shapes of those colours (no side over ``max_letter`` of the picture) are\npainted over from their surroundings and their lines come back as boxes (colour, box, angle, letters), also\nwritten as <name>.text.json. With ``texts`` (the words of each found line, top to bottom) it also writes a starter\nposter <name>.poster.json: the artwork as an svg layer plus a text layer per line in ``font``; poster_fit its\nx/y/size (and skew_y/arc) against the original to line the words up.",
+      "input_schema": {
+        "properties": {
+          "colors": {
+            "default": 6,
+            "title": "Colors",
+            "type": "integer"
+          },
+          "detail": {
+            "default": 1024,
+            "title": "Detail",
+            "type": "integer"
+          },
+          "font": {
+            "default": "Rubik:700",
+            "title": "Font",
+            "type": "string"
+          },
+          "lift_text": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lift Text"
+          },
+          "max_letter": {
+            "default": 0.12,
+            "title": "Max Letter",
+            "type": "number"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "palette": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Palette"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "smooth": {
+            "default": 1.0,
+            "title": "Smooth",
+            "type": "number"
+          },
+          "texts": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Texts"
+          },
+          "tolerance": {
+            "default": 0.8,
+            "title": "Tolerance",
+            "type": "number"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "image_traceArguments",
+        "type": "object"
+      },
+      "name": "image_trace"
+    },
+    {
+      "area": "image",
+      "description": "2x upscale of an image (factor 2 only). Uses FastSD's upscaler when it works on this machine, otherwise\nLANCZOS plus a mild unsharp mask; the result says which method ran. Saved next to the other inputs.",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "image_upscaleArguments",
+        "type": "object"
+      },
+      "name": "image_upscale"
+    },
+    {
+      "area": "loop",
+      "description": "Return the source of shaders/<name>.frag.",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "loop_get_shaderArguments",
+        "type": "object"
+      },
+      "name": "loop_get_shader"
+    },
+    {
+      "area": "loop",
+      "description": "GPU renderer/version, bundled shader names and the output folders.",
+      "input_schema": {
+        "properties": {},
+        "title": "loop_gl_infoArguments",
+        "type": "object"
+      },
+      "name": "loop_gl_info"
+    },
+    {
+      "area": "loop",
+      "description": "Everything you can use: v2 shaders with their @param ranges, post passes, blend modes,\nlayer types, plus the v1 presets/effects/palettes.",
+      "input_schema": {
+        "properties": {},
+        "title": "loop_listArguments",
+        "type": "object"
+      },
+      "name": "loop_list"
+    },
+    {
+      "area": "loop",
+      "description": "Render one frame of a recipe at loop position t (0..1). Recipe: {\"settings\"?, \"palette\"?\n{\"name\",\"cycles\"}, \"layers\": [...], \"post\"?, \"text\"?} - see loop_list. Fast; iterate here.",
+      "input_schema": {
+        "properties": {
+          "recipe": {
+            "additionalProperties": true,
+            "title": "Recipe",
+            "type": "object"
+          },
+          "size": {
+            "default": 448,
+            "title": "Size",
+            "type": "integer"
+          },
+          "t": {
+            "default": 0.25,
+            "title": "T",
+            "type": "number"
+          }
+        },
+        "required": [
+          "recipe"
+        ],
+        "title": "loop_previewArguments",
+        "type": "object"
+      },
+      "name": "loop_preview"
+    },
+    {
+      "area": "loop",
+      "description": "Render a seamless loop (MP4 + PNG poster + JSON sidecar that fully reproduces it; GIF only if\ngif=True, since it is ~10x slower than the mp4 on busy loops).\nLimits: <=1080px per side, <=20 s, <=60 fps. Runs the loop check first and refuses a broken loop.",
+      "input_schema": {
+        "properties": {
+          "gif": {
+            "default": false,
+            "title": "Gif",
+            "type": "boolean"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "recipe": {
+            "additionalProperties": true,
+            "title": "Recipe",
+            "type": "object"
+          }
+        },
+        "required": [
+          "recipe"
+        ],
+        "title": "loop_renderArguments",
+        "type": "object"
+      },
+      "name": "loop_render"
+    },
+    {
+      "area": "loop",
+      "description": "Grid of stills of one recipe across seeds (e.g. \"1-6\" or \"3,7,12\"): the seed resamples every\nshader's @param values, so this is how you pick a variation. Returns the PNG and its saved path.",
+      "input_schema": {
+        "properties": {
+          "recipe": {
+            "additionalProperties": true,
+            "title": "Recipe",
+            "type": "object"
+          },
+          "seeds": {
+            "default": "1-6",
+            "title": "Seeds",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recipe"
+        ],
+        "title": "loop_sheetArguments",
+        "type": "object"
+      },
+      "name": "loop_sheet"
+    },
+    {
+      "area": "loop",
+      "description": "One frame of a recipe (JSON object or .json path) or a shader (.frag path or GLSL source with\n`vec4 effect(vec2 p)`) at time t (0..1 of the loop), as a PNG poster background in <out>/stills/.",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "preset": {
+            "default": "square",
+            "title": "Preset",
+            "type": "string"
+          },
+          "recipe_or_shader": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ],
+            "title": "Recipe Or Shader"
+          },
+          "t": {
+            "default": 0.25,
+            "title": "T",
+            "type": "number"
+          }
+        },
+        "required": [
+          "recipe_or_shader"
+        ],
+        "title": "loop_stillArguments",
+        "type": "object"
+      },
+      "name": "loop_still"
+    },
+    {
+      "area": "loop",
+      "description": "Compile a GLSL fragment shader (no #version line; define `vec4 effect(vec2 p)` or Shadertoy\n`mainImage`), report errors in YOUR line numbers, run the seamless-loop check and return a\npreview still at t=0.25. Saved to shaders/<name>.frag only if it compiles (and, with\ncheck=True, loops). name: a-z 0-9 _ - up to 40 chars.",
+      "input_schema": {
+        "properties": {
+          "check": {
+            "default": true,
+            "title": "Check",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "source"
+        ],
+        "title": "loop_write_shaderArguments",
+        "type": "object"
+      },
+      "name": "loop_write_shader"
+    },
+    {
+      "area": "music",
+      "description": "Render a music score (JSON object or a .music.json path) to <out>/music/<name>.wav (48 kHz stereo) with real\nsampled General MIDI instruments (GeneralUser GS, downloaded once; \"soundfont\": \"builtin\" needs nothing).\nscore = {bpm, meter, key, scale (major, minor, harmonic-minor, freygish, misheberach, dorian, ...), bars, swing,\nreverb, tracks: [{name, program (GM 0..127), octave, velocity, pan, gain_db, notes: \"^1/8 ^2 ^3 | [D3 F#3 A3]/2 r/4\"},\n{drums: true, pattern: {kick: \"x...x...\", snare: \"....x...\", hat: \"x.x.x.x.\"}}]}. Notes are pitches (D4, Bb2),\nscale degrees (^1..^7, ' up and , down an octave), chords [..], r rests, ~ holds; /4 quarter, /8 eighth, . dots,\n! accent, ? soft. A reel can use the .music.json directly as audio.music (its beat grid follows the bpm).",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "default": "music",
+            "title": "Name",
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Score"
+          }
+        },
+        "required": [
+          "score"
+        ],
+        "title": "music_renderArguments",
+        "type": "object"
+      },
+      "name": "music_render"
+    },
+    {
+      "area": "poster",
+      "description": "Render a poster's ``motion`` block as a video: <name>.mp4 (+ .gif), the last frame as <name>.png (the poster\nitself: animations run towards the document's values), six frames on <name>-frames.png and\n<name>.motion_audit.json (every frame's text). motion = {seconds, fps, enter: [{layer, effect: fade|rise|drop|\nslide-left|slide-right|pop, at, dur}], tracks: {\"layers.<id>.<prop>|dx|dy|scale\": [[sec, value, ease?], ...]},\nloop_shaders}. ``scale`` 0.5 renders a quick draft.",
+      "input_schema": {
+        "properties": {
+          "fps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fps"
+          },
+          "gif": {
+            "default": false,
+            "title": "Gif",
+            "type": "boolean"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "poster": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Poster"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          },
+          "scale": {
+            "default": 1.0,
+            "title": "Scale",
+            "type": "number"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Seconds"
+          }
+        },
+        "required": [
+          "poster"
+        ],
+        "title": "poster_animateArguments",
+        "type": "object"
+      },
+      "name": "poster_animate"
+    },
+    {
+      "area": "poster",
+      "description": "How close is a render to a reference picture, and where does it differ? ``candidate`` is a picture path or a\nposter (JSON object or .poster.json, rendered first); ``reference`` is a picture path. Returns scores 0..100\n(overall, structure, colour, layout), the most different regions of a 4x4 grid, the reference's main colours with\nthe nearest candidate colour, and a sheet: candidate | reference | heat map. ``fit``: cover (crop) or stretch.\nWrites <name>.compare.png and .compare.json to <out>/posters/. Use it to measure each fix, not to guess.",
+      "input_schema": {
+        "properties": {
+          "candidate": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Candidate"
+          },
+          "fit": {
+            "default": "cover",
+            "title": "Fit",
+            "type": "string"
+          },
+          "name": {
+            "default": "compare",
+            "title": "Name",
+            "type": "string"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidate",
+          "reference"
+        ],
+        "title": "poster_compareArguments",
+        "type": "object"
+      },
+      "name": "poster_compare"
+    },
+    {
+      "area": "poster",
+      "description": "Render the poster and write it as a layered OpenRaster file (<name>.ora) that GIMP and Krita open with every layer,\nblend mode and opacity intact (layers are pre-rendered with their adjustments, filters, effects and masks;\nposter-level post passes are only in the PNG). Also writes the PNG.",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "poster": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Poster"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          }
+        },
+        "required": [
+          "poster"
+        ],
+        "title": "poster_export_oraArguments",
+        "type": "object"
+      },
+      "name": "poster_export_ora"
+    },
+    {
+      "area": "poster",
+      "description": "Tune the numbers of a poster to match a reference picture: each key in ``params`` is a variations key\n(layers.<id>.<prop>[.<index>...], e.g. \"layers.band.points.2.1\") with a step (0.01) or a [low, high] range.\nCoordinate search on small previews, keeping only changes that raise poster_compare's overall score; text,\nids, files and path data are never changed. Writes <out>/posters/<name>.fit.poster.json and shows the result's\ncompare sheet. Use it after the design is right (shapes, glyphs, colours) to close the last few points.\n``keep_inside`` (the specs of poster_fit_inside) rejects any candidate whose words leave their bar or plate, so\na fit to a reference with flaws cannot push the words out of the artwork.",
+      "input_schema": {
+        "properties": {
+          "keep_inside": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Keep Inside"
+          },
+          "name": {
+            "default": "fit",
+            "title": "Name",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "title": "Params",
+            "type": "object"
+          },
+          "poster": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Poster"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "rounds": {
+            "default": 4,
+            "title": "Rounds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "poster",
+          "reference",
+          "params"
+        ],
+        "title": "poster_fitArguments",
+        "type": "object"
+      },
+      "name": "poster_fit"
+    },
+    {
+      "area": "poster",
+      "description": "Size and place text layers so their words fit inside a part of the artwork (a bar, a plate, a label) with a\nmargin, as large as fits. Each spec: {\"layer\": id, \"at\": [x, y] (a point on that part, fractions of the canvas),\n\"band\": half-thickness of a strip along the layer's skew_y angle (fraction of height; cuts a bar out of a bigger\nshape of the same colour), \"margin\": 0.003, \"tolerance\": 60}. The region is the artwork colour around the point,\nfrom the layers below the text. ``equal_size`` gives the layers the smallest of their sizes. Sets only size, x\nand y (and align left, no wrap); the words never change. Writes <out>/posters/<name>.inside.poster.json.",
+      "input_schema": {
+        "properties": {
+          "equal_size": {
+            "default": true,
+            "title": "Equal Size",
+            "type": "boolean"
+          },
+          "name": {
+            "default": "inside",
+            "title": "Name",
+            "type": "string"
+          },
+          "poster": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Poster"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          },
+          "specs": {
+            "items": {},
+            "title": "Specs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "poster",
+          "specs"
+        ],
+        "title": "poster_fit_insideArguments",
+        "type": "object"
+      },
+      "name": "poster_fit_inside"
+    },
+    {
+      "area": "poster",
+      "description": "Canvas presets, layer types, blend modes, filters, effects, export formats and the edit operations.",
+      "input_schema": {
+        "properties": {},
+        "title": "poster_presetsArguments",
+        "type": "object"
+      },
+      "name": "poster_presets"
+    },
+    {
+      "area": "poster",
+      "description": "Render a small preview of a poster (JSON object or path to a .poster.json) and show it. Writes nothing.\nSame layout and text as the full render, just fewer pixels. Look at it, fix, then poster_render.",
+      "input_schema": {
+        "properties": {
+          "max_side": {
+            "default": 720,
+            "title": "Max Side",
+            "type": "integer"
+          },
+          "poster": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Poster"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          }
+        },
+        "required": [
+          "poster"
+        ],
+        "title": "poster_previewArguments",
+        "type": "object"
+      },
+      "name": "poster_preview"
+    },
+    {
+      "area": "poster",
+      "description": "Render the poster at full size to <out>/posters/<name>.png (a project poster goes to the project's out/).\nAlso writes <name>.poster.json (the reproducible sidecar) and <name>.text_audit.json (what text was drawn and that it\nequals its source). The poster's export list picks png/jpg/webp/ora/svg/pdf; ``formats`` overrides it\n(svg and pdf are vector files with text as outlines, sharp at any size).",
+      "input_schema": {
+        "properties": {
+          "formats": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Formats"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "poster": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Poster"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          }
+        },
+        "required": [
+          "poster"
+        ],
+        "title": "poster_renderArguments",
+        "type": "object"
+      },
+      "name": "poster_render"
+    },
+    {
+      "area": "poster",
+      "description": "One poster in many sizes. ``sizes``: preset names (story, landscape, square, insta-portrait, twitter, a4-150dpi)\nor {\"name\", \"width\", \"height\", \"set\": {\"layers.<id>.<prop>\": value}} with per-size fixes. Backgrounds stretch to\nthe new canvas; text, shapes, SVGs and products keep their proportions (a layer's \"resize\": fill|fit|top|bottom|\nleft|right|top-left|... chooses). fit_to=\"content\" fits just the drawn foreground so wide or tall sizes use their\nspace. Every size gets its own exact-text audit; one that cannot be drawn is reported and the rest still render.\nWrites <name>-<size>.png (+ formats such as svg/pdf) and <name>-sizes.png, a sheet.",
+      "input_schema": {
+        "properties": {
+          "fit_to": {
+            "default": "canvas",
+            "title": "Fit To",
+            "type": "string"
+          },
+          "formats": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Formats"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "poster": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Poster"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          },
+          "sizes": {
+            "items": {},
+            "title": "Sizes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "poster",
+          "sizes"
+        ],
+        "title": "poster_sizesArguments",
+        "type": "object"
+      },
+      "name": "poster_sizes"
+    },
+    {
+      "area": "poster",
+      "description": "Render up to 12 variants of one poster and return a labelled contact sheet. vary = {key: [values]} with keys\n`seed`, `layers.<id>.<property...>`, `canvas.<k>`, `post.<n>.<k>`; several keys are zipped (same length).\nFiles <name>-<i>.png (+ sidecar) and <name>-sheet.png land in <out>/posters/.",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "default": "var",
+            "title": "Name",
+            "type": "string"
+          },
+          "poster": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Poster"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          },
+          "vary": {
+            "additionalProperties": true,
+            "title": "Vary",
+            "type": "object"
+          }
+        },
+        "required": [
+          "poster",
+          "vary"
+        ],
+        "title": "poster_variationsArguments",
+        "type": "object"
+      },
+      "name": "poster_variations"
+    },
+    {
+      "area": "project",
+      "description": "Approve the current draft copy and lock it as the project's copy.json. draft_sha256 must be the hash from\nthe LATEST project_propose_copy (a stale hash is rejected). The user is asked to approve the exact listing in their\nclient (a click you cannot make for them). Only if their client cannot show that prompt, pass\nuser_confirmed_in_chat=true: only set this after the user explicitly approved the exact listing in this\nconversation. Never set it otherwise, and it never overrides a user's rejection.",
+      "input_schema": {
+        "properties": {
+          "draft_sha256": {
+            "title": "Draft Sha256",
+            "type": "string"
+          },
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "user_confirmed_in_chat": {
+            "default": false,
+            "title": "User Confirmed In Chat",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "project",
+          "draft_sha256"
+        ],
+        "title": "project_approve_copyArguments",
+        "type": "object"
+      },
+      "name": "project_approve_copy"
+    },
+    {
+      "area": "project",
+      "description": "Build a FIRST DRAFT <project>.reel.json from the ingested assets and the APPROVED copy (it refuses an\nunapproved or modified copy.json): hook first, body lines, a branded end card (lines named end_* plus url),\ncaption anchors that avoid the product, funk2 brand-colour filler when there are fewer than 4 visuals.\nclip_share: fraction of shots that are video clips (default: follows the assets, e.g. mostly screen\nrecordings -> mostly clips). product_every: product in every Nth shot (0 = only on the end card).\nformats: e.g. [\"9x16\", \"16x9\"] to render both from one edit. bpm: fixed beat grid for the cuts.\nFor a brief with exact timings, framing or push-ins, edit the returned JSON (or write the shot list) and\ncheck it with reel_validate. Returns the reel JSON, the validate report and a storyboard.",
+      "input_schema": {
+        "properties": {
+          "bpm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Bpm"
+          },
+          "clip_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Clip Share"
+          },
+          "cta_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cta Ids"
+          },
+          "formats": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Formats"
+          },
+          "length_s": {
+            "default": 20.0,
+            "title": "Length S",
+            "type": "number"
+          },
+          "music": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Music"
+          },
+          "pace": {
+            "default": "fast",
+            "title": "Pace",
+            "type": "string"
+          },
+          "product_every": {
+            "default": 2,
+            "title": "Product Every",
+            "type": "integer"
+          },
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "style": {
+            "default": "red-box",
+            "title": "Style",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project"
+        ],
+        "title": "project_auto_reelArguments",
+        "type": "object"
+      },
+      "name": "project_auto_reel"
+    },
+    {
+      "area": "project",
+      "description": "Derive the brand from the product cut-out and logo: primary (most saturated colour), secondary (darkest),\ntext colour (white or #111111, WCAG contrast >= 4.5) and fonts (the user's, else the bundled ones). Returns a\nswatch image. Override any value with project_set_brand.",
+      "input_schema": {
+        "properties": {
+          "project": {
+            "title": "Project",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project"
+        ],
+        "title": "project_brandArguments",
+        "type": "object"
+      },
+      "name": "project_brand"
+    },
+    {
+      "area": "project",
+      "description": "Line-by-line difference between the pending draft and the approved copy.json.",
+      "input_schema": {
+        "properties": {
+          "project": {
+            "title": "Project",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project"
+        ],
+        "title": "project_copy_diffArguments",
+        "type": "object"
+      },
+      "name": "project_copy_diff"
+    },
+    {
+      "area": "project",
+      "description": "Classify and file what the user dropped: audio -> music/, video -> clips/, fonts and logos -> brand/, the\nproduct photo -> product/ (with an alpha cut-out and a quality score), other images -> shots/. source defaults\nto the inbox folder (files are moved); any other folder or file path the user names is only COPIED. Returns a\nmanifest and a contact sheet. If the product is ambiguous it returns candidates: ask the user, then call\nproject_set_product.",
+      "input_schema": {
+        "properties": {
+          "move": {
+            "default": true,
+            "title": "Move",
+            "type": "boolean"
+          },
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "source": {
+            "default": "",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project"
+        ],
+        "title": "project_ingestArguments",
+        "type": "object"
+      },
+      "name": "project_ingest"
+    },
+    {
+      "area": "project",
+      "description": "List projects with their status (new, ingested, branded, copy-drafted, copy-approved, reel-built, rendered).",
+      "input_schema": {
+        "properties": {},
+        "title": "project_listArguments",
+        "type": "object"
+      },
+      "name": "project_list"
+    },
+    {
+      "area": "project",
+      "description": "Start a project (a folder under projects/ with product/, brand/, shots/, clips/, music/). Then ask the user\nto drop their files in the inbox folder (or tell you a folder path) and call project_ingest.",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "project_newArguments",
+        "type": "object"
+      },
+      "name": "project_new"
+    },
+    {
+      "area": "project",
+      "description": "Write a DRAFT of the ad copy: lines = {id: {\"text\": \"...\", \"say\": \"optional spoken form\"}} (id like hook,\nbody1, end_head, url; text <= 90 chars, written in the final case, drawn EXACTLY as typed). Nothing here can\nreach the screen or the voice-over until the user approves it. The result is a numbered, exact listing:\nshow it to the user VERBATIM and ask for approval, then call project_approve_copy with the draft_sha256 it gives.",
+      "input_schema": {
+        "properties": {
+          "brand_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Brand Name"
+          },
+          "lines": {
+            "additionalProperties": true,
+            "title": "Lines",
+            "type": "object"
+          },
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "pronounce": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pronounce"
+          }
+        },
+        "required": [
+          "project",
+          "lines"
+        ],
+        "title": "project_propose_copyArguments",
+        "type": "object"
+      },
+      "name": "project_propose_copy"
+    },
+    {
+      "area": "project",
+      "description": "Render the project's reel into projects/<project>/out/ (draft=true: 540 px wide, 24 fps, quick). The text\naudit proves every drawn string equals the approved copy. Look at the poster, then render again with\ndraft=false. A reel with `formats` renders each one (<project>-<format>.mp4); format=<id> renders one.",
+      "input_schema": {
+        "properties": {
+          "draft": {
+            "default": true,
+            "title": "Draft",
+            "type": "boolean"
+          },
+          "format": {
+            "default": "",
+            "title": "Format",
+            "type": "string"
+          },
+          "project": {
+            "title": "Project",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project"
+        ],
+        "title": "project_renderArguments",
+        "type": "object"
+      },
+      "name": "project_render"
+    },
+    {
+      "area": "project",
+      "description": "Override brand values: colours as #rrggbb; fonts as paths to .ttf/.otf inside the project or the bundled fonts/,\nor as Google Fonts names ('Rubik:800', 'Secular One', 'Exo 2:700:italic'), fetched once and cached.\nfont_fallback draws any caption the main fonts have no glyphs for (default: bundled Rubik Bold, which covers\nLatin, Hebrew and Cyrillic). Text a font cannot draw is an error naming the characters, never empty boxes.",
+      "input_schema": {
+        "properties": {
+          "font_caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Font Caption"
+          },
+          "font_display": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Font Display"
+          },
+          "font_fallback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Font Fallback"
+          },
+          "primary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Primary"
+          },
+          "project": {
+            "title": "Project",
+            "type": "string"
+          },
+          "secondary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Secondary"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Text"
+          }
+        },
+        "required": [
+          "project"
+        ],
+        "title": "project_set_brandArguments",
+        "type": "object"
+      },
+      "name": "project_set_brand"
+    },
+    {
+      "area": "project",
+      "description": "Choose which image is the product (a file name from the ingest candidates, or a project-relative path such\nas shots/x.jpg). Rebuilds product/product.png (real alpha kept, else a cut-out) and reports the cut-out quality.",
+      "input_schema": {
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "project": {
+            "title": "Project",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project",
+          "file"
+        ],
+        "title": "project_set_productArguments",
+        "type": "object"
+      },
+      "name": "project_set_product"
+    },
+    {
+      "area": "reel",
+      "description": "READ-ONLY. The copy deck: every copy ID with its exact on-screen text (and spoken text if set).\nUse these IDs in shots. With project=<name> it shows the project's APPROVED copy.json and its lock status\n(and, separately, any unapproved draft). There is no way to change the deck from here except project_propose_copy +\nthe user's approval.",
+      "input_schema": {
+        "properties": {
+          "path": {
+            "default": "",
+            "title": "Path",
+            "type": "string"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          }
+        },
+        "title": "reel_copy_linesArguments",
+        "type": "object"
+      },
+      "name": "reel_copy_lines"
+    },
+    {
+      "area": "reel",
+      "description": "Render the reel (or project=<name>) to <out>/<name>.mp4 (a project renders into its own out/ folder and\nname defaults to the project name). Use draft=true first (540 px wide, 24fps, no depth model).\nA reel with `formats` renders every format as <name>-<format>.mp4 (format=<id> renders just one).\nAlso writes <name>.text_audit.json proving every drawn string equals its copy entry.",
+      "input_schema": {
+        "properties": {
+          "audit": {
+            "default": true,
+            "title": "Audit",
+            "type": "boolean"
+          },
+          "draft": {
+            "default": false,
+            "title": "Draft",
+            "type": "boolean"
+          },
+          "format": {
+            "default": "",
+            "title": "Format",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          },
+          "reel": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reel"
+          }
+        },
+        "title": "reel_renderArguments",
+        "type": "object"
+      },
+      "name": "reel_render"
+    },
+    {
+      "area": "reel",
+      "description": "One frame of a shot, t seconds into it (use shot_id 'end_card' for the end card). Takes a reel or\nproject=<name>; format=<id> for one of the reel's formats.",
+      "input_schema": {
+        "properties": {
+          "format": {
+            "default": "",
+            "title": "Format",
+            "type": "string"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          },
+          "reel": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reel"
+          },
+          "shot_id": {
+            "default": "",
+            "title": "Shot Id",
+            "type": "string"
+          },
+          "t": {
+            "default": 0.5,
+            "title": "T",
+            "type": "number"
+          }
+        },
+        "title": "reel_stillArguments",
+        "type": "object"
+      },
+      "name": "reel_still"
+    },
+    {
+      "area": "reel",
+      "description": "Contact sheet: one frame per shot (at its midpoint) plus the end card, with shot id, duration and\ncopy IDs printed below each frame. The fast way to iterate. Takes a reel or project=<name>; format=<id> shows\none of the reel's formats (e.g. 16x9).",
+      "input_schema": {
+        "properties": {
+          "format": {
+            "default": "",
+            "title": "Format",
+            "type": "string"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          },
+          "reel": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reel"
+          }
+        },
+        "title": "reel_storyboardArguments",
+        "type": "object"
+      },
+      "name": "reel_storyboard"
+    },
+    {
+      "area": "reel",
+      "description": "Caption styles, end-card templates (with their copy slots), reveals, motions, transitions, anchors.",
+      "input_schema": {
+        "properties": {},
+        "title": "reel_templatesArguments",
+        "type": "object"
+      },
+      "name": "reel_templates"
+    },
+    {
+      "area": "reel",
+      "description": "A timeline page for a *.reel.json that the user and you both edit. action=\"open\" starts it (if needed) and\nreturns the local URL to give the user: shots as blocks they drag to reorder, drag the edge to change length,\nset in/out points, captions and voice lines, render a draft; saving validates first, keeps a .bak and logs the\nedit. action=\"changes\" returns that log in plain words (theirs and any made to the file outside the page), plus\nthe current shot order: read it before you change a reel the user has been editing. Your own edits to the\nfile show up on their page within seconds.",
+      "input_schema": {
+        "properties": {
+          "action": {
+            "default": "open",
+            "title": "Action",
+            "type": "string"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          },
+          "reel": {
+            "default": "",
+            "title": "Reel",
+            "type": "string"
+          }
+        },
+        "title": "reel_timelineArguments",
+        "type": "object"
+      },
+      "name": "reel_timeline"
+    },
+    {
+      "area": "reel",
+      "description": "Check a reel (or project=<name>): schema, no literal text, copy IDs, files, caption fit, caption/product\ncollisions, timing, and for projects that copy.json is the approved, locked deck. Returns errors/warnings.",
+      "input_schema": {
+        "properties": {
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          },
+          "reel": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reel"
+          }
+        },
+        "title": "reel_validateArguments",
+        "type": "object"
+      },
+      "name": "reel_validate"
+    },
+    {
+      "area": "reel",
+      "description": "Render several variants of one reel, one per position in ``vary`` (a JSON object, or its text), e.g.\n{\"shots.s1.source\": [\"clips/a.mp4\", \"clips/b.mp4\"], \"brand.palette\": [\"#f6f7f4,#0f7c6e\", \"#0f1216,#4fd1b9\"]}.\nAll lists must be the same length (at most 12 variants). Every variant is validated before any render, then\nrendered and text-audited against the approved copy into <out>/<name>-variants/. sheet=true also builds\ncontact_sheet.png, one numbered cell per variant's opening. Returns the manifest (variants.json).",
+      "input_schema": {
+        "properties": {
+          "draft": {
+            "default": true,
+            "title": "Draft",
+            "type": "boolean"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "project": {
+            "default": "",
+            "title": "Project",
+            "type": "string"
+          },
+          "reel": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Reel"
+          },
+          "sheet": {
+            "default": false,
+            "title": "Sheet",
+            "type": "boolean"
+          },
+          "sheet_video": {
+            "default": false,
+            "title": "Sheet Video",
+            "type": "boolean"
+          },
+          "vary": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": "",
+            "title": "Vary"
+          }
+        },
+        "title": "reel_variantsArguments",
+        "type": "object"
+      },
+      "name": "reel_variants"
+    },
+    {
+      "area": "video",
+      "description": "Duration, size, frame rate, codec and whether a video file has audio.",
+      "input_schema": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "video_infoArguments",
+        "type": "object"
+      },
+      "name": "video_info"
+    },
+    {
+      "area": "video",
+      "description": "Find the cuts in a video (trailers, gameplay, screen recordings) and show one frame per shot with its times.\n``threshold`` 0.05..0.95: lower finds more cuts. Writes <out>/video/<name>.scenes.json, which lists every shot\nas a ready reel source {\"video\": ..., \"trim\": [start, end]}, and <name>.scenes.jpg. Pick shots from the sheet,\nthen use their trims in a reel.",
+      "input_schema": {
+        "properties": {
+          "min_shot": {
+            "default": 0.25,
+            "title": "Min Shot",
+            "type": "number"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "threshold": {
+            "default": 0.3,
+            "title": "Threshold",
+            "type": "number"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "video_scenesArguments",
+        "type": "object"
+      },
+      "name": "video_scenes"
+    },
+    {
+      "area": "video",
+      "description": "Burn subtitles into a copy of a video. ``cues`` = [{\"start\": 1.2, \"end\": 3.0, \"text\": \"...\"}] or ``srt`` =\na .srt/.vtt file. Drawn by funkbox's caption engine in a caption style (lower-third, red-box, bold-pop) with the\nbrand's fonts and colours (brand = {primary, secondary, text, font_caption, font_display}); Hebrew reads right\nto left; text is never rewritten and a .text_audit.json proves each cue was drawn exactly.",
+      "input_schema": {
+        "properties": {
+          "anchor": {
+            "default": "bottom",
+            "title": "Anchor",
+            "type": "string"
+          },
+          "brand": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Brand"
+          },
+          "cues": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cues"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "srt": {
+            "default": "",
+            "title": "Srt",
+            "type": "string"
+          },
+          "style": {
+            "default": "lower-third",
+            "title": "Style",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "video_subtitlesArguments",
+        "type": "object"
+      },
+      "name": "video_subtitles"
+    },
+    {
+      "area": "video",
+      "description": "Cut a piece of a video into a new file in <out>/video/ (the original is untouched, nothing is overwritten).\nTimes are seconds or [hh:]mm:ss. ``accurate`` (default) re-encodes for exact frames; false copies the\nstreams instantly from the nearest earlier keyframe.",
+      "input_schema": {
+        "properties": {
+          "accurate": {
+            "default": true,
+            "title": "Accurate",
+            "type": "boolean"
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Duration"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Start"
+          }
+        },
+        "required": [
+          "path",
+          "start"
+        ],
+        "title": "video_trimArguments",
+        "type": "object"
+      },
+      "name": "video_trim"
+    }
+  ]
+}

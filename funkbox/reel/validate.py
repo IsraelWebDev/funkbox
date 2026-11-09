@@ -125,6 +125,7 @@ def _validate_one(src, base_dir, *, vo_durations, beats, deep: bool, fmt: str | 
         _check_files(reel, rep)
         _check_templates_and_fit(reel, rep)
     _check_timeline(reel, rep, vo_durations, beats)
+    _check_windows(reel, rep)
     if deep:
         _check_grid(reel, rep, beats)
         _check_grid_geometry(reel, rep)
@@ -191,6 +192,7 @@ def _check_funk2_text(reel: Reel, path: str, where: str, rep: Report) -> None:
 def _check_templates_and_fit(reel: Reel, rep: Report) -> None:
     """Caption styles exist, text fits at >= 0.032 x height (errors name the copy id), end-card slots."""
     from . import captions, endcard
+    from .. import fonts as fontsmod
 
     errs_before = len(rep.errors)
     try:
@@ -208,6 +210,79 @@ def _check_templates_and_fit(reel: Reel, rep: Report) -> None:
         )
         if err:
             rep.errors.append(f"shots[{i}] ({sh.id}).caption: {err}")
+        used = captions.fallback_chars(fonts, "caption", rep.deck.text(c.copy_id))
+        if used:
+            rep.warnings.append(
+                f"shots[{i}] ({sh.id}).caption: copy {c.copy_id!r} draws {fontsmod.describe(used)} in the fallback "
+                f"font {fonts.fallback.name} (the caption font {fonts.caption.name} has no glyph for them)"
+            )
+    for i, sh in enumerate(reel.shots):  # callout labels: copy in the deck, fits, inside the safe area, within the shot
+        for j, co in enumerate(sh.callouts):
+            where = f"shots[{i}] ({sh.id}).callouts[{j}]"
+            if co.copy_id not in rep.deck.lines:
+                rep.errors.append(f"{where}: copy {co.copy_id!r} is not in the deck")
+                continue
+            try:
+                captions.load_style(co.style)
+            except ValueError as e:
+                rep.errors.append(f"{where}: {e}")
+                continue
+            err = captions.check_caption(
+                co.copy_id,
+                rep.deck.text(co.copy_id),
+                co.style,
+                "center",
+                fonts,
+                reel.brand,
+                W,
+                H,
+                reel.settings.safe_area,
+            )
+            if err:
+                rep.errors.append(f"{where}: {err}")
+                continue
+            lay = captions.layout_block(
+                co.copy_id,
+                rep.deck.text(co.copy_id),
+                captions.load_style(co.style),
+                fonts,
+                reel.brand,
+                W,
+                H,
+                anchor="center",
+                safe_area=reel.settings.safe_area,
+            )
+            _, inside = captions.place_callout(lay, co.at, W, H, reel.settings.safe_area)
+            if not inside:
+                rep.errors.append(
+                    f"{where}: the label leaves the safe area at this anchor; move `at` towards the middle"
+                )
+    if reel.hook:  # the hook title is shot 1's caption, large and boxed: it must fit this format
+        c0 = reel.shots[0].caption
+        d0, target = reel.shots[0].duration, reel.shot_target_s
+        if (isinstance(d0, float) and d0 < captions.HOOK_SECONDS) or (
+            d0 == "auto" and target is not None and target < captions.HOOK_SECONDS
+        ):
+            rep.errors.append(
+                f"shots[0] ({reel.shots[0].id}).duration: the hook needs at least {captions.HOOK_SECONDS} s on shot 1"
+            )
+        if c0 is None or c0.copy_id not in rep.deck.lines:
+            rep.errors.append("hook: true needs a caption with a copy line on shots[0]; its text is the hook title")
+        else:
+            try:
+                captions.layout_block(
+                    c0.copy_id,
+                    rep.deck.text(c0.copy_id),
+                    captions.hook_style(captions.load_style(c0.style)),
+                    fonts,
+                    reel.brand,
+                    W,
+                    H,
+                    anchor="center",
+                    safe_area=reel.settings.safe_area,
+                )
+            except (captions.CaptionFitError, ValueError) as e:
+                rep.errors.append(f"shots[0] ({reel.shots[0].id}).hook: {e}")
     for i, sh in enumerate(reel.shots):  # grid labels: the same fit check, on the cell
         g = sh.source.grid
         if g is None:
@@ -300,6 +375,29 @@ def _check_timeline(reel: Reel, rep: Report, vo: dict[str, float] | None, beats:
     rep.warnings += timeline.warnings(rep.spans)
     total = timeline.total_seconds(rep.spans)
     rep.info.update(total_seconds=total, shots=len(reel.shots), summary=f"{len(reel.shots)} shots, {total:.2f}s total")
+
+
+def _window_error(where: str, start: float, end: float | None, duration: float) -> str | None:
+    """A callout or annotation window must start before its shot ends, and end no later than the shot."""
+    if start >= duration:
+        return f"{where}: starts at {start}s, at or after the shot ({duration:.2f}s)"
+    if end is not None and end > duration:
+        return f"{where}: ends at {end}s, after the shot ({duration:.2f}s)"
+    return None
+
+
+def _check_windows(reel: Reel, rep: Report) -> None:
+    """Callout and annotation windows against each shot's resolved length. ``auto`` and ``beats:N`` shots only have a
+    length once the timeline is built, so this runs after it."""
+    for i, sh in enumerate(reel.shots):
+        sp = next((s for s in rep.spans if s.kind == "shot" and s.index == i), None)
+        if sp is None:
+            continue
+        for kind, items in (("callouts", sh.callouts), ("annotations", sh.annotations)):
+            for j, it in enumerate(items):
+                err = _window_error(f"shots[{i}] ({sh.id}).{kind}[{j}]", it.start, it.end, sp.duration)
+                if err:
+                    rep.errors.append(err)
 
 
 def _check_grid(reel: Reel, rep: Report, beats: list[float] | None) -> None:

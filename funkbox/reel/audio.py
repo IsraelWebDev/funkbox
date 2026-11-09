@@ -257,6 +257,7 @@ class BeatInfo:
     bpm: float
     beats: list[float]
     duration: float
+    phase_source: str = ""  # PHASE_LOW or PHASE_FULL when beat_grid made it; empty when unknown
 
 
 def decode_mono(path: str | Path, sr: int = 22050) -> np.ndarray:
@@ -281,8 +282,31 @@ def decode_mono(path: str | Path, sr: int = 22050) -> np.ndarray:
     return np.frombuffer(r.stdout, dtype="<i2").astype(np.float32) / 32768.0
 
 
-def onset_envelope(y: np.ndarray, sr: int, n_fft: int = 1024, hop: int = 256) -> tuple[np.ndarray, float]:
-    """Spectral flux (half-wave rectified log-magnitude difference), centred frames."""
+LOW_BAND_HZ = 150.0  # kick range: the beat phase is read from the bins up to here
+# A low-band envelope has a "clear pulse" when its best comb phase scores at least this many times the mean score
+# over all phases at the detected tempo (a steady kick measures ~20; a steady bass drone with hi-hat leakage ~2;
+# noise and silence stay near 1).
+LOW_BAND_PULSE_RATIO = 4.0
+# ...and the low band must hold real energy: at least this share of the spectral energy (a kick track measures
+# 0.2 to 1.0; high-frequency noise bursts about 0.000003).
+LOW_BAND_MIN_SHARE = 0.01
+# The low-band flux peaks a little before the kick (the 1024-sample window sees the attack early): measured -7 to
+# -16 ms, mean about -10 ms, on kicks at many offsets, at 22050 Hz with a 1024-sample window. The lead is a property
+# of the window, so it scales with the window length in seconds (n_fft / sr): 10 ms at 22050 Hz, 5 ms at 44100 Hz.
+LOW_BAND_LEAD_S = 0.010  # at the reference window below
+LOW_BAND_LEAD_REF_WINDOW_S = 1024 / 22050
+FIRST_BEAT_LEAD_S = 0.012  # low-band path only: a first beat this close before 0 s is the beat at 0.0, not dropped
+PHASE_LOW = "low-band"
+PHASE_FULL = "full-band-fallback"  # the named fallback: no clear low-band pulse -> phase from the full-band envelope
+
+
+def onset_envelope(
+    y: np.ndarray, sr: int, n_fft: int = 1024, hop: int = 256, max_hz: float | None = None
+) -> tuple[np.ndarray, float]:
+    """Spectral flux (half-wave rectified log-magnitude difference), centred frames. ``max_hz`` limits the flux to
+    the bins at or below that frequency (None = full band): the low band (bins up to ``LOW_BAND_HZ``) is
+    ``int(max_hz * n_fft / sr) + 1`` bins; at 44100 Hz with ``n_fft`` 1024 that is 4 bins, bin 0 (0 Hz) plus the
+    bins at 43, 86 and 129 Hz - the band covers about 129 Hz."""
     if len(y) < n_fft * 2:
         return np.zeros(1, np.float32), sr / hop
     pad = n_fft // 2
@@ -291,6 +315,8 @@ def onset_envelope(y: np.ndarray, sr: int, n_fft: int = 1024, hop: int = 256) ->
     idx = np.arange(n_fft)[None, :] + hop * np.arange(n)[:, None]
     win = np.hanning(n_fft).astype(np.float32)
     mag = np.abs(np.fft.rfft(yp[idx] * win, axis=1))
+    if max_hz is not None:
+        mag = mag[:, : max(1, int(max_hz * n_fft / sr) + 1)]
     lm = np.log1p(20.0 * mag)
     flux = np.maximum(0.0, np.diff(lm, axis=0)).sum(axis=1)
     flux = np.concatenate([[0.0], flux])
@@ -324,29 +350,76 @@ def estimate_tempo(env: np.ndarray, fps: float, lo: float = 70.0, hi: float = 18
     return best_b
 
 
-def _comb_score(env: np.ndarray, t: np.ndarray, fps: float, bpm: float) -> tuple[float, float]:
+def _comb_profile(env: np.ndarray, t: np.ndarray, fps: float, bpm: float) -> tuple[np.ndarray, np.ndarray]:
+    """Comb score for every candidate phase (frames, 0.5 frame steps) -> (phases, scores)."""
     period = 60.0 * fps / bpm
-    best, ph_best = -1.0, 0.0
-    for ph in np.arange(0.0, period, 0.5):
+    phases = np.arange(0.0, period, 0.5)
+    scores = np.empty(len(phases))
+    for i, ph in enumerate(phases):
         pos = np.arange(ph, len(env) - 1, period)
-        s = float(np.interp(pos, t, env).sum() / max(1, len(pos)))
-        if s > best:
-            best, ph_best = s, float(ph)
-    return best, ph_best
+        scores[i] = float(np.interp(pos, t, env).sum() / max(1, len(pos)))
+    return phases, scores
+
+
+def _comb_score(env: np.ndarray, t: np.ndarray, fps: float, bpm: float) -> tuple[float, float]:
+    phases, scores = _comb_profile(env, t, fps, bpm)
+    if not len(phases):
+        return -1.0, 0.0
+    i = int(np.argmax(scores))  # first maximum, as the strict ">" loop it replaces
+    return float(scores[i]), float(phases[i])
+
+
+def _band_share(y: np.ndarray, sr: int, max_hz: float, n_fft: int = 1024) -> float:
+    """Share of the spectral energy at or below ``max_hz`` (0..1). The onset flux is log-scaled, so a track with
+    nothing in the low band still shows a perfectly periodic low-band envelope (hi-hat leakage); the energy tells
+    whether there is a kick at all."""
+    n = len(y) // n_fft * n_fft
+    if n == 0:
+        return 0.0
+    p = np.abs(np.fft.rfft(y[:n].reshape(-1, n_fft) * np.hanning(n_fft), axis=1)) ** 2
+    total = float(p.sum())
+    return float(p[:, : max(1, int(max_hz * n_fft / sr) + 1)].sum()) / total if total > 0 else 0.0
+
+
+def _low_band_lead_s(sr: int, n_fft: int = 1024) -> float:
+    """The low-band phase lead in seconds for a window of ``n_fft`` samples at ``sr`` Hz."""
+    return LOW_BAND_LEAD_S * (n_fft / sr) / LOW_BAND_LEAD_REF_WINDOW_S
+
+
+def _beat_analysis(y: np.ndarray, sr: int, low_hz: float = LOW_BAND_HZ) -> tuple[float, float, float, str]:
+    """(bpm, phase in envelope frames, envelope fps, phase source). The tempo comes from the full-band envelope; the
+    phase from the low band (kick, bins up to ``low_hz``), because off-beat hi-hats have the largest full-band flux.
+    No clear low-band pulse (``LOW_BAND_PULSE_RATIO``: nothing at or below ``low_hz``, or no steady beat there) ->
+    the full-band phase (``PHASE_FULL``)."""
+    env, fps = onset_envelope(y, sr)
+    bpm = estimate_tempo(env, fps)
+    t = np.arange(len(env))
+    low, _ = onset_envelope(y, sr, max_hz=low_hz)
+    if low.max() > 0 and _band_share(y, sr, low_hz) >= LOW_BAND_MIN_SHARE:
+        phases, scores = _comb_profile(low, t, fps, bpm)
+        mean = float(scores.mean()) if len(scores) else 0.0
+        if mean > 0 and float(scores.max()) >= LOW_BAND_PULSE_RATIO * mean:
+            period = 60.0 * fps / bpm
+            phase = (float(phases[int(np.argmax(scores))]) + _low_band_lead_s(sr) * fps) % period
+            return bpm, phase, fps, PHASE_LOW
+    _, phase = _comb_score(env, t, fps, bpm)
+    return bpm, phase, fps, PHASE_FULL
 
 
 def beat_grid(y: np.ndarray, sr: int) -> BeatInfo:
-    env, fps = onset_envelope(y, sr)
-    bpm = estimate_tempo(env, fps)
-    _, phase = _comb_score(env, np.arange(len(env)), fps, bpm)
+    bpm, phase, fps, source = _beat_analysis(y, sr)
     dur = len(y) / sr
     period = 60.0 / bpm
     beats = []
     t = phase / fps
+    # low-band path: a kick at 0 s is found a few ms before or after it; the phase wraps to the end of the beat, which
+    # would drop the beat at 0.0. Keep it. (beat_grid_for rebuilds the grid from beats[1], so the clamp moves nothing.)
+    if source == PHASE_LOW and t + FIRST_BEAT_LEAD_S >= period:
+        t -= period
     while t < dur - 1e-6:
-        beats.append(round(t, 4))
+        beats.append(round(max(t, 0.0), 4))
         t += period
-    return BeatInfo(round(bpm, 2), beats, dur)
+    return BeatInfo(round(bpm, 2), beats, dur, source)
 
 
 def detect_beats(path: str | Path) -> BeatInfo:
@@ -409,7 +482,10 @@ def beat_grid_for(reel: Reel) -> list[float] | None:
     last = max(info.duration, 1.0) * 6
     n = int(last / period) + 1
     first = info.beats[0] if info.beats else 0.0
-    return [round(first + k * period, 4) for k in range(n)]
+    # the low-band path may have clamped a beat a few ms before 0 to 0.0; the full-band grid is returned unchanged
+    if info.phase_source == PHASE_LOW and len(info.beats) > 1 and first == 0.0:
+        first = info.beats[1] - period
+    return [round(max(first + k * period, 0.0), 4) for k in range(n)]
 
 
 # --------------------------------------------------------------------------- #

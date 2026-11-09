@@ -56,6 +56,7 @@ If these tools are missing, funkbox isn't installed. Follow `AGENTS.md` in the f
      ramps, `source.focus` / `fit: "contain"` + `pad`, `"audio": {"bpm": 110}` with `"duration": "beats:N"`,
      and `"formats"` for 9:16 + 16:9 from one edit. See `docs/reel.md`, "Shot lists for specific briefs",
      and `reel_templates`. Run `reel_validate` (it checks every format) and `reel_storyboard(format=...)`.
+   - **Options** (details in `docs/reel.md` and `docs/music.md`): `"type": "explainer"` or `"tech"` for a type preset; `"hook": true` for a title on shot 1; `shots[].callouts` for labels and `shots[].annotations` for drawn arrows and marks; `end_card.template: "bottom-banner"` for a headline typed at the bottom. Music sets: `funkbox music vary SCORE.music.json --brief brief.json --seed N`.
    - Framing only crops and scales; never promise or attempt to alter what a recording shows.
 6. **Render:** `project_render(project, draft=True)` takes ~40 s on the laptop. When the
    user likes it, render the full version: 1080x1920, ~4 min for 25 s (each extra format adds
@@ -77,6 +78,10 @@ Rules:
   `rotate_deg` and `wrap: false`. Example: examples/stills/badge.poster.json.
 - Licences: the bundled models, voice and fonts are commercially usable. Remind the user
   that their own music and photos must be licensed for ads.
+
+## A2. Several versions of one ad
+
+`reel_variants` (or `funkbox reel variants`) renders N versions of one reel from a vary file: different shots, palettes or music, with the same approved copy. Each version is validated and text-audited, and `variants.json` lists them. `sheet: true` adds a numbered contact sheet. Compare the drafts, then render the chosen variant in full: copy its `vNN.reel.json` next to the original reel and render the copy with `reel_render`. Details are in docs/reel.md.
 
 ## B. Funky loops
 
@@ -160,3 +165,8 @@ Describe → generate variations → pick → poster or edit → export.
 - FastSD errors: read `vendor/fastsdcpu/_studio_fastsd.log`. GIMP shortcut but no port: the
   first run takes ~2 min, and `out/gimp_start.log` says why.
 - `python -m funkbox doctor` prints the resolved settings, GL, ffmpeg, models and app paths.
+
+
+## Plan-driven renders (proposed, not live)
+
+The tools and their input schemas are listed in [docs/catalog.json](https://github.com/IsraelWebDev/funkbox/blob/main/docs/catalog.json). The file is generated from the MCP server: `python -m funkbox catalog` (`--check` verifies it). The website is proposed to plan a render from this catalog: an AI planner writes a plan of these tools, the server checks the plan, and a preview runs it at low resolution or shows a storyboard before a paid render runs the same stored plan. Nothing here changes how the local tools work today. Decision and sign-offs: [docs/adr-plan-driven-renders.md in IsraelWebDev/funkbox-online](https://github.com/IsraelWebDev/funkbox-online/blob/main/docs/adr-plan-driven-renders.md).

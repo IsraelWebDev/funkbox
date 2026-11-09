@@ -113,7 +113,8 @@ def build_timeline(
         need = (v + VO_TAIL) if v is not None else 0.0
         d = sh.duration
         if d == "auto":
-            dur = max(AUTO_MIN, need) if v is not None else AUTO_NO_VO
+            target = reel.shot_target_s or 0.0  # pacing: a target length for auto shots
+            dur = max(AUTO_MIN, need, target) if v is not None else (target or AUTO_NO_VO)
         elif isinstance(d, str):
             m = BEATS_RE.match(d)
             assert m

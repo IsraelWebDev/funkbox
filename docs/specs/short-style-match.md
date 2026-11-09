@@ -1,6 +1,6 @@
 # Spec: short style match
 
-Status: proposed. Effort: medium overall; cards 1-3 are small. Source: a reference short the author shared (YouTube adP2iO2E15k, 98 s, 9:16). It was analysed from frames, cut times, motion, colour and audio levels. Nothing from the video is copied or embedded here.
+Status: all seven cards merged. Card 1 is the voice-to-music measurement (7720610; see Card 1 results). Cards 2 to 7 built and merged: card 2 type presets and fonts (ed43308), card 3 hook and pacing (2bc9639), card 4 word highlight (aa503c6), card 5 callout tags (54a778a), card 6 annotations (383c910), card 7 end banner as the bottom-banner template (8aa45e7; review fixes 8075362). The explainer keeps music at -14 dB, since the -18 change waits for the listening check. See Callout tags, Annotations and End banner in docs/reel.md. Effort: medium overall; cards 1-3 are small. Source: a reference short the author shared (YouTube adP2iO2E15k, 98 s, 9:16). It was analysed from frames, cut times, motion, colour and audio levels. Nothing from the video is copied or embedded here.
 
 ## Problem
 
@@ -32,7 +32,7 @@ Current defaults (funkbox/reel/schema.py, autoreel.py): music_gain_db -14, duck_
 | Setting | Now | Reference | Verdict |
 |---|---|---|---|
 | loudness_lufs | -14 | about -26 LUFS integrated | Keep -14 as the delivery target. Platforms turn loud content down, but do not lift a quiet master, so it would sound quiet on phones. Keep the target in presets as an explicit field. |
-| music_gain_db | -14 | music sits well under speech | Probably too loud under voice for talking-head types. Propose -18 for voiced types, keep -14 for music-led types. Not changed until measured (card 1). |
+| music_gain_db | -14 | music sits well under speech | Measured in card 1: the bed sits 15 LU under speech at -14 with the duck. The numbers do not show -14 to be too loud, so keep -14. The -18 proposal for voiced types needs a listening check before any change. |
 | duck_db | -10 | speech dominates, no pumping | Keep. Re-check after the music change, since a lower bed may make the duck redundant. |
 | snap_cuts_to_beats | false | cuts follow speech, not the beat | Keep false by default. Turn on only in music-led presets. |
 | shot duration | auto | 2-3 s early, 4-8 s later, cut about every 4-5 s | Keep auto. A pacing preset sets a target of 2.5-4 s and cuts at sentence ends. |
@@ -41,6 +41,22 @@ Current defaults (funkbox/reel/schema.py, autoreel.py): music_gain_db -14, duck_
 | shot motion | none | static or handheld, small push-ins on the hook only | Keep none. The hook shot may use the existing small push. |
 
 Measure before changing any default: render the demo at -14 and at -18, measure the voice-to-music ratio with ebur128, and record the numbers in card 1. The -18 figure is a hypothesis until then.
+
+## Card 1 results (SS-1)
+
+Measured on the voiceover demo (examples/voiceover_demo, 13.7 s, Kokoro af_heart, duck -10 dB) with `examples/voiceover_demo/measure_ratio.py`. Each stem is rendered with the reel's own mix graph, with loudness normalisation off, and measured with ffmpeg ebur128 (integrated, gated).
+
+| music_gain_db | voice LUFS | music only LUFS | music minus voice (no duck) | ducked mix LUFS | mix minus voice |
+|---|---|---|---|---|---|
+| -14 | -21.8 | -26.9 | -5.1 LU | -21.9 | -0.1 LU |
+| -18 | -21.8 | -30.9 | -9.1 LU | -21.8 | 0.0 LU |
+| -22 (demo setting) | -21.8 | -34.9 | -13.1 LU | -21.8 | 0.0 LU |
+
+Derived, not measured separately: during speech the bed is also ducked by 10 dB, so it sits 15.1 LU under the voice at -14, 19.1 LU at -18 and 23.1 LU at -22.
+
+Reading: the bed is well under the speech at every setting, and adding it changes the integrated loudness by under 0.1 LU. The numbers do not show -14 to be too loud under speech, so there is no measured reason to move the default. The -18 proposal stays open for voiced types until a listening check on a rendered short. Music-led types are not affected by this card.
+
+Limits: integrated loudness gives one number per stem. It does not show how loud the bed is in the gaps between lines, where the bed is the only sound. A listening check is still needed before any default changes.
 
 ## Feature 1: Video type presets and fonts
 

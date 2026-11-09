@@ -7,8 +7,11 @@ The schema has NO free-text fields. Text reaches pixels only through the copy de
 
 from __future__ import annotations
 
+import copy
+import json
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 SAFE_AREAS = ("reels", "landscape", "none")
@@ -178,6 +181,17 @@ class CaptionSpec:
     style: str = "red-box"
     reveal: str = "none"
     anchor: str = "bottom"
+    highlight: tuple | None = None  # (colour, radius) of the word pill; see parse_highlight
+
+
+@dataclass
+class Callout:
+    copy_id: str = ""
+    at: tuple = (0.5, 0.5)  # the label's centre, as fractions of the frame
+    line_to: tuple | None = None  # optional end of a leader line from `at`
+    start: float = 0.0  # seconds into the shot
+    end: float | None = None  # seconds into the shot; None = the shot's end
+    style: str = "callout"
 
 
 @dataclass
@@ -187,6 +201,8 @@ class Shot:
     motion: Motion = field(default_factory=Motion)
     product: ProductSpec | None = None
     caption: CaptionSpec | None = None
+    callouts: list = field(default_factory=list)  # Callout labels; see _parse_callout
+    annotations: list = field(default_factory=list)  # Annotation shapes; see _parse_annotation
     vo: str | None = None  # copy id spoken during the shot
     duration: float | str = "auto"  # seconds | "auto" | "beats:N"
     transition_in: str = "cut"
@@ -222,6 +238,9 @@ class Reel:
     base_dir: str | None = None  # folder of the reel file; paths resolve against it
     formats: list[Format] = field(default_factory=list)  # extra output formats (see materialize)
     format_id: str | None = None  # set when this Reel is one format's variant
+    preset: str | None = None  # the templates/types preset this reel was built with, if any
+    hook: bool = False  # shot 1's caption is a large title box for the first HOOK_SECONDS
+    shot_target_s: float | None = None  # pacing: the target length of auto shots, in seconds
     warnings: list[str] = field(default_factory=list)  # non-fatal notes from parsing (e.g. brand.from fallback)
 
     def shot(self, shot_id: str) -> Shot:
@@ -366,7 +385,9 @@ def _parse_grid_cell(r: _R) -> GridCell:
     if isinstance(raw_label, dict):
         label_index = set(raw_label) == {"index"} and raw_label["index"] is True
         if not label_index:
-            r.errs.append(f'{r._p("label")}: expected a copy id, or {{"index": true}} for the cell number, got {raw_label!r}')
+            r.errs.append(
+                f'{r._p("label")}: expected a copy id, or {{"index": true}} for the cell number, got {raw_label!r}'
+            )
     elif raw_label is not None:
         label = r.s("label", None, pattern=ID_RE)
     c = GridCell(
@@ -570,6 +591,24 @@ def _parse_product(r: _R) -> ProductSpec:
     return p
 
 
+def parse_highlight(v: Any, where: str) -> tuple[str, float] | None:
+    """A word highlight: {"color": primary|secondary|text|#rrggbb, "radius": 0..0.5} -> (color, radius). None = off."""
+    if v is None:
+        return None
+    if not isinstance(v, dict):
+        raise ValueError(f'{where}: must be an object like {{"color": "primary", "radius": 0.3}}')
+    bad = sorted(set(v) - {"color", "radius"})
+    if bad:
+        raise ValueError(f"{where}: unknown keys {bad}")
+    color = v.get("color", "secondary")  # dark on the default red box; primary would vanish into it
+    if color not in ("primary", "secondary", "text") and not HEX_RE.match(str(color)):
+        raise ValueError(f"{where}.color={color!r} must be primary|secondary|text or #rrggbb")
+    radius = v.get("radius", 0.3)
+    if isinstance(radius, bool) or not isinstance(radius, (int, float)) or not 0 <= radius <= 0.5:
+        raise ValueError(f"{where}.radius={radius!r} must be a number from 0 to 0.5")
+    return (str(color), float(radius))
+
+
 def _parse_caption(r: _R) -> CaptionSpec:
     c = CaptionSpec(
         copy_id=r.s("copy_id", "", required=True) or "",
@@ -577,8 +616,95 @@ def _parse_caption(r: _R) -> CaptionSpec:
         reveal=r.s("reveal", "none", REVEALS) or "none",
         anchor=r.s("anchor", "bottom", ANCHORS) or "bottom",
     )
+    if r.raw("highlight", None) is not None:
+        try:
+            c.highlight = parse_highlight(r.raw("highlight"), f"{r.path}.highlight")
+        except ValueError as e:
+            r.errs.append(str(e))
     r.finish()
     return c
+
+
+def _point(r: _R, k: str) -> tuple | None:
+    """A point as fractions of the frame: [x, y], each from 0 to 1."""
+    v = r.raw(k, None)
+    if v is None:
+        return None
+    return _xy(v, r._p(k), r.errs)
+
+
+def _xy(v, where: str, errs: list) -> tuple | None:
+    """One [x, y] point as fractions of the frame, each from 0 to 1. A bad point records an error at ``where``."""
+    if not (
+        isinstance(v, list) and len(v) == 2 and all(isinstance(c, (int, float)) and not isinstance(c, bool) for c in v)
+    ):
+        errs.append(f"{where}: expected [x, y] as fractions of the frame, got {v!r}")
+        return None
+    x, y = float(v[0]), float(v[1])
+    if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
+        errs.append(f"{where}: {v!r} is outside the frame (each value from 0 to 1)")
+        return None
+    return (x, y)
+
+
+def _parse_callout(r: _R) -> Callout:
+    co = Callout(copy_id=r.s("copy_id", "", required=True) or "")
+    if not r.has("at"):
+        r.errs.append(f"{r._p('at')}: required")
+    co.at = _point(r, "at") or (0.5, 0.5)
+    co.line_to = _point(r, "line_to")
+    co.start = r.num("start", 0.0, lo=0.0, hi=600.0)
+    if r.raw("end", None) is not None:
+        co.end = r.num("end", 0.0, lo=0.0, hi=600.0)
+        if co.end <= co.start:
+            r.errs.append(f"{r._p('end')}: {co.end} must be after start ({co.start})")
+    co.style = r.s("style", "callout", pattern=ID_RE) or "callout"
+    r.finish()
+    return co
+
+
+@dataclass
+class Annotation:
+    type: str = "arrow"  # arrow | dashed | x | check
+    points: list = field(default_factory=list)  # [(x, y), ...] fractions of the frame
+    start: float = 0.0  # seconds into the shot
+    end: float | None = None  # seconds into the shot; None = the shot's end
+    draw: bool = True  # draw on over a short time; False shows the whole shape at once
+
+
+ANNOTATION_TYPES = ("arrow", "dashed", "x", "check")
+ANNOTATION_POINTS = {"arrow": (2, 2), "dashed": (2, None), "x": (1, 1), "check": (1, 1)}  # (fewest, most)
+
+
+def _parse_annotation(r: _R) -> Annotation:
+    an = Annotation(type=r.s("type", "", required=True) or "")
+    if an.type and an.type not in ANNOTATION_TYPES:
+        r.errs.append(f"{r._p('type')}: expected one of {', '.join(ANNOTATION_TYPES)}, got {an.type!r}")
+    raw = r.raw("points", None)
+    if raw is None:
+        r.errs.append(f"{r._p('points')}: required")
+    elif not isinstance(raw, list):
+        r.errs.append(f"{r._p('points')}: expected a list of [x, y] points")
+    else:
+        pts = [_xy(v, f"{r._p('points')}[{j}]", r.errs) for j, v in enumerate(raw)]
+        if an.type in ANNOTATION_POINTS:
+            least, most = ANNOTATION_POINTS[an.type]
+            if len(raw) < least or (most is not None and len(raw) > most):
+                want = f"{least} points" if least == most else f"at least {least} points"
+                r.errs.append(f"{r._p('points')}: {an.type} takes {want}, got {len(raw)}")
+        if all(p is not None for p in pts):
+            an.points = pts
+    n_start = len(r.errs)
+    an.start = r.num("start", 0.0, lo=0.0, hi=600.0)
+    start_ok = len(r.errs) == n_start  # compare end only with a start that parsed
+    if r.raw("end", None) is not None:
+        n0 = len(r.errs)
+        an.end = r.num("end", 0.0, lo=0.0, hi=600.0)
+        if start_ok and len(r.errs) == n0 and an.end <= an.start:
+            r.errs.append(f"{r._p('end')}: {an.end} must be after start ({an.start})")
+    an.draw = r.b("draw", True)
+    r.finish()
+    return an
 
 
 def _parse_shot(r: _R, idx: int) -> Shot:
@@ -589,6 +715,22 @@ def _parse_shot(r: _R, idx: int) -> Shot:
         sh.product = _parse_product(r.sub("product"))
     if r.has("caption"):
         sh.caption = _parse_caption(r.sub("caption"))
+    raw_callouts = r.raw("callouts", None)
+    if raw_callouts is not None:
+        if not isinstance(raw_callouts, list):
+            r.errs.append(f"{r._p('callouts')}: expected a list of callouts")
+        else:
+            sh.callouts = [
+                _parse_callout(_R(cd, f"{r.path}.callouts[{j}]", r.errs)) for j, cd in enumerate(raw_callouts)
+            ]
+    raw_ann = r.raw("annotations", None)
+    if raw_ann is not None:
+        if not isinstance(raw_ann, list):
+            r.errs.append(f"{r._p('annotations')}: expected a list of annotations")
+        else:
+            sh.annotations = [
+                _parse_annotation(_R(an, f"{r.path}.annotations[{j}]", r.errs)) for j, an in enumerate(raw_ann)
+            ]
     vo = r.raw("vo", None)
     if vo is not None and not isinstance(vo, str):
         r.errs.append(f"{r.path}.vo: expected a copy id string")
@@ -673,11 +815,84 @@ def _resolve_brand_from(frm: str, base_dir: str | None, warnings: list[str]) -> 
     return chosen
 
 
+#: Type presets: templates/types/<name>.json. A preset sets the fields below only where the reel leaves them unset.
+TYPES_DIR = Path(__file__).resolve().parents[2] / "templates" / "types"
+TYPE_BRAND_KEYS = ("font_caption", "font_display", "font_fallback")
+TYPE_AUDIO_KEYS = ("music_gain_db", "duck_db", "snap_cuts_to_beats")
+TYPE_TOP_KEYS = ("hook", "shot_target_s")  # reel-level fields a preset may set
+TYPE_KEYS = (*TYPE_BRAND_KEYS, *TYPE_AUDIO_KEYS, *TYPE_TOP_KEYS, "caption_style")
+TYPE_META_KEYS = ("description", "hebrew_test")  # documentation only; never applied to a reel
+
+
+def list_types() -> list[str]:
+    return sorted(p.stem for p in TYPES_DIR.glob("*.json"))
+
+
+def load_type(name: str, errs: list[str]) -> dict | None:
+    """The preset ``name``, or None with the problem appended to ``errs``."""
+    have = list_types()
+    if name not in have:
+        errs.append(f"type: no such type {name!r}; have {have}")
+        return None
+    try:
+        preset = json.loads((TYPES_DIR / f"{name}.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        errs.append(f"templates/types/{name}.json: {e}")
+        return None
+    if not isinstance(preset, dict):
+        errs.append(f"templates/types/{name}.json: must be a JSON object")
+        return None
+    bad = sorted(set(preset) - set(TYPE_KEYS) - set(TYPE_META_KEYS))
+    if bad:
+        errs.append(f"templates/types/{name}.json: unknown key(s) {bad}; a preset may set {list(TYPE_KEYS)}")
+        return None
+    return preset
+
+
+def _fill(out: dict, section: str, key: str, value: Any) -> None:
+    sec = out.setdefault(section, {})
+    if isinstance(sec, dict) and sec.get(key) is None:  # an explicit reel field always wins; null means unset
+        sec[key] = value
+
+
+def apply_type(d: Any, errs: list[str]) -> Any:
+    """The reel with its ``type`` preset filled in. A reel without a type comes back as the same object, so it is
+    unchanged; otherwise the input is copied, never modified."""
+    if not isinstance(d, dict) or not isinstance(d.get("type"), str):
+        return d
+    preset = load_type(d["type"], errs)
+    if preset is None:
+        return d
+    out = copy.deepcopy(d)
+    for k in TYPE_BRAND_KEYS:
+        if k in preset:
+            _fill(out, "brand", k, preset[k])
+    for k in TYPE_AUDIO_KEYS:
+        if k in preset:
+            _fill(out, "audio", k, preset[k])
+    for k in TYPE_TOP_KEYS:
+        if k in preset and out.get(k) is None:
+            out[k] = preset[k]
+    shots = out.get("shots")
+    if "caption_style" in preset and isinstance(shots, list):
+        for sh in shots:
+            if isinstance(sh, dict) and isinstance(sh.get("caption"), dict):
+                if sh["caption"].get("style") is None:
+                    sh["caption"]["style"] = preset["caption_style"]
+    return out
+
+
 def parse_reel(d: Any, base_dir: str | None = None) -> Reel:
     """Parse a reel dict. Raises ReelError listing every problem."""
-    errs: list[str] = scan_forbidden(d)
+    errs: list[str] = []
+    d = apply_type(d, errs)
+    errs += scan_forbidden(d)
     r = _R(d, "", errs)
     reel = Reel(base_dir=base_dir)
+    reel.preset = r.s("type", None, pattern=ID_RE)
+    reel.hook = r.b("hook", False) if r.raw("hook", None) is not None else False
+    if r.raw("shot_target_s", None) is not None:
+        reel.shot_target_s = r.num("shot_target_s", 3.0, 0.5, 10.0)
     reel.version = int(r.num("version", 3, 3, 3, integer=True))
     s = r.sub("settings")
     reel.settings = Settings(

@@ -88,13 +88,14 @@ def cmd_storyboard(a) -> int:
 
     from funkbox.config import funk_out
     from funkbox.reel import render
-    from funkbox.reel.storyboard import storyboard
+    from funkbox.reel.storyboard import print_beat_grid, storyboard
 
     plan = render.prepare(_reel_arg(a), fmt=a.format)
     t0 = time.perf_counter()
     out = Path(a.output) if a.output else funk_out() / "storyboard.png"
     storyboard(plan, out, tile_w=a.tile)
     print(f"{out}  ({len(plan.spans)} tiles in {time.perf_counter() - t0:.1f}s)")
+    print_beat_grid(plan)
     return 0
 
 
@@ -125,6 +126,66 @@ def cmd_render(a) -> int:
         if a.audit:
             print(f"text audit: {'OK' if out.audit_ok else 'PROBLEMS (see the JSON)'}")
     return 0 if out.audit_ok is not False else 2
+
+
+def cmd_variants(a) -> int:
+    import json as _json
+    import re as _re
+
+    from funkbox.config import funk_out
+    from funkbox.reel import variants_render
+    from funkbox.reel.variants import ReelVariantError
+
+    src = _reel_arg(a)
+    reel = _json.loads(Path(src).read_text(encoding="utf-8-sig"))
+    vary = _json.loads(Path(a.vary).read_text(encoding="utf-8-sig"))
+    name = a.name or Path(src).name.replace(".reel.json", "").replace(".json", "")
+    if not _re.match(r"^[A-Za-z0-9_\-]{1,60}$", name):
+        return _err("bad name: use 1-60 chars of A-Z a-z 0-9 _ -")
+    if a.count is not None:
+        if not isinstance(vary, dict) or not all(isinstance(v, list) for v in vary.values()):
+            return _err("--vary must be a JSON object whose values are lists")
+        lengths = {len(v) for v in vary.values()}
+        if lengths != {a.count}:
+            return _err(f"--count {a.count} must equal the length of every vary list (got {sorted(lengths) or 'none'})")
+    out_dir = a.out or (str(Path(src).parent / "out") if getattr(a, "project", None) else None)
+    try:
+        manifest = variants_render.render_variants(
+            reel,
+            vary,
+            name,
+            base_dir=Path(src).parent,
+            out_dir=out_dir,
+            draft=not a.full,
+            audit=True,
+            with_audio=not a.no_audio,
+            sheet=a.sheet or a.sheet_video,
+            sheet_video=a.sheet_video,
+        )
+    except ReelVariantError as e:
+        for problem in e.problems:
+            print(f"error: {problem}", file=sys.stderr)
+        return 1
+    for entry in manifest["variants"]:
+        state = {True: "audit OK", False: "audit FAILED", None: "no audit"}[entry["audit_ok"]]
+        print(f"v{entry['index']:02d} {entry['label']}: {state}; {', '.join(entry['outputs'])}")
+        for fname, res in (entry.get("loudness") or {}).items():
+            if res["lufs"] is None:
+                flag = " - MISSES" if res["within_tolerance"] is False else ""
+                print(f"    loudness {fname}: {res['reason'] or 'not measured'}{flag}")
+            elif res["within_tolerance"]:
+                print(f"    loudness {fname}: {res['lufs']:.2f} LUFS, target {res['target']:g}: ok")
+            else:
+                print(
+                    f"    loudness {fname}: {res['lufs']:.2f} LUFS, target {res['target']:g}: "
+                    f"MISSES by {res['off_by_lu']:+.2f} LU"
+                )
+    if "sheet" in manifest:
+        ok = manifest["sheet"].get("audit_ok")
+        print(f"contact sheet: {'audit OK' if ok else 'audit FAILED' if ok is False else 'no audit'}")
+    root = Path(out_dir) if out_dir else funk_out()
+    print(f"manifest: {root / (name + '-variants') / 'variants.json'}")
+    return 0
 
 
 def cmd_setup_models(a) -> int:
@@ -273,7 +334,7 @@ def cmd_project_copy_diff(a) -> int:
 
 def cmd_project_auto(a) -> int:
     from funkbox.reel import autoreel, render
-    from funkbox.reel.storyboard import storyboard
+    from funkbox.reel.storyboard import print_beat_grid, storyboard
 
     res = autoreel.auto_reel(
         a.project,
@@ -292,6 +353,7 @@ def cmd_project_auto(a) -> int:
     sb = res.path.parent / "out" / f"{a.project}-storyboard.png"
     storyboard(plan, sb, tile_w=270)
     print(f"storyboard: {sb}")
+    print_beat_grid(plan)
     return 0
 
 
@@ -346,7 +408,9 @@ def cmd_timeline(a) -> int:
 def add_cli(sub) -> None:
     ap = sub.add_parser("reel", help="shot list -> vertical video ad: validate, storyboard, still, render, ...")
     rsub = ap.add_subparsers(
-        dest="verb", required=True, metavar="{validate,storyboard,still,render,timeline,beats,cutout,setup-models}"
+        dest="verb",
+        required=True,
+        metavar="{validate,storyboard,still,render,variants,timeline,beats,cutout,setup-models}",
     )
     p = rsub.add_parser("timeline", help="drag-and-drop timeline page for a reel (shared with Claude)")
     p.add_argument("reel", nargs="?")
@@ -386,8 +450,23 @@ def add_cli(sub) -> None:
     p.add_argument("--no-audio", action="store_true")
     p.add_argument("--gif", action="store_true")
     p.set_defaults(fn=cmd_render)
-    p = rsub.add_parser("setup-models", help="download + verify the depth and voice models (once)")
-    p.add_argument("--only", nargs="*", choices=["depth", "voice"])
+    p = rsub.add_parser("variants", help="render N variants of a reel from a vary file (each validated and audited)")
+    p.add_argument("reel", nargs="?")
+    p.add_argument("--project")
+    p.add_argument("--vary", required=True, help='JSON file: {"shots.s1.source": [...], ...}, lists of equal length')
+    p.add_argument("--count", type=int, help="must equal the length of every vary list")
+    p.add_argument("--sheet", action="store_true", help="also build contact_sheet.png, one numbered cell per variant")
+    p.add_argument("--sheet-video", action="store_true", help="also render contact_sheet.mp4 (implies --sheet)")
+    p.add_argument("--full", action="store_true", help="full quality (default: draft, 540 px, 24 fps, no depth model)")
+    p.add_argument(
+        "--audit", action="store_true", help="accepted for symmetry with render: the text audit is always written"
+    )
+    p.add_argument("--name")
+    p.add_argument("--out", help="output folder (default FUNK_OUT / ./out)")
+    p.add_argument("--no-audio", action="store_true")
+    p.set_defaults(fn=cmd_variants)
+    p = rsub.add_parser("setup-models", help="download + verify the depth, voice and LaMa models (once)")
+    p.add_argument("--only", nargs="*", choices=["depth", "voice", "lama"])
     p.add_argument("--force", action="store_true")
     p.set_defaults(fn=cmd_setup_models)
     p = rsub.add_parser("cutout", help="alpha cut-out of a product photo on a plain background")

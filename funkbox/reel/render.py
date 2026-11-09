@@ -44,6 +44,110 @@ def hex_rgb(h: str) -> tuple[int, int, int]:
     return int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)
 
 
+ANNOTATION_DRAW_S = 0.4  # seconds for a shape to draw on, when its ``draw`` is true
+
+
+def _progress(t: float, start: float, draw: bool) -> float:
+    """How much of an annotation is drawn at time ``t``: 0 to 1, never falling as ``t`` rises."""
+    if not draw:
+        return 1.0 if t >= start else 0.0
+    return min(1.0, max(0.0, (t - start) / ANNOTATION_DRAW_S))
+
+
+def _partial(poly: list, p: float) -> list:
+    """The first ``p`` (0 to 1) of a polyline, measured by length."""
+    if p >= 1.0 or len(poly) < 2:
+        return poly
+    seg = [float(np.hypot(b[0] - a[0], b[1] - a[1])) for a, b in zip(poly, poly[1:])]
+    left = p * sum(seg)
+    out = [poly[0]]
+    for (a, b), n in zip(zip(poly, poly[1:]), seg):
+        if left >= n:
+            out.append(b)
+            left -= n
+            continue
+        if n > 0 and left > 0:
+            f = left / n
+            out.append((a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f))
+        break
+    return out
+
+
+def _dash_pieces(poly: list, W: int, p: float) -> list:
+    """Dash segments along a polyline, drawn over its first ``p`` (0 to 1). The sample grid follows the whole line, so a
+    dash stays put as ``p`` rises: on for 4% of the frame width, then off for 3%."""
+    dash, period = 0.04 * W, 0.07 * W
+    lengths = [float(np.hypot(b[0] - a[0], b[1] - a[1])) for a, b in zip(poly, poly[1:])]
+    limit = p * sum(lengths)
+    samples, s = [], 0.0  # (x, y, on), about one per pixel of the whole line
+    for (a, b), n in zip(zip(poly, poly[1:]), lengths):
+        steps = max(1, int(n))
+        for k in range(steps):
+            f = k / steps
+            pos = s + f * n
+            if pos > limit:
+                break
+            samples.append((a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, pos % period < dash))
+        s += n
+    if poly and p >= 1.0:
+        samples.append((poly[-1][0], poly[-1][1], s % period < dash))
+    return [((x0, y0), (x1, y1)) for (x0, y0, o0), (x1, y1, o1) in zip(samples, samples[1:]) if o0 and o1]
+
+
+def _draw_annotation(fr: np.ndarray, an, p: float, rgb: tuple, W: int, H: int) -> np.ndarray:
+    """An annotation drawn at progress ``p`` over the frame, in frame pixels."""
+    from PIL import ImageDraw
+
+    if p <= 0 or not an.points:
+        return fr
+    px = [(x * W, y * H) for x, y in an.points]
+    lines = []  # pixel polylines to stroke
+    if an.type == "arrow":
+        a, b = px[0], px[1]
+        lines.append(_partial([a, b], p))
+        if p >= 1.0:  # the head appears once the shaft is drawn
+            ux, uy = b[0] - a[0], b[1] - a[1]
+            n = float(np.hypot(ux, uy)) or 1.0
+            back = (-ux / n, -uy / n)
+            head = max(8.0, 0.035 * W)
+            for ang in (0.45, -0.45):
+                cs, sn = float(np.cos(ang)), float(np.sin(ang))
+                wx = back[0] * cs - back[1] * sn
+                wy = back[0] * sn + back[1] * cs
+                lines.append([b, (b[0] + head * wx, b[1] + head * wy)])
+    elif an.type == "dashed":
+        lines.extend(list(piece) for piece in _dash_pieces(px, W, p))
+    elif an.type == "x":  # two strokes: the first, then the second
+        c, S = px[0], 0.06 * W
+        lines.append(_partial([(c[0] - S, c[1] - S), (c[0] + S, c[1] + S)], min(1.0, 2 * p)))
+        lines.append(_partial([(c[0] + S, c[1] - S), (c[0] - S, c[1] + S)], min(1.0, max(0.0, 2 * p - 1))))
+    elif an.type == "check":
+        c, S = px[0], 0.12 * W
+        lines.append(
+            _partial([(c[0] - 0.5 * S, c[1]), (c[0] - 0.15 * S, c[1] + 0.35 * S), (c[0] + 0.5 * S, c[1] - 0.35 * S)], p)
+        )
+    img = Image.fromarray(fr)
+    d = ImageDraw.Draw(img)
+    w = max(2, round(0.008 * W))
+    for ln in lines:
+        if len(ln) >= 2:
+            d.line([(float(x), float(y)) for x, y in ln], fill=tuple(rgb), width=w, joint="curve")
+    return np.array(img)
+
+
+def _leader(fr: np.ndarray, a: tuple, b: tuple, rgb: tuple, W: int, H: int) -> np.ndarray:
+    """A straight leader line from the fraction point ``a`` to ``b`` (a dot at ``b``), drawn over the frame."""
+    from PIL import ImageDraw
+
+    img = Image.fromarray(fr)
+    d = ImageDraw.Draw(img)
+    p, q = (a[0] * W, a[1] * H), (b[0] * W, b[1] * H)
+    w = max(2, round(0.006 * W))
+    d.line([p, q], fill=tuple(rgb), width=w)
+    d.ellipse([q[0] - w, q[1] - w, q[0] + w, q[1] + w], fill=tuple(rgb))
+    return np.array(img)
+
+
 # --------------------------------------------------------------------------- #
 # Video source: stream-decoded through ffmpeg (never loads a whole clip into RAM)
 # --------------------------------------------------------------------------- #
@@ -414,6 +518,8 @@ class Renderer:
         fr = self._source_frame(span, local, note=True)
         fr = self._overlay_product(fr, span, local)
         fr = self._overlay_caption(fr, span, local)
+        fr = self._overlay_callouts(fr, span, local)
+        fr = self._overlay_annotations(fr, span, local)
         return fr
 
     def product(self, span: ShotSpan) -> product_mod.ProductCompositor | None:
@@ -458,6 +564,8 @@ class Renderer:
         if lay is None:
             c = sh.caption
             style = captions_mod.load_style(c.style)
+            if c.highlight is not None:  # a caption's own highlight overrides its style's
+                style = replace(style, highlight=c.highlight)
             fr = None
             if style.box == "auto" or c.anchor == "auto":
                 fr = self._caption_free_mid_frame(span)
@@ -503,22 +611,111 @@ class Renderer:
             return None
         c = self.reel.shots[span.index].caption
         assert c is not None
-        t = local / self.fps - captions_mod.CAPTION_DELAY
+        hold = captions_mod.HOOK_SECONDS if span.index == 0 and self.hook_layout() is not None else 0.0
+        t = local / self.fps - captions_mod.CAPTION_DELAY - hold  # shot 1's caption starts after the hook title
         return captions_mod.render_caption(lay, c.reveal, t, span.vo_dur, span.duration)
 
+    def hook_layout(self) -> captions_mod.Layout | None:
+        """The hook title over shot 1 (reel ``hook``): shot 1's caption text, in the display font, large and boxed."""
+        if not self.reel.hook or self.reel.shots[0].caption is None:
+            return None
+        stt = self._state.setdefault(0, _ShotState())
+        lay = stt.extra.get("hook")
+        if lay is None:
+            c = self.reel.shots[0].caption
+            style = captions_mod.load_style(c.style)
+            if c.highlight is not None:  # the caption's own highlight, as in caption_layout
+                style = replace(style, highlight=c.highlight)
+            style = captions_mod.hook_style(style)
+            lay = stt.extra["hook"] = captions_mod.layout_block(
+                c.copy_id,
+                self.deck.text(c.copy_id),
+                style,
+                self.fonts(),
+                self.reel.brand,
+                self.w,
+                self.h,
+                anchor="center",
+                safe_area=self.reel.settings.safe_area,
+            )
+        return lay
+
+    def callout_layout(self, span: ShotSpan, i: int) -> tuple:
+        """The label of callout ``i`` on this shot, centred on its anchor and pulled into the safe area, and its colour."""
+        co = self.reel.shots[span.index].callouts[i]
+        stt = self._state.setdefault(span.index, _ShotState())
+        got = stt.extra.get(("callout", i))
+        if got is None:
+            style = captions_mod.load_style(co.style)
+            base = captions_mod.layout_block(
+                co.copy_id,
+                self.deck.text(co.copy_id),
+                style,
+                self.fonts(),
+                self.reel.brand,
+                self.w,
+                self.h,
+                anchor="center",
+                safe_area=self.reel.settings.safe_area,
+            )
+            lay, _ = captions_mod.place_callout(base, co.at, self.w, self.h, self.reel.settings.safe_area)
+            rgb = captions_mod.colour(style.box, self.reel.brand) or (255, 255, 255)
+            got = stt.extra[("callout", i)] = (lay, rgb)
+        return got
+
+    def _overlay_annotations(self, fr: np.ndarray, span: ShotSpan, local: int) -> np.ndarray:
+        """Annotation shapes on screen at this frame, each at its draw-on progress. They carry no text, so the audit skips them."""
+        sh = self.reel.shots[span.index]
+        if not sh.annotations:
+            return fr
+        t = local / self.fps
+        rgb = hex_rgb(self.reel.brand.primary)
+        for an in sh.annotations:
+            end = span.duration if an.end is None else an.end
+            if not (an.start <= t < end):
+                continue
+            fr = _draw_annotation(fr, an, _progress(t, an.start, an.draw), rgb, self.w, self.h)
+        return fr
+
+    def _overlay_callouts(self, fr: np.ndarray, span: ShotSpan, local: int) -> np.ndarray:
+        """Callout labels (and their leader lines) that are on screen at this frame: start <= t < end."""
+        sh = self.reel.shots[span.index]
+        t = local / self.fps
+        for i, co in enumerate(sh.callouts):
+            end = span.duration if co.end is None else co.end
+            if not (co.start <= t < end):
+                continue
+            lay, rgb = self.callout_layout(span, i)
+            spr = captions_mod.render_caption(lay, "none", 0.0)  # the whole label at once
+            if spr is None:
+                continue
+            if co.line_to is not None:
+                fr = _leader(fr, co.at, co.line_to, rgb, self.w, self.h)
+            if self.audit is not None:
+                self._note("callout", span, "callout", str(i), co.copy_id, span.start_frame + local, lay, spr)
+            fr = spr.over(fr)
+        return fr
+
     def _overlay_caption(self, fr: np.ndarray, span: ShotSpan, local: int) -> np.ndarray:
-        spr = self.caption_sprite(span, local)
+        # during the hook window, shot 1's caption is the hook title; the caption starts after it
+        hook = self.hook_layout() if span.index == 0 and local / self.fps < captions_mod.HOOK_SECONDS else None
+        if hook is not None:
+            lay, slot = hook, "hook"
+            spr = captions_mod.render_caption(hook, "none", local / self.fps)
+        else:
+            lay, slot = self.caption_layout(span), "caption"
+            spr = self.caption_sprite(span, local)
         if spr is None:
             return fr
         if self.audit is not None:
             self._note(
                 "caption",
                 span,
-                "caption",
+                slot,
                 "main",
                 self.reel.shots[span.index].caption.copy_id,
                 span.start_frame + local,
-                self.caption_layout(span),
+                lay,
                 spr,
             )
         return spr.over(fr)
@@ -813,7 +1010,10 @@ def _build_audio(plan: Plan, out_dir: Path, name: str, fps: int) -> Path | None:
 def _audit_json(r: Renderer, plan: Plan, name: str, out_dir: Path) -> dict:
     """Write <name>.text_audit.json: every string drawn, its copy id and frame range."""
     from . import audio
-    voice = audio.voice_audit_entries(plan.deck, plan.spans, plan.reel.settings.fps) if plan.reel.audio.voiceover else []
+
+    voice = (
+        audio.voice_audit_entries(plan.deck, plan.spans, plan.reel.settings.fps) if plan.reel.audio.voiceover else []
+    )
     entries = sorted(r.audit_report() + voice, key=lambda e: (e["first_frame"], e["shot"], e["slot"], e["instance"]))
     expected = set()
     for sh in plan.reel.shots:
@@ -844,7 +1044,9 @@ def _audit_json(r: Renderer, plan: Plan, name: str, out_dir: Path) -> dict:
     doc = {
         "reel": name,
         "copy_deck": deck,
-        "tts": {"mode": audio.tts_mode(plan.reel.audio.voice), "voice": plan.reel.audio.voice} if plan.reel.audio.voiceover else None,
+        "tts": {"mode": audio.tts_mode(plan.reel.audio.voice), "voice": plan.reel.audio.voice}
+        if plan.reel.audio.voiceover
+        else None,
         "fps": plan.reel.settings.fps,
         "ok": ok,
         "missing": missing,

@@ -74,9 +74,39 @@ def cmd_instruments(a) -> int:
     return 0
 
 
+def cmd_vary(a) -> int:
+    import json
+
+    from funkbox.music.vary import BriefError, write_set
+
+    score = Path(a.score)
+    suffix = ".music.json"
+    name = score.name[: -len(suffix)] if score.name.endswith(suffix) else score.name
+    try:
+        base = json.loads(score.read_text(encoding="utf-8-sig"))
+        brief = json.loads(Path(a.brief).read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError) as e:
+        print(f"error: {e}")
+        return 1
+    out = Path(a.out) if a.out else score.parent / f"{name}-variants"
+    try:
+        m = write_set(brief, a.seed, a.count, out, base=base, name=name, force=a.force)
+    except BriefError as e:
+        for p in e.problems:
+            print(f"error: {p}")
+        return 1
+    except (OSError, ValueError) as e:
+        print(f"error: {e}")
+        return 1
+    for v in m["variants"]:
+        print(f"{v['file']}: {v['key']} {v['scale']}, {v['bpm']:g} BPM, programs {v['programs']}, {v['drum_pattern']}")
+    print(f"manifest: {out / 'manifest.json'}")
+    return 0
+
+
 def add_cli(sub) -> None:
     ap = sub.add_parser("music", help="music from a short score with real General MIDI instruments")
-    ms = ap.add_subparsers(dest="verb", required=True, metavar="{render,instruments}")
+    ms = ap.add_subparsers(dest="verb", required=True, metavar="{render,instruments,vary}")
     p = ms.add_parser("render", help="render a .music.json score to a WAV")
     p.add_argument("score")
     p.add_argument("-o", "--output")
@@ -86,3 +116,11 @@ def add_cli(sub) -> None:
     p.add_argument("--soundfont")
     p.add_argument("--all", action="store_true")
     p.set_defaults(fn=cmd_instruments)
+    p = ms.add_parser("vary", help="write one score per variant from a base score and a brief, with a manifest")
+    p.add_argument("score", help="base .music.json; its bars and meter are kept")
+    p.add_argument("--brief", required=True, help="brief JSON (bpm_range, keys, scales, programs, ...)")
+    p.add_argument("--seed", type=int, required=True)
+    p.add_argument("--count", type=int, default=6)
+    p.add_argument("--out", help="folder for the variants (default: SCORE-variants next to the score)")
+    p.add_argument("--force", action="store_true", help="replace an existing set of this name in the folder")
+    p.set_defaults(fn=cmd_vary)

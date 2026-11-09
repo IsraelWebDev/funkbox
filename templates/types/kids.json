@@ -1,0 +1,11 @@
+{
+  "description": "Playful kids or fun video: rounded Fredoka captions and display, music-led cuts that snap to the beat.",
+  "caption_style": "bold-pop",
+  "font_caption": "fonts/Fredoka-SemiBold.ttf",
+  "font_display": "fonts/Fredoka-Bold.ttf",
+  "font_fallback": "fonts/Rubik-Bold.ttf",
+  "music_gain_db": -14,
+  "duck_db": -10,
+  "snap_cuts_to_beats": true,
+  "hebrew_test": "בדיקה: מוצר חדש, עכשיו בחנויות"
+}

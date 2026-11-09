@@ -1,0 +1,12 @@
+{
+  "description": "Calm beauty or wellness video: serif display, medium sans captions, slower pacing and quieter music.",
+  "caption_style": "auto-box",
+  "font_caption": "fonts/Rubik-Medium.ttf",
+  "font_display": "fonts/DMSerifDisplay-Regular.ttf",
+  "font_fallback": "fonts/Rubik-Bold.ttf",
+  "music_gain_db": -16,
+  "duck_db": -10,
+  "snap_cuts_to_beats": false,
+  "shot_target_s": 5.0,
+  "hebrew_test": "שלום, זה משפט בעברית"
+}

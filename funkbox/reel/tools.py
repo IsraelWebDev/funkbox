@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from typing import Any, Literal
 
 from PIL import Image as PILImage
@@ -17,7 +18,17 @@ from pydantic import BaseModel, Field
 
 from funkbox.config import funk_home, funk_inputs, funk_out, resolve_path
 from funkbox.mcp_util import Context, on_gl, png as _png, safe, safe_async
-from funkbox.reel import approval, autoreel, brand as brandmod, captions, copydeck, endcard, ingest as ingestmod, render
+from funkbox.reel import (
+    approval,
+    autoreel,
+    brand as brandmod,
+    captions,
+    copydeck,
+    endcard,
+    ingest as ingestmod,
+    render,
+    variants_render,
+)
 from funkbox.reel import project as projmod
 from funkbox.reel.schema import ANCHORS, MOTION_TYPES, REVEALS, TRANSITIONS
 from funkbox.reel.storyboard import storyboard as _storyboard
@@ -216,6 +227,59 @@ def reel_render(
         return render.render_formats(src, name, fmt=format or None, out_dir=out_dir, draft=draft, audit=audit)
 
     return _render_result(on_gl(go), audit)
+
+
+def _vary_arg(vary: dict | str) -> dict:
+    if isinstance(vary, str):
+        try:
+            vary = json.loads(vary) if vary.strip() else None
+        except json.JSONDecodeError as e:
+            raise ValueError(f"vary is not valid JSON: {e}") from e
+    if not isinstance(vary, dict) or not vary:
+        raise ValueError('vary must be a JSON object like {"brand.palette": ["#111111,#222222", ...]}')
+    return vary
+
+
+@safe
+def reel_variants(
+    reel: dict | str | None = None,
+    vary: dict | str = "",
+    name: str = "",
+    draft: bool = True,
+    sheet: bool = False,
+    sheet_video: bool = False,
+    project: str = "",
+) -> dict:
+    """Render several variants of one reel, one per position in ``vary`` (a JSON object, or its text), e.g.
+    {"shots.s1.source": ["clips/a.mp4", "clips/b.mp4"], "brand.palette": ["#f6f7f4,#0f7c6e", "#0f1216,#4fd1b9"]}.
+    All lists must be the same length (at most 12 variants). Every variant is validated before any render, then
+    rendered and text-audited against the approved copy into <out>/<name>-variants/. sheet=true also builds
+    contact_sheet.png, one numbered cell per variant's opening. Returns the manifest (variants.json)."""
+    name = name or (project or "")
+    if not OUT_NAME_RE.match(name or ""):
+        raise ValueError("bad name: use 1-60 chars of A-Z a-z 0-9 _ -")
+    vary_map = _vary_arg(vary)
+    out_dir = projmod.project_dir(project) / "out" if project else None
+
+    def go():
+        src = _src(reel, project or None)
+        base = None
+        if isinstance(src, str):
+            base = Path(src).parent
+            src = json.loads(Path(src).read_text(encoding="utf-8-sig"))
+        return variants_render.render_variants(
+            src,
+            vary_map,
+            name,
+            base_dir=base,
+            out_dir=out_dir,
+            draft=draft,
+            audit=True,
+            sheet=sheet or sheet_video,
+            sheet_video=sheet_video,
+        )
+
+    return on_gl(go)
 
 
 # --------------------------------------------------------------------------- #
@@ -485,6 +549,7 @@ TOOLS = [
     reel_storyboard,
     reel_still,
     reel_render,
+    reel_variants,
     reel_timeline,
     project_new,
     project_list,

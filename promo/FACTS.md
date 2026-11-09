@@ -40,7 +40,7 @@ of the same video) or as the "under N" bound in M-render's `say_rough`, which su
 - F8. Images from a description with FastSD (SD-Turbo); about a few seconds per 512x512 image on an Intel iGPU once warm.
 - F9. Short product and app video ads: 9:16, 16:9 (and 1:1, 4:5) from one edit.
 - F10. Ads use stills (parallax, Ken Burns), clips and screen recordings with push-ins and speed ramps.
-- F11. Cuts can follow a beat grid (e.g. 110 BPM); music is ducked under a local voiceover (Piper).
+- F11. Cuts can follow a beat grid (e.g. 110 BPM); music is ducked under a local voiceover (Kokoro af_heart by default when installed, otherwise Piper).
 
 ## The copy lock
 - F12. Claude can only propose wording; the user approves it, and the approved copy is hash-locked.

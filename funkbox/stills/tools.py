@@ -44,7 +44,7 @@ def poster_presets() -> str:
         "text effects: " + ", ".join(sorted(schema.EFFECT_KEYS)),
         "image pre ops: " + ", ".join(schema.PRE_OPS),
         "export formats: " + ", ".join(schema.EXPORTS) + "  (ora = layered OpenRaster for GIMP/Krita)",
-        "edit ops: crop, resize, rotate, flip, remove_background, trim_even, adjust, filter, vignette, overlay, text, border",
+        "edit ops: crop, resize, rotate, flip, remove_background, inpaint, trim_even, adjust, filter, vignette, overlay, text, border",
         'text: copy_id (needs the project\'s approved copy) or literal text with "casual": true',
     ]
     return "\n".join(rows)
@@ -100,8 +100,8 @@ def poster_variations(poster: dict | str, vary: dict, name: str = "var", project
 @safe
 def image_edit(path: str, ops: list, name: str = "", project: str = "", copy: str = "", casual: bool = False) -> list:
     """Edit a COPY of a picture; the original is never touched. ops run in order, geometry first (crop, resize, rotate,
-    flip, remove_background, trim_even), then adjust {brightness, contrast, saturation, hue, ...}, filter {blur, sharpen,
-    ...}, vignette, overlay {path, x, y, scale, blend, opacity}, text {copy_id|text, ...}, border {px, color}.
+    flip, remove_background, inpaint {mask, grow}, trim_even), then adjust {brightness, contrast, saturation, hue, ...}, filter {blur, sharpen,
+    ...}, vignette, overlay {path, x, y, scale, blend, opacity, depth, shadow}, text {copy_id|text, ...}, border {px, color}.
     Writes <out>/edits/<stem>-<name|n>.png, a sidecar that re-renders it, and a before/after sheet."""
     res = on_gl(editmod.edit_image, path, ops, name, project=project or None, copy=copy or None, casual=casual)
     lines = [f"{k}: {v}" for k, v in res.paths.items()] + [api.describe(res.rendered)]

@@ -8,39 +8,46 @@ Ops (each ``{"op": "<name>", ...}``, applied in order; ``{"crop": {...}}`` is ac
   rotate {deg}                      clockwise, canvas grows to fit
   flip {axis: "h"|"v"}
   remove_background                 reel's cut-out (cropped to the subject) with its quality score
+  inpaint {mask, grow}              fill the white part of a mask PNG from its surroundings (LaMa; needs the model)
   adjust {brightness, contrast, saturation, hue, levels, temperature, invert}
   filter {blur, sharpen, posterize, halftone, duotone, pixelate, chroma, vignette}
-  overlay {path, x, y, scale, blend, opacity}
+  overlay {path, x, y, scale, blend, opacity, depth, shadow}
   text {copy_id | text, style, size, x, y, max_width, color, align, line_height, effects}
   border {px, color}
   vignette {amount}
 
-crop/resize/rotate/flip/remove_background change the picture's shape, so they must come before everything else.
+crop/resize/rotate/flip/remove_background/inpaint work on the source picture, so they must come before everything
+  else. A mask for inpaint is matched to the picture after those ops (resized to it, white = remove).
+overlay depth 0..1 scales the overlay by how near its spot is (needs the depth model; 1 = full effect).
+overlay shadow: a number (opacity) or {opacity, light, distance, blur, squash}: a flattened shadow on the
+  ground, cast away from the light. light is the angle the light comes from (0 = above, 90 = right).
 adjust/filter/vignette apply to everything built so far (the picture plus any overlay/text/border before them).
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
 import re
 import shutil
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageFilter, ImageOps
 
 from funkbox.config import funk_out, resolve_path
 
 from . import render, schema
-from .raster import RCtx, _resize_rgba
+from .raster import RCtx, _resize_rgba, place_image
 from .schema import ADJUST_KEYS, FILTER_KEYS, TYPE_KEYS
 from .sheet import contact_sheet
 
-GEOMETRY = ("crop", "resize", "rotate", "flip", "remove_background")
+GEOMETRY = ("crop", "resize", "rotate", "flip", "remove_background", "inpaint")
 PIXEL = ("adjust", "filter", "vignette")
 LAYERED = ("overlay", "text", "border")
 ALL_OPS = GEOMETRY + PIXEL + LAYERED
@@ -61,9 +68,10 @@ OP_KEYS = {
     "rotate": {"deg"},
     "flip": {"axis"},
     "remove_background": set(),
+    "inpaint": {"mask", "grow"},
     "vignette": {"amount"},
     "border": {"px", "color"},
-    "overlay": {"path", "x", "y", "scale", "blend", "opacity"},
+    "overlay": {"path", "x", "y", "scale", "blend", "opacity", "depth", "shadow"},
     "adjust": set(ADJUST_KEYS),
     "filter": set(FILTER_KEYS),
     "text": TYPE_KEYS["text"],
@@ -104,8 +112,8 @@ def normalize(ops: Any) -> list[dict]:
         if op["op"] in GEOMETRY:
             if seen_other:
                 errs.append(
-                    f"ops[{i}] ({op['op']}) comes after {seen_other}: crop, resize, rotate, flip and "
-                    "remove_background change the picture's shape, so put them first"
+                    f"ops[{i}] ({op['op']}) comes after {seen_other}: crop, resize, rotate, flip, "
+                    "remove_background and inpaint work on the source picture, so put them first"
                 )
         elif seen_other is None:
             seen_other = f"ops[{i}] ({op['op']})"
@@ -194,6 +202,30 @@ def _remove_background(im: Image.Image, ctx: RCtx) -> Image.Image:
     return out.convert("RGBA")
 
 
+def _inpaint(im: Image.Image, op: dict, ctx: RCtx) -> Image.Image:
+    from . import inpaint as lama
+
+    if "mask" not in op:
+        raise EditError("inpaint needs mask: a path to a PNG where white marks what to remove")
+    try:
+        mpath = resolve_path(op["mask"])
+    except (FileNotFoundError, ValueError) as e:
+        raise EditError(f"inpaint: mask not found or outside the allowed folders: {op['mask']}") from e
+    g = op.get("grow", 4)
+    if isinstance(g, bool) or not isinstance(g, (int, float)) or not 0 <= g <= 64:
+        raise EditError("inpaint.grow: use a whole number of pixels from 0 to 64")
+    mask = Image.open(mpath)
+    mask.load()
+    try:
+        out = lama.inpaint_image(im, mask, int(g))
+    except lama.InpaintUnavailable as e:
+        raise EditError(f"inpaint needs the LaMa model: {e}") from e
+    except lama.MaskTooLarge as e:
+        raise EditError(f"inpaint: {e}") from e
+    ctx.info["inpaint"] = {"grow": int(g), "mask": mpath.name}
+    return out.convert("RGBA")
+
+
 def apply_pre(im: Image.Image, ops: list[dict], ctx: RCtx) -> Image.Image:
     """Run the geometry ops of an image layer's ``pre`` list (also used by the poster renderer)."""
     for op in ops:
@@ -208,6 +240,8 @@ def apply_pre(im: Image.Image, ops: list[dict], ctx: RCtx) -> Image.Image:
             im = _flip(im, op)
         elif k == "remove_background":
             im = _remove_background(im, ctx)
+        elif k == "inpaint":
+            im = _inpaint(im, op, ctx)
         elif k == "trim_even":
             w, h = im.size
             im = im.crop((0, 0, w - w % 2, h - h % 2))
@@ -224,6 +258,101 @@ def load_source(path: str | Path) -> tuple[Path, Image.Image]:
     im = Image.open(p)
     im.load()
     return p, ImageOps.exif_transpose(im).convert("RGBA")
+
+
+SHADOW_KEYS = {"opacity", "light", "distance", "blur", "squash"}
+
+
+def _num(v: Any, what: str, lo: float, hi: float) -> float:
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not lo <= float(v) <= hi:
+        raise EditError(f"overlay.{what}: use a number from {lo:g} to {hi:g}")
+    return float(v)
+
+
+def _shadow_spec(v: Any) -> dict | None:
+    """``shadow``: a number (opacity) or {opacity, light, distance, blur, squash}; None when off."""
+    if v is None or v is False:
+        return None
+    if v is True:
+        v = {}
+    elif not isinstance(v, dict):
+        v = {"opacity": v}
+    bad = set(v) - SHADOW_KEYS
+    if bad:
+        raise EditError(f"overlay.shadow: unknown keys {sorted(bad)}; have {sorted(SHADOW_KEYS)}")
+    spec = {
+        "opacity": _num(v.get("opacity", 0.6), "shadow.opacity", 0, 1),
+        "light": _num(v.get("light", 45), "shadow.light", -360, 360) % 360,
+        "distance": _num(v.get("distance", 0.02), "shadow.distance", 0, 0.2),
+        "blur": _num(v.get("blur", 0.01), "shadow.blur", 0, 0.1),
+        "squash": _num(v.get("squash", 0.25), "shadow.squash", 0.02, 1),
+    }
+    return spec if spec["opacity"] > 0 else None
+
+
+def _overlay_place(body: dict) -> tuple[float, float, float, float]:
+    """x, y (centre, canvas fractions), scale and opacity of an overlay, checked."""
+    return (
+        _num(body.get("x", 0.5), "x", -10, 10),
+        _num(body.get("y", 0.5), "y", -10, 10),
+        _num(body.get("scale", 1.0), "scale", 0.001, 100),
+        _num(body.get("opacity", 1.0), "opacity", 0, 1),
+    )
+
+
+def _depth_factor(shaped: Image.Image, x: float, y: float, strength: float) -> float:
+    """1 + strength * (2 * depth - 1) at the overlay's centre: near ground keeps or grows its size, far ground shrinks."""
+    from funkbox.reel import depth as reel_depth  # the depth model is optional, so it is imported only when asked for
+
+    rgb = shaped.convert("RGB")
+    key = hashlib.sha1(f"{rgb.width}x{rgb.height}|".encode() + rgb.tobytes()).hexdigest()
+    src = funk_out() / "cache" / "depth-src" / f"{key}.png"
+    if not src.exists():
+        src.parent.mkdir(parents=True, exist_ok=True)
+        tmp = src.with_name(f"{src.stem}.{uuid.uuid4().hex}.part")
+        rgb.save(tmp, format="PNG")
+        os.replace(tmp, src)
+    try:
+        d = reel_depth.estimate_depth(src)
+    except reel_depth.DepthUnavailable as e:
+        raise EditError(f"overlay.depth needs the depth model: {e}") from e
+    h, w = d.shape
+    r = max(2, min(w, h) // 40)
+    cx, cy = min(w - 1, max(0, round(x * w))), min(h - 1, max(0, round(y * h)))
+    near = float(d[max(0, cy - r) : cy + r + 1, max(0, cx - r) : cx + r + 1].mean())
+    return 1.0 + strength * (2.0 * near - 1.0)
+
+
+def _shadow_layer(ov_path: str, W: int, H: int, x: float, y: float, scale: float, spec: dict) -> Path | None:
+    """A canvas-sized shadow (LA PNG): the overlay's silhouette squashed onto the ground and pushed away from the light."""
+    im = Image.open(ov_path)
+    im.load()
+    alpha = place_image(ImageOps.exif_transpose(im).convert("RGBA"), W, H, "contain", x, y, scale)[..., 3]
+    rows, cols = np.flatnonzero(alpha.any(axis=1)), np.flatnonzero(alpha.any(axis=0))
+    if rows.size == 0:
+        return None
+    y0, y1, x0, x1 = int(rows[0]), int(rows[-1]) + 1, int(cols[0]), int(cols[-1]) + 1
+    short = min(W, H)
+    sh = max(1, round((y1 - y0) * spec["squash"]))
+    sprite = Image.fromarray(np.ascontiguousarray(alpha[y0:y1, x0:x1]))
+    sprite = sprite.resize((x1 - x0, sh), Image.BILINEAR).point(lambda v: round(v * spec["opacity"]))
+    t = math.radians(spec["light"])
+    dx, dy = -math.sin(t) * spec["distance"] * short, math.cos(t) * spec["distance"] * short
+    mask = Image.new("L", (W, H), 0)
+    mask.paste(sprite, (round(x0 + dx), round(y1 - sh + dy)))
+    if spec["blur"] * short >= 0.5:
+        mask = mask.filter(ImageFilter.GaussianBlur(spec["blur"] * short))
+    ov_key = hashlib.sha1(Path(ov_path).read_bytes()).hexdigest()
+    key = hashlib.sha1(
+        "|".join([ov_key, str(W), str(H), repr((x, y, scale)), repr(sorted(spec.items()))]).encode()
+    ).hexdigest()
+    out = funk_out() / "cache" / "shadow" / f"{key}.png"
+    if not out.exists():
+        out.parent.mkdir(parents=True, exist_ok=True)
+        tmp = out.with_name(f"{out.stem}.{uuid.uuid4().hex}.part")
+        Image.merge("LA", (Image.new("L", (W, H), 0), mask)).save(tmp, format="PNG")
+        os.replace(tmp, out)
+    return out
 
 
 def build_doc(
@@ -284,13 +413,20 @@ def build_doc(
         elif k == "overlay":
             if "path" not in body:
                 raise EditError("overlay needs path")
-            lay = {
-                "id": next_id("overlay"),
-                "type": "image",
-                "fit": "contain",
-                "path": resolve_path(body.pop("path")).as_posix(),
-                **body,
-            }
+            depth_k = _num(body.pop("depth", 0.0), "depth", 0, 1)
+            shadow = _shadow_spec(body.pop("shadow", None))
+            ov_path = resolve_path(body.pop("path")).as_posix()
+            lay = {"id": next_id("overlay"), "type": "image", "fit": "contain", "path": ov_path, **body}
+            x, y, s_ov, op_alpha = _overlay_place(body)
+            if depth_k:
+                s_ov *= _depth_factor(shaped, x, y, depth_k)
+                lay["scale"] = s_ov
+            if shadow:
+                # the shadow fades with the overlay it belongs to
+                shadow = {**shadow, "opacity": shadow["opacity"] * op_alpha}
+                sh = _shadow_layer(ov_path, W, H, x, y, s_ov, shadow) if shadow["opacity"] > 0 else None
+                if sh is not None:
+                    root.append({"id": next_id("shadow"), "type": "image", "path": sh.as_posix(), "fit": "stretch"})
             root.append(lay)
         elif k == "text":
             root.append({"id": next_id("text"), "type": "text", **body})

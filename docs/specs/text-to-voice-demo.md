@@ -1,6 +1,6 @@
 # Spec: text-to-voice demo
 
-Status: built on card/tv-1-voice-audit (TV-1 to TV-3), not yet merged. Effort: small. Source: product feedback. No demo uses voiceover yet, even though the engine can speak copy locally.
+Status: merged (ad5d628, from card/tv-1-voice-audit; TV-1 to TV-3). Effort: small. Source: product feedback. No demo uses voiceover yet, even though the engine can speak copy locally.
 
 ## Why this matters
 

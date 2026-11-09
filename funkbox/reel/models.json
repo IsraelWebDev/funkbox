@@ -58,5 +58,21 @@
     "license": "Apache-2.0 (Kokoro-82M model and voices); kokoro-onnx package: MIT",
     "license_note": "Kokoro-82M is released under Apache-2.0 by hexgrad. The kokoro-onnx runtime is MIT, but it uses phonemizer and espeak-ng (GPL-3.0); like piper-tts it is an optional extra (requirements-reel.txt) and is not distributed with funkbox.",
     "license_url": "https://huggingface.co/hexgrad/Kokoro-82M"
+  },
+  "lama": {
+    "name": "LaMa (Big-LaMa style inpainting, ONNX, fp32), 512x512 fixed input",
+    "repo": "Carve/LaMa-ONNX",
+    "revision": "c3c0c9e468934d62e79c329e35d82dd09ff8c444",
+    "files": [
+      {
+        "url": "https://huggingface.co/Carve/LaMa-ONNX/resolve/c3c0c9e468934d62e79c329e35d82dd09ff8c444/lama_fp32.onnx",
+        "dest": "lama_fp32.onnx",
+        "sha256": "1faef5301d78db7dda502fe59966957ec4b79dd64e16f03ed96913c7a4eb68d6",
+        "size": 208044816
+      }
+    ],
+    "license": "Apache-2.0",
+    "license_note": "LaMa code and weights are Apache-2.0 (advimman/lama); the Carve ONNX export card declares apache-2.0. The model was trained on Places2, which carries its own licence terms: check before shipping images made with it. Upstream weight provenance not yet re-verified.",
+    "license_url": "https://huggingface.co/Carve/LaMa-ONNX"
   }
 }

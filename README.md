@@ -128,12 +128,12 @@ macOS and Linux) and [skills/funk-studio/SKILL.md](skills/funk-studio/SKILL.md) 
 
 ## What is in the box
 
-One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP server (`funkbox`, 49 tools).
+One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP server (`funkbox`, 50 tools).
 
 | area | what | command / tools |
 |---|---|---|
 | loops | GPU shader engine: GLSL layers, recipes, post passes, audio reactivity, tiling, a machine check that every loop is seamless, and eight preset looks | `funkbox loop ...`, `loop_*` |
-| reel + projects | a JSON shot list plus an approved copy deck become a 9:16 and/or 16:9 ad (parallax shots, screen recordings with push-ins and speed ramps, captions, end card, cuts on a beat grid, local voiceover, text audit). Projects add: inbox ingest, product cut-out, brand colours, copy approval with a hash lock, and an automatic shot list | `funkbox reel ...`, `funkbox project ...`, `reel_*`, `project_*` |
+| reel + projects | a JSON shot list plus an approved copy deck become a 9:16 and/or 16:9 ad (parallax shots, screen recordings with push-ins and speed ramps, captions, end card, cuts on a beat grid, local voiceover, text audit), N variants of one ad with a contact sheet. Projects add: inbox ingest, product cut-out, brand colours, copy approval with a hash lock, and an automatic shot list | `funkbox reel ...`, `funkbox project ...`, `reel_*`, `project_*` |
 | posters + images | layered posters and photo edits with exact text: shapes, SVG import, clipping, letter spacing, styled runs, text on any path; variations, one design in many sizes, animated posters (MP4), SVG/PDF vector export, OpenRaster for GIMP, scoring against a reference picture, tracing a logo into vectors; FastSD text-to-image, img2img and upscale | `funkbox poster ...`, `funkbox image ...`, `poster_*`, `image_*` |
 | video | look inside a video, find its cuts (with reel-ready trims), trim it, burn in exact subtitles; and a drag-and-drop timeline for reels that you and Claude edit together | `funkbox video ...`, `funkbox reel timeline`, `video_*`, `reel_timeline` |
 | music | short scores played by sampled General MIDI instruments (a numpy SoundFont player), usable as a reel's music with its beat grid | `funkbox music ...`, `music_render` |
@@ -157,7 +157,7 @@ One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP ser
 - [docs/loops.md](docs/loops.md): loops, shader contract, recipes, presets, adding an effect
 - [docs/reel.md](docs/reel.md): the ad engine, the projects flow, the copy lock
 - [docs/stills.md](docs/stills.md): posters, edits, typography, variations, sizes, motion, SVG/PDF, OpenRaster, tracing, comparing
-- [docs/music.md](docs/music.md): scores, instruments, music for reels
+- [docs/music.md](docs/music.md): scores, instruments, music for reels, and music variety
 - [docs/video.md](docs/video.md): video files: info, scene cuts, trims, subtitles
 - [docs/studio.md](docs/studio.md): FastSD images and GIMP on demand
 - [docs/migration-v4.md](docs/migration-v4.md): old scripts and tool names to the new ones
@@ -182,3 +182,8 @@ FUNK_GL_BACKEND=egl pytest -q        # leave the variable out when a GPU driver 
 MIT, see [LICENSE](LICENSE). Optional components keep their own licences (GPL-3.0 for piper-tts, espeak-ng used by kokoro-onnx, and gimp-mcp,
 which are installed on request and not bundled). FastSD images are covered by the Stability AI Community License
 (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
+
+
+## Plan-driven renders (proposed, not live)
+
+The tools and their input schemas are listed in [docs/catalog.json](https://github.com/IsraelWebDev/funkbox/blob/main/docs/catalog.json). The file is generated from the MCP server: `python -m funkbox catalog` (`--check` verifies it). The website is proposed to plan a render from this catalog: an AI planner writes a plan of these tools, the server checks the plan, and a preview runs it at low resolution or shows a storyboard before a paid render runs the same stored plan. Nothing here changes how the local tools work today. Decision and sign-offs: [docs/adr-plan-driven-renders.md in IsraelWebDev/funkbox-online](https://github.com/IsraelWebDev/funkbox-online/blob/main/docs/adr-plan-driven-renders.md).

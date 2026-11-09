@@ -11,7 +11,8 @@ from __future__ import annotations
 import json
 import math
 import re
-from dataclasses import dataclass, field
+import unicodedata
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
 
@@ -20,7 +21,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from funkbox.config import ROOT as FUNKBOX
 
-from .schema import HEX_RE, Brand
+from .schema import HEX_RE, Brand, parse_highlight
 
 MIN_SIZE = 0.032  # of frame height; below this the validator errors
 AUTO_SIZE_BIG, AUTO_SIZE_SMALL = 0.062, 0.046  # of frame height, at <= AUTO_N_SHORT / >= AUTO_N_LONG chars
@@ -31,11 +32,14 @@ DEFAULT_CPS = 28.0  # when cps is "auto" but no shot duration is known
 SAFE_TOP, SAFE_BOTTOM = 0.14, 0.22  # reels safe area
 LAND_TOP, LAND_BOTTOM = 0.07, 0.12  # landscape safe area (player controls)
 CAPTION_DELAY = 0.1  # seconds after the shot starts
+HOOK_SECONDS = 0.8  # the hook title shows for this long from the start of the reel
+HOOK_SIZE = 1.4  # the hook title is this many times the caption's size
 NAME_RE = re.compile(r"^[A-Za-z0-9_\-]{1,40}$")
 TEMPLATES = FUNKBOX / "templates"
 
 _STYLE_KEYS = {
     "font",
+    "highlight",
     "size",
     "color",
     "box",
@@ -82,6 +86,7 @@ class Style:
     x: float | None = None  # left edge (fraction of width); None = centred
     y: float | None = None  # top (fraction of height); None = anchored
     gap: float = 0.0
+    highlight: tuple | None = None  # (colour, radius) of the word pill, from parse_highlight
 
 
 def parse_style(d: dict, where: str = "style") -> Style:
@@ -93,6 +98,7 @@ def parse_style(d: dict, where: str = "style") -> Style:
     if bad:
         raise ValueError(f"{where}: unknown keys {bad}")
     s = Style(**d)
+    s = replace(s, highlight=parse_highlight(d.get("highlight"), f"{where}.highlight"))
     if s.font not in ("caption", "display"):
         raise ValueError(f"{where}: font must be 'caption' or 'display'")
     if s.align not in ("left", "center"):
@@ -190,6 +196,18 @@ class Fonts:
 
 
 DEFAULT_FALLBACK = "fonts/Rubik-Bold.ttf"  # bundled: Latin, Hebrew, Cyrillic
+
+
+def fallback_chars(fonts: Fonts, which: str, text: str) -> list[str]:
+    """The characters of ``text`` that the slot's font lacks and the fallback draws. Empty when the slot's font
+    draws all of it or there is no fallback. validate reports them, so a fallback never happens silently."""
+    from .. import fonts as fontsmod
+
+    main = fonts.caption if which == "caption" else fonts.display
+    if fonts.fallback is None:
+        return []
+    fb_miss = set(fontsmod.missing(fonts.fallback, text))
+    return [c for c in fontsmod.missing(main, text) if c not in fb_miss]
 
 
 def fonts_for(brand, base_dir) -> Fonts:
@@ -394,6 +412,42 @@ def wrap(text: str, font: ImageFont.FreeTypeFont, avail: float) -> tuple[list[tu
     return lines, ok
 
 
+def hook_style(style: Style) -> Style:
+    """The hook title: the caption's text in the display font, HOOK_SIZE times larger, always boxed, centred."""
+    from dataclasses import replace
+
+    size = style.size if style.size == "auto" else style.size * HOOK_SIZE
+    box = style.box if style.box not in (None, "auto") else "primary"
+    return replace(style, font="display", size=size, box=box, x=None, y=None)
+
+
+def _safe_band(H: int, safe_area: str) -> tuple:
+    """Top and bottom of the caption safe band, in pixels."""
+    if safe_area == "reels":
+        return SAFE_TOP * H, H - SAFE_BOTTOM * H
+    if safe_area == "landscape":  # 16:9 / square players: title-safe margins, controls at the bottom
+        return LAND_TOP * H, H - LAND_BOTTOM * H
+    return 0.04 * H, H - 0.04 * H
+
+
+def safe_box(W: int, H: int, safe_area: str) -> tuple:
+    """The rectangle (left, top, right, bottom) a callout label must stay inside: the caption safe band, 4% side margins."""
+    top, bot = _safe_band(H, safe_area)
+    return 0.04 * W, top, 0.96 * W, bot
+
+
+def place_callout(lay: Layout, at: tuple, W: int, H: int, safe_area: str) -> tuple:
+    """Centre a laid-out label on the anchor ``at`` (fractions of the frame). Returns (layout, inside): the layout is
+    pulled into the safe box if the anchor would put it outside, and ``inside`` is True when no pull was needed."""
+    left, top, right, bottom = safe_box(W, H, safe_area)
+    x0 = at[0] * W - lay.box_w / 2
+    y0 = at[1] * H - lay.box_h / 2
+    inside = left <= x0 and top <= y0 and x0 + lay.box_w <= right and y0 + lay.box_h <= bottom
+    x0 = min(max(x0, left), max(left, right - lay.box_w))
+    y0 = min(max(y0, top), max(top, bottom - lay.box_h))
+    return replace(lay, x0=int(round(x0)), y0=int(round(y0))), inside
+
+
 def layout_block(
     copy_id: str,
     text: str,
@@ -409,12 +463,7 @@ def layout_block(
     """Lay out a copy line. Raises CaptionFitError (naming the copy id) if it cannot fit."""
     min_px = max(8, math.ceil(MIN_SIZE * H))
     px = max(min_px, int(round(effective_size(style, text) * H)))
-    if safe_area == "reels":
-        top, bot = SAFE_TOP * H, H - SAFE_BOTTOM * H
-    elif safe_area == "landscape":  # 16:9 / square players: title-safe margins, controls at the bottom
-        top, bot = LAND_TOP * H, H - LAND_BOTTOM * H
-    else:
-        top, bot = 0.04 * H, H - 0.04 * H
+    top, bot = _safe_band(H, safe_area)
     while True:
         font = fonts.get(style.font, px, text)
         pad = int(round(style.padding * px))
@@ -531,6 +580,38 @@ class Sprite:
         return out
 
 
+def _has_rtl(s: str) -> bool:
+    """True if the text has a right-to-left character (Hebrew, Arabic and similar)."""
+    return any(unicodedata.bidirectional(ch) in ("R", "AL") for ch in s)
+
+
+def highlight_box(lay: Layout, strings: list[str | None]) -> tuple[int, int, int, int] | None:
+    """The word pill of a revealed caption: (x0, y0, x1, y1) in the text box, or None.
+
+    It covers the last word typed so far, the word the typewriter has reached; spaces around it are not covered.
+    A blank line (a paragraph break) carries no word, so the pill stays on the last word before it.
+    A line with right-to-left text gets no pill: its words are reordered on screen, so their place is not computed here.
+    The check reads the characters, not the Pillow build, so the answer is the same with or without raqm.
+    """
+    typed = [i for i, s in enumerate(strings) if s is not None and s.strip()]
+    if not typed:
+        return None
+    last = typed[-1]
+    s = strings[last]
+    a, b = lay.lines[last]
+    if _has_rtl(lay.text[a:b]):  # the whole line, not the typed prefix, so the pill does not flicker while typing
+        return None
+    w = list(re.finditer(r"\S+", s))[-1]
+    font = lay.font  # the pill is the word's own advance: no padding into the spaces either side
+    x0 = lay.line_x(last) + font.getlength(s[: w.start()])
+    x1 = lay.line_x(last) + font.getlength(s[: w.end()])
+    x0, x1 = max(0, int(math.floor(x0))), min(lay.box_w, int(math.ceil(x1)))
+    if x1 <= x0:
+        return None
+    y0 = last * lay.line_h + lay.pad
+    return x0, y0, x1, y0 + lay.line_h
+
+
 def draw_block(
     lay: Layout, strings: list[str | None], t: float = 1e9, anim: str = "none", cursor_on: bool = False
 ) -> Sprite | None:
@@ -562,6 +643,16 @@ def draw_block(
         d.rectangle((m, m, m + max(4, lay.px // 8) - 1, m + bh - 1), fill=(*acc, 255))
     stroke = int(round(st.stroke * lay.px))
     sc = colour(st.stroke_color, br) or (0, 0, 0)
+    if st.highlight is not None:  # the word pill goes behind the text
+        box = highlight_box(lay, strings)
+        if box is not None:
+            x0, y0, x1, y1 = box
+            hc = colour(st.highlight[0], br) or text_c
+            d.rounded_rectangle(
+                (m + x0, m + y0, m + min(x1, bw) - 1, m + y1 - 1),
+                radius=int(round(st.highlight[1] * (y1 - y0))),
+                fill=(*hc, 255),
+            )
     for i, s in enumerate(strings):
         if s is None:
             continue

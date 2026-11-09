@@ -20,17 +20,26 @@ VIDEO_EXTS = (".mp4", ".mov", ".webm", ".m4v")
 SOURCE_KINDS = ("image", "video", "color", "funk2", "grid")
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 _PALETTE = re.compile(r"^\s*(#[0-9a-fA-F]{6})\s*,\s*(#[0-9a-fA-F]{6})\s*$")
-_ALLOWED = (
-    "shots.<id>.source, shots.<id>.motion, brand.palette, audio.music, captions.<shot>.copy_id"
-)
+_ALLOWED = "shots.<id>.source, shots.<id>.motion, brand.palette, audio.music, captions.<shot>.copy_id"
 
 
 class ReelVariantError(ValueError):
     """One message per problem; a run with any problem renders nothing."""
 
+    def __init__(self, problems):
+        problems = [problems] if isinstance(problems, str) else list(problems)
+        super().__init__(problems)
+        self.problems = problems
+
+    def __str__(self) -> str:
+        return "; ".join(self.problems)
+
 
 def variant_hash(reel: dict) -> str:
     """sha256 of the canonical JSON of a reel: equal reels give equal hashes."""
+    from .schema import apply_type
+
+    reel = apply_type(reel, [])  # a typed reel hashes with its preset, so a changed preset changes the hash
     blob = json.dumps(reel, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
@@ -56,9 +65,7 @@ def expand_reel(
         else:
             errors.append(f"vary[{key!r}] must be a non-empty list of values")
     if len(lengths) > 1:
-        errors.append(
-            f"vary lists must all have the same length (got {sorted(lengths)}); each position is one variant"
-        )
+        errors.append(f"vary lists must all have the same length (got {sorted(lengths)}); each position is one variant")
     if errors:
         raise ReelVariantError(errors)
 
@@ -143,6 +150,9 @@ def _shot(variant: dict, shot_id: str) -> dict:
 def _source(key: str, old: dict | None, value: Any) -> dict:
     """A path (image or video by extension), a #hex colour, or a whole source object."""
     if isinstance(value, dict):
+        for field in ("image", "video"):  # a source object may name a file: same rule as a plain path
+            if field in value:
+                _safe_path(f"{key}.{field}", value[field])
         return value
     if not isinstance(value, str):
         raise ReelVariantError(f"{key}: expected a path, a #hex colour or a source object, got {value!r}")

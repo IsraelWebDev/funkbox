@@ -61,7 +61,7 @@ of a shape or svg layer to show this layer only inside, often an invisible one u
 
 | type | keys |
 |---|---|
-| `image` | `path`, `fit` cover/contain/stretch, `x`, `y`, `scale`, `rotate_deg`, `pre` (crop, resize, rotate, flip, remove_background, trim_even) |
+| `image` | `path`, `fit` cover/contain/stretch, `x`, `y`, `scale`, `rotate_deg`, `pre` (crop, resize, rotate, flip, remove_background, inpaint, trim_even) |
 | `solid` | `color` (`#rrggbb[aa]` or `brand.primary|secondary|text`) |
 | `gradient` | `stops`, `kind` linear/radial, `angle`, `cx`, `cy`, `radius`, `dither` |
 | `shader` | one of `shader` (.frag path), `source` (GLSL), `recipe` (loop recipe or path); `t` (0..1), `palette`, `cycles`, `params`, `seed`. A recipe that draws its own text is refused |
@@ -102,8 +102,22 @@ sharpen, posterize, halftone, duotone `[dark, light]`, pixelate, chroma, vignett
 `image_edit` never writes the source: it builds a one-image poster, renders it, and writes `<stem>-<name|n>.png` (n
 counts up, nothing is overwritten) with the sidecar that re-renders it to the same pixels. Ops run in order and
 geometry ops (`crop` with `aspect` + `anchor` or `x,y,w,h`; `resize`; `rotate`; `flip`; `remove_background`;
-`trim_even`) come first. Then `adjust`, `filter`, `vignette`, `overlay {path, x, y, scale, blend, opacity}`,
+`inpaint`; `trim_even`) come first. Then `adjust`, `filter`, `vignette`, `overlay {path, x, y, scale, blend, opacity, depth, shadow}`,
 `text {copy_id|text}` and `border`. `remove_background` uses the reel's cut-out and reports its quality score.
+
+`overlay` takes two optional keys, both off by default. `depth` (0 to 1) scales the overlay by how near its spot is,
+using the relative depth model: `scale * (1 + depth * (2 * d - 1))`; it needs the depth model and says so when it is
+missing. `shadow` is a number (opacity) or `{opacity, light, distance, blur, squash}`: a flattened shadow of the
+overlay's silhouette on the ground, cast away from the light (`light` is the angle the light comes from, 0 = above,
+90 = right). The shadow fades with the overlay's own `opacity`.
+
+`inpaint {mask, grow}` removes something from the picture. `mask` is a PNG where white marks what to remove (it is
+resized to the picture, so make it the same size if you can). `grow` (0 to 64, default 4) widens the white area by
+that many pixels so the soft edge goes too. The fill is LaMa, an ONNX model that runs on the CPU; it needs the model
+from `funkbox reel setup-models` and says so when missing. The network takes a fixed 512x512 input, so the fill runs
+on a square crop around the mask (half the mask box again as context on each side) and only the masked pixels are
+replaced. A mask bigger than the picture's short side is refused: split it into parts. Results are cached by content
+hash. Places2, the training data, carries its own licence terms; check them before publishing edited pictures.
 
 ## OpenRaster
 
@@ -271,3 +285,8 @@ compare, fix the worst region, compare again; the numbers are deterministic.
 The image tools (see [studio.md](studio.md)) make pictures with FastSD (`image_generate`, `image_restyle`,
 `image_upscale`) into `inputs/`; use them as `image` layers or edit them. Generated pictures never carry the text: add
 it as a text layer.
+
+
+## Plan-driven renders (proposed, not live)
+
+The tools and their input schemas are listed in [docs/catalog.json](https://github.com/IsraelWebDev/funkbox/blob/main/docs/catalog.json). The file is generated from the MCP server: `python -m funkbox catalog` (`--check` verifies it). The website is proposed to plan a render from this catalog: an AI planner writes a plan of these tools, the server checks the plan, and a preview runs it at low resolution or shows a storyboard before a paid render runs the same stored plan. Nothing here changes how the local tools work today. Decision and sign-offs: [docs/adr-plan-driven-renders.md in IsraelWebDev/funkbox-online](https://github.com/IsraelWebDev/funkbox-online/blob/main/docs/adr-plan-driven-renders.md).

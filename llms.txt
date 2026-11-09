@@ -3,7 +3,7 @@
 > Local creative tools for Claude and other MCP clients: seamless GPU-shader loops, layered posters with exact
 > text, FastSD text-to-image and img2img, and product / app video ads in 9:16, 16:9 or both from one edit (stills,
 > clips, screen recordings with push-ins; captions, voiceover, music on a beat grid, end card) whose copy is locked
-> to what the user approved. One MCP server (`funkbox`, 37 tools) and one CLI
+> to what the user approved. One MCP server (`funkbox`, 50 tools) and one CLI
 > (`python -m funkbox`). Runs on OpenGL 3.3 (Intel iGPU is fine); no cloud, accounts or NVIDIA GPU. MIT.
 
 Install from a clone with `python install.py --with reel --register desktop` (or `--register code`), or as a Claude
@@ -15,6 +15,8 @@ Code plugin: `/plugin install funkbox --marketplace IsraelWebDev/funkbox`. Tool 
 
 - [README](https://github.com/IsraelWebDev/funkbox/blob/main/README.md): what it makes, with example prompts
 - [AGENTS.md](https://github.com/IsraelWebDev/funkbox/blob/main/AGENTS.md): install, verify and uninstall on Windows, macOS and Linux
+- [Tool catalog](https://github.com/IsraelWebDev/funkbox/blob/main/docs/catalog.json): every tool's name, area, description and input schema, generated from the MCP server (`python -m funkbox catalog`)
+- [Plan-driven renders (proposed)](https://github.com/IsraelWebDev/funkbox-online/blob/main/docs/adr-plan-driven-renders.md): how the website will plan a render from this catalog
 - [Skill: driving the tools](https://github.com/IsraelWebDev/funkbox/blob/main/skills/funk-studio/SKILL.md): the workflow an agent should follow
 - [Loops](https://github.com/IsraelWebDev/funkbox/blob/main/docs/loops.md): shader contract, recipes, presets
 - [Ads](https://github.com/IsraelWebDev/funkbox/blob/main/docs/reel.md): shot lists, projects, the copy lock

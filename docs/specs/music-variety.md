@@ -1,6 +1,6 @@
 # Spec: music variety
 
-Status: proposed. Effort: small to medium. Source: product feedback. Every demo reel uses the same music at a different tempo, so the demos sound alike.
+Status: merged. MV-1 f73eb2d, MV-2 c493c43 (`funkbox music vary` writes a set and a manifest), MV-3 ca709fe: `audio.music` takes the score list, and each rendered variant is measured against the target. The music cards are complete. Effort: small to medium. Source: product feedback. Every demo reel uses the same music at a different tempo, so the demos sound alike.
 
 ## Problem
 
