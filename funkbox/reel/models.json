@@ -74,5 +74,27 @@
     "license": "Apache-2.0",
     "license_note": "LaMa code and weights are Apache-2.0 (advimman/lama); the Carve ONNX export card declares apache-2.0. The model was trained on Places2, which carries its own licence terms: check before shipping images made with it. Upstream weight provenance not yet re-verified.",
     "license_url": "https://huggingface.co/Carve/LaMa-ONNX"
+  },
+  "mobilesam": {
+    "name": "MobileSAM (ONNX, fp32): image encoder and single-mask decoder",
+    "repo": "Acly/MobileSAM",
+    "revision": "0d3b403339b4674a82493d5e97964dd78089ddc8",
+    "files": [
+      {
+        "url": "https://huggingface.co/Acly/MobileSAM/resolve/0d3b403339b4674a82493d5e97964dd78089ddc8/mobile_sam_image_encoder.onnx",
+        "dest": "mobile_sam_image_encoder.onnx",
+        "sha256": "580f5fb648ea1062c0aabc26217aed56921985f03f0cbbd852bba81d760cc749",
+        "size": 28157093
+      },
+      {
+        "url": "https://huggingface.co/Acly/MobileSAM/resolve/0d3b403339b4674a82493d5e97964dd78089ddc8/sam_mask_decoder_single.onnx",
+        "dest": "sam_mask_decoder_single.onnx",
+        "sha256": "93915fc7c993ab9d59ab8c9ccd3bce37f7509c81ab4150a74abd4d2abbd8570d",
+        "size": 16501323
+      }
+    ],
+    "license": "MIT",
+    "license_note": "The Acly/MobileSAM model card declares MIT. The upstream MobileSAM weights (ChaoningZhang/MobileSAM) have not yet been re-checked for these ONNX exports.",
+    "license_url": "https://huggingface.co/Acly/MobileSAM"
   }
 }
