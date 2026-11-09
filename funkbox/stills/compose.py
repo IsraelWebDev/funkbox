@@ -6,8 +6,10 @@ the same refusals (``ComposeError``, which names the field and never the picture
 done. The picture itself is drawn by ``ProductCompositor.draw``, the code the poster and reel product layers use.
 Nothing is written to disk and nothing is kept after the call; the caller decides how long the bytes live.
 
-The cut-out is cleaned first: its largest blob is kept, holes are filled, and the edge is softened. The pixels of the
-cat are only scaled and, when ``match`` > 0, moved toward the carpet beneath them. scipy is optional here.
+The cut-out is cleaned first: its largest blob is kept with the translucent edge joined to it, transparent gaps
+stay transparent, and other blobs are dropped. The pixels of the cat are only scaled and, when ``match`` > 0, moved
+toward the carpet beneath them. scipy is optional; without it the labelling is a pure-Python flood fill that takes
+about 20 seconds on a 2000 x 2000 cut-out, so the hosted worker (which has scipy) should keep it installed.
 """
 
 from __future__ import annotations
@@ -75,10 +77,15 @@ def _open_picture(data: bytes, *, need_alpha: bool) -> Image.Image:
     return probe
 
 
+REGION_ALPHA = 0.2  # the cat's region: pixels at least this opaque, joined to the largest blob (8-connected)
+
+
 def cutout_rgba(cutout_png: bytes) -> np.ndarray:
-    """The cut-out as HxWx4 uint8: the cat is its largest opaque blob together with the translucent edge that
-    touches it. Transparent gaps stay transparent (the photo shows through them), and any other blob is dropped,
-    so a speck, or a blob inside a gap, never shows."""
+    """The cut-out as HxWx4 uint8: the cat is its largest opaque blob with the translucent edge joined to it. The
+    join runs through pixels at least REGION_ALPHA opaque and counts touching corners as joined. Faint haze
+    (below REGION_ALPHA) is not part of the cat, so it cannot move or crop it. Transparent gaps stay transparent
+    (the photo shows through them), and any other blob is dropped, so a speck or a blob inside a gap never shows.
+    Only the largest blob is kept."""
     rgba = np.asarray(_open_picture(cutout_png, need_alpha=True).convert("RGBA"))
     alpha = rgba[..., 3].astype(np.float32) / 255.0
     labels, count = _components(alpha > 0.5)
@@ -86,8 +93,7 @@ def cutout_rgba(cutout_png: bytes) -> np.ndarray:
         raise ComposeError("no cat found in the cut-out")
     sizes = np.bincount(labels.ravel())[1:]
     core = labels == (int(np.argmax(sizes)) + 1)
-    # the cat's region: any pixel with some opacity, joined to the core through opacity
-    region, _ = _components(alpha > 0.02)
+    region, _ = _components(alpha >= REGION_ALPHA)
     ids = np.unique(region[core])
     cat = np.isin(region, ids[ids > 0])
     soft = np.clip(alpha * cat, 0.0, 1.0)

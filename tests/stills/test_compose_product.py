@@ -281,3 +281,25 @@ def test_the_size_check_runs_before_the_colour_match(photo, monkeypatch):
     with pytest.raises(ComposeError, match="too wide"):
         compose_product(photo, png(Image.new("RGBA", (2048, 1), (255, 0, 0, 255))), {"match": 1.0})
     assert called == []
+
+
+def test_a_faint_far_haze_does_not_move_or_crop_the_cat(photo):
+    # a 1 px line of alpha 13 running 150 px from the cat's edge: faint, so it is not part of the cat and must not move or crop it
+    im = Image.new("RGBA", (200, 60), (0, 0, 0, 0))
+    im.paste((255, 0, 0, 255), (0, 10, 40, 50))
+    im.paste((255, 0, 0, 13), (40, 20, 190, 21))  # touching the cat's right edge, so it joins through faint alpha
+    assert cutout_rgba(png(im)).shape[:2] == (40, 40)
+    out, sidecar = compose_product(photo, png(im), {"shadow": 0, "match": 0})
+    L, T, R, B = sidecar["cat_box"]
+    assert (L, R) == (80, 160)
+    pix = decode(out)
+    assert np.sum((pix[..., 0] > 200) & (pix[..., 1] < 60)) == pytest.approx(80 * 80, rel=0.05)
+
+
+def test_blobs_touching_at_a_corner_count_as_one_cat(photo):
+    # 8-connected join, documented: two opaque squares that meet at one corner are one cat
+    im = Image.new("RGBA", (60, 60), (0, 0, 0, 0))
+    im.paste((255, 0, 0, 255), (10, 10, 30, 30))
+    im.paste((0, 0, 255, 255), (30, 30, 50, 50))
+    cut = cutout_rgba(png(im))
+    assert cut.shape[:2] == (40, 40)
