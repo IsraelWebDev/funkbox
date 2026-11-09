@@ -102,7 +102,8 @@ def test_missing_model_gives_a_clear_error(monkeypatch, tmp_path, scene):
     monkeypatch.setattr(inpaint, "funk_out", lambda: tmp_path)
     monkeypatch.setattr(inpaint, "model_path", lambda: tmp_path / "nope.onnx")
     img, _, m = scene
-    with pytest.raises(inpaint.InpaintUnavailable, match="setup-models"):
+    # the reason is "onnxruntime is not installed" on machines without it, else the missing model
+    with pytest.raises(inpaint.InpaintUnavailable, match=r"setup-models|onnxruntime"):
         inpaint.inpaint_image(Image.open(img), Image.fromarray(m.astype(np.uint8) * 255), grow=0)
 
 
