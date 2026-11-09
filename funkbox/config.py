@@ -271,4 +271,8 @@ def resolve_path(p: str | Path, base_dir: str | Path | None = None) -> Path:
     for rc in inside:
         if rc.exists():
             return rc
-    raise FileNotFoundError(f"file not found: {p}")
+    looked = ", ".join(str(rc) for rc in inside)
+    raise FileNotFoundError(
+        f"file not found: {p} (looked for {looked}). If it is a shader or font, check that FUNK_HOME "
+        f"({c.home}) is the engine checkout with shaders/ and fonts/."
+    )
