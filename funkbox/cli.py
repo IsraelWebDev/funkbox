@@ -9,6 +9,7 @@
     funkbox apps    status | start | stop
     funkbox doctor  GL, ffmpeg, models, FastSD/GIMP paths and the resolved config
     funkbox serve   the MCP server (stdio)
+    funkbox catalog write docs/catalog.json from the MCP registry (--check only verifies it)
 
 Each area module exposes ``add_cli(subparsers)``; this file only wires them together. On Linux with no display
 FUNK_GL_BACKEND defaults to egl. Exit codes: 0 ok, 1 failure (message on stderr), 2 bad usage.
@@ -90,6 +91,20 @@ def cmd_serve(args) -> int:
     return 0
 
 
+def cmd_catalog(args) -> int:
+    from funkbox import catalog
+
+    if args.check:
+        if catalog.is_current(args.out):
+            print(f"ok: {args.out} matches the MCP registry")
+            return 0
+        print(f"error: {args.out} is out of date; run: python -m funkbox catalog", file=sys.stderr)
+        return 1
+    catalog.write(args.out)
+    print(f"wrote {args.out}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="funkbox", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -113,6 +128,14 @@ def build_parser() -> argparse.ArgumentParser:
     video_tools.add_cli(sub)
     sub.add_parser("doctor", help="GL info, ffmpeg, models, FastSD/GIMP paths, config").set_defaults(fn=cmd_doctor)
     sub.add_parser("serve", help="run the MCP server (stdio)").set_defaults(fn=cmd_serve)
+    from pathlib import Path
+
+    from funkbox import catalog
+
+    cat = sub.add_parser("catalog", help="write docs/catalog.json from the MCP registry")
+    cat.add_argument("--out", type=Path, default=catalog.CATALOG_PATH, help="where to write the catalog")
+    cat.add_argument("--check", action="store_true", help="verify the file instead of writing it")
+    cat.set_defaults(fn=cmd_catalog)
     return ap
 
 

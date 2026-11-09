@@ -277,3 +277,8 @@ compare, fix the worst region, compare again; the numbers are deterministic.
 The image tools (see [studio.md](studio.md)) make pictures with FastSD (`image_generate`, `image_restyle`,
 `image_upscale`) into `inputs/`; use them as `image` layers or edit them. Generated pictures never carry the text: add
 it as a text layer.
+
+
+## Plan-driven renders (proposed, not live)
+
+The tools and their input schemas are listed in [docs/catalog.json](https://github.com/IsraelWebDev/funkbox/blob/main/docs/catalog.json). The file is generated from the MCP server: `python -m funkbox catalog` (`--check` verifies it). The website is proposed to plan a render from this catalog: an AI planner writes a plan of these tools, the server checks the plan, and a preview runs it at low resolution or shows a storyboard before a paid render runs the same stored plan. Nothing here changes how the local tools work today. Decision and sign-offs: [docs/adr-plan-driven-renders.md in IsraelWebDev/funkbox-online](https://github.com/IsraelWebDev/funkbox-online/blob/main/docs/adr-plan-driven-renders.md).
