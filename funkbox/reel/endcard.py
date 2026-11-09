@@ -50,6 +50,9 @@ def check(reel: Reel) -> list[str]:
         # the renderer lays headline, sub and url out from their style blocks
         if s in ("headline", "sub", "url") and not isinstance(tpl.get(s), dict):
             errs.append(f"end_card.template {ec.template!r}: slot {s!r} has no style block {s!r} in the template")
+    for s in ("headline", "sub", "url"):  # the reverse: a style block the slot list never draws
+        if isinstance(tpl.get(s), dict) and s not in slots:
+            errs.append(f"end_card.template {ec.template!r}: style block {s!r} has no slot {s!r} in the template")
     for s in slots:
         if s not in ec.copy:
             errs.append(f"end_card.copy: template {ec.template!r} needs a copy id for slot {s!r}")
