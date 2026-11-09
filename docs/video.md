@@ -21,3 +21,8 @@ the brand's fonts and colours, wrapped on spaces, never shrunk below the minimum
 right-to-left for Hebrew. The text is never rewritten (tags such as `<i>` are drawn as written), and
 `<name>.text_audit.json` proves every cue was drawn exactly. A portrait video uses the reels safe area (clear of the
 app's buttons); a landscape one keeps clear of the player controls.
+
+
+## Plan-driven renders (proposed, not live)
+
+The tools and their input schemas are listed in [docs/catalog.json](https://github.com/IsraelWebDev/funkbox/blob/main/docs/catalog.json). The file is generated from the MCP server: `python -m funkbox catalog` (`--check` verifies it). The website is proposed to plan a render from this catalog: an AI planner writes a plan of these tools, the server checks the plan, and a preview runs it at low resolution or shows a storyboard before a paid render runs the same stored plan. Nothing here changes how the local tools work today. Decision and sign-offs: [docs/adr-plan-driven-renders.md in IsraelWebDev/funkbox-online](https://github.com/IsraelWebDev/funkbox-online/blob/main/docs/adr-plan-driven-renders.md).

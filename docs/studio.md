@@ -40,3 +40,8 @@ pictures (seeded from the prompt hash and the seed) at the requested size, and i
 ## Aspect ratios and SD-Turbo
 
 SD-Turbo is trained at 512x512. Measured on an Iris Xe laptop: `square` gives clean single subjects in ~1.3 s; `story` (512x896) often duplicates the subject (two dogs stacked, a living room on two floors). For vertical ads generate `square` (optionally `image_upscale` to 1024) and let reels and posters cover-crop it with a slow camera move. img2img (`image_restyle`) loads a second pipeline the first time (~40-55 s), then runs in seconds.
+
+
+## Plan-driven renders (proposed, not live)
+
+The tools and their input schemas are listed in [docs/catalog.json](https://github.com/IsraelWebDev/funkbox/blob/main/docs/catalog.json). The file is generated from the MCP server: `python -m funkbox catalog` (`--check` verifies it). The website is proposed to plan a render from this catalog: an AI planner writes a plan of these tools, the server checks the plan, and a preview runs it at low resolution or shows a storyboard before a paid render runs the same stored plan. Nothing here changes how the local tools work today. Decision and sign-offs: [docs/adr-plan-driven-renders.md in IsraelWebDev/funkbox-online](https://github.com/IsraelWebDev/funkbox-online/blob/main/docs/adr-plan-driven-renders.md).

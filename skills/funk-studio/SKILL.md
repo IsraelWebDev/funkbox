@@ -165,3 +165,8 @@ Describe → generate variations → pick → poster or edit → export.
 - FastSD errors: read `vendor/fastsdcpu/_studio_fastsd.log`. GIMP shortcut but no port: the
   first run takes ~2 min, and `out/gimp_start.log` says why.
 - `python -m funkbox doctor` prints the resolved settings, GL, ffmpeg, models and app paths.
+
+
+## Plan-driven renders (proposed, not live)
+
+The tools and their input schemas are listed in [docs/catalog.json](https://github.com/IsraelWebDev/funkbox/blob/main/docs/catalog.json). The file is generated from the MCP server: `python -m funkbox catalog` (`--check` verifies it). The website is proposed to plan a render from this catalog: an AI planner writes a plan of these tools, the server checks the plan, and a preview runs it at low resolution or shows a storyboard before a paid render runs the same stored plan. Nothing here changes how the local tools work today. Decision and sign-offs: [docs/adr-plan-driven-renders.md in IsraelWebDev/funkbox-online](https://github.com/IsraelWebDev/funkbox-online/blob/main/docs/adr-plan-driven-renders.md).

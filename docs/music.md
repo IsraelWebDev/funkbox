@@ -56,3 +56,7 @@ The brief is JSON, and the tool reports every problem in it at once:
 `--seed` is required, so a set can be reproduced; `--count` defaults to 6. Duplicate variants are redrawn, and every score is checked before it is written. A set that already exists in the folder is refused unless you pass `--force`, which replaces it.
 
 To use a set in a reel, list the files under `audio.music` in a variants file, one per variant (see Variants in `docs/reel.md`). Each rendered variant is then measured against the reel's loudness target. A file more than 1 LU off is reported as MISSES, and the run still succeeds.
+
+## Plan-driven renders (proposed, not live)
+
+The tools and their input schemas are listed in [docs/catalog.json](https://github.com/IsraelWebDev/funkbox/blob/main/docs/catalog.json). The file is generated from the MCP server: `python -m funkbox catalog` (`--check` verifies it). The website is proposed to plan a render from this catalog: an AI planner writes a plan of these tools, the server checks the plan, and a preview runs it at low resolution or shows a storyboard before a paid render runs the same stored plan. Nothing here changes how the local tools work today. Decision and sign-offs: [docs/adr-plan-driven-renders.md in IsraelWebDev/funkbox-online](https://github.com/IsraelWebDev/funkbox-online/blob/main/docs/adr-plan-driven-renders.md).
