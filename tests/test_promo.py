@@ -821,3 +821,30 @@ def test_key_image_is_seeded_and_skips_a_dull_one(tmp_path):
     assert assets.make_key_image(tmp_path, [tmp_path / "missing.png"], 1) is None
     assets.make_key_image(tmp_path, [grey], 1)
     assert Image.open(tmp_path / "key.png").convert("RGB").getpixel((5, 5)) == (128, 128, 128)  # only dull: still one
+
+
+def test_render_bound_is_a_round_ceiling():
+    import measure
+
+    assert [measure.render_bound(s) for s in (36.6, 39.3, 40.0, 87.4, 125.0)] == [40, 40, 50, 90, 150]
+
+
+def test_lint_catches_a_render_time_left_over_from_an_earlier_render(tmp_path):
+    import lint
+
+    day = tmp_path / "days" / "2026-11-06"
+    day.mkdir(parents=True)
+    facts = {
+        "M-render": {"value": {"seconds": 36.6, "under": 40}, "say": "37 s"},
+        "M-video": {"value": {"seconds": 19.2}, "say": "19 seconds"},
+    }
+    (day / "measured.json").write_text(json.dumps({"facts": facts}))
+
+    def problems(x_text):
+        (day / "caption.json").write_text(json.dumps({"x": {"text": x_text}, "youtube": {"title": "t"}}))
+        return lint.timing_problems(day)
+
+    assert problems("A 19 s Short. Rendered in 39 s on a 4-core CPU.") == []  # within 15%; 19 s is the length
+    assert problems("Rendered in under 40 seconds.") == []
+    assert problems("Rendered in 30 s.") and problems("Rendered in 45 s.")  # stale or rounded far off
+    assert problems("Rendered in under 35 seconds.")  # the bound must hold

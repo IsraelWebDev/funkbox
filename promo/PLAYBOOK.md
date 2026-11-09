@@ -86,7 +86,8 @@ today" in observation only if the searches really showed nothing.
 - Render with `python promo/measure.py render $DAY`: it renders `final.mp4` and the text audit, times the render and
   writes `measured.json` (the M- facts claims may cite). Re-run it after any change to the video.
 - `python promo/lint.py $DAY` must print `lint: OK` (captions clear of card text, variety, feedback, claim ids).
-  Fix what it names and re-render; never edit its rules.
+  Fix what it names and re-render; never edit its rules. After a re-render, lint also checks that quoted render times
+  still match M-render; quoting `say_rough` ("under 40 seconds") avoids chasing the number.
 - Write `caption.json`: {"youtube": {"title" (<= 100 chars, no < >), "description" (2-4 short lines; first line the
   hook; include "Free, open source, runs locally: https://github.com/IsraelWebDev/funkbox" and "Made with funkbox."),
   "tags": [<= 8]}, "x": {"text" (<= 255 chars, NO URL or domain; name the repo as IsraelWebDev/funkbox; 1-2 hashtags; post.py
