@@ -160,9 +160,13 @@ def _gauss(mask: Image.Image, r: float) -> Image.Image:
 class ProductCompositor:
     """One product image placed in one shot."""
 
-    def __init__(self, path: Path, spec: ProductSpec, frame_w: int, frame_h: int):
+    def __init__(
+        self, path: Path | None, spec: ProductSpec, frame_w: int, frame_h: int, *, rgba: np.ndarray | None = None
+    ):
+        """``rgba`` (HxWx4 uint8) is used instead of opening ``path``: the bytes-in entry point passes its picture so
+        no file is written."""
         self.path, self.spec, self.fw, self.fh = path, spec, frame_w, frame_h
-        self.src = np.asarray(Image.open(path).convert("RGBA"))
+        self.src = rgba if rgba is not None else np.asarray(Image.open(path).convert("RGBA"))
         self.transform: ColorTransform | None = None
         self._sprites: OrderedDict[int, tuple[np.ndarray, np.ndarray]] = OrderedDict()
         self._shadows: OrderedDict[int, tuple[np.ndarray, int, int, np.ndarray, int, int]] = OrderedDict()

@@ -7,3 +7,4 @@ fonttools>=4.40      # font names, glyph checks, variable-font instances, outlin
 uharfbuzz>=0.39      # text shaping for SVG/PDF export (same shaping as the pixel render)
 reportlab>=4.0       # PDF export
 skia-pathops>=0.8    # merges lettering outlines into clean shapes (funkbox.lettering)
+scipy>=1.11         # cut-out labelling for funkbox.stills.compose (without it the pure-Python fallback is slow)
