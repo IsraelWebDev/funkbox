@@ -8,6 +8,7 @@ Ops (each ``{"op": "<name>", ...}``, applied in order; ``{"crop": {...}}`` is ac
   rotate {deg}                      clockwise, canvas grows to fit
   flip {axis: "h"|"v"}
   remove_background                 reel's cut-out (cropped to the subject) with its quality score
+  inpaint {mask, grow}              fill the white part of a mask PNG from its surroundings (LaMa; needs the model)
   adjust {brightness, contrast, saturation, hue, levels, temperature, invert}
   filter {blur, sharpen, posterize, halftone, duotone, pixelate, chroma, vignette}
   overlay {path, x, y, scale, blend, opacity, depth, shadow}
@@ -15,7 +16,8 @@ Ops (each ``{"op": "<name>", ...}``, applied in order; ``{"crop": {...}}`` is ac
   border {px, color}
   vignette {amount}
 
-crop/resize/rotate/flip/remove_background change the picture's shape, so they must come before everything else.
+crop/resize/rotate/flip/remove_background/inpaint work on the source picture, so they must come before everything
+  else. A mask for inpaint is matched to the picture after those ops (resized to it, white = remove).
 overlay depth 0..1 scales the overlay by how near its spot is (needs the depth model; 1 = full effect).
 overlay shadow: a number (opacity) or {opacity, light, distance, blur, squash}: a flattened shadow on the
   ground, cast away from the light. light is the angle the light comes from (0 = above, 90 = right).
@@ -45,7 +47,7 @@ from .raster import RCtx, _resize_rgba, place_image
 from .schema import ADJUST_KEYS, FILTER_KEYS, TYPE_KEYS
 from .sheet import contact_sheet
 
-GEOMETRY = ("crop", "resize", "rotate", "flip", "remove_background")
+GEOMETRY = ("crop", "resize", "rotate", "flip", "remove_background", "inpaint")
 PIXEL = ("adjust", "filter", "vignette")
 LAYERED = ("overlay", "text", "border")
 ALL_OPS = GEOMETRY + PIXEL + LAYERED
@@ -66,6 +68,7 @@ OP_KEYS = {
     "rotate": {"deg"},
     "flip": {"axis"},
     "remove_background": set(),
+    "inpaint": {"mask", "grow"},
     "vignette": {"amount"},
     "border": {"px", "color"},
     "overlay": {"path", "x", "y", "scale", "blend", "opacity", "depth", "shadow"},
@@ -109,8 +112,8 @@ def normalize(ops: Any) -> list[dict]:
         if op["op"] in GEOMETRY:
             if seen_other:
                 errs.append(
-                    f"ops[{i}] ({op['op']}) comes after {seen_other}: crop, resize, rotate, flip and "
-                    "remove_background change the picture's shape, so put them first"
+                    f"ops[{i}] ({op['op']}) comes after {seen_other}: crop, resize, rotate, flip, "
+                    "remove_background and inpaint work on the source picture, so put them first"
                 )
         elif seen_other is None:
             seen_other = f"ops[{i}] ({op['op']})"
@@ -199,6 +202,30 @@ def _remove_background(im: Image.Image, ctx: RCtx) -> Image.Image:
     return out.convert("RGBA")
 
 
+def _inpaint(im: Image.Image, op: dict, ctx: RCtx) -> Image.Image:
+    from . import inpaint as lama
+
+    if "mask" not in op:
+        raise EditError("inpaint needs mask: a path to a PNG where white marks what to remove")
+    try:
+        mpath = resolve_path(op["mask"])
+    except (FileNotFoundError, ValueError) as e:
+        raise EditError(f"inpaint: mask not found or outside the allowed folders: {op['mask']}") from e
+    g = op.get("grow", 4)
+    if isinstance(g, bool) or not isinstance(g, (int, float)) or not 0 <= g <= 64:
+        raise EditError("inpaint.grow: use a whole number of pixels from 0 to 64")
+    mask = Image.open(mpath)
+    mask.load()
+    try:
+        out = lama.inpaint_image(im, mask, int(g))
+    except lama.InpaintUnavailable as e:
+        raise EditError(f"inpaint needs the LaMa model: {e}") from e
+    except lama.MaskTooLarge as e:
+        raise EditError(f"inpaint: {e}") from e
+    ctx.info["inpaint"] = {"grow": int(g), "mask": mpath.name}
+    return out.convert("RGBA")
+
+
 def apply_pre(im: Image.Image, ops: list[dict], ctx: RCtx) -> Image.Image:
     """Run the geometry ops of an image layer's ``pre`` list (also used by the poster renderer)."""
     for op in ops:
@@ -213,6 +240,8 @@ def apply_pre(im: Image.Image, ops: list[dict], ctx: RCtx) -> Image.Image:
             im = _flip(im, op)
         elif k == "remove_background":
             im = _remove_background(im, ctx)
+        elif k == "inpaint":
+            im = _inpaint(im, op, ctx)
         elif k == "trim_even":
             w, h = im.size
             im = im.crop((0, 0, w - w % 2, h - h % 2))
