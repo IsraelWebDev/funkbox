@@ -1,7 +1,9 @@
-"""Style-file and end-card gaps left after the validation card: a bad caption style must be a reel error on every
-path that loads it (grid labels included), and an end-card style block without a slot must be reported."""
+"""Style gaps after the validation card: the end-card reverse check (a headline, sub or url style block with no
+slot is dead config and a reel error) and regression guards for caption styles on the grid-label path."""
 
 import json
+
+import pytest
 
 from conftest import make_plain_reel
 from test_style_file_errors import _copy_templates, _style_dir
@@ -20,6 +22,7 @@ def _grid_reel(demo, label_style):
 
 
 def test_bad_highlight_in_a_grid_label_style_is_a_reel_error(demo, tmp_path, monkeypatch):
+    """Regression guard for existing behaviour: a grid label's style is checked like any caption style."""
     _style_dir(tmp_path, monkeypatch, "badgrid", {"highlight": {"colour": "primary"}})
     rep = validate(_grid_reel(demo, "badgrid"), base_dir=demo)
     assert not rep.ok
@@ -31,26 +34,29 @@ def test_a_grid_label_with_a_valid_style_adds_no_error(demo):
     assert not [e for e in rep.errors if "label" in e], rep.text()
 
 
-def _endcard_with_extra_block(tmp_path, monkeypatch, name, block):
-    """brand-split plus a headline style block the slot list does not declare."""
-    tpl = json.loads((captions.TEMPLATES / "endcards" / "centered-logo.json").read_text(encoding="utf-8"))
-    tpl[block] = dict(tpl["headline"])
+def _template_without_slot(tmp_path, monkeypatch, name, dropped):
+    """brand-split with the slot ``dropped`` removed from its slot list; its style block stays."""
+    tpl = json.loads((captions.TEMPLATES / "endcards" / "brand-split.json").read_text(encoding="utf-8"))
+    tpl["slots"] = [s for s in tpl["slots"] if s != dropped]
     d = _copy_templates(tmp_path, monkeypatch)
     (d / "endcards" / f"{name}.json").write_text(json.dumps(tpl), encoding="utf-8")
 
 
-def test_a_sub_style_block_with_no_sub_slot_is_a_reel_error(demo, tmp_path, monkeypatch):
-    _endcard_with_extra_block(tmp_path, monkeypatch, "strayblock", "sub")
+@pytest.mark.parametrize("dropped", ["headline", "sub", "url"])
+def test_a_style_block_with_no_slot_is_a_reel_error(demo, tmp_path, monkeypatch, dropped):
+    name = f"stray_{dropped}"
+    _template_without_slot(tmp_path, monkeypatch, name, dropped)
     d = make_plain_reel(demo)
-    d["brand"] = {**d.get("brand", {}), "logo": "examples/cat.png"}
-    d["end_card"] = {"template": "strayblock", "duration": 2.0, "copy": {"headline": "hook", "url": "hook"}}
+    slots = [s for s in ("headline", "sub", "url") if s != dropped]
+    d["end_card"] = {"template": name, "duration": 2.0, "copy": {s: "hook" for s in slots}}
     rep = validate(d, base_dir=demo)
     assert not rep.ok
-    assert any("strayblock" in e and "'sub'" in e and "no slot" in e for e in rep.errors), rep.text()
+    assert any(name in e and f"{dropped!r}" in e and "no slot" in e for e in rep.errors), rep.text()
 
 
-def test_the_shipped_end_cards_have_no_stray_style_blocks(demo):
-    """Every shipped template whose headline, sub or url block exists also declares that slot."""
+def test_the_shipped_end_cards_have_no_stray_style_blocks():
+    """Every shipped template whose headline, sub or url block exists also declares that slot. Reads JSON only,
+    so it runs without a GL context."""
     for f in (captions.TEMPLATES / "endcards").glob("*.json"):
         tpl = json.loads(f.read_text(encoding="utf-8"))
         for s in ("headline", "sub", "url"):
