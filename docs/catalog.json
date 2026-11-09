@@ -58,7 +58,7 @@
     },
     {
       "area": "image",
-      "description": "Edit a COPY of a picture; the original is never touched. ops run in order, geometry first (crop, resize, rotate,\nflip, remove_background, trim_even), then adjust {brightness, contrast, saturation, hue, ...}, filter {blur, sharpen,\n...}, vignette, overlay {path, x, y, scale, blend, opacity, depth, shadow}, text {copy_id|text, ...}, border {px, color}.\nWrites <out>/edits/<stem>-<name|n>.png, a sidecar that re-renders it, and a before/after sheet.",
+      "description": "Edit a COPY of a picture; the original is never touched. ops run in order, geometry first (crop, resize, rotate,\nflip, remove_background, inpaint {mask, grow}, trim_even), then adjust {brightness, contrast, saturation, hue, ...}, filter {blur, sharpen,\n...}, vignette, overlay {path, x, y, scale, blend, opacity, depth, shadow}, text {copy_id|text, ...}, border {px, color}.\nWrites <out>/edits/<stem>-<name|n>.png, a sidecar that re-renders it, and a before/after sheet.",
       "input_schema": {
         "properties": {
           "casual": {
