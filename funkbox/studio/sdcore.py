@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
 import re
+from collections.abc import Mapping
 from pathlib import Path
 
 import numpy as np
@@ -34,19 +36,51 @@ UPSCALE_FACTOR = 2
 #: the OpenVINO build of SD-Turbo (Intel GPU, Windows); the PyTorch model is the one the hosted worker runs
 OPENVINO_MODEL_ID = "rupeshs/sd-turbo-openvino"
 TORCH_MODEL_ID = "stabilityai/sd-turbo"
+#: CPU path only: a local snapshot directory to load instead of the model name (offline; the directory is the
+#: source of truth for the weights, so the caller pins the revision by choosing the directory)
+MODEL_DIR_ENV = "FUNKBOX_IMAGE_MODEL_DIR"
 
 
-def engine_settings(device: str) -> dict:
-    """FastSD model settings for a device. Only GPU (the Intel iGPU through OpenVINO) uses the OpenVINO build;
-    any other device runs the PyTorch SD-Turbo model on CPU, with OpenVINO and the tiny autoencoder off."""
+def engine_settings(device: str, env: Mapping[str, str] | None = None) -> dict:
+    """FastSD model settings for a device. Only GPU (the Intel iGPU through OpenVINO) uses the OpenVINO build.
+    Any other device runs the PyTorch SD-Turbo model on CPU, with OpenVINO, the tiny autoencoder and the safety
+    checker off. On CPU the model is ``FUNKBOX_IMAGE_MODEL_DIR`` when set, else the model name."""
     if (device or "").strip().upper() == "GPU":
         return {"use_openvino": True, "openvino_lcm_model_id": OPENVINO_MODEL_ID, "use_tiny_auto_encoder": True}
-    return {"use_openvino": False, "lcm_model_id": TORCH_MODEL_ID, "use_tiny_auto_encoder": False}
+    env = os.environ if env is None else env
+    model_dir = (env.get(MODEL_DIR_ENV) or "").strip()
+    if model_dir and not Path(model_dir).is_dir():
+        raise ValueError(f"{MODEL_DIR_ENV} is not a directory: {model_dir}")
+    return {
+        "use_openvino": False,
+        "lcm_model_id": model_dir or TORCH_MODEL_ID,
+        "use_tiny_auto_encoder": False,
+        "use_safety_checker": False,
+    }
 
 
 def generate_device(device: str) -> str:
     """The device string FastSD's generate call takes: "GPU" for the iGPU, lowercase "cpu" otherwise."""
     return "GPU" if (device or "").strip().upper() == "GPU" else "cpu"
+
+
+class ModelReadiness:
+    """Whether the model has produced an image yet. /studio/health reports it so a caller can wait before it
+    sends jobs; a failed warm-up keeps it False and records why."""
+
+    def __init__(self) -> None:
+        self._ready = False
+        self.error: str | None = None
+
+    @property
+    def ready(self) -> bool:
+        return self._ready
+
+    def mark_loaded(self) -> None:
+        self._ready, self.error = True, None
+
+    def mark_failed(self, why) -> None:
+        self._ready, self.error = False, str(why)
 
 
 class SDError(ValueError):
