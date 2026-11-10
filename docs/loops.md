@@ -181,6 +181,13 @@ fits the mask to the frame as an image layer is fitted. Only the mask's alpha co
 holds the funkbox mark as an example: `funkbox-mask.png` is its white letters, grown slightly, from
 `.claude-plugin/icon.png`, and `funkbox-chrome.json` fills them with the liquid-chrome metal shader.
 
+A `mask` can also be typed text: `{"text": "FUNK BOX", "size": 0.22, "font": "Funkbox Block:800"}`. `size` is the text
+height as a fraction of the frame (0.01 to 0.5, the poster range) and `align` is `left`, `center` or `right`. The text is drawn
+by the poster text pipeline and checked by the text audit: text that is not drawn exactly is an error, never a different mask.
+`examples/layer_mask/funkbox-text-chrome.json` is the example. A layer with a mask can also carry a `bevel` (`width` in pixels,
+1 to 64; `strength` 0 to 1; `angle` in degrees): the mask's edges are lit so the shape reads as raised. Only colour changes;
+coverage and the interior stay as they are. A bevel needs a mask.
+
 A legacy layer `{"type": "v1", "effect": "blobs"}` is still accepted and converted to the matching shader layer when
 the recipe loads. Per-layer `palette` and `cycles` (as `extra` keys of a layer) are honoured by the engine.
 

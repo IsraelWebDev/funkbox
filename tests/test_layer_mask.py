@@ -133,7 +133,8 @@ def test_the_recipe_schema_lists_mask_and_mask_fit():
             break
     else:
         raise AssertionError("no recipe object schema")
-    assert layer["mask"]["type"] == "string"
+    assert {"type": "string"} in layer["mask"]["anyOf"]  # an image path ...
+    assert any(o.get("type") == "object" for o in layer["mask"]["anyOf"])  # ... or typed text
     assert layer["mask_fit"]["enum"] == ["cover", "contain", "stretch"]
 
 
