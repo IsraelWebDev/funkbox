@@ -31,6 +31,7 @@ from funkbox.reel import (
 )
 from funkbox.reel import project as projmod
 from funkbox.reel.schema import ANCHORS, MOTION_TYPES, REVEALS, TRANSITIONS
+from funkbox.tool_options import CaptionStyle, Pace, TimelineAction
 from funkbox.reel.storyboard import storyboard as _storyboard
 from funkbox.reel.validate import validate as _validate
 
@@ -458,8 +459,8 @@ def project_set_brand(
 def project_auto_reel(
     project: str,
     length_s: float = 20.0,
-    style: str = "red-box",
-    pace: str = "fast",
+    style: CaptionStyle = "red-box",
+    pace: Pace = "fast",
     cta_ids: list[str] | None = None,
     music: str | None = None,
     clip_share: float | None = None,
@@ -518,7 +519,7 @@ def project_render(project: str, draft: bool = True, format: str = "") -> list:
 
 
 @safe
-def reel_timeline(reel: str = "", project: str = "", action: str = "open") -> str:
+def reel_timeline(reel: str = "", project: str = "", action: TimelineAction = "open") -> str:
     """A timeline page for a *.reel.json that the user and you both edit. action="open" starts it (if needed) and
     returns the local URL to give the user: shots as blocks they drag to reorder, drag the edge to change length,
     set in/out points, captions and voice lines, render a draft; saving validates first, keeps a .bak and logs the

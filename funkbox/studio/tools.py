@@ -7,6 +7,7 @@ Plain module-level functions plus ``register(server)``: thin wrappers over ``fun
 from __future__ import annotations
 
 from funkbox.mcp_util import png as _png, safe
+from funkbox.tool_options import Aspect, Service
 from funkbox.studio import apps, images
 
 
@@ -21,7 +22,7 @@ def apps_status() -> str:
 
 
 @safe
-def apps_start(service: str = "all", wait_s: float = 0) -> str:
+def apps_start(service: Service = "all", wait_s: float = 0) -> str:
     """Start 'fastsd', 'gimp' or 'all'. Idempotent. FastSD is launched and awaited. GIMP is opened by
     the user via the 'GIMP + MCP' desktop shortcut: this returns what to ask them, or, with wait_s>0,
     waits that long for GIMP's MCP port after you've asked."""
@@ -29,7 +30,7 @@ def apps_start(service: str = "all", wait_s: float = 0) -> str:
 
 
 @safe
-def apps_stop(service: str = "fastsd", force: bool = False) -> str:
+def apps_stop(service: Service = "fastsd", force: bool = False) -> str:
     """Stop 'fastsd' (frees ~4 GB RAM). GIMP is never closed by funkbox (unsaved work)."""
     return apps.stop(service, force)
 
@@ -37,7 +38,7 @@ def apps_stop(service: str = "fastsd", force: bool = False) -> str:
 @safe
 def image_generate(
     prompt: str,
-    aspect: str = "square",
+    aspect: Aspect = "square",
     seed: int = -1,
     n: int = 1,
     negative_prompt: str = "",
@@ -61,7 +62,7 @@ def image_restyle(
     path: str,
     prompt: str,
     strength: float = 0.5,
-    aspect: str | None = None,
+    aspect: Aspect | None = None,
     seed: int = -1,
     name: str = "",
     confirm_slow: bool = False,

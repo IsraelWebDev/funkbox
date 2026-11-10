@@ -52,12 +52,16 @@ retired v1 CPU renderer: same looks, not the same pixels.
 | tool | use |
 |---|---|
 | `loop_list` | shaders with `@param` ranges, post passes, blend modes, layer types, palettes, preset recipes |
-| `loop_preview` | one frame of a recipe, fast. Iterate on the look here |
-| `loop_sheet` | grid across seeds to choose a variation |
-| `loop_render` | the real MP4 + PNG + JSON (GIF opt-in) |
+| `loop_preview` | one frame of a recipe, fast. Iterate on the look here. `look` names a look instead of a recipe |
+| `loop_sheet` | grid across seeds to choose a variation. Takes a recipe or `look` |
+| `loop_render` | the real MP4 + PNG + JSON (GIF opt-in). Takes a recipe or `look` |
 | `loop_write_shader`, `loop_get_shader` | write GLSL with line-numbered errors and the loop check; read a shader |
-| `loop_still` | one frame of a recipe or shader as a poster-sized PNG |
+| `loop_still` | one frame of a recipe, a `look` or a shader as a poster-sized PNG. `preset` is the canvas size (square, story, landscape ...), not the look |
 | `loop_gl_info` | renderer, version, shader names, folders |
+
+The closed options are enums in each tool's schema, so a client can list them without reading this page: the looks
+(`look`), canvas sizes (`loop_still` `preset`), palettes, effects, blend modes and layer types inside a recipe, aspects,
+and services. `docs/catalog.json` has the same lists.
 
 Each tool returns a PNG preview with its text, so Claude sees the result and can critique it ("too busy, drop
 halftone, push chroma") instead of rendering blind.
