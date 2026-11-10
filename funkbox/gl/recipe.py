@@ -69,11 +69,12 @@ class Layer:
     uv_warp: float = 0.0
     effect: str | None = None  # legacy: type "v1" with an effect name is converted to a shader layer
     channels: list[str] = field(default_factory=list)  # image paths -> iChannel1..3
-    mask: str | None = None  # image path: its alpha scales this layer's alpha (any layer type)
-    mask_fit: str = "cover"  # how the mask is fitted to the frame: cover | contain | stretch
+    mask: str | dict | None = None  # an image path (its alpha scales the layer) or {"text": ...} (typed text)
+    mask_fit: str = "cover"  # how an image mask is fitted to the frame: cover | contain | stretch
+    bevel: dict | None = None  # {"width": px, "strength": 0..1, "angle": deg}: lights the masked shape's edges
     extra: dict = field(default_factory=dict)  # also: "palette" / "cycles" override the recipe's for this layer
 
-    _OPT = ("shader", "source", "source_sha256", "params", "path", "mask")
+    _OPT = ("shader", "source", "source_sha256", "params", "path", "mask", "bevel")
 
     def __post_init__(self) -> None:
         if self.type == "v1":
@@ -327,9 +328,9 @@ def resolve_recipe(recipe: Recipe2) -> Recipe2:
     r = copy.deepcopy(recipe)
     for i, lay in enumerate(r.layers):
         if lay.mask is not None:
-            if lay.mask_fit not in ("cover", "contain", "stretch"):
-                raise ValueError(f"unknown mask_fit {lay.mask_fit!r}; use cover|contain|stretch")
-            resolve_path(lay.mask, r.base_dir)  # validates + enforces roots
+            _check_mask(lay, r.base_dir)
+        if lay.bevel is not None:
+            _check_bevel(lay)
         if lay.type == "shader":
             src = layer_source(lay, r.base_dir)
             sh = ShaderSource(src)
@@ -343,6 +344,47 @@ def resolve_recipe(recipe: Recipe2) -> Recipe2:
             if lay.fit not in ("cover", "contain", "stretch"):
                 raise ValueError(f"unknown fit {lay.fit!r}; use cover|contain|stretch")
     return r
+
+
+_TEXT_MASK_KEYS = {"text", "font", "size", "align"}
+_BEVEL_KEYS = {"width", "strength", "angle"}
+
+
+def _check_mask(lay: Layer, base_dir) -> None:
+    if isinstance(lay.mask, dict):
+        bad = sorted(set(lay.mask) - _TEXT_MASK_KEYS)
+        if bad:
+            raise ValueError(f"unknown text mask key(s) {bad}; have {sorted(_TEXT_MASK_KEYS)}")
+        if not isinstance(lay.mask.get("text"), str) or not lay.mask["text"].strip():
+            raise ValueError("text mask needs a non-empty text")
+        size = lay.mask.get("size", 0.2)
+        if not isinstance(size, (int, float)) or isinstance(size, bool) or not 0.01 <= size <= 0.5:
+            raise ValueError("text mask size must be a fraction of the frame height, 0.01 to 0.5 (as for a poster)")
+        return
+    if not isinstance(lay.mask, str):
+        raise ValueError('mask must be an image path or {"text": ...}')
+    if lay.mask_fit not in ("cover", "contain", "stretch"):
+        raise ValueError(f"unknown mask_fit {lay.mask_fit!r}; use cover|contain|stretch")
+    resolve_path(lay.mask, base_dir)  # validates + enforces roots
+
+
+def _check_bevel(lay: Layer) -> None:
+    if lay.mask is None:
+        raise ValueError("bevel needs a mask: the shape it lights is the mask's")
+    if not isinstance(lay.bevel, dict):
+        raise ValueError('bevel must be an object like {"width": 4, "strength": 0.6}')
+    bad = sorted(set(lay.bevel) - _BEVEL_KEYS)
+    if bad:
+        raise ValueError(f"unknown bevel key(s) {bad}; have {sorted(_BEVEL_KEYS)}")
+    w = lay.bevel.get("width", 4)
+    if not isinstance(w, int) or isinstance(w, bool) or not 1 <= w <= 64:
+        raise ValueError("bevel width must be a whole number of pixels, 1 to 64")
+    k = lay.bevel.get("strength", 0.6)
+    if not isinstance(k, (int, float)) or isinstance(k, bool) or not 0 <= k <= 1:
+        raise ValueError("bevel strength must be between 0 and 1")
+    a = lay.bevel.get("angle", 135)
+    if not isinstance(a, (int, float)) or isinstance(a, bool):
+        raise ValueError("bevel angle must be a number of degrees")
 
 
 def resample_params(rec: Recipe2) -> None:

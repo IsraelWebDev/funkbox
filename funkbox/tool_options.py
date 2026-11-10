@@ -60,10 +60,37 @@ RECIPE_PROPERTIES = {
                 "blend": {"type": "string", "enum": list(BLEND_MODES)},
                 "palette": {"type": "string", "enum": list(PALETTES)},
                 "mask": {
-                    "type": "string",
-                    "description": "An image (PNG with alpha) whose alpha scales this layer: a logo or text cut-out.",
+                    "description": "What scales this layer's alpha: an image path (PNG with alpha), or typed text drawn "
+                    "by the poster text pipeline (the text is checked, so it is drawn exactly).",
+                    "anyOf": [
+                        {"type": "string"},
+                        {
+                            "type": "object",
+                            "properties": {
+                                "text": {"type": "string", "description": "The words to draw."},
+                                "font": {"type": "string", "description": "A font, as the poster text uses."},
+                                "size": {
+                                    "type": "number",
+                                    "minimum": 0.01,
+                                    "maximum": 0.5,
+                                    "description": "Text height as a fraction of the frame height (poster range).",
+                                },
+                                "align": {"type": "string", "enum": ["left", "center", "right"]},
+                            },
+                            "required": ["text"],
+                        },
+                    ],
                 },
                 "mask_fit": {"type": "string", "enum": ["cover", "contain", "stretch"]},
+                "bevel": {
+                    "type": "object",
+                    "description": "Light the masked shape from its edges so it reads as raised. Colour only; needs a mask.",
+                    "properties": {
+                        "width": {"type": "integer", "minimum": 1, "maximum": 64, "description": "Edge band, px."},
+                        "strength": {"type": "number", "minimum": 0, "maximum": 1},
+                        "angle": {"type": "number", "description": "Light direction, degrees."},
+                    },
+                },
             },
         },
     },

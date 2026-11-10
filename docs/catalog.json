@@ -424,6 +424,27 @@
                   "layers": {
                     "items": {
                       "properties": {
+                        "bevel": {
+                          "description": "Light the masked shape from its edges so it reads as raised. Colour only; needs a mask.",
+                          "properties": {
+                            "angle": {
+                              "description": "Light direction, degrees.",
+                              "type": "number"
+                            },
+                            "strength": {
+                              "maximum": 1,
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "width": {
+                              "description": "Edge band, px.",
+                              "maximum": 64,
+                              "minimum": 1,
+                              "type": "integer"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "blend": {
                           "enum": [
                             "normal",
@@ -450,8 +471,42 @@
                           "type": "string"
                         },
                         "mask": {
-                          "description": "An image (PNG with alpha) whose alpha scales this layer: a logo or text cut-out.",
-                          "type": "string"
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "properties": {
+                                "align": {
+                                  "enum": [
+                                    "left",
+                                    "center",
+                                    "right"
+                                  ],
+                                  "type": "string"
+                                },
+                                "font": {
+                                  "description": "A font, as the poster text uses.",
+                                  "type": "string"
+                                },
+                                "size": {
+                                  "description": "Text height as a fraction of the frame height (poster range).",
+                                  "maximum": 0.5,
+                                  "minimum": 0.01,
+                                  "type": "number"
+                                },
+                                "text": {
+                                  "description": "The words to draw.",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "text"
+                              ],
+                              "type": "object"
+                            }
+                          ],
+                          "description": "What scales this layer's alpha: an image path (PNG with alpha), or typed text drawn by the poster text pipeline (the text is checked, so it is drawn exactly)."
                         },
                         "mask_fit": {
                           "enum": [
@@ -584,6 +639,27 @@
                   "layers": {
                     "items": {
                       "properties": {
+                        "bevel": {
+                          "description": "Light the masked shape from its edges so it reads as raised. Colour only; needs a mask.",
+                          "properties": {
+                            "angle": {
+                              "description": "Light direction, degrees.",
+                              "type": "number"
+                            },
+                            "strength": {
+                              "maximum": 1,
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "width": {
+                              "description": "Edge band, px.",
+                              "maximum": 64,
+                              "minimum": 1,
+                              "type": "integer"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "blend": {
                           "enum": [
                             "normal",
@@ -610,8 +686,42 @@
                           "type": "string"
                         },
                         "mask": {
-                          "description": "An image (PNG with alpha) whose alpha scales this layer: a logo or text cut-out.",
-                          "type": "string"
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "properties": {
+                                "align": {
+                                  "enum": [
+                                    "left",
+                                    "center",
+                                    "right"
+                                  ],
+                                  "type": "string"
+                                },
+                                "font": {
+                                  "description": "A font, as the poster text uses.",
+                                  "type": "string"
+                                },
+                                "size": {
+                                  "description": "Text height as a fraction of the frame height (poster range).",
+                                  "maximum": 0.5,
+                                  "minimum": 0.01,
+                                  "type": "number"
+                                },
+                                "text": {
+                                  "description": "The words to draw.",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "text"
+                              ],
+                              "type": "object"
+                            }
+                          ],
+                          "description": "What scales this layer's alpha: an image path (PNG with alpha), or typed text drawn by the poster text pipeline (the text is checked, so it is drawn exactly)."
                         },
                         "mask_fit": {
                           "enum": [
@@ -724,6 +834,27 @@
                   "layers": {
                     "items": {
                       "properties": {
+                        "bevel": {
+                          "description": "Light the masked shape from its edges so it reads as raised. Colour only; needs a mask.",
+                          "properties": {
+                            "angle": {
+                              "description": "Light direction, degrees.",
+                              "type": "number"
+                            },
+                            "strength": {
+                              "maximum": 1,
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "width": {
+                              "description": "Edge band, px.",
+                              "maximum": 64,
+                              "minimum": 1,
+                              "type": "integer"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "blend": {
                           "enum": [
                             "normal",
@@ -750,8 +881,42 @@
                           "type": "string"
                         },
                         "mask": {
-                          "description": "An image (PNG with alpha) whose alpha scales this layer: a logo or text cut-out.",
-                          "type": "string"
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "properties": {
+                                "align": {
+                                  "enum": [
+                                    "left",
+                                    "center",
+                                    "right"
+                                  ],
+                                  "type": "string"
+                                },
+                                "font": {
+                                  "description": "A font, as the poster text uses.",
+                                  "type": "string"
+                                },
+                                "size": {
+                                  "description": "Text height as a fraction of the frame height (poster range).",
+                                  "maximum": 0.5,
+                                  "minimum": 0.01,
+                                  "type": "number"
+                                },
+                                "text": {
+                                  "description": "The words to draw.",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "text"
+                              ],
+                              "type": "object"
+                            }
+                          ],
+                          "description": "What scales this layer's alpha: an image path (PNG with alpha), or typed text drawn by the poster text pipeline (the text is checked, so it is drawn exactly)."
                         },
                         "mask_fit": {
                           "enum": [
@@ -890,6 +1055,27 @@
                   "layers": {
                     "items": {
                       "properties": {
+                        "bevel": {
+                          "description": "Light the masked shape from its edges so it reads as raised. Colour only; needs a mask.",
+                          "properties": {
+                            "angle": {
+                              "description": "Light direction, degrees.",
+                              "type": "number"
+                            },
+                            "strength": {
+                              "maximum": 1,
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "width": {
+                              "description": "Edge band, px.",
+                              "maximum": 64,
+                              "minimum": 1,
+                              "type": "integer"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "blend": {
                           "enum": [
                             "normal",
@@ -916,8 +1102,42 @@
                           "type": "string"
                         },
                         "mask": {
-                          "description": "An image (PNG with alpha) whose alpha scales this layer: a logo or text cut-out.",
-                          "type": "string"
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "properties": {
+                                "align": {
+                                  "enum": [
+                                    "left",
+                                    "center",
+                                    "right"
+                                  ],
+                                  "type": "string"
+                                },
+                                "font": {
+                                  "description": "A font, as the poster text uses.",
+                                  "type": "string"
+                                },
+                                "size": {
+                                  "description": "Text height as a fraction of the frame height (poster range).",
+                                  "maximum": 0.5,
+                                  "minimum": 0.01,
+                                  "type": "number"
+                                },
+                                "text": {
+                                  "description": "The words to draw.",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "text"
+                              ],
+                              "type": "object"
+                            }
+                          ],
+                          "description": "What scales this layer's alpha: an image path (PNG with alpha), or typed text drawn by the poster text pipeline (the text is checked, so it is drawn exactly)."
                         },
                         "mask_fit": {
                           "enum": [
