@@ -28,3 +28,6 @@ shortcuts/
 promo/secrets/
 /fonts-cache/
 /soundfonts/
+
+# Local agent instructions: kept on this machine only
+CLAUDE.md
