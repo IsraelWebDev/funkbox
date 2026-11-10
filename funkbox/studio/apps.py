@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import shutil
+import signal
 import socket
 import subprocess
 import threading
@@ -106,8 +107,14 @@ def pid_on_port(port: int) -> int | None:
 def kill_tree(pid: int) -> None:
     if WIN:
         subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
-    else:
-        os.kill(pid, 15)
+    else:  # a group leader (e.g. FastSD's own session) takes its whole group with it
+        try:
+            if os.getpgid(pid) == pid and pid != os.getpgrp():
+                os.killpg(pid, signal.SIGTERM)
+                return
+        except ProcessLookupError:
+            return
+        os.kill(pid, signal.SIGTERM)
 
 
 def fastsd_python(d: Path) -> Path:
@@ -236,6 +243,16 @@ class FastSD:
                 return f"FastSD did not come up within {timeout:.0f}s; see {FASTSD_DIR / '_studio_fastsd.log'}"
             return f"FastSD started in {time.monotonic() - t0:.0f}s"
 
+    @staticmethod
+    def _signal_group(proc, sig: int, fallback) -> None:
+        """POSIX: signal the child's whole process group (it is its own session leader); never raise."""
+        try:
+            os.killpg(os.getpgid(proc.pid), sig)
+        except ProcessLookupError:
+            pass  # already gone
+        except Exception:
+            fallback()
+
     def stop(self) -> str:
         proc, self._proc = self._proc, None
         if proc is not None and proc.poll() is None:
@@ -243,11 +260,14 @@ class FastSD:
             if WIN:
                 kill_tree(pid)  # taskkill /T: the venv launcher has child processes
             else:
-                proc.terminate()
+                self._signal_group(proc, signal.SIGTERM, proc.terminate)
             try:
                 proc.wait(timeout=10)
             except subprocess.TimeoutExpired:
-                proc.kill()
+                if WIN:
+                    proc.kill()
+                else:
+                    self._signal_group(proc, signal.SIGKILL, proc.kill)
                 proc.wait(timeout=5)
         else:  # not started by this process: find whoever listens on the port
             pid = pid_on_port(config.get().fastsd_port)

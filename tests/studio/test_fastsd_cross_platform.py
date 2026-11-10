@@ -4,6 +4,7 @@ Every test fakes the platform (apps.WIN, config._is_windows), the Popen handle a
 none of them starts a real FastSD, touches the network or needs GIMP, and all run on any OS.
 """
 
+import signal
 import subprocess
 
 import pytest
@@ -71,20 +72,21 @@ def _start(fs, monkeypatch, win):
 
 
 # ---- stop() ------------------------------------------------------------------------------------------
-def test_stop_terminates_the_process_we_started_on_posix(fs, monkeypatch):
+def test_stop_signals_the_process_we_started_on_posix(fs, monkeypatch, groups):
     seen = _start(fs, monkeypatch, win=False)
     monkeypatch.setattr(apps, "pid_on_port", lambda port: pytest.fail("no port lookup when we hold the handle"))
+    groups.on_kill = lambda sig: setattr(seen["proc"], "dead", True)
     assert "stopped" in fs.stop()
-    assert seen["proc"].calls[0] == "terminate"
-    assert "kill" not in seen["proc"].calls
+    assert groups.calls == [(5242, signal.SIGTERM)]
     assert fs._proc is None and fs.started_by_us is False
 
 
-def test_stop_kills_when_terminate_times_out(fs, monkeypatch):
+def test_stop_kills_when_sigterm_times_out(fs, monkeypatch, groups):
     _start(fs, monkeypatch, win=False)
     fs._proc = proc = FakeProc(hang=True)
+    groups.on_kill = lambda sig: setattr(proc, "dead", sig == signal.SIGKILL)
     assert "stopped" in fs.stop()
-    assert proc.calls[0] == "terminate" and "kill" in proc.calls
+    assert [c[1] for c in groups.calls] == [signal.SIGTERM, signal.SIGKILL]
 
 
 def test_stop_uses_taskkill_on_windows(fs, monkeypatch):
@@ -122,6 +124,91 @@ def test_pid_on_port_posix_uses_lsof_or_gives_up(monkeypatch):
     )
     assert apps.pid_on_port(8000) == 321
     assert cmds[0][:2] == ["lsof", "-t"] and "-iTCP:8000" in cmds[0] and "-sTCP:LISTEN" in cmds[0]
+
+
+# ---- POSIX stop() signals the process group ----------------------------------------------------------
+@pytest.fixture
+def groups(monkeypatch):
+    """Fake os.getpgid/os.killpg so no test ever signals a real process. `calls` records (pgid, sig)."""
+    g = type("G", (), {})()
+    g.calls, g.on_kill, g.exc = [], None, None
+    monkeypatch.setattr(apps, "WIN", False)
+    monkeypatch.setattr(apps.os, "getpgid", lambda pid: pid + 1000, raising=False)
+
+    def killpg(pgid, sig):
+        g.calls.append((pgid, sig))
+        if g.exc is not None:
+            raise g.exc
+        if g.on_kill:
+            g.on_kill(sig)
+
+    monkeypatch.setattr(apps.os, "killpg", killpg, raising=False)
+    return g
+
+
+def test_posix_stop_sigterms_the_process_group(fs, groups):
+    fs._proc = proc = FakeProc(pid=4242)
+    groups.on_kill = lambda sig: setattr(proc, "dead", True)
+    assert "stopped" in fs.stop()
+    assert groups.calls == [(5242, signal.SIGTERM)]
+    assert "terminate" not in proc.calls and "kill" not in proc.calls
+
+
+def test_posix_stop_sigkills_the_group_when_it_ignores_sigterm(fs, groups):
+    fs._proc = proc = FakeProc(pid=4242)
+
+    def on_kill(sig):
+        proc.dead = sig == signal.SIGKILL
+
+    groups.on_kill = on_kill
+    assert "stopped" in fs.stop()
+    assert groups.calls == [(5242, signal.SIGTERM), (5242, signal.SIGKILL)]
+    assert "kill" not in proc.calls
+
+
+def test_posix_stop_tolerates_a_group_that_is_already_gone(fs, groups):
+    fs._proc = proc = FakeProc(pid=4242)
+    groups.exc = ProcessLookupError()
+    proc.dead = True  # the group vanished between poll() and killpg
+    proc.poll = lambda: None
+    assert "stopped" in fs.stop()
+    assert fs._proc is None and fs.started_by_us is False
+    assert "terminate" not in proc.calls
+
+
+def test_posix_stop_falls_back_to_terminate_on_other_errors(fs, groups):
+    fs._proc = proc = FakeProc(pid=4242)
+    groups.exc = PermissionError()
+    assert "stopped" in fs.stop()
+    assert proc.calls[0] == "terminate"
+
+
+def test_posix_stop_falls_back_to_kill_when_group_sigkill_fails(fs, groups):
+    fs._proc = proc = FakeProc(pid=4242, hang=True)
+
+    def on_kill(sig):
+        if sig == signal.SIGKILL:
+            raise PermissionError()
+
+    groups.on_kill = on_kill
+    assert "stopped" in fs.stop()
+    assert "kill" in proc.calls
+
+
+def test_kill_tree_posix_signals_group_when_pid_is_leader(groups, monkeypatch):
+    monkeypatch.setattr(apps.os, "getpgid", lambda pid: pid, raising=False)
+    monkeypatch.setattr(apps.os, "getpgrp", lambda: 1, raising=False)
+    monkeypatch.setattr(apps.os, "kill", lambda *a: pytest.fail("group leader must use killpg"))
+    apps.kill_tree(77)
+    assert groups.calls == [(77, signal.SIGTERM)]
+
+
+def test_kill_tree_posix_signals_the_pid_alone_when_not_leader(groups, monkeypatch):
+    sent = []
+    monkeypatch.setattr(apps.os, "getpgid", lambda pid: 5, raising=False)
+    monkeypatch.setattr(apps.os, "kill", lambda pid, sig: sent.append((pid, sig)))
+    apps.kill_tree(77)
+    assert sent == [(77, signal.SIGTERM)] and groups.calls == []
 
 
 # ---- start() -----------------------------------------------------------------------------------------
