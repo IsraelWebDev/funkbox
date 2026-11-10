@@ -93,6 +93,7 @@ Rules:
   coords, +y up). Errors come back with your line numbers.
 - The eight classic looks (acid-plasma, pop-moire, liquid-disco, hypno-tunnel, lava-lamp, op-art,
   frozen-kaleido, party-poster) are looks: pass the name as `look` to `loop_preview`, `loop_sheet`, `loop_render` or `loop_still`.
+- To put a look inside a logo or text, give the layer a `mask`: a PNG with alpha (`mask_fit` cover|contain|stretch).
 - Images (e.g. from FastSD) go in as image layers: `inputs/<name>.png`, `fit:contain`,
   `uv_warp`.
 - 720px x 6 s renders in ~3–4 s. Only request `gif=true` if the user asked for a GIF.

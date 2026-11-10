@@ -23,6 +23,7 @@ _DIR = Path(__file__).resolve().parent
 _BLEND_FRAG = "#version 330\n" + (_DIR / "blend.glsl").read_text(encoding="utf-8")
 _VERT = "#version 330\nin vec2 p;\nvoid main() { gl_Position = vec4(p, 0.0, 1.0); }\n"
 _FIT = {"cover": 0, "contain": 1, "stretch": 2}
+_M = 3  # index of the layer-mask target (see Engine.__init__)
 
 _IMAGE_SRC = """
 uniform int   u_fit;     // 0 cover, 1 contain, 2 stretch
@@ -79,7 +80,7 @@ class Engine:
         self._vbo = c.buffer(np.array([-1, -1, 3, -1, -1, 3], dtype="f4").tobytes())
         self._tex: list[moderngl.Texture] = []
         self._fbo: list[moderngl.Framebuffer] = []
-        for _ in range(3):  # A, B (ping-pong accumulation), L (layer)
+        for _ in range(4):  # A, B (ping-pong accumulation), L (layer), M (layer mask)
             t = c.texture((self.w, self.h), 4)
             t.filter = (moderngl.LINEAR, moderngl.LINEAR)
             t.repeat_x = t.repeat_y = False
@@ -88,6 +89,7 @@ class Engine:
         self._dummy = c.texture((1, 1), 4, b"\x00\x00\x00\xff")
         self._blend = self._mk(_BLEND_FRAG)
         self._prog_cache: dict[str, _Prog] = {}
+        self._mask_prog = self._compile(ShaderSource(_IMAGE_SRC), "mask program")
         self._img_cache: dict[tuple, tuple[moderngl.Texture, tuple[int, int]]] = {}
         self._prepared: dict[str, _Prepared] = {}
         self._audio = None
@@ -241,6 +243,19 @@ class Engine:
         for u in range(4):
             (units.get(u) or self._dummy).use(location=u)
 
+    def _render_mask(self, lay: Layer, rec: Recipe2, t: float, frame: int) -> None:
+        """Draw the layer's mask into target M, fitted to the frame exactly as an image layer is."""
+        prog = self._mask_prog
+        tex, size = self._load_image(lay.mask or "", rec.base_dir)
+        self._common(prog.prog, rec, t, frame)
+        self._bind({1: tex}, frame)
+        _set(prog.prog, "u_fit", _FIT.get(lay.mask_fit, 0))
+        _set(prog.prog, "u_warp", 0.0)
+        _set(prog.prog, "u_img", (float(size[0]), float(size[1])))
+        self._fbo[_M].use()
+        self.ctx.clear(0.0, 0.0, 0.0, 0.0)
+        self._draw(prog, _M)
+
     def _draw(self, p: _Prog, target: int) -> None:
         self._fbo[target].use()
         self.ctx.viewport = (0, 0, self.w, self.h)
@@ -283,12 +298,18 @@ class Engine:
                 _set(p.prog, "u_warp", warp)
                 _set(p.prog, "u_img", (float(size[0]), float(size[1])))
             self._draw(p, L)
-            # composite L over A -> B
+            # composite L over A -> B, scaled by the layer's mask when it has one
+            has_mask = lay.mask is not None
+            if has_mask:
+                self._render_mask(lay, rec, t, frame)
             bprog, bvao = self._blend
             self._tex[A].use(location=0)
             self._tex[L].use(location=1)
+            self._tex[_M].use(location=2)
             bprog["u_base"].value = 0
             bprog["u_src"].value = 1
+            bprog["u_mask"].value = 2
+            bprog["u_has_mask"].value = 1 if has_mask else 0
             bprog["u_mode"].value = BLEND_MODES.index(lay.blend)
             bprog["u_opacity"].value = float(lay.opacity)
             self._fbo[B].use()

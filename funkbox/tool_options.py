@@ -59,6 +59,11 @@ RECIPE_PROPERTIES = {
                 "effect": {"type": "string", "enum": list(V1_EFFECTS)},
                 "blend": {"type": "string", "enum": list(BLEND_MODES)},
                 "palette": {"type": "string", "enum": list(PALETTES)},
+                "mask": {
+                    "type": "string",
+                    "description": "An image (PNG with alpha) whose alpha scales this layer: a logo or text cut-out.",
+                },
+                "mask_fit": {"type": "string", "enum": ["cover", "contain", "stretch"]},
             },
         },
     },

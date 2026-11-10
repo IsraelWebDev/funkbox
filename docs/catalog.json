@@ -449,6 +449,18 @@
                           ],
                           "type": "string"
                         },
+                        "mask": {
+                          "description": "An image (PNG with alpha) whose alpha scales this layer: a logo or text cut-out.",
+                          "type": "string"
+                        },
+                        "mask_fit": {
+                          "enum": [
+                            "cover",
+                            "contain",
+                            "stretch"
+                          ],
+                          "type": "string"
+                        },
                         "palette": {
                           "enum": [
                             "acid",
@@ -597,6 +609,18 @@
                           ],
                           "type": "string"
                         },
+                        "mask": {
+                          "description": "An image (PNG with alpha) whose alpha scales this layer: a logo or text cut-out.",
+                          "type": "string"
+                        },
+                        "mask_fit": {
+                          "enum": [
+                            "cover",
+                            "contain",
+                            "stretch"
+                          ],
+                          "type": "string"
+                        },
                         "palette": {
                           "enum": [
                             "acid",
@@ -722,6 +746,18 @@
                             "blobs",
                             "rings",
                             "metal"
+                          ],
+                          "type": "string"
+                        },
+                        "mask": {
+                          "description": "An image (PNG with alpha) whose alpha scales this layer: a logo or text cut-out.",
+                          "type": "string"
+                        },
+                        "mask_fit": {
+                          "enum": [
+                            "cover",
+                            "contain",
+                            "stretch"
                           ],
                           "type": "string"
                         },
@@ -876,6 +912,18 @@
                             "blobs",
                             "rings",
                             "metal"
+                          ],
+                          "type": "string"
+                        },
+                        "mask": {
+                          "description": "An image (PNG with alpha) whose alpha scales this layer: a logo or text cut-out.",
+                          "type": "string"
+                        },
+                        "mask_fit": {
+                          "enum": [
+                            "cover",
+                            "contain",
+                            "stretch"
                           ],
                           "type": "string"
                         },

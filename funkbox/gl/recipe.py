@@ -69,9 +69,11 @@ class Layer:
     uv_warp: float = 0.0
     effect: str | None = None  # legacy: type "v1" with an effect name is converted to a shader layer
     channels: list[str] = field(default_factory=list)  # image paths -> iChannel1..3
+    mask: str | None = None  # image path: its alpha scales this layer's alpha (any layer type)
+    mask_fit: str = "cover"  # how the mask is fitted to the frame: cover | contain | stretch
     extra: dict = field(default_factory=dict)  # also: "palette" / "cycles" override the recipe's for this layer
 
-    _OPT = ("shader", "source", "source_sha256", "params", "path")
+    _OPT = ("shader", "source", "source_sha256", "params", "path", "mask")
 
     def __post_init__(self) -> None:
         if self.type == "v1":
@@ -102,6 +104,8 @@ class Layer:
                 d["uv_warp"] = self.uv_warp
         if self.channels:
             d["channels"] = list(self.channels)
+        if self.mask is not None:
+            d["mask_fit"] = self.mask_fit
         d["blend"] = self.blend
         d["opacity"] = self.opacity
         d.update(copy.deepcopy(self.extra))
@@ -322,6 +326,10 @@ def resolve_recipe(recipe: Recipe2) -> Recipe2:
     render even if the .frag changes later."""
     r = copy.deepcopy(recipe)
     for i, lay in enumerate(r.layers):
+        if lay.mask is not None:
+            if lay.mask_fit not in ("cover", "contain", "stretch"):
+                raise ValueError(f"unknown mask_fit {lay.mask_fit!r}; use cover|contain|stretch")
+            resolve_path(lay.mask, r.base_dir)  # validates + enforces roots
         if lay.type == "shader":
             src = layer_source(lay, r.base_dir)
             sh = ShaderSource(src)
