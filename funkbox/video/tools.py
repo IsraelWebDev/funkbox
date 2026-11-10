@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 from funkbox.mcp_util import png as _png, safe
+from funkbox.tool_options import CaptionStyle, SubtitleAnchor
 
 
 @safe
@@ -55,8 +56,8 @@ def video_subtitles(
     path: str,
     cues: list | None = None,
     srt: str = "",
-    style: str = "lower-third",
-    anchor: str = "bottom",
+    style: CaptionStyle = "lower-third",
+    anchor: SubtitleAnchor = "bottom",
     name: str = "",
     brand: dict | None = None,
 ) -> list:

@@ -11,6 +11,11 @@
         "properties": {
           "service": {
             "default": "all",
+            "enum": [
+              "all",
+              "fastsd",
+              "gimp"
+            ],
             "title": "Service",
             "type": "string"
           },
@@ -47,6 +52,11 @@
           },
           "service": {
             "default": "fastsd",
+            "enum": [
+              "all",
+              "fastsd",
+              "gimp"
+            ],
             "title": "Service",
             "type": "string"
           }
@@ -107,6 +117,13 @@
         "properties": {
           "aspect": {
             "default": "square",
+            "enum": [
+              "square",
+              "portrait",
+              "landscape",
+              "story",
+              "wide"
+            ],
             "title": "Aspect",
             "type": "string"
           },
@@ -161,6 +178,13 @@
           "aspect": {
             "anyOf": [
               {
+                "enum": [
+                  "square",
+                  "portrait",
+                  "landscape",
+                  "story",
+                  "wide"
+                ],
                 "type": "string"
               },
               {
@@ -366,13 +390,125 @@
     },
     {
       "area": "loop",
-      "description": "Render one frame of a recipe at loop position t (0..1). Recipe: {\"settings\"?, \"palette\"?\n{\"name\",\"cycles\"}, \"layers\": [...], \"post\"?, \"text\"?} - see loop_list. Fast; iterate here.",
+      "description": "Render one frame of a recipe at loop position t (0..1). Recipe: {\"settings\"?, \"palette\"?\n{\"name\",\"cycles\"}, \"layers\": [...], \"post\"?, \"text\"?} - see loop_list. Give a named look instead of a recipe\nto preview one of the looks. Fast; iterate here.",
       "input_schema": {
         "properties": {
+          "look": {
+            "anyOf": [
+              {
+                "enum": [
+                  "acid-plasma",
+                  "pop-moire",
+                  "liquid-disco",
+                  "hypno-tunnel",
+                  "lava-lamp",
+                  "op-art",
+                  "frozen-kaleido",
+                  "party-poster",
+                  "liquid-metal"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Look"
+          },
           "recipe": {
-            "additionalProperties": true,
-            "title": "Recipe",
-            "type": "object"
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "properties": {
+                  "layers": {
+                    "items": {
+                      "properties": {
+                        "blend": {
+                          "enum": [
+                            "normal",
+                            "add",
+                            "screen",
+                            "multiply",
+                            "overlay",
+                            "difference",
+                            "softlight",
+                            "hue"
+                          ],
+                          "type": "string"
+                        },
+                        "effect": {
+                          "enum": [
+                            "plasma",
+                            "moire",
+                            "warp",
+                            "tunnel",
+                            "blobs",
+                            "rings",
+                            "metal"
+                          ],
+                          "type": "string"
+                        },
+                        "palette": {
+                          "enum": [
+                            "acid",
+                            "vapor",
+                            "sunset",
+                            "toxic",
+                            "candy",
+                            "ice",
+                            "mono",
+                            "chrome",
+                            "gold",
+                            "mercury",
+                            "iridescent"
+                          ],
+                          "type": "string"
+                        },
+                        "type": {
+                          "enum": [
+                            "shader",
+                            "image",
+                            "v1"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "palette": {
+                    "description": "The recipe palette: {\"name\": one of the palettes, \"cycles\": number}.",
+                    "properties": {
+                      "name": {
+                        "enum": [
+                          "acid",
+                          "vapor",
+                          "sunset",
+                          "toxic",
+                          "candy",
+                          "ice",
+                          "mono",
+                          "chrome",
+                          "gold",
+                          "mercury",
+                          "iridescent"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Recipe"
           },
           "size": {
             "default": 448,
@@ -385,9 +521,6 @@
             "type": "number"
           }
         },
-        "required": [
-          "recipe"
-        ],
         "title": "loop_previewArguments",
         "type": "object"
       },
@@ -395,7 +528,7 @@
     },
     {
       "area": "loop",
-      "description": "Render a seamless loop (MP4 + PNG poster + JSON sidecar that fully reproduces it; GIF only if\ngif=True, since it is ~10x slower than the mp4 on busy loops).\nLimits: <=1080px per side, <=20 s, <=60 fps. Runs the loop check first and refuses a broken loop.",
+      "description": "Render a seamless loop (MP4 + PNG poster + JSON sidecar that fully reproduces it; GIF only if\ngif=True, since it is ~10x slower than the mp4 on busy loops). Give a recipe, or a named look instead.\nLimits: <=1080px per side, <=20 s, <=60 fps. Runs the loop check first and refuses a broken loop.",
       "input_schema": {
         "properties": {
           "gif": {
@@ -403,20 +536,129 @@
             "title": "Gif",
             "type": "boolean"
           },
+          "look": {
+            "anyOf": [
+              {
+                "enum": [
+                  "acid-plasma",
+                  "pop-moire",
+                  "liquid-disco",
+                  "hypno-tunnel",
+                  "lava-lamp",
+                  "op-art",
+                  "frozen-kaleido",
+                  "party-poster",
+                  "liquid-metal"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Look"
+          },
           "name": {
             "default": "",
             "title": "Name",
             "type": "string"
           },
           "recipe": {
-            "additionalProperties": true,
-            "title": "Recipe",
-            "type": "object"
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "properties": {
+                  "layers": {
+                    "items": {
+                      "properties": {
+                        "blend": {
+                          "enum": [
+                            "normal",
+                            "add",
+                            "screen",
+                            "multiply",
+                            "overlay",
+                            "difference",
+                            "softlight",
+                            "hue"
+                          ],
+                          "type": "string"
+                        },
+                        "effect": {
+                          "enum": [
+                            "plasma",
+                            "moire",
+                            "warp",
+                            "tunnel",
+                            "blobs",
+                            "rings",
+                            "metal"
+                          ],
+                          "type": "string"
+                        },
+                        "palette": {
+                          "enum": [
+                            "acid",
+                            "vapor",
+                            "sunset",
+                            "toxic",
+                            "candy",
+                            "ice",
+                            "mono",
+                            "chrome",
+                            "gold",
+                            "mercury",
+                            "iridescent"
+                          ],
+                          "type": "string"
+                        },
+                        "type": {
+                          "enum": [
+                            "shader",
+                            "image",
+                            "v1"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "palette": {
+                    "description": "The recipe palette: {\"name\": one of the palettes, \"cycles\": number}.",
+                    "properties": {
+                      "name": {
+                        "enum": [
+                          "acid",
+                          "vapor",
+                          "sunset",
+                          "toxic",
+                          "candy",
+                          "ice",
+                          "mono",
+                          "chrome",
+                          "gold",
+                          "mercury",
+                          "iridescent"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Recipe"
           }
         },
-        "required": [
-          "recipe"
-        ],
         "title": "loop_renderArguments",
         "type": "object"
       },
@@ -424,13 +666,125 @@
     },
     {
       "area": "loop",
-      "description": "Grid of stills of one recipe across seeds (e.g. \"1-6\" or \"3,7,12\"): the seed resamples every\nshader's @param values, so this is how you pick a variation. Returns the PNG and its saved path.",
+      "description": "Grid of stills of one recipe (or named look) across seeds (e.g. \"1-6\" or \"3,7,12\"): the seed resamples every\nshader's @param values, so this is how you pick a variation. Returns the PNG and its saved path.",
       "input_schema": {
         "properties": {
+          "look": {
+            "anyOf": [
+              {
+                "enum": [
+                  "acid-plasma",
+                  "pop-moire",
+                  "liquid-disco",
+                  "hypno-tunnel",
+                  "lava-lamp",
+                  "op-art",
+                  "frozen-kaleido",
+                  "party-poster",
+                  "liquid-metal"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Look"
+          },
           "recipe": {
-            "additionalProperties": true,
-            "title": "Recipe",
-            "type": "object"
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "properties": {
+                  "layers": {
+                    "items": {
+                      "properties": {
+                        "blend": {
+                          "enum": [
+                            "normal",
+                            "add",
+                            "screen",
+                            "multiply",
+                            "overlay",
+                            "difference",
+                            "softlight",
+                            "hue"
+                          ],
+                          "type": "string"
+                        },
+                        "effect": {
+                          "enum": [
+                            "plasma",
+                            "moire",
+                            "warp",
+                            "tunnel",
+                            "blobs",
+                            "rings",
+                            "metal"
+                          ],
+                          "type": "string"
+                        },
+                        "palette": {
+                          "enum": [
+                            "acid",
+                            "vapor",
+                            "sunset",
+                            "toxic",
+                            "candy",
+                            "ice",
+                            "mono",
+                            "chrome",
+                            "gold",
+                            "mercury",
+                            "iridescent"
+                          ],
+                          "type": "string"
+                        },
+                        "type": {
+                          "enum": [
+                            "shader",
+                            "image",
+                            "v1"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "palette": {
+                    "description": "The recipe palette: {\"name\": one of the palettes, \"cycles\": number}.",
+                    "properties": {
+                      "name": {
+                        "enum": [
+                          "acid",
+                          "vapor",
+                          "sunset",
+                          "toxic",
+                          "candy",
+                          "ice",
+                          "mono",
+                          "chrome",
+                          "gold",
+                          "mercury",
+                          "iridescent"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Recipe"
           },
           "seeds": {
             "default": "1-6",
@@ -438,9 +792,6 @@
             "type": "string"
           }
         },
-        "required": [
-          "recipe"
-        ],
         "title": "loop_sheetArguments",
         "type": "object"
       },
@@ -448,9 +799,32 @@
     },
     {
       "area": "loop",
-      "description": "One frame of a recipe (JSON object or .json path) or a shader (.frag path or GLSL source with\n`vec4 effect(vec2 p)`) at time t (0..1 of the loop), as a PNG poster background in <out>/stills/.",
+      "description": "One frame of a recipe (JSON object or .json path), a named look, or a shader (.frag path or GLSL source with\n`vec4 effect(vec2 p)`) at time t (0..1 of the loop), as a PNG poster background in <out>/stills/.\n``preset`` is the canvas size (square, story, landscape ...), not the look.",
       "input_schema": {
         "properties": {
+          "look": {
+            "anyOf": [
+              {
+                "enum": [
+                  "acid-plasma",
+                  "pop-moire",
+                  "liquid-disco",
+                  "hypno-tunnel",
+                  "lava-lamp",
+                  "op-art",
+                  "frozen-kaleido",
+                  "party-poster",
+                  "liquid-metal"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Look"
+          },
           "name": {
             "default": "",
             "title": "Name",
@@ -458,6 +832,14 @@
           },
           "preset": {
             "default": "square",
+            "enum": [
+              "square",
+              "insta-portrait",
+              "story",
+              "landscape",
+              "twitter",
+              "a4-150dpi"
+            ],
             "title": "Preset",
             "type": "string"
           },
@@ -468,9 +850,94 @@
               },
               {
                 "additionalProperties": true,
+                "properties": {
+                  "layers": {
+                    "items": {
+                      "properties": {
+                        "blend": {
+                          "enum": [
+                            "normal",
+                            "add",
+                            "screen",
+                            "multiply",
+                            "overlay",
+                            "difference",
+                            "softlight",
+                            "hue"
+                          ],
+                          "type": "string"
+                        },
+                        "effect": {
+                          "enum": [
+                            "plasma",
+                            "moire",
+                            "warp",
+                            "tunnel",
+                            "blobs",
+                            "rings",
+                            "metal"
+                          ],
+                          "type": "string"
+                        },
+                        "palette": {
+                          "enum": [
+                            "acid",
+                            "vapor",
+                            "sunset",
+                            "toxic",
+                            "candy",
+                            "ice",
+                            "mono",
+                            "chrome",
+                            "gold",
+                            "mercury",
+                            "iridescent"
+                          ],
+                          "type": "string"
+                        },
+                        "type": {
+                          "enum": [
+                            "shader",
+                            "image",
+                            "v1"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "palette": {
+                    "description": "The recipe palette: {\"name\": one of the palettes, \"cycles\": number}.",
+                    "properties": {
+                      "name": {
+                        "enum": [
+                          "acid",
+                          "vapor",
+                          "sunset",
+                          "toxic",
+                          "candy",
+                          "ice",
+                          "mono",
+                          "chrome",
+                          "gold",
+                          "mercury",
+                          "iridescent"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
                 "type": "object"
+              },
+              {
+                "type": "null"
               }
             ],
+            "default": null,
             "title": "Recipe Or Shader"
           },
           "t": {
@@ -479,9 +946,6 @@
             "type": "number"
           }
         },
-        "required": [
-          "recipe_or_shader"
-        ],
         "title": "loop_stillArguments",
         "type": "object"
       },
@@ -635,6 +1099,10 @@
           },
           "fit": {
             "default": "cover",
+            "enum": [
+              "cover",
+              "stretch"
+            ],
             "title": "Fit",
             "type": "string"
           },
@@ -912,6 +1380,10 @@
         "properties": {
           "fit_to": {
             "default": "canvas",
+            "enum": [
+              "canvas",
+              "content"
+            ],
             "title": "Fit To",
             "type": "string"
           },
@@ -1113,6 +1585,10 @@
           },
           "pace": {
             "default": "fast",
+            "enum": [
+              "fast",
+              "calm"
+            ],
             "title": "Pace",
             "type": "string"
           },
@@ -1127,6 +1603,13 @@
           },
           "style": {
             "default": "red-box",
+            "enum": [
+              "auto-box",
+              "bold-pop",
+              "callout",
+              "lower-third",
+              "red-box"
+            ],
             "title": "Style",
             "type": "string"
           }
@@ -1595,6 +2078,10 @@
         "properties": {
           "action": {
             "default": "open",
+            "enum": [
+              "open",
+              "changes"
+            ],
             "title": "Action",
             "type": "string"
           },
@@ -1769,6 +2256,11 @@
         "properties": {
           "anchor": {
             "default": "bottom",
+            "enum": [
+              "top",
+              "center",
+              "bottom"
+            ],
             "title": "Anchor",
             "type": "string"
           },
@@ -1814,6 +2306,13 @@
           },
           "style": {
             "default": "lower-third",
+            "enum": [
+              "auto-box",
+              "bold-pop",
+              "callout",
+              "lower-third",
+              "red-box"
+            ],
             "title": "Style",
             "type": "string"
           }

@@ -85,14 +85,14 @@ Rules:
 
 ## B. Funky loops
 
-`loop_list` (shaders, presets, palettes) → `loop_sheet` (choose a seed) → `loop_preview` → `loop_render`.
+`loop_list` (shaders, looks, palettes) → `loop_sheet` (choose a seed) → `loop_preview` → `loop_render`. Each of those takes a `look` name (the enum in the schema) or a `recipe`.
 
 - **Loop contract:** animate only through `iPhase` times an **integer**, or with
   `loopNoise(p, r)`. `iTime` breaks loops. The checker refuses broken loops.
 - Write new looks with `loop_write_shader(name, source)`. Define `vec4 effect(vec2 p)` (centred
   coords, +y up). Errors come back with your line numbers.
 - The eight classic looks (acid-plasma, pop-moire, liquid-disco, hypno-tunnel, lava-lamp, op-art,
-  frozen-kaleido, party-poster) are recipes: `loop_list` prints each one to copy into `loop_preview`.
+  frozen-kaleido, party-poster) are looks: pass the name as `look` to `loop_preview`, `loop_sheet`, `loop_render` or `loop_still`.
 - Images (e.g. from FastSD) go in as image layers: `inputs/<name>.png`, `fit:contain`,
   `uv_warp`.
 - 720px x 6 s renders in ~3–4 s. Only request `gif=true` if the user asked for a GIF.

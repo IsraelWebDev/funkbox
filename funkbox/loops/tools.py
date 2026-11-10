@@ -23,6 +23,7 @@ from funkbox.gl.recipe import BLEND_MODES, LAYER_TYPES, PALETTES, Recipe2, resam
 from funkbox.gl.shader import ShaderSource
 from funkbox.loops import presets as presets_mod
 from funkbox.loops.presets import LOOKS, parse_seeds
+from funkbox.tool_options import LookName, Recipe, StillSize
 from funkbox.mcp_util import on_gl, png as _png, safe
 from funkbox.media import font
 
@@ -257,15 +258,23 @@ def loop_get_shader(name: str) -> str:
     return p.read_text(encoding="utf-8-sig")
 
 
+def _recipe_arg(recipe: dict | None, look: str | None) -> dict:
+    """The recipe a loop tool renders: the one the caller gave, or a named look. Exactly one of the two."""
+    if (recipe is None) == (look is None):
+        raise ValueError("give exactly one of: recipe (a JSON object) or look (one of the named looks, see loop_list)")
+    return recipe if recipe is not None else presets_mod.PRESETS[look]
+
+
 def _preview_gl(rec: Recipe2, t: float, w: int, h: int):
     return _engine(w, h).render_at_t(rec, t)
 
 
 @safe
-def loop_preview(recipe: dict, t: float = 0.25, size: int = 448) -> list:
+def loop_preview(recipe: Recipe | None = None, t: float = 0.25, size: int = 448, look: LookName | None = None) -> list:
     """Render one frame of a recipe at loop position t (0..1). Recipe: {"settings"?, "palette"?
-    {"name","cycles"}, "layers": [...], "post"?, "text"?} - see loop_list. Fast; iterate here."""
-    rec = _parse_recipe(recipe)
+    {"name","cycles"}, "layers": [...], "post"?, "text"?} - see loop_list. Give a named look instead of a recipe
+    to preview one of the looks. Fast; iterate here."""
+    rec = _parse_recipe(_recipe_arg(recipe, look))
     w, h = _fit(rec, size)
     arr = on_gl(_preview_gl, rec, float(t), w, h)
     return [_summary(rec) + f"\nt={t:g}", _png(PILImage.fromarray(arr), max(w, h))]
@@ -289,10 +298,10 @@ def _sheet_gl(rec: Recipe2, seeds: list[int], t: float, w: int, h: int):
 
 
 @safe
-def loop_sheet(recipe: dict, seeds: str = "1-6") -> list:
-    """Grid of stills of one recipe across seeds (e.g. "1-6" or "3,7,12"): the seed resamples every
+def loop_sheet(recipe: Recipe | None = None, seeds: str = "1-6", look: LookName | None = None) -> list:
+    """Grid of stills of one recipe (or named look) across seeds (e.g. "1-6" or "3,7,12"): the seed resamples every
     shader's @param values, so this is how you pick a variation. Returns the PNG and its saved path."""
-    rec = _parse_recipe(recipe)
+    rec = _parse_recipe(_recipe_arg(recipe, look))
     seed_list = parse_seeds(seeds)
     if not 1 <= len(seed_list) <= 16:
         raise ValueError("seeds: give between 1 and 16 seeds, e.g. '1-6'")
@@ -321,11 +330,11 @@ def _render_gl(rec: Recipe2, out_dir: Path, name: str, gif: bool = False):
 
 
 @safe
-def loop_render(recipe: dict, name: str = "", gif: bool = False) -> list:
+def loop_render(recipe: Recipe | None = None, name: str = "", gif: bool = False, look: LookName | None = None) -> list:
     """Render a seamless loop (MP4 + PNG poster + JSON sidecar that fully reproduces it; GIF only if
-    gif=True, since it is ~10x slower than the mp4 on busy loops).
+    gif=True, since it is ~10x slower than the mp4 on busy loops). Give a recipe, or a named look instead.
     Limits: <=1080px per side, <=20 s, <=60 fps. Runs the loop check first and refuses a broken loop."""
-    rec = _parse_recipe(recipe)
+    rec = _parse_recipe(_recipe_arg(recipe, look))
     _limits(rec)
     if not name:
         name = "funk-" + hashlib.sha1(json.dumps(rec.to_dict(), sort_keys=True).encode()).hexdigest()[:8]
@@ -343,12 +352,24 @@ def loop_render(recipe: dict, name: str = "", gif: bool = False) -> list:
 
 
 @safe
-def loop_still(recipe_or_shader: str | dict, t: float = 0.25, preset: str = "square", name: str = "") -> list:
-    """One frame of a recipe (JSON object or .json path) or a shader (.frag path or GLSL source with
-    `vec4 effect(vec2 p)`) at time t (0..1 of the loop), as a PNG poster background in <out>/stills/."""
+def loop_still(
+    recipe_or_shader: str | Recipe | None = None,
+    t: float = 0.25,
+    preset: StillSize = "square",
+    name: str = "",
+    look: LookName | None = None,
+) -> list:
+    """One frame of a recipe (JSON object or .json path), a named look, or a shader (.frag path or GLSL source with
+    `vec4 effect(vec2 p)`) at time t (0..1 of the loop), as a PNG poster background in <out>/stills/.
+    ``preset`` is the canvas size (square, story, landscape ...), not the look."""
     from funkbox.stills import api
 
-    paths, r = on_gl(api.funk_still, recipe_or_shader, t, preset, name)
+    if look is not None and recipe_or_shader is not None:
+        raise ValueError("give exactly one of: recipe_or_shader or look")
+    if look is None and recipe_or_shader is None:
+        raise ValueError("give a recipe, a shader, or a look")
+    source = _recipe_arg(None, look) if look is not None else recipe_or_shader
+    paths, r = on_gl(api.funk_still, source, t, preset, name)
     lines = [api.describe(r)] + [f"{k}: {v}" for k, v in paths.items()]
     return ["\n".join(lines), _png(r.pil, 1000)]
 
