@@ -6,7 +6,7 @@ Why this exists instead of upstream start-mcpserver.bat:
   * upstream /generate takes only a prompt; /studio/generate adds size, steps, seed, img2img
     (init_image + strength) and saves straight into a folder the caller names (restricted to
     STUDIO_OUT); /studio/upscale does a 2x upscale.
-Forces OpenVINO + SD-Turbo + tiny autoencoder on the Intel iGPU (DEVICE=GPU).
+Uses OpenVINO + SD-Turbo + tiny autoencoder on the Intel iGPU (DEVICE=GPU); PyTorch SD-Turbo on CPU otherwise.
 Copy this file AND sdcore.py into the fastsdcpu folder (install.py does); run with
 fastsdcpu\\env\\Scripts\\python.exe.
 """
@@ -51,9 +51,8 @@ from PIL import Image  # noqa: E402
 
 S = srv.app_settings.settings
 L = S.lcm_diffusion_setting
-L.use_openvino = True
-L.openvino_lcm_model_id = "rupeshs/sd-turbo-openvino"
-L.use_tiny_auto_encoder = True
+for _name, _value in sdcore.engine_settings(os.environ["DEVICE"]).items():  # OpenVINO only on GPU
+    setattr(L, _name, _value)
 L.inference_steps = 1
 L.guidance_scale = 1.0
 L.image_width = L.image_height = 512
@@ -116,7 +115,9 @@ def studio_generate(req: StudioGen) -> dict:
         reshape = _last_size[0] not in (None, (w, h))
         t0 = time.perf_counter()
         try:
-            images = srv.context.generate_text_to_image(S, reshape=reshape, device=os.environ["DEVICE"])
+            images = srv.context.generate_text_to_image(
+                S, reshape=reshape, device=sdcore.generate_device(os.environ["DEVICE"])
+            )
         finally:
             L.diffusion_task = "text_to_image"
             L.init_image = None

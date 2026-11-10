@@ -31,6 +31,24 @@ NAME_RE = re.compile(r"[^A-Za-z0-9_\-]")
 UPSCALE_FACTOR = 2
 
 
+#: the OpenVINO build of SD-Turbo (Intel GPU, Windows); the PyTorch model is the one the hosted worker runs
+OPENVINO_MODEL_ID = "rupeshs/sd-turbo-openvino"
+TORCH_MODEL_ID = "stabilityai/sd-turbo"
+
+
+def engine_settings(device: str) -> dict:
+    """FastSD model settings for a device. Only GPU (the Intel iGPU through OpenVINO) uses the OpenVINO build;
+    any other device runs the PyTorch SD-Turbo model on CPU, with OpenVINO and the tiny autoencoder off."""
+    if (device or "").strip().upper() == "GPU":
+        return {"use_openvino": True, "openvino_lcm_model_id": OPENVINO_MODEL_ID, "use_tiny_auto_encoder": True}
+    return {"use_openvino": False, "lcm_model_id": TORCH_MODEL_ID, "use_tiny_auto_encoder": False}
+
+
+def generate_device(device: str) -> str:
+    """The device string FastSD's generate call takes: "GPU" for the iGPU, lowercase "cpu" otherwise."""
+    return "GPU" if (device or "").strip().upper() == "GPU" else "cpu"
+
+
 class SDError(ValueError):
     """A request FastSD must not be asked to run (bad aspect, path outside the roots, ...)."""
 
