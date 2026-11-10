@@ -118,3 +118,62 @@ def test_lint_demands_an_explicit_anchor_on_code_card_shots(tmp_path, monkeypatc
     reel["shots"][0]["caption"]["anchor"] = "bottom"
     (day / "reel.json").write_text(json.dumps(reel))
     assert lint.caption_problems(day) == []
+
+
+# ---- auto anchor vs the product (collision rule) -----------------------------------------------------------
+
+
+def _auto_anchor_reel(demo, w, h):
+    """A product standing mid-frame on a background whose bottom third is noisy: bottom is free of the product
+    (validate, which checks "auto" as "bottom", passes) but the busy bottom pushes the auto pick elsewhere."""
+    from PIL import Image
+
+    rng = np.random.default_rng(7)
+    bg = np.full((h, w, 3), 90, np.uint8)
+    bg[int(h * 0.62) :] = rng.integers(0, 255, bg[int(h * 0.62) :].shape, dtype=np.uint8)
+    Image.fromarray(bg).save(demo / "inputs" / "shots" / "auto_anchor_bg.png")
+    return {
+        "copy": "inputs/brand/copy.json",
+        "settings": {"width": w, "height": h, "fps": 10},
+        "shots": [
+            {
+                "id": "c",
+                "source": {"image": "inputs/shots/auto_anchor_bg.png"},
+                "duration": 1.0,
+                "product": {
+                    "image": "inputs/brand/bottle.png",
+                    "x": 0.5,
+                    "y": 0.56,
+                    "height": 0.4,
+                    "depth": 0.0,
+                    "shadow": 0.0,
+                    "match_color": 0.0,
+                },
+                "caption": {"copy_id": "hook", "style": "red-box", "anchor": "auto"},
+            }
+        ],
+    }
+
+
+def test_auto_anchor_never_picks_a_spot_that_overlaps_the_product(demo, gl):
+    from funkbox.reel import collision, render
+    from funkbox.reel.validate import validate
+
+    w, h = 270, 480
+    rep = validate(_auto_anchor_reel(demo, w, h), demo)
+    assert rep.ok, rep.errors  # "auto" is checked as "bottom", which is clear of the product
+    r = render.Renderer(rep.reel, rep.deck, rep.spans, width=w, height=h, depth_mode="off")
+    try:
+        lay = r.caption_layout(r.span_for_shot("c"))
+        p = rep.reel.shots[0].product
+        asp = collision.image_aspect(demo / p.image)
+        pb = collision.product_box(p.x, p.y, p.height, asp, w, h)
+        assert collision.overlap_fraction(collision.caption_box(lay), pb) <= collision.MAX_OVERLAP
+    finally:
+        r.release()
+
+
+def test_pick_anchor_skips_blocked_anchors_and_falls_back_to_bottom():
+    f = frame([(370, 450), (200, 280)])  # top is the emptiest
+    assert C.pick_anchor(f, lay_for, W, H, blocked=lambda lay: lay.y0 == 40) == "center"
+    assert C.pick_anchor(f, lay_for, W, H, blocked=lambda lay: True) == "bottom"
