@@ -1,4 +1,4 @@
-"""funkbox.loops: the eight presets are v2 recipes; each renders, loops seamlessly and is deterministic."""
+"""funkbox.loops: the nine presets are v2 recipes; each renders, loops seamlessly and is deterministic."""
 
 import numpy as np
 import pytest
@@ -14,7 +14,7 @@ def small(name, seed=1, **kw):
     return presets.preset_recipe(name, seed, width=SZ, fps=10, seconds=1.0, **kw)
 
 
-def test_eight_presets_are_v2_recipes():
+def test_nine_presets_are_v2_recipes():
     assert sorted(presets.LOOKS) == sorted(
         [
             "acid-plasma",
@@ -25,6 +25,7 @@ def test_eight_presets_are_v2_recipes():
             "op-art",
             "frozen-kaleido",
             "party-poster",
+            "liquid-metal",
         ]
     )
     assert presets.DEFAULT_PRESET in presets.LOOKS

@@ -1,4 +1,4 @@
-"""The eight named looks, as v2 recipes (shader layer + palette + look controls + post passes + text).
+"""The named looks, as v2 recipes (shader layer + palette + look controls + post passes + text).
 
 A look is a small dict in the old v1 vocabulary (effect, palette, cycles, spin, zoom, kaleido, posterize,
 halftone, chroma, scanlines, vignette, grain, text, ...); ``preset_recipe`` turns it into a v2 recipe
@@ -54,6 +54,7 @@ LOOKS: dict[str, dict] = {
         text_wobble=8,
         shadow="#00e5ff",
     ),
+    "liquid-metal": dict(effect="metal", palette="chrome", cycles=1, vignette=0.3),
 }
 DEFAULT_PRESET = "liquid-disco"
 

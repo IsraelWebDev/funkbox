@@ -132,7 +132,7 @@ One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP ser
 
 | area | what | command / tools |
 |---|---|---|
-| loops | GPU shader engine: GLSL layers, recipes, post passes, audio reactivity, tiling, a machine check that every loop is seamless, and eight preset looks | `funkbox loop ...`, `loop_*` |
+| loops | GPU shader engine: GLSL layers, recipes, post passes, audio reactivity, tiling, a machine check that every loop is seamless, and nine preset looks | `funkbox loop ...`, `loop_*` |
 | reel + projects | a JSON shot list plus an approved copy deck become a 9:16 and/or 16:9 ad (parallax shots, screen recordings with push-ins and speed ramps, captions, end card, cuts on a beat grid, local voiceover, text audit), N variants of one ad with a contact sheet. Projects add: inbox ingest, product cut-out, brand colours, copy approval with a hash lock, and an automatic shot list | `funkbox reel ...`, `funkbox project ...`, `reel_*`, `project_*` |
 | posters + images | layered posters and photo edits with exact text: shapes, SVG import, clipping, letter spacing, styled runs, text on any path; variations, one design in many sizes, animated posters (MP4), SVG/PDF vector export, OpenRaster for GIMP, scoring against a reference picture, tracing a logo into vectors; FastSD text-to-image, img2img and upscale | `funkbox poster ...`, `funkbox image ...`, `poster_*`, `image_*` |
 | video | look inside a video, find its cuts (with reel-ready trims), trim it, burn in exact subtitles; and a drag-and-drop timeline for reels that you and Claude edit together | `funkbox video ...`, `funkbox reel timeline`, `video_*`, `reel_timeline` |
