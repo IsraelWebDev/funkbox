@@ -6,7 +6,7 @@ Why this exists instead of upstream start-mcpserver.bat:
   * upstream /generate takes only a prompt; /studio/generate adds size, steps, seed, img2img
     (init_image + strength) and saves straight into a folder the caller names (restricted to
     STUDIO_OUT); /studio/upscale does a 2x upscale.
-Forces OpenVINO + SD-Turbo + tiny autoencoder on the Intel iGPU (DEVICE=GPU).
+Uses OpenVINO + SD-Turbo + tiny autoencoder on the Intel iGPU (DEVICE=GPU); PyTorch SD-Turbo on CPU otherwise.
 Copy this file AND sdcore.py into the fastsdcpu folder (install.py does); run with
 fastsdcpu\\env\\Scripts\\python.exe.
 """
@@ -42,7 +42,6 @@ class _PatchedFastAPI(_FastAPI):
 fastapi.FastAPI = _PatchedFastAPI
 
 import uvicorn  # noqa: E402
-from fastapi_mcp import FastApiMCP  # noqa: E402
 from pydantic import BaseModel, Field  # noqa: E402
 
 import backend.api.mcp_server as srv  # noqa: E402
@@ -51,9 +50,9 @@ from PIL import Image  # noqa: E402
 
 S = srv.app_settings.settings
 L = S.lcm_diffusion_setting
-L.use_openvino = True
-L.openvino_lcm_model_id = "rupeshs/sd-turbo-openvino"
-L.use_tiny_auto_encoder = True
+for _name, _value in sdcore.engine_settings(os.environ["DEVICE"]).items():  # OpenVINO only on GPU
+    setattr(L, _name, _value)
+READY = sdcore.ModelReadiness()
 L.inference_steps = 1
 L.guidance_scale = 1.0
 L.image_width = L.image_height = 512
@@ -116,7 +115,9 @@ def studio_generate(req: StudioGen) -> dict:
         reshape = _last_size[0] not in (None, (w, h))
         t0 = time.perf_counter()
         try:
-            images = srv.context.generate_text_to_image(S, reshape=reshape, device=os.environ["DEVICE"])
+            images = srv.context.generate_text_to_image(
+                S, reshape=reshape, device=sdcore.generate_device(os.environ["DEVICE"])
+            )
         finally:
             L.diffusion_task = "text_to_image"
             L.init_image = None
@@ -161,8 +162,44 @@ def studio_upscale(req: StudioUp) -> dict:
 
 @srv.app.get("/studio/health", operation_id="studio_health")
 def studio_health() -> dict:
-    return {"ok": True, "device": os.environ["DEVICE"], "out": STUDIO_OUT}
+    model = L.openvino_lcm_model_id if L.use_openvino else L.lcm_model_id
+    return {
+        "ok": True,
+        "ready": READY.ready,
+        "error": READY.error,
+        "device": os.environ["DEVICE"],
+        "model": model,
+        "out": STUDIO_OUT,
+    }
 
 
-FastApiMCP(srv.app, name="FastSDCPU MCP", description="FastSD CPU text-to-image (local)").mount()
+def _warm_up() -> None:
+    """Generate once at the default size so the model is loaded (and the OpenVINO size compiled) before a job."""
+    try:
+        with _lock:
+            L.prompt, L.negative_prompt = "warm-up", ""
+            L.image_width = L.image_height = 512
+            L.inference_steps = 1
+            L.use_seed = False
+            L.diffusion_task = "text_to_image"
+            images = srv.context.generate_text_to_image(
+                S, reshape=False, device=sdcore.generate_device(os.environ["DEVICE"])
+            )
+            if not images:
+                raise RuntimeError(getattr(srv.context, "error", "no image from warm-up"))
+            _last_size[0] = (512, 512)
+        READY.mark_loaded()
+    except Exception as e:  # noqa: BLE001 - reported through /studio/health
+        READY.mark_failed(e)
+
+
+threading.Thread(target=_warm_up, name="fastsd-warm-up", daemon=True).start()
+
+if os.environ.get("FASTSD_MCP", "1") != "0":  # the worker needs only /studio/generate and /studio/health
+    try:
+        from fastapi_mcp import FastApiMCP
+
+        FastApiMCP(srv.app, name="FastSDCPU MCP", description="FastSD CPU text-to-image (local)").mount()
+    except ImportError:
+        print("fastapi_mcp not installed: MCP mount skipped", file=sys.stderr)
 uvicorn.run(srv.app, host="127.0.0.1", port=int(os.environ.get("FASTSD_PORT", "8000")), log_level="warning")
