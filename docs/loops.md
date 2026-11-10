@@ -43,6 +43,7 @@ Older sidecars written by funk v1 load too (they become shader-layer recipes). D
 The eight classic looks are recipes (`funkbox/loops/presets.py`): `acid-plasma`, `pop-moire`, `liquid-disco`,
 `hypno-tunnel`, `lava-lamp`, `op-art`, `frozen-kaleido`, `party-poster`. A preset is a shader (one of the six ports
 below), a palette, kaleido/spin/zoom as shader params and a stack of post passes plus optional text.
+A ninth look, `liquid-metal`, is the `metal` effect (`shaders/metal.frag`, liquid chrome) with the `chrome` palette; `gold`, `mercury` and `iridescent` fit it too.
 `funkbox loop list` (or the `loop_list` tool) prints them. `docs/history/v1-to-v4-presets.png` compares them with the
 retired v1 CPU renderer: same looks, not the same pixels.
 

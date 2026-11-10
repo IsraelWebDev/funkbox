@@ -15,8 +15,9 @@ from .shader import ShaderSource, sample_params
 
 BLEND_MODES = ["normal", "add", "screen", "multiply", "overlay", "difference", "softlight", "hue"]
 LAYER_TYPES = ["shader", "image"]
-#: the six classic effects; `{"type": "v1", "effect": X}` layers and v1 sidecars become shader layers
-V1_EFFECTS = ("plasma", "moire", "warp", "tunnel", "blobs", "rings")
+#: the six classic effects plus `metal` (liquid chrome); `{"type": "v1", "effect": X}` layers and v1 sidecars
+#: become shader layers `shaders/X.frag`
+V1_EFFECTS = ("plasma", "moire", "warp", "tunnel", "blobs", "rings", "metal")
 
 
 # Inigo Quilez cosine palettes  col = a + b*cos(2pi*(c*x + d)); the recipe's palette name picks one.
@@ -29,6 +30,11 @@ PALETTES: dict[str, tuple[tuple[float, float, float], ...]] = {
     "candy": ((0.8, 0.5, 0.6), (0.3, 0.5, 0.4), (1.0, 1.0, 1.0), (0.00, 0.30, 0.55)),
     "ice": ((0.4, 0.6, 0.8), (0.3, 0.3, 0.3), (1.0, 1.0, 1.0), (0.55, 0.60, 0.65)),
     "mono": ((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), (1.0, 1.0, 1.0), (0.00, 0.00, 0.00)),
+    # for the `metal` effect: x is the reflected environment brightness (dark floor ... bright sky)
+    "chrome": ((0.50, 0.50, 0.53), (0.50, 0.50, 0.50), (0.5, 0.5, 0.5), (0.50, 0.50, 0.50)),
+    "gold": ((0.55, 0.43, 0.18), (0.45, 0.40, 0.20), (0.5, 0.5, 0.5), (0.50, 0.50, 0.50)),
+    "mercury": ((0.47, 0.52, 0.60), (0.47, 0.50, 0.52), (0.5, 0.5, 0.5), (0.50, 0.50, 0.50)),
+    "iridescent": ((0.60, 0.58, 0.64), (0.38, 0.38, 0.36), (1.0, 1.0, 1.0), (0.05, 0.25, 0.50)),
 }
 
 
