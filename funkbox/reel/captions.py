@@ -309,7 +309,7 @@ def auto_box(frame: np.ndarray, brand: Brand, text_rgb) -> tuple[tuple[int, int,
     return box_rgb, text_rgb
 
 
-def pick_anchor(frame: np.ndarray, lay_for, W: int, H: int, safe_area: str = "reels") -> str:
+def pick_anchor(frame: np.ndarray, lay_for, W: int, H: int, safe_area: str = "reels", blocked=None) -> str:
     """Pick "top" | "center" | "bottom" for a caption from the frame itself.
 
     ``lay_for(anchor, W, H, safe_area)`` must return the caption's Layout for that anchor (layout_block), so
@@ -317,6 +317,9 @@ def pick_anchor(frame: np.ndarray, lay_for, W: int, H: int, safe_area: str = "re
     made greyscale; for each anchor the busyness under that anchor's caption box is the mean absolute
     gradient of the greyscale frame inside the box. The least busy anchor wins; ties go bottom, then
     center, then top. Deterministic.
+
+    ``blocked(layout) -> bool`` (optional) rules an anchor out, e.g. when its box would collide with the shot's
+    product; if every anchor is blocked the pick falls back to "bottom" (the anchor validate checks).
     """
     h, w = frame.shape[:2]
     scale = min(1.0, 270.0 / max(1, w))
@@ -325,6 +328,8 @@ def pick_anchor(frame: np.ndarray, lay_for, W: int, H: int, safe_area: str = "re
     best, best_busy = "bottom", None
     for anchor in ("bottom", "center", "top"):  # strict < keeps the earlier one on ties: bottom first
         lay = lay_for(anchor, W, H, safe_area)
+        if blocked is not None and blocked(lay):
+            continue
         x0 = max(0, min(nw - 1, int(round(lay.x0 * scale))))
         x1 = max(x0 + 1, min(nw, int(round((lay.x0 + lay.box_w) * scale))))
         y0 = max(0, min(nh - 1, int(round(lay.y0 * scale))))

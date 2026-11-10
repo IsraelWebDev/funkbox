@@ -20,6 +20,7 @@ from funkbox.media import encode_video, mux_audio, require_ffmpeg
 
 from . import depth as depthmod
 from . import captions as captions_mod
+from . import collision
 from . import endcard as endcard_mod
 from . import framing
 from . import grid as grid_mod
@@ -591,7 +592,21 @@ class Renderer:
                         safe_area=sa,
                     )
 
-                anchor = captions_mod.pick_anchor(fr, lay_for, self.w, self.h, self.reel.settings.safe_area)
+                prod = self.reel.shots[span.index].product
+                blocked = None
+                if prod is not None:  # the collision rule: never pick a spot that overlaps the product
+                    pb = collision.product_box(
+                        prod.x, prod.y, prod.height, collision.image_aspect(self._res(prod.image)), self.w, self.h
+                    )
+
+                    def blocked(lay, _pb=pb) -> bool:
+                        return (
+                            collision.overlap_fraction(collision.caption_box(lay), _pb) > collision.MAX_OVERLAP + 1e-9
+                        )
+
+                anchor = captions_mod.pick_anchor(
+                    fr, lay_for, self.w, self.h, self.reel.settings.safe_area, blocked=blocked
+                )
             lay = stt.extra["caption"] = captions_mod.layout_block(
                 c.copy_id,
                 self.deck.text(c.copy_id),
