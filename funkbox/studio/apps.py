@@ -89,7 +89,12 @@ def _detached_flags() -> int:
 
 def pid_on_port(port: int) -> int | None:
     if not WIN:
-        return None
+        if not shutil.which("lsof"):
+            return None
+        out = subprocess.run(
+            ["lsof", "-t", f"-iTCP:{port}", "-sTCP:LISTEN"], capture_output=True, text=True
+        ).stdout.split()
+        return int(out[0]) if out and out[0].isdigit() else None
     out = subprocess.run(["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True).stdout
     for line in out.splitlines():
         parts = line.split()
@@ -163,6 +168,7 @@ def sync_launcher(fastsd_dir: Path) -> list[str]:
 class FastSD:
     def __init__(self) -> None:
         self.started_by_us = False
+        self._proc: subprocess.Popen | None = None  # the child we started; stop() uses it on every OS
         self.last_used = time.monotonic()
         self.lock = threading.Lock()
         self.busy = 0
@@ -205,12 +211,12 @@ class FastSD:
                 "STUDIO_OUT": str(cfg.inputs),
                 "FASTSD_PORT": str(FASTSD_PORT),
                 "STUDIO_ROOTS": os.pathsep.join(str(r) for r in roots()),
-                "PATH": os.environ.get("PATH", "")
-                + os.pathsep
-                + str(FASTSD_DIR / "env" / "Lib" / "site-packages" / "openvino" / "libs"),
             }
+            if WIN:  # OpenVINO DLLs of the Windows venv layout; no POSIX equivalent is added
+                libs = FASTSD_DIR / "env" / "Lib" / "site-packages" / "openvino" / "libs"
+                env["PATH"] = os.environ.get("PATH", "") + os.pathsep + str(libs)
             logf = open(FASTSD_DIR / "_studio_fastsd.log", "ab")
-            subprocess.Popen(
+            self._proc = subprocess.Popen(
                 [str(py), str(launcher)],
                 cwd=str(FASTSD_DIR),
                 env=env,
@@ -218,6 +224,7 @@ class FastSD:
                 stdout=logf,
                 stderr=logf,
                 creationflags=_detached_flags(),
+                start_new_session=not WIN,  # POSIX: survive the terminal closing
                 close_fds=True,
             )
             self.started_by_us = True
@@ -230,10 +237,23 @@ class FastSD:
             return f"FastSD started in {time.monotonic() - t0:.0f}s"
 
     def stop(self) -> str:
-        pid = pid_on_port(config.get().fastsd_port)
-        if not pid:
-            return "FastSD not running"
-        kill_tree(pid)
+        proc, self._proc = self._proc, None
+        if proc is not None and proc.poll() is None:
+            pid = proc.pid
+            if WIN:
+                kill_tree(pid)  # taskkill /T: the venv launcher has child processes
+            else:
+                proc.terminate()
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+        else:  # not started by this process: find whoever listens on the port
+            pid = pid_on_port(config.get().fastsd_port)
+            if not pid:
+                return "FastSD not running"
+            kill_tree(pid)
         self.started_by_us = False
         sizes.clear()
         return f"FastSD stopped (pid {pid})"
