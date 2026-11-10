@@ -175,6 +175,12 @@ posterize scanlines vignette grain`. Relative paths resolve against the recipe's
 length, is muxed into the mp4, and skips the loop check (audio loops are not seamless unless the music is).
 `examples/disco_cat.json` is a runnable sample; `python examples/make_cat.py` regenerates its image.
 
+A shader or image layer can carry a `mask`: an image (PNG with alpha) whose alpha scales the layer, so the layer shows
+only where the mask is opaque (a logo or text cut-out). `mask_fit` (`cover`, `contain` or `stretch`, default `cover`)
+fits the mask to the frame as an image layer is fitted. Only the mask's alpha counts. `examples/layer_mask/`
+holds the funkbox mark as an example: `funkbox-mask.png` is its white letters, grown slightly, from
+`.claude-plugin/icon.png`, and `funkbox-chrome.json` fills them with the liquid-chrome metal shader.
+
 A legacy layer `{"type": "v1", "effect": "blobs"}` is still accepted and converted to the matching shader layer when
 the recipe loads. Per-layer `palette` and `cycles` (as `extra` keys of a layer) are honoured by the engine.
 
