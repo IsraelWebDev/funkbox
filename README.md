@@ -2,7 +2,7 @@
 
 funkbox makes funky seamless looping videos, posters, AI-generated scenes and short vertical product ads on your
 own computer, driven by Claude over MCP or from the command line. Procedural GPU shaders and a deterministic
-ad-reel engine do the work: no cloud, no accounts, no API keys, no credits, and no NVIDIA GPU required. Drop a
+ad-reel engine do the work: no cloud, no accounts, no credits, and no NVIDIA GPU required. Stock photo search (`image_find`) is the one optional part that uses free API keys. Drop a
 product photo, a logo and some music in a folder, approve the exact wording once, and get a rendered ad whose
 on-screen text and voiceover are byte-identical to what you approved.
 
@@ -128,7 +128,7 @@ macOS and Linux) and [skills/funk-studio/SKILL.md](skills/funk-studio/SKILL.md) 
 
 ## What is in the box
 
-One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP server (`funkbox`, 50 tools).
+One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP server (`funkbox`, 51 tools).
 
 | area | what | command / tools |
 |---|---|---|

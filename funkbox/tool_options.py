@@ -42,6 +42,10 @@ SubtitleAnchor = Literal["top", "center", "bottom"]
 Pace = Literal[tuple(PACE_SECONDS)]  # type: ignore[valid-type]
 #: what a reel timeline call does: open the page, or report the edit log
 TimelineAction = Literal["open", "changes"]
+#: the shape of a stock photo (image_find); the stock services name them differently, the tool maps them
+StockOrientation = Literal["landscape", "portrait", "square"]
+#: what image_find does when stock has nothing: nothing, or a FastSD scene (never for people)
+StockFallback = Literal["none", "fastsd_scene"]
 
 #: the recipe's closed options, as JSON-schema properties (the recipe itself stays an open object)
 RECIPE_PROPERTIES = {
