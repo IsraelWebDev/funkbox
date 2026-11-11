@@ -2,7 +2,7 @@
   "catalog_version": 1,
   "engine_version": "4.4.1",
   "server": "funkbox",
-  "tool_count": 50,
+  "tool_count": 51,
   "tools": [
     {
       "area": "apps",
@@ -112,7 +112,61 @@
     },
     {
       "area": "image",
-      "description": "Text-to-image with FastSD (SD-Turbo, OpenVINO on the iGPU); auto-starts FastSD. Aspect presets:\nsquare 512x512, portrait 512x768, landscape 768x512, story 512x896, wide 896x512. n=2-8 returns variations\n(seeds seed, seed+1, ... or random) as a contact sheet plus one file each in the inputs folder. seed -1 =\nrandom (the seeds used are reported). steps 1 is best for SD-Turbo. COST OF SIZE CHANGES: the model is\ncompiled per image size (~2-3 min the first time at each size); this tool answers with a warning and does\nnothing until you pass confirm_slow=true. PREFER 'square': SD-Turbo is trained at 512x512 and tall/wide sizes often duplicate the subject (two dogs stacked, a room on two floors); for 9:16 use square and let reel/stills cover-crop it (image_upscale first for sharper crops). Never request a product or text in the prompt. SD-Turbo output is\nunder the Stability AI Community License (free commercial use under US$1M annual revenue; Stability asks\ncommercial users to register).",
+      "description": "A licensed stock photo (Pexels, then Unsplash), saved to inputs/ with a credit record next to it.\nSTOCK FIRST: use this for almost every picture, and always for a picture with people. People pictures are never\ngenerated: the tool answers NO MATCH instead (try other words). Pass fallback='fastsd_scene' only for a picture\nwithout people that stock cannot supply; the result is then tagged as generated. Set people=true when the picture\nshows a person even if the query does not say so. The credit line in the result must be shown wherever the photo\nis used. Needs PEXELS_API_KEY or UNSPLASH_ACCESS_KEY in the environment; with neither set it answers NOT CONFIGURED\nand sends nothing.",
+      "input_schema": {
+        "properties": {
+          "fallback": {
+            "default": "none",
+            "enum": [
+              "none",
+              "fastsd_scene"
+            ],
+            "title": "Fallback",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "orientation": {
+            "default": "square",
+            "enum": [
+              "landscape",
+              "portrait",
+              "square"
+            ],
+            "title": "Orientation",
+            "type": "string"
+          },
+          "people": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "People"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "image_findArguments",
+        "type": "object"
+      },
+      "name": "image_find"
+    },
+    {
+      "area": "image",
+      "description": "Text-to-image with FastSD (SD-Turbo, OpenVINO on the iGPU); auto-starts FastSD. Aspect presets:\nsquare 512x512, portrait 512x768, landscape 768x512, story 512x896, wide 896x512. n=2-8 returns variations\n(seeds seed, seed+1, ... or random) as a contact sheet plus one file each in the inputs folder. seed -1 =\nrandom (the seeds used are reported). steps 1 is best for SD-Turbo. COST OF SIZE CHANGES: the model is\ncompiled per image size (~2-3 min the first time at each size); this tool answers with a warning and does\nnothing until you pass confirm_slow=true. PREFER 'square': SD-Turbo is trained at 512x512 and tall/wide sizes often duplicate the subject (two dogs stacked, a room on two floors); for 9:16 use square and let reel/stills cover-crop it (image_upscale first for sharper crops). Never request a product or text in the prompt. SD-Turbo output is\nunder the Stability AI Community License (free commercial use under US$1M annual revenue; Stability asks\ncommercial users to register). Not for pictures of people: use image_find (stock first, people never generated).",
       "input_schema": {
         "properties": {
           "aspect": {

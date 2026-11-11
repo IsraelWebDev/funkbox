@@ -13,7 +13,8 @@ is fine. It is one MCP server, `funkbox`, with tools prefixed by area (plus `gim
 | `project_*`, `reel_*` | **video ads** (9:16, 16:9, both): projects, ingest, brand, copy approval, shot lists, storyboard, render |
 | `loop_*` | GPU shader engine: write GLSL, preview, contact sheets, seamless MP4 loops, preset looks |
 | `poster_*`, `image_edit` | layered posters with exact text, photo edits, OpenRaster export |
-| `image_generate`, `image_restyle`, `image_upscale` | text-to-image and img2img via FastSD |
+| `image_find` | licensed stock photos (Pexels, Unsplash) with a credit record: **use first**, and always for people |
+| `image_generate`, `image_restyle`, `image_upscale` | text-to-image and img2img via FastSD (never for pictures of people) |
 | `apps_*` | starts and stops FastSD, reports on GIMP |
 | `gimp` server | GIMP 3 editing (`get_state_snapshot` previews) |
 
@@ -119,7 +120,7 @@ failed, name the app and the fix.
 
 Describe → generate variations → pick → poster or edit → export.
 
-- **Pictures first:** `image_generate(prompt, aspect, n=4)` gives a contact sheet; the user picks one.
+- **Pictures first:** `image_find(query)` for a licensed stock photo (credit line goes with it); `image_generate(prompt, aspect, n=4)` only for a scene without people when stock has nothing; the user picks.
   `image_restyle` and `image_upscale` refine it. Generated pictures never carry text.
 - **Poster:** write a `*.poster.json` (`poster_presets()` lists the pieces) and `poster_preview` it. Look at the picture,
   fix, repeat, then `poster_render`. `poster_variations` with `vary={"seed":[1,2,3,4]}` (or a palette, a hue) shows

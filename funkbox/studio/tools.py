@@ -7,8 +7,8 @@ Plain module-level functions plus ``register(server)``: thin wrappers over ``fun
 from __future__ import annotations
 
 from funkbox.mcp_util import png as _png, safe
-from funkbox.tool_options import Aspect, Service
-from funkbox.studio import apps, images
+from funkbox.tool_options import Aspect, Service, StockFallback, StockOrientation
+from funkbox.studio import apps, images, stock
 
 
 def _blocks(res: images.ImageResult):
@@ -53,7 +53,7 @@ def image_generate(
     compiled per image size (~2-3 min the first time at each size); this tool answers with a warning and does
     nothing until you pass confirm_slow=true. PREFER 'square': SD-Turbo is trained at 512x512 and tall/wide sizes often duplicate the subject (two dogs stacked, a room on two floors); for 9:16 use square and let reel/stills cover-crop it (image_upscale first for sharper crops). Never request a product or text in the prompt. SD-Turbo output is
     under the Stability AI Community License (free commercial use under US$1M annual revenue; Stability asks
-    commercial users to register)."""
+    commercial users to register). Not for pictures of people: use image_find (stock first, people never generated)."""
     return _blocks(images.generate(prompt, aspect, seed, n, negative_prompt, name, steps, confirm_slow))
 
 
@@ -82,7 +82,25 @@ def image_upscale(path: str, name: str = "") -> list:
     return _blocks(images.upscale(path, name))
 
 
-TOOLS = [apps_status, apps_start, apps_stop, image_generate, image_restyle, image_upscale]
+@safe
+def image_find(
+    query: str,
+    people: bool | None = None,
+    orientation: StockOrientation = "square",
+    fallback: StockFallback = "none",
+    name: str = "",
+) -> list:
+    """A licensed stock photo (Pexels, then Unsplash), saved to inputs/ with a credit record next to it.
+    STOCK FIRST: use this for almost every picture, and always for a picture with people. People pictures are never
+    generated: the tool answers NO MATCH instead (try other words). Pass fallback='fastsd_scene' only for a picture
+    without people that stock cannot supply; the result is then tagged as generated. Set people=true when the picture
+    shows a person even if the query does not say so. The credit line in the result must be shown wherever the photo
+    is used. Needs PEXELS_API_KEY or UNSPLASH_ACCESS_KEY in the environment; with neither set it answers NOT CONFIGURED
+    and sends nothing."""
+    return _blocks(stock.find(query, people=people, orientation=orientation, fallback=fallback, name=name))
+
+
+TOOLS = [apps_status, apps_start, apps_stop, image_generate, image_restyle, image_upscale, image_find]
 
 
 def register(server) -> None:

@@ -233,6 +233,23 @@ def add_cli(sub) -> None:
     p.add_argument("--name", default="")
     p.add_argument("--confirm-slow", action="store_true")
     p.set_defaults(fn=lambda a: _show(restyle(a.path, a.prompt, a.strength, a.aspect, a.seed, a.name, a.confirm_slow)))
+    from funkbox.studio import stock
+
+    p = ap.add_parser("find", help="licensed stock photo (Pexels, then Unsplash); people are never generated")
+    p.add_argument("query")
+    who = p.add_mutually_exclusive_group()
+    who.add_argument("--people", dest="people", action="store_true", default=None, help="the picture shows people")
+    who.add_argument("--no-people", dest="people", action="store_false", help="the picture has no people")
+    p.add_argument("--orientation", default="square", choices=list(stock.ORIENTATION_ASPECT))
+    p.add_argument(
+        "--fallback", default="none", choices=list(stock.FALLBACKS), help="fastsd_scene: FastSD, never for people"
+    )
+    p.add_argument("--name", default="")
+    p.set_defaults(
+        fn=lambda a: _show(
+            stock.find(a.query, people=a.people, orientation=a.orientation, fallback=a.fallback, name=a.name)
+        )
+    )
     p = ap.add_parser("upscale", help="2x upscale (FastSD's upscaler, else LANCZOS + unsharp)")
     p.add_argument("path")
     p.add_argument("--name", default="")
