@@ -112,7 +112,7 @@
     },
     {
       "area": "image",
-      "description": "A licensed stock photo (Pexels, then Unsplash), saved to inputs/ with a credit record next to it.\nSTOCK FIRST: use this for almost every picture, and always for a picture with people. People pictures are never\ngenerated: the tool answers NO MATCH instead (try other words). Pass fallback='fastsd_scene' only for a picture\nwithout people that stock cannot supply; the result is then tagged as generated. Set people=true when the picture\nshows a person even if the query does not say so. The credit line in the result must be shown wherever the photo\nis used. Needs PEXELS_API_KEY or UNSPLASH_ACCESS_KEY in the environment; with neither set it answers NOT CONFIGURED\nand sends nothing.",
+      "description": "A licensed stock photo (Pexels, then Unsplash), saved to inputs/ with a credit record next to it.\nSTOCK FIRST: use this for almost every picture, and always for a picture with people. People pictures are never\ngenerated: the tool answers NO MATCH instead (try other words). Pass fallback='fastsd_scene' only for a picture\nwithout people that stock cannot supply; the result is then tagged as generated. Set people=true when the picture\nshows a person even if the query does not say so. The credit line in the result must be shown wherever the photo\nis used. Needs PEXELS_API_KEY, UNSPLASH_ACCESS_KEY or PIXABAY_API_KEY in the environment; with none set it answers\nNOT CONFIGURED and sends nothing.",
       "input_schema": {
         "properties": {
           "fallback": {

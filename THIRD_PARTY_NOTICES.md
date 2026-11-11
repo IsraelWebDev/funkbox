@@ -36,8 +36,8 @@ revenue, and Stability AI asks commercial users to register with them (https://s
 Above that revenue you need a separate licence from Stability AI. funkbox does not bundle the model.
 
 **Stock photos (`image_find`).** funkbox searches Pexels and Unsplash only when you set the free API key for each
-(`PEXELS_API_KEY`, `UNSPLASH_ACCESS_KEY`). It downloads the picture you pick, saves it to `inputs/` and writes a credit
+(`PEXELS_API_KEY`, `UNSPLASH_ACCESS_KEY`, `PIXABAY_API_KEY`). It downloads the picture you pick, saves it to `inputs/` and writes a credit
 record beside it. Each service's own terms apply to the photo: Pexels Licence (https://www.pexels.com/license/) and
-Unsplash Licence (https://unsplash.com/license). A photo of an identifiable person can still need a release from that
+Unsplash Licence (https://unsplash.com/license), and the Pixabay Content Licence (https://pixabay.com/service/license-summary/). A photo of an identifiable person can still need a release from that
 person for advertising; funkbox records `release_status` but cannot verify a release. Check the current terms of each
 service before you publish or sell a picture. Keys are read from your environment only and are never written to a file.
