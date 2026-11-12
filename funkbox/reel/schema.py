@@ -139,6 +139,7 @@ class Source:
     pad: str = "#000000"  # fit=contain / framing past the edge: #hex or "blur"
     speed: tuple[float, float] = (1.0, 1.0)  # video playback speed at shot start / end (ramp)
     grid: Grid | None = None  # kind "grid" only
+    mask_copy_id: str | None = None  # kind "funk2" only: the copy line that is the recipe's one text mask
 
 
 @dataclass
@@ -467,6 +468,11 @@ def _parse_source(r: _R, shot_id: str = "") -> Source:
     if r.has("focus"):
         src.focus = r.pair("focus", None, lo=0.0, hi=1.0)
     _parse_pad(r, src)
+    if r.has("mask_copy_id"):
+        mcid = r.s("mask_copy_id", "", required=True)
+        if kind != "funk2":
+            r.errs.append(f"{r.path}.mask_copy_id: only a funk2 source takes a copy line as its text mask")
+        src.mask_copy_id = mcid or None
     if r.has("speed"):
         sp = r.raw("speed")
         if isinstance(sp, (int, float)) and not isinstance(sp, bool):
