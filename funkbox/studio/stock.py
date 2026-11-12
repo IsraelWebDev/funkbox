@@ -56,7 +56,8 @@ REQUIRED = (
 ORIENTATION_ASPECT = {"landscape": "landscape", "portrait": "portrait", "square": "square"}
 UNSPLASH_ORIENTATION = {"landscape": "landscape", "portrait": "portrait", "square": "squarish"}
 FALLBACKS = ("none", "fastsd_scene")
-KEYS = (("pexels", "PEXELS_API_KEY"), ("unsplash", "UNSPLASH_ACCESS_KEY"))
+KEYS = (("pexels", "PEXELS_API_KEY"), ("unsplash", "UNSPLASH_ACCESS_KEY"), ("pixabay", "PIXABAY_API_KEY"))
+PIXABAY_ORIENTATION = {"landscape": "horizontal", "portrait": "vertical", "square": "all"}
 
 # Words that mean a picture shows people. A keyword check, not a face detector: it errs toward "people".
 PEOPLE_RX = re.compile(
@@ -68,8 +69,9 @@ PEOPLE_RX = re.compile(
 )
 
 NOT_CONFIGURED = (
-    "NOT CONFIGURED: no stock key is set. Set PEXELS_API_KEY (free, pexels.com/api) or UNSPLASH_ACCESS_KEY "
-    "(free, unsplash.com/developers). Nothing was searched or made. People pictures are never generated."
+    "NOT CONFIGURED: no stock key is set. Set PEXELS_API_KEY (free, pexels.com/api), UNSPLASH_ACCESS_KEY "
+    "(free, unsplash.com/developers) or PIXABAY_API_KEY (free, pixabay.com/api/docs). Nothing was searched or made. "
+    "People pictures are never generated."
 )
 
 
@@ -100,7 +102,8 @@ def people_flag(query: str, people: bool | None = None) -> bool:
 
 
 def credit_for(p: Photo) -> str:
-    return f"Photo by {p.author} on {p.source.capitalize()}"
+    verb = "Image" if p.source == "pixabay" else "Photo"
+    return f"{verb} by {p.author} on {p.source.capitalize()}"
 
 
 def make_record(p: Photo, *, retrieved_at: str, contains_people: bool, query: str) -> dict:
@@ -235,22 +238,65 @@ def parse_unsplash(payload: dict) -> list[Photo]:
     return out
 
 
+def parse_pixabay(payload: dict) -> list[Photo]:
+    out = []
+    for ph in payload.get("hits", []) or []:
+        url = ph.get("largeImageURL") or ph.get("webformatURL") or ""
+        if not url:
+            continue
+        out.append(
+            Photo(
+                source="pixabay",
+                photo_id=str(ph.get("id", "")),
+                source_url=str(ph.get("pageURL", "")),
+                author=str(ph.get("user", "") or "Unknown photographer"),
+                image_url=url,
+                width=int(ph.get("imageWidth", 0) or 0),
+                height=int(ph.get("imageHeight", 0) or 0),
+                alt=str(ph.get("tags", "") or ""),
+            )
+        )
+    return out
+
+
 def configured(env) -> list[tuple[str, str]]:
     return [(src, key) for src, key in KEYS if env.get(key)]
 
 
 def search(query: str, orientation: str, env, http_json: Callable) -> list[Photo]:
-    """Pexels first; Unsplash only when Pexels has nothing. Returns the first provider's results."""
+    """Pexels, then Unsplash, then Pixabay: the first provider with results wins.
+
+    A failed request raises StockError naming the provider only. The URL carries the Pixabay key, so the
+    original exception is never passed on.
+    """
     for src, key in configured(env):
-        if src == "pexels":
-            qs = urllib.parse.urlencode({"query": query, "per_page": 5, "orientation": orientation})
-            found = parse_pexels(http_json(f"https://api.pexels.com/v1/search?{qs}", {"Authorization": env[key]}))
-        else:
-            qs = urllib.parse.urlencode(
-                {"query": query, "per_page": 5, "orientation": UNSPLASH_ORIENTATION[orientation]}
-            )
-            headers = {"Authorization": f"Client-ID {env[key]}", "Accept-Version": "v1"}
-            found = parse_unsplash(http_json(f"https://api.unsplash.com/search/photos?{qs}", headers))
+        try:
+            if src == "pexels":
+                qs = urllib.parse.urlencode({"query": query, "per_page": 5, "orientation": orientation})
+                payload = http_json(f"https://api.pexels.com/v1/search?{qs}", {"Authorization": env[key]})
+                found = parse_pexels(payload)
+            elif src == "unsplash":
+                qs = urllib.parse.urlencode(
+                    {"query": query, "per_page": 5, "orientation": UNSPLASH_ORIENTATION[orientation]}
+                )
+                headers = {"Authorization": f"Client-ID {env[key]}", "Accept-Version": "v1"}
+                found = parse_unsplash(http_json(f"https://api.unsplash.com/search/photos?{qs}", headers))
+            else:
+                qs = urllib.parse.urlencode(
+                    {
+                        "key": env[key],
+                        "q": query,
+                        "image_type": "photo",
+                        "per_page": 5,
+                        "orientation": PIXABAY_ORIENTATION[orientation],
+                        "safesearch": "true",
+                    }
+                )
+                found = parse_pixabay(http_json(f"https://pixabay.com/api/?{qs}", None))
+        except StockError:
+            raise
+        except Exception:  # noqa: BLE001 - the message must not carry a URL or a key
+            raise StockError(f"{src} search failed; no picture was saved") from None
         if found:
             return found
     return []

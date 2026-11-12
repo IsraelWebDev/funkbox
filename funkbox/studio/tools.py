@@ -95,8 +95,9 @@ def image_find(
     generated: the tool answers NO MATCH instead (try other words). Pass fallback='fastsd_scene' only for a picture
     without people that stock cannot supply; the result is then tagged as generated. Set people=true when the picture
     shows a person even if the query does not say so. The credit line in the result must be shown wherever the photo
-    is used. Unsplash and Pixabay copies are kept for 24 hours and then removed; the next run removes them. Needs PEXELS_API_KEY or UNSPLASH_ACCESS_KEY in the environment; with neither set it answers NOT CONFIGURED
-    and sends nothing."""
+    is used. Unsplash and Pixabay copies are kept for 24 hours and then removed; the next run removes them.
+    Needs PEXELS_API_KEY, UNSPLASH_ACCESS_KEY or PIXABAY_API_KEY in the environment; with none set it answers
+    NOT CONFIGURED and sends nothing."""
     return _blocks(stock.find(query, people=people, orientation=orientation, fallback=fallback, name=name))
 
 
