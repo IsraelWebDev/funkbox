@@ -169,6 +169,7 @@ def _check_files(reel: Reel, rep: Report) -> None:
             need(f"{w}.source.{sh.source.kind}", sh.source.value)
         if sh.source.kind == "funk2":
             _check_funk2_text(reel, sh.source.value, w, rep)
+            _check_funk2_mask(reel, sh.source.value, sh.source.mask_copy_id, w, rep)
         if sh.product:
             need(f"{w}.product.image", sh.product.image)
     if reel.end_card and reel.end_card.product:
@@ -186,6 +187,28 @@ def _check_funk2_text(reel: Reel, path: str, where: str, rep: Report) -> None:
         rep.errors.append(
             f"{where}.source.funk2: recipe {path!r} draws text; remove its `text` block "
             f"(on-screen text comes only from the copy deck)"
+        )
+
+
+def _check_funk2_mask(reel: Reel, path: str, copy_id: str | None, where: str, rep: Report) -> None:
+    """With mask_copy_id the recipe needs exactly one text-masked layer, and that mask carries no text of its own:
+    the copy line supplies it, so the text audit and the copy lock cover it."""
+    if copy_id is None:
+        return
+    try:
+        d = json.loads(_res(path, reel).read_text(encoding="utf-8-sig"))
+    except (ValueError, OSError):
+        return  # missing file is reported by need()
+    layers = d.get("layers", []) if isinstance(d, dict) else []
+    masked = [lay for lay in layers if isinstance(lay, dict) and isinstance(lay.get("mask"), dict)]
+    if len(masked) != 1:
+        rep.errors.append(
+            f"{where}.source.mask_copy_id: recipe {path!r} needs exactly one text-masked layer (found {len(masked)})"
+        )
+    elif str(masked[0]["mask"].get("text", "")).strip():
+        rep.errors.append(
+            f"{where}.source.mask_copy_id: recipe {path!r} sets its own mask text; remove it, the copy line "
+            f"{copy_id!r} supplies the text"
         )
 
 
