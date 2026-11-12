@@ -19,7 +19,7 @@ import re
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Callable
 
@@ -40,6 +40,7 @@ LICENCES = {
 }
 RELEASES = ("none", "stock_licence_only", "model_release_on_file")
 CREDIT_REQUIRED = ("unsplash", "pixabay")  # the licence (or the API's terms) asks for a visible credit
+CACHE_24H = ("unsplash", "pixabay")  # the API terms allow a local copy for 24 hours only; Pexels states no limit
 REQUIRED = (
     "id",
     "source",
@@ -119,8 +120,39 @@ def make_record(p: Photo, *, retrieved_at: str, contains_people: bool, query: st
         "release_status": "stock_licence_only" if contains_people else "none",
         "download_tracking_url": p.download_location,
         "cache_until": "",
+        "expires_at": _expiry(p.source, retrieved_at),
         "query": query,
     }
+
+
+def _expiry(source: str, retrieved_at: str) -> str:
+    """The day a local copy must be removed: one day after retrieval for the 24-hour sources, else blank."""
+    if source not in CACHE_24H:
+        return ""
+    return (date.fromisoformat(retrieved_at) + timedelta(days=1)).isoformat()
+
+
+def purge_expired(inputs: Path, today: date) -> list[Path]:
+    """Delete stock copies whose 24-hour cache has run out, with their credit records. Returns what was removed."""
+    removed: list[Path] = []
+    if not inputs.exists():
+        return removed
+    for rec_path in sorted(inputs.glob("*.credit.json")):
+        try:
+            rec = json.loads(rec_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        expires = rec.get("expires_at") or ""
+        if rec.get("source") not in CACHE_24H or not expires:
+            continue
+        if date.fromisoformat(expires) >= today:
+            continue
+        image = rec_path.with_name(rec_path.name.replace(".credit.json", ".jpg"))
+        for path in (image, rec_path):
+            if path.exists():
+                path.unlink()
+                removed.append(path)
+    return removed
 
 
 def generated_record(stem: str, prompt: str, retrieved_at: str) -> dict:
@@ -153,6 +185,8 @@ def validate_record(rec: dict) -> dict:
         raise StockError(f"unknown release_status {rec['release_status']!r}")
     if not isinstance(rec["contains_people"], bool):
         raise StockError("contains_people must be true or false")
+    if rec["source"] in CACHE_24H and not rec.get("expires_at"):
+        raise StockError(f"expires_at is required for {rec['source']} (24-hour cache)")
     if (rec["source"] in CREDIT_REQUIRED or rec["licence"] in CREDIT_REQUIRED) and not str(rec["credit_line"]).strip():
         raise StockError(f"credit_line is required for {rec['source']}")
     return rec
@@ -349,6 +383,7 @@ def find(
     q = (query or "").strip()
     if not q:
         raise StockError("query is empty")
+    purge_expired(config.get().inputs, date.today())
     if orientation not in ORIENTATION_ASPECT:
         raise StockError(f"orientation must be one of {', '.join(ORIENTATION_ASPECT)}")
     if fallback not in FALLBACKS:
