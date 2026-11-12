@@ -27,7 +27,7 @@ PIXABAY = {
     ],
 }
 EMPTY = {"total": 0, "hits": []}
-SECRET = "pbk-test-0000-not-a-real-key"
+FAKE_KEY = "pbk-fake-0001"
 
 
 class Fake:
@@ -76,7 +76,7 @@ def test_pixabay_record_needs_its_credit_line():
 
 
 def test_pixabay_is_used_only_after_pexels_and_unsplash_have_nothing(home):
-    env = {"PEXELS_API_KEY": "p", "UNSPLASH_ACCESS_KEY": "u", "PIXABAY_API_KEY": SECRET}
+    env = {"PEXELS_API_KEY": "p", "UNSPLASH_ACCESS_KEY": "u", "PIXABAY_API_KEY": FAKE_KEY}
     fake = Fake({"pexels.com": {"photos": []}, "unsplash.com/search": {"results": []}, "pixabay.com/api": PIXABAY})
     stock.find("a red kettle", env=env, name="kettle", http_json=fake.json, http_bytes=fake.bytes, generate=Boom())
     rec = json.loads((home / "inputs" / "kettle.credit.json").read_text(encoding="utf-8"))
@@ -85,11 +85,11 @@ def test_pixabay_is_used_only_after_pexels_and_unsplash_have_nothing(home):
 
 def test_pixabay_alone_works_and_sends_the_key_as_a_query_parameter(home):
     fake = Fake({"pixabay.com/api": PIXABAY})
-    stock.find("a red kettle", env={"PIXABAY_API_KEY": SECRET}, name="k", http_json=fake.json, http_bytes=fake.bytes)
+    stock.find("a red kettle", env={"PIXABAY_API_KEY": FAKE_KEY}, name="k", http_json=fake.json, http_bytes=fake.bytes)
     url, headers = fake.calls[0]
-    assert url.startswith("https://pixabay.com/api/?") and f"key={SECRET}" in url
+    assert url.startswith("https://pixabay.com/api/?") and f"key={FAKE_KEY}" in url
     assert "image_type=photo" in url and "safesearch=true" in url
-    assert SECRET not in json.dumps(headers)
+    assert FAKE_KEY not in json.dumps(headers)
 
 
 def test_a_failed_request_never_shows_the_key(home):
@@ -97,8 +97,8 @@ def test_a_failed_request_never_shows_the_key(home):
         raise OSError(f"connection reset for {url}")
 
     with pytest.raises(stock.StockError) as err:
-        stock.find("a red kettle", env={"PIXABAY_API_KEY": SECRET}, http_json=broken, http_bytes=Boom())
-    assert SECRET not in str(err.value)
+        stock.find("a red kettle", env={"PIXABAY_API_KEY": FAKE_KEY}, http_json=broken, http_bytes=Boom())
+    assert FAKE_KEY not in str(err.value)
     assert "pixabay" in str(err.value).lower()
 
 
