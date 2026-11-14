@@ -405,11 +405,15 @@ def layer_seed(seed: int, index: int) -> int:
     return seed + 7919 * index
 
 
-def save_recipe(recipe: Recipe2, path: str | Path, resolve: bool = True, outputs: dict | None = None) -> Recipe2:
+def save_recipe(
+    recipe: Recipe2, path: str | Path, resolve: bool = True, outputs: dict | None = None, loop_check: dict | None = None
+) -> Recipe2:
     r = resolve_recipe(recipe) if resolve else recipe
     d = r.to_dict()
     if outputs:
         d["outputs"] = {k: Path(v).as_posix() for k, v in outputs.items()}
+    if loop_check:  # informational like "outputs": Recipe2.from_dict ignores top-level keys it does not know
+        d["loop_check"] = loop_check
     for lay in d["layers"]:
         for k in ("shader", "path"):
             if isinstance(lay.get(k), str):

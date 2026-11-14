@@ -45,6 +45,8 @@ The point is a promo a follower of the account has NOT seen yet. Gather candidat
   Claude, posters with exact text, looping visuals, before/after reveals. A genre needs no release behind it;
   it needs several people making it. Skip tragedies, politics, lawsuits, personal matters and security incidents.
 - **What's new in funkbox:** `python promo/measure.py facts $DAY` and read M-commits (changes since the last promo).
+- **What performed:** read `$STATE/notes.md` (the owner's notes on which posts got traction; skip if absent) and
+  weigh it when choosing; the lint variety rules below still apply.
 - **What hasn't been said:** read the last 14 `$STATE/days/*/brief.json` (format, selling point, hook).
 A trend is a candidate only if funkbox can honestly do it: ask "can funkbox make this style, today, from a prompt?"
 (shader loops from GLSL Claude writes, posters, reels, tracing). If yes, the promo MAKES one with funkbox and shows

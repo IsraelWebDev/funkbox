@@ -342,12 +342,13 @@ def cmd_sheet(args) -> int:
 
 def cmd_render(args) -> int:
     from funkbox.gl.encode import render_recipe
-    from funkbox.gl.loopcheck import validate_loop
+    from funkbox.gl.loopcheck import loop_check_entry, validate_loop
 
     rec, label = _build_recipe(args)
     name = args.name or f"{label}-s{rec.settings.seed}"
     if rec.settings.audio:
         _err("warning: audio set; the loop check is skipped. Audio loops are not seamless unless the music is.")
+    rep = None
     if not args.no_check and not rec.settings.audio:
         rep = validate_loop(rec)
         if not rep.ok:
@@ -363,6 +364,7 @@ def cmd_render(args) -> int:
         gif=args.gif,
         png=not args.no_png,
         gif_width=args.gif_width,
+        loop_check=loop_check_entry(rep, "audio" if rec.settings.audio else "no_check"),
     )
     print(res.timing_line())
     for k, p in res.paths.items():

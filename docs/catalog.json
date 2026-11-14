@@ -649,7 +649,7 @@
     },
     {
       "area": "loop",
-      "description": "Render a seamless loop (MP4 + PNG poster + JSON sidecar that fully reproduces it; GIF only if\ngif=True, since it is ~10x slower than the mp4 on busy loops). Give a recipe, or a named look instead.\nLimits: <=1080px per side, <=20 s, <=60 fps. Runs the loop check first and refuses a broken loop.",
+      "description": "Render a seamless loop (MP4 + PNG poster + JSON sidecar that fully reproduces it; GIF only if\ngif=True, since it is ~10x slower than the mp4 on busy loops). Give a recipe, or a named look instead.\nLimits: <=1080px per side, <=20 s, <=60 fps. Runs the loop check first and refuses a broken loop.\nWith settings.audio the check is skipped and the result says \"loop check skipped\".",
       "input_schema": {
         "properties": {
           "gif": {

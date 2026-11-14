@@ -18,7 +18,7 @@ from funkbox.config import funk_home, funk_inputs, funk_out
 from funkbox.gl.context import gl_info as _gl_info
 from funkbox.gl.encode import render_recipe
 from funkbox.gl.engine import Engine
-from funkbox.gl.loopcheck import validate_loop
+from funkbox.gl.loopcheck import loop_check_entry, validate_loop
 from funkbox.gl.recipe import BLEND_MODES, LAYER_TYPES, PALETTES, Recipe2, resample_params, resolve_recipe
 from funkbox.gl.shader import ShaderSource
 from funkbox.loops import presets as presets_mod
@@ -326,14 +326,15 @@ def _render_gl(rec: Recipe2, out_dir: Path, name: str, gif: bool = False):
         rep = validate_loop(rec, size=160)
         if not rep.ok:
             return None, rep
-    return render_recipe(rec, out_dir, name, gif=gif, engine=eng), rep
+    return render_recipe(rec, out_dir, name, gif=gif, engine=eng, loop_check=loop_check_entry(rep)), rep
 
 
 @safe
 def loop_render(recipe: Recipe | None = None, name: str = "", gif: bool = False, look: LookName | None = None) -> list:
     """Render a seamless loop (MP4 + PNG poster + JSON sidecar that fully reproduces it; GIF only if
     gif=True, since it is ~10x slower than the mp4 on busy loops). Give a recipe, or a named look instead.
-    Limits: <=1080px per side, <=20 s, <=60 fps. Runs the loop check first and refuses a broken loop."""
+    Limits: <=1080px per side, <=20 s, <=60 fps. Runs the loop check first and refuses a broken loop.
+    With settings.audio the check is skipped and the result says "loop check skipped"."""
     rec = _parse_recipe(_recipe_arg(recipe, look))
     _limits(rec)
     if not name:
