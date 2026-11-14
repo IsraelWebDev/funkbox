@@ -291,7 +291,7 @@ def test_setup_models_checks_hashes(work, monkeypatch):
     from funkbox.reel import models
 
     st = models.status()
-    assert set(st) == {"depth", "voice", "kokoro", "lama"}
+    assert set(st) == {"depth", "voice", "kokoro", "lama", "mobilesam"}
     man = models.models_manifest()
     for m in man.values():
         assert m["license"] and all(len(f["sha256"]) == 64 for f in m["files"])
