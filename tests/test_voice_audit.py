@@ -26,7 +26,7 @@ def deck_with(lines, pronounce=None, tmp_path=None):
 
 def audit(tmp_path, deck, spans, voiceover=True):
     """Run the real _audit_json on a minimal plan (one voiced shot, s1, speaking copy id 'hook')."""
-    shot = SimpleNamespace(id="s1", vo="hook", caption=None, source=SimpleNamespace(grid=None))
+    shot = SimpleNamespace(id="s1", vo="hook", caption=None, source=SimpleNamespace(grid=None, mask_copy_id=None))
     reel = SimpleNamespace(
         audio=SimpleNamespace(voiceover=voiceover, voice="kokoro:af_heart"),
         settings=SimpleNamespace(fps=30),

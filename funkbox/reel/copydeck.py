@@ -101,6 +101,8 @@ def used_ids(reel: Reel) -> list[tuple[str, str]]:
     for i, sh in enumerate(reel.shots):
         if sh.caption:
             out.append((f"shots[{i}] ({sh.id}).caption.copy_id", sh.caption.copy_id))
+        if sh.source.mask_copy_id:
+            out.append((f"shots[{i}] ({sh.id}).source.mask_copy_id", sh.source.mask_copy_id))
         if sh.vo:
             out.append((f"shots[{i}] ({sh.id}).vo", sh.vo))
         if sh.source.grid is not None:

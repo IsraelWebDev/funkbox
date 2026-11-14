@@ -122,7 +122,7 @@ def reel_templates() -> str:
         '  or "keys":[{"rect":[x,y,w,h], "t":0..1 | "s":seconds, "ease":...}]; rects are fractions of the '
         "SOURCE; works on images and video, crop + scale only (pixels are never altered)",
         "transitions: " + ", ".join(TRANSITIONS),
-        "sources: image | video(trim, loop, speed: n or [start, end] ramp) | color(#hex) | funk2(recipe, no text);"
+        "sources: image | video(trim, loop, speed: n or [start, end] ramp) | color(#hex) | funk2(recipe; with mask_copy_id its one text mask is that copy line, otherwise no text);"
         " any image/video: fit cover|contain, focus [x,y] (crop centre), pad #hex|blur (contain / past the edge)",
         'durations: seconds | "auto" (voice-over length) | "beats:N" (halves ok; grid from audio.bpm, '
         "or detected in audio.music)",
