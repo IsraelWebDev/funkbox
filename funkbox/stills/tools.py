@@ -12,6 +12,7 @@ from pathlib import Path
 from PIL import Image as PILImage
 
 from funkbox.mcp_util import on_gl, png as _png, safe
+from funkbox.tool_options import CompareFit, FitTo
 from funkbox.stills import api, edit as editmod, render, schema, variations
 
 
@@ -125,7 +126,7 @@ def poster_export_ora(poster: dict | str, name: str = "", project: str = "") -> 
 
 @safe
 def poster_compare(
-    candidate: dict | str, reference: str, name: str = "compare", fit: str = "cover", project: str = ""
+    candidate: dict | str, reference: str, name: str = "compare", fit: CompareFit = "cover", project: str = ""
 ) -> list:
     """How close is a render to a reference picture, and where does it differ? ``candidate`` is a picture path or a
     poster (JSON object or .poster.json, rendered first); ``reference`` is a picture path. Returns scores 0..100
@@ -149,7 +150,7 @@ def poster_sizes(
     poster: dict | str,
     sizes: list,
     name: str = "",
-    fit_to: str = "canvas",
+    fit_to: FitTo = "canvas",
     formats: list | None = None,
     project: str = "",
 ) -> list:

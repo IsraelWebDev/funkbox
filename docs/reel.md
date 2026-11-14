@@ -282,3 +282,7 @@ prefixes problems with `[16x9]`. Safe areas: `reels` (keeps captions clear of th
 ## Plan-driven renders (proposed, not live)
 
 The tools and their input schemas are listed in [docs/catalog.json](https://github.com/IsraelWebDev/funkbox/blob/main/docs/catalog.json). The file is generated from the MCP server: `python -m funkbox catalog` (`--check` verifies it). The website is proposed to plan a render from this catalog: an AI planner writes a plan of these tools, the server checks the plan, and a preview runs it at low resolution or shows a storyboard before a paid render runs the same stored plan. Nothing here changes how the local tools work today. Decision and sign-offs: [docs/adr-plan-driven-renders.md in IsraelWebDev/funkbox-online](https://github.com/IsraelWebDev/funkbox-online/blob/main/docs/adr-plan-driven-renders.md).
+
+## Text mask from the copy deck
+
+A funk2 shot can take its one text mask from a copy line: `source: {"funk2": "recipe.json", "mask_copy_id": "hook"}`. The recipe's text-masked layer (`mask: {"font", "size", "align"}`) must not carry its own `text`; the copy line supplies it. Validate checks that the copy id exists, that the recipe has exactly one text-masked layer, and that the mask has no text of its own. The text audit lists the shot as `<shot>/source_mask/0` with the exact copy text and the frames it shows, so a masked word is covered by the copy lock like a caption.

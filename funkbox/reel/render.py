@@ -20,6 +20,7 @@ from funkbox.media import encode_video, mux_audio, require_ffmpeg
 
 from . import depth as depthmod
 from . import captions as captions_mod
+from . import collision
 from . import endcard as endcard_mod
 from . import framing
 from . import grid as grid_mod
@@ -321,7 +322,7 @@ class Renderer:
                 stt.video = VideoStream(self._res(src.value), self.w, self.h, self.fps, src.trim, src.loop, src.fit)
             return stt.video.frame(local)
         if src.kind == "funk2":
-            return self._funk2_frame(stt, src.value, local)
+            return self._funk2_frame(stt, src.value, local, span, src.mask_copy_id)
         if framing.needs_windowing_image(src, sh.motion):
             return self._windowed_image(span, sh, stt, local)
         # image
@@ -497,14 +498,23 @@ class Renderer:
             dd[oy : oy + nh, ox : ox + nw] = np.asarray(Image.fromarray(d, mode="F").resize((nw, nh), Image.BILINEAR))
         return self.motion.upload(np.asarray(canvas), dd)
 
-    def _funk2_frame(self, stt: _ShotState, path: str, local: int) -> np.ndarray:
+    def _funk2_frame(self, stt: _ShotState, path: str, local: int, span=None, copy_id: str | None = None) -> np.ndarray:
         from funkbox.gl.engine import Engine
+        from funkbox.gl.recipe import _check_mask
 
         if stt.funk2 is None:
             rec = load_recipe(self._res(path))
             rec.text = None  # text only ever comes from the copy deck
             rec.settings.width, rec.settings.height = self.w, self.h
+            if copy_id is not None:
+                masked = [lay for lay in rec.layers if isinstance(lay.mask, dict)]
+                if len(masked) != 1:
+                    raise ValueError(f"{path}: mask_copy_id needs exactly one text-masked layer (found {len(masked)})")
+                masked[0].mask = {**masked[0].mask, "text": self.deck.text(copy_id)}
+                _check_mask(masked[0], None)
             stt.funk2 = rec
+        if copy_id is not None and self.audit is not None:
+            self._note_source_mask(span, copy_id, self.deck.text(copy_id), local)
         if self._funk_engine is None:
             self._funk_engine = Engine(self.w, self.h, ctx=self.motion.ctx)
         rec = stt.funk2
@@ -591,7 +601,21 @@ class Renderer:
                         safe_area=sa,
                     )
 
-                anchor = captions_mod.pick_anchor(fr, lay_for, self.w, self.h, self.reel.settings.safe_area)
+                prod = self.reel.shots[span.index].product
+                blocked = None
+                if prod is not None:  # the collision rule: never pick a spot that overlaps the product
+                    pb = collision.product_box(
+                        prod.x, prod.y, prod.height, collision.image_aspect(self._res(prod.image)), self.w, self.h
+                    )
+
+                    def blocked(lay, _pb=pb) -> bool:
+                        return (
+                            collision.overlap_fraction(collision.caption_box(lay), _pb) > collision.MAX_OVERLAP + 1e-9
+                        )
+
+                anchor = captions_mod.pick_anchor(
+                    fr, lay_for, self.w, self.h, self.reel.settings.safe_area, blocked=blocked
+                )
             lay = stt.extra["caption"] = captions_mod.layout_block(
                 c.copy_id,
                 self.deck.text(c.copy_id),
@@ -733,6 +757,29 @@ class Renderer:
         return self.endcard().frame(local / self.fps, note)
 
     # ---- exactness audit
+    def _note_source_mask(self, span: ShotSpan, copy_id: str, text: str, local: int) -> None:
+        """A funk2 shot's text mask is its copy line: one audit entry per shot, covering every frame it shows."""
+        assert self.audit is not None
+        key = f"{span.id}/source_mask/0"
+        f0 = int(round((span.start_frame + local) * (self.src_fps / self.fps)))
+        e = self.audit.get(key)
+        if e is None:
+            e = self.audit[key] = {
+                "kind": "source",
+                "shot": span.id,
+                "slot": "source_mask",
+                "instance": "0",
+                "copy_id": copy_id,
+                "first_frame": f0,
+                "last_frame": f0,
+                "chars": len(text),
+                "text": text,
+                "complete_frame": f0,
+                "opaque_frame": f0,
+                "drawn_lines": [text],
+            }
+        e["last_frame"] = f0
+
     def _note(
         self,
         kind: str,
@@ -1021,6 +1068,8 @@ def _audit_json(r: Renderer, plan: Plan, name: str, out_dir: Path) -> dict:
             expected.add(f"{sh.id}/voiceover/{sh.vo}")
         if sh.caption:
             expected.add(f"{sh.id}/caption/main")
+        if sh.source.mask_copy_id:
+            expected.add(f"{sh.id}/source_mask/0")
         if sh.source.grid is not None:
             for j, cell in enumerate(sh.source.grid.cells):
                 if cell.label_index:

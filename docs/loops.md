@@ -43,6 +43,7 @@ Older sidecars written by funk v1 load too (they become shader-layer recipes). D
 The eight classic looks are recipes (`funkbox/loops/presets.py`): `acid-plasma`, `pop-moire`, `liquid-disco`,
 `hypno-tunnel`, `lava-lamp`, `op-art`, `frozen-kaleido`, `party-poster`. A preset is a shader (one of the six ports
 below), a palette, kaleido/spin/zoom as shader params and a stack of post passes plus optional text.
+A ninth look, `liquid-metal`, is the `metal` effect (`shaders/metal.frag`, liquid chrome) with the `chrome` palette; `gold`, `mercury` and `iridescent` fit it too.
 `funkbox loop list` (or the `loop_list` tool) prints them. `docs/history/v1-to-v4-presets.png` compares them with the
 retired v1 CPU renderer: same looks, not the same pixels.
 
@@ -51,12 +52,16 @@ retired v1 CPU renderer: same looks, not the same pixels.
 | tool | use |
 |---|---|
 | `loop_list` | shaders with `@param` ranges, post passes, blend modes, layer types, palettes, preset recipes |
-| `loop_preview` | one frame of a recipe, fast. Iterate on the look here |
-| `loop_sheet` | grid across seeds to choose a variation |
-| `loop_render` | the real MP4 + PNG + JSON (GIF opt-in) |
+| `loop_preview` | one frame of a recipe, fast. Iterate on the look here. `look` names a look instead of a recipe |
+| `loop_sheet` | grid across seeds to choose a variation. Takes a recipe or `look` |
+| `loop_render` | the real MP4 + PNG + JSON (GIF opt-in). Takes a recipe or `look` |
 | `loop_write_shader`, `loop_get_shader` | write GLSL with line-numbered errors and the loop check; read a shader |
-| `loop_still` | one frame of a recipe or shader as a poster-sized PNG |
+| `loop_still` | one frame of a recipe, a `look` or a shader as a poster-sized PNG. `preset` is the canvas size (square, story, landscape ...), not the look |
 | `loop_gl_info` | renderer, version, shader names, folders |
+
+The closed options are enums in each tool's schema, so a client can list them without reading this page: the looks
+(`look`), canvas sizes (`loop_still` `preset`), palettes, effects, blend modes and layer types inside a recipe, aspects,
+and services. `docs/catalog.json` has the same lists.
 
 Each tool returns a PNG preview with its text, so Claude sees the result and can critique it ("too busy, drop
 halftone, push chroma") instead of rendering blind.
@@ -169,6 +174,19 @@ posterize scanlines vignette grain`. Relative paths resolve against the recipe's
 `"audio": "song.wav"` in `settings` (PCM WAV) drives `iAudio`/`iChannel3`, defaults `seconds` to the clip
 length, is muxed into the mp4, and skips the loop check (audio loops are not seamless unless the music is).
 `examples/disco_cat.json` is a runnable sample; `python examples/make_cat.py` regenerates its image.
+
+A shader or image layer can carry a `mask`: an image (PNG with alpha) whose alpha scales the layer, so the layer shows
+only where the mask is opaque (a logo or text cut-out). `mask_fit` (`cover`, `contain` or `stretch`, default `cover`)
+fits the mask to the frame as an image layer is fitted. Only the mask's alpha counts. `examples/layer_mask/`
+holds the funkbox mark as an example: `funkbox-mask.png` is its white letters, grown slightly, from
+`.claude-plugin/icon.png`, and `funkbox-chrome.json` fills them with the liquid-chrome metal shader.
+
+A `mask` can also be typed text: `{"text": "FUNK BOX", "size": 0.22, "font": "Funkbox Block:800"}`. `size` is the text
+height as a fraction of the frame (0.01 to 0.5, the poster range) and `align` is `left`, `center` or `right`. The text is drawn
+by the poster text pipeline and checked by the text audit: text that is not drawn exactly is an error, never a different mask.
+`examples/layer_mask/funkbox-text-chrome.json` is the example. A layer with a mask can also carry a `bevel` (`width` in pixels,
+1 to 64; `strength` 0 to 1; `angle` in degrees): the mask's edges are lit so the shape reads as raised. Only colour changes;
+coverage and the interior stay as they are. A bevel needs a mask.
 
 A legacy layer `{"type": "v1", "effect": "blobs"}` is still accepted and converted to the matching shader layer when
 the recipe loads. Per-layer `palette` and `cycles` (as `extra` keys of a layer) are honoured by the engine.

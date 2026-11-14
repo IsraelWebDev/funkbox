@@ -19,8 +19,11 @@ entries of `$STATE/posts.jsonl` (the post log, next to the day folders; it may n
    fact id). Still look for background text peeking out beside a caption box yourself.
 
 ## Check every word (on screen, title, description, tags, X text)
-3. Every claim maps to a fact in FACTS.md, or to an M-key in measured.json whose "say" sentence it matches (a
-   number may be rounded down, never up; "no GPU" only if M-machine says so). No superlatives, no invented numbers, no
+3. Every claim maps to a fact in FACTS.md, or to an M-key in measured.json whose meaning it matches. Judge numbers
+   for honesty, not exact digits: counts (strings, tools, presets, cores) must match, but a render time drifts a few
+   seconds between renders of the same video, so one within 15% of M-render, or an "under N" bound M-render meets
+   (`say_rough`), is fine; lint checks this. A paraphrase that means the same as a fact is fine ("no GPU" only if
+   M-machine says so). No superlatives, no invented numbers, no
    named competitors, no testimonials, nothing about Anthropic beyond "works with Claude".
 4. If the brief uses a trend (`trend` is not null), the tie-in is honest. Read `trend.kind`:
    - `event` (news): the sources in brief.json are real, recent (last 7 days) and say what the brief says.

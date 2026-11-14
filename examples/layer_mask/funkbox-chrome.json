@@ -1,0 +1,29 @@
+{
+  "settings": {
+    "width": 512,
+    "height": 512,
+    "fps": 12,
+    "seconds": 3.0,
+    "seed": 7
+  },
+  "palette": {
+    "name": "chrome",
+    "cycles": 1
+  },
+  "layers": [
+    {
+      "type": "shader",
+      "shader": "shaders/metal.frag",
+      "blend": "normal",
+      "opacity": 1.0,
+      "mask": "funkbox-mask.png",
+      "mask_fit": "contain"
+    }
+  ],
+  "post": [
+    {
+      "name": "vignette",
+      "amount": 0.3
+    }
+  ]
+}

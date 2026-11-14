@@ -14,6 +14,8 @@
 4. Claims: every claim in brief.json cites a fact id that exists in FACTS.md, or an M-key in measured.json.
 5. Owner approval: an owner_approval.json, if the day has one, is well formed (see enqueue.py and REVIEW.md
    check 7). Lint does not judge what it approves; the reviewer does, and only for the content it names.
+6. Quoted times: a render time in caption.json, copy.json or a brief claim is within RENDER_TOLERANCE of today's
+   M-render (or an "under N" that M-render meets), so a number left over from an earlier render is caught here.
 """
 
 from __future__ import annotations
@@ -51,6 +53,7 @@ SELLING_POINTS = {
 }
 FORMAT_GAP, SELLING_GAP, HOOK_OVERLAP = 2, 4, 0.6
 FEEDBACK_FIELDS = ("observation", "suggestion", "evidence")
+RENDER_TOLERANCE = 0.15  # render times drift between renders of the same video; a quote within 15% is honest
 FACT_RE = re.compile(r"^- (F\d+|L\d+)\.", re.M)
 
 
@@ -187,6 +190,47 @@ def claim_problems(day: Path, facts_md: Path = HERE / "FACTS.md") -> list[str]:
     return out
 
 
+SECONDS_RE = re.compile(r"(?i)\b(under|less than|below)?\s*(\d+(?:\.\d+)?)\s*(?:s|sec|secs|seconds)\b")
+
+
+def timing_problems(day: Path) -> list[str]:
+    """Render times quoted in the copy, captions and claims match today's M-render (within RENDER_TOLERANCE, or an
+    "under N" bound it meets). Durations equal to the video's length (M-video) are not render times and pass."""
+    facts = _json(day / "measured.json").get("facts", {})
+    rs = (facts.get("M-render") or {}).get("value", {}).get("seconds")
+    if not rs:
+        return []
+    vlen = (facts.get("M-video") or {}).get("value", {}).get("seconds")
+    texts = []
+    cap = _json(day / "caption.json")
+    yt, x = cap.get("youtube", {}) or {}, cap.get("x", {}) or {}
+    texts += [
+        ("caption.json youtube", str(yt.get("title", "")) + " " + str(yt.get("description", ""))),
+        ("caption.json x", str(x.get("text", ""))),
+    ]
+    for cid, line in (_json(day / "copy.json").get("lines", {}) or {}).items():
+        texts.append((f"copy.json {cid}", str((line or {}).get("text", "")).replace("\n", " ")))
+    for c in _json(day / "brief.json").get("claims", []):
+        if "M-render" in str(c.get("fact", "")):
+            texts.append(("brief claim", str(c.get("text", ""))))
+    out = []
+    for where, text in texts:
+        for m in SECONDS_RE.finditer(text):
+            n = float(m.group(2))
+            if vlen and abs(n - vlen) <= 1:
+                continue  # the video's length, not its render time
+            if m.group(1):
+                ok = rs < n
+            else:
+                ok = abs(n - rs) <= RENDER_TOLERANCE * rs
+            if not ok:
+                out.append(
+                    f"{where} says {m.group(0).strip()!r} but this render took {rs} s (M-render): quote it within "
+                    f'{RENDER_TOLERANCE:.0%} or as "under {facts["M-render"]["value"].get("under") or "N"} s"'
+                )
+    return out
+
+
 def approval_problems(day: Path) -> list[str]:
     sys.path.insert(0, str(HERE))
     from enqueue import approval_problems as ap
@@ -267,6 +311,7 @@ def check(day: Path) -> list[str]:
         + claim_problems(day)
         + approval_problems(day)
         + trend_problems(day)
+        + timing_problems(day)
     )
 
 

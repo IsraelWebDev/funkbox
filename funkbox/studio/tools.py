@@ -7,7 +7,8 @@ Plain module-level functions plus ``register(server)``: thin wrappers over ``fun
 from __future__ import annotations
 
 from funkbox.mcp_util import png as _png, safe
-from funkbox.studio import apps, images
+from funkbox.tool_options import Aspect, Service, StockFallback, StockOrientation
+from funkbox.studio import apps, images, stock
 
 
 def _blocks(res: images.ImageResult):
@@ -21,7 +22,7 @@ def apps_status() -> str:
 
 
 @safe
-def apps_start(service: str = "all", wait_s: float = 0) -> str:
+def apps_start(service: Service = "all", wait_s: float = 0) -> str:
     """Start 'fastsd', 'gimp' or 'all'. Idempotent. FastSD is launched and awaited. GIMP is opened by
     the user via the 'GIMP + MCP' desktop shortcut: this returns what to ask them, or, with wait_s>0,
     waits that long for GIMP's MCP port after you've asked."""
@@ -29,7 +30,7 @@ def apps_start(service: str = "all", wait_s: float = 0) -> str:
 
 
 @safe
-def apps_stop(service: str = "fastsd", force: bool = False) -> str:
+def apps_stop(service: Service = "fastsd", force: bool = False) -> str:
     """Stop 'fastsd' (frees ~4 GB RAM). GIMP is never closed by funkbox (unsaved work)."""
     return apps.stop(service, force)
 
@@ -37,7 +38,7 @@ def apps_stop(service: str = "fastsd", force: bool = False) -> str:
 @safe
 def image_generate(
     prompt: str,
-    aspect: str = "square",
+    aspect: Aspect = "square",
     seed: int = -1,
     n: int = 1,
     negative_prompt: str = "",
@@ -52,7 +53,7 @@ def image_generate(
     compiled per image size (~2-3 min the first time at each size); this tool answers with a warning and does
     nothing until you pass confirm_slow=true. PREFER 'square': SD-Turbo is trained at 512x512 and tall/wide sizes often duplicate the subject (two dogs stacked, a room on two floors); for 9:16 use square and let reel/stills cover-crop it (image_upscale first for sharper crops). Never request a product or text in the prompt. SD-Turbo output is
     under the Stability AI Community License (free commercial use under US$1M annual revenue; Stability asks
-    commercial users to register)."""
+    commercial users to register). Not for pictures of people: use image_find (stock first, people never generated)."""
     return _blocks(images.generate(prompt, aspect, seed, n, negative_prompt, name, steps, confirm_slow))
 
 
@@ -61,7 +62,7 @@ def image_restyle(
     path: str,
     prompt: str,
     strength: float = 0.5,
-    aspect: str | None = None,
+    aspect: Aspect | None = None,
     seed: int = -1,
     name: str = "",
     confirm_slow: bool = False,
@@ -81,7 +82,26 @@ def image_upscale(path: str, name: str = "") -> list:
     return _blocks(images.upscale(path, name))
 
 
-TOOLS = [apps_status, apps_start, apps_stop, image_generate, image_restyle, image_upscale]
+@safe
+def image_find(
+    query: str,
+    people: bool | None = None,
+    orientation: StockOrientation = "square",
+    fallback: StockFallback = "none",
+    name: str = "",
+) -> list:
+    """A licensed stock photo (Pexels, then Unsplash), saved to inputs/ with a credit record next to it.
+    STOCK FIRST: use this for almost every picture, and always for a picture with people. People pictures are never
+    generated: the tool answers NO MATCH instead (try other words). Pass fallback='fastsd_scene' only for a picture
+    without people that stock cannot supply; the result is then tagged as generated. Set people=true when the picture
+    shows a person even if the query does not say so. The credit line in the result must be shown wherever the photo
+    is used. Unsplash and Pixabay copies are kept for 24 hours and then removed; the next run removes them.
+    Needs PEXELS_API_KEY, UNSPLASH_ACCESS_KEY or PIXABAY_API_KEY in the environment; with none set it answers
+    NOT CONFIGURED and sends nothing."""
+    return _blocks(stock.find(query, people=people, orientation=orientation, fallback=fallback, name=name))
+
+
+TOOLS = [apps_status, apps_start, apps_stop, image_generate, image_restyle, image_upscale, image_find]
 
 
 def register(server) -> None:

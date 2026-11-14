@@ -9,11 +9,14 @@
 | `apps_start(service, wait_s=0)` (`apps start`) | `fastsd`: launches the localhost-only launcher and waits (~20 s). `gimp`: tells Claude what to ask you (double-click **GIMP + MCP** on the desktop); with `wait_s` it waits for GIMP's port |
 | `apps_stop(service)` (`apps stop`) | stops FastSD (frees ~4 GB). Never closes GIMP |
 | `image_generate(prompt, aspect, seed, n, ...)` (`image generate`) | auto-starts FastSD, saves `inputs/<name>.png` (ready for a loop or poster image layer). `aspect`: `square` 512x512, `portrait` 512x768, `landscape` 768x512, `story` 512x896, `wide` 896x512. `n=2..8` gives variations (seeds `seed`, `seed+1`, ...) as a contact sheet plus one file each |
+| `image_find(query, people, orientation, fallback, name)` (`image find`) | a licensed stock photo, Pexels first, then Unsplash, then Pixabay, saved to `inputs/<name>.jpg` with `inputs/<name>.credit.json` (author, licence, credit line, people flag). **Stock first**: use it for almost every picture. A picture with people is never generated: no match means try other words. `fallback=fastsd_scene` lets FastSD make a scene without people, tagged as generated. Needs `PEXELS_API_KEY`, `UNSPLASH_ACCESS_KEY` or `PIXABAY_API_KEY` (free; Pixabay is searched last); with none set it sends nothing. Unsplash and Pixabay copies are removed 24 hours after download (`expires_at` in the record) |
 | `image_restyle(path, prompt, strength=0.5, aspect=None, ...)` (`image restyle`) | img2img: re-renders a picture in a new style. SD-Turbo needs `steps * strength >= 1`, so steps are raised automatically and reported |
 | `image_upscale(path)` (`image upscale`) | 2x only: FastSD's upscaler when it works on the machine, otherwise LANCZOS plus a mild unsharp mask; the result says which ran |
 
 FastSD shuts itself down after 20 idle minutes if funkbox started it (`STUDIO_FASTSD_IDLE_MIN`). 512x512 stays
 warm (~3-5 s per image); the first image at any other size recompiles the iGPU model (~2.5 min).
+
+The FastSD run step (start, stop, config) works on Windows, macOS and Linux. `FASTSD_DEVICE` (or `fastsd_device` in `funkbox.toml`) defaults to `GPU` on Windows (the Intel iGPU through OpenVINO) and to `CPU` on macOS and Linux; setting it always wins.
 
 **Why GIMP is started by you, not by Claude:** Claude Desktop is a sandboxed (MSIX) app that kills everything an MCP
 server launched when it stops that server, so a Claude-launched GIMP would close and lose unsaved work. It also

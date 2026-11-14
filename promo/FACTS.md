@@ -10,8 +10,9 @@ A claim gets past the reviewer AND lands with viewers when it is specific and ch
 - **The real thing on screen:** a real file, command or shot-list line (the code cards), the text audit's result.
 - **A before/after or a cause:** "change one line, render again" (F12, F13), "one edit, four formats" (F9).
 - **The video itself as proof:** everything in a promo was made by funkbox (F18), so "this video" is evidence.
-Words like fast, easy, powerful or best add nothing and invite a FAIL. Quote an M-key's "say" sentence or a fact
-closely; rounding a number down is fine, rounding it up is not.
+Words like fast, easy, powerful or best add nothing and invite a FAIL. Say what an M-key's "say" sentence or a fact
+means; the wording is yours. Counts must match. A render time may be quoted within 15% (it drifts between renders
+of the same video) or as the "under N" bound in M-render's `say_rough`, which survives a re-render.
 
 ## What it is
 - F1. funkbox is free and open source (MIT), at github.com/IsraelWebDev/funkbox.

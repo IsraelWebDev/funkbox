@@ -1,9 +1,12 @@
-// Composite pass: out = mix(base, blend(base, src), opacity * src.a). Straight alpha.
+// Composite pass: out = mix(base, blend(base, src), opacity * src.a * mask.a). Straight alpha.
+// The mask (a layer's own image, fitted to the frame) is only read when u_has_mask is 1.
 // "#version 330" is prepended by the engine; this pass does not use the shader prelude.
 uniform sampler2D u_base;
 uniform sampler2D u_src;
 uniform int   u_mode;      // 0 normal 1 add 2 screen 3 multiply 4 overlay 5 difference 6 softlight 7 hue
 uniform float u_opacity;
+uniform sampler2D u_mask;
+uniform int   u_has_mask;
 out vec4 fragColor;
 
 float lum(vec3 c) { return dot(c, vec3(0.3, 0.59, 0.11)); }
@@ -41,6 +44,7 @@ void main() {
   ivec2 c = ivec2(gl_FragCoord.xy);
   vec4 b = texelFetch(u_base, c, 0);
   vec4 s = texelFetch(u_src, c, 0);
-  vec3 outc = mix(b.rgb, blendRGB(b.rgb, s.rgb), clamp(u_opacity, 0.0, 1.0) * s.a);
+  float m = u_has_mask == 1 ? texelFetch(u_mask, c, 0).a : 1.0;
+  vec3 outc = mix(b.rgb, blendRGB(b.rgb, s.rgb), clamp(u_opacity, 0.0, 1.0) * s.a * m);
   fragColor = vec4(outc, 1.0);
 }
