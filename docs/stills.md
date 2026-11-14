@@ -111,8 +111,11 @@ missing. `shadow` is a number (opacity) or `{opacity, light, distance, blur, squ
 overlay's silhouette on the ground, cast away from the light (`light` is the angle the light comes from, 0 = above,
 90 = right). The shadow fades with the overlay's own `opacity`.
 
-`inpaint {mask, grow}` removes something from the picture. `mask` is a PNG where white marks what to remove (it is
-resized to the picture, so make it the same size if you can). `grow` (0 to 64, default 4) widens the white area by
+`inpaint {mask | point, grow}` removes something from the picture. `mask` is a PNG where white marks what to remove (it
+is resized to the picture, so make it the same size if you can). `point: [x, y]` (picture pixels, from the top left)
+asks MobileSAM for the mask of the object under that point instead; give exactly one of `mask` or `point`. The
+MobileSAM encoder runs once per picture (about half a second on two CPU cores) and needs the MobileSAM files from
+`funkbox reel setup-models`. `grow` (0 to 64, default 4) widens the white area by
 that many pixels so the soft edge goes too. The fill is LaMa, an ONNX model that runs on the CPU; it needs the model
 from `funkbox reel setup-models` and says so when missing. The network takes a fixed 512x512 input, so the fill runs
 on a square crop around the mask (half the mask box again as context on each side) and only the masked pixels are
