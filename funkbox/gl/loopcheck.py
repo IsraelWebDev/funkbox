@@ -29,6 +29,20 @@ class LoopReport:
         return dict(self.__dict__)
 
 
+def loop_check_entry(rep: LoopReport | None, reason: str = "audio") -> dict:
+    """The sidecar's "loop_check" entry: the report's key numbers if the seam was checked, else why it was not."""
+    if rep is None:
+        return {"status": "skipped", "reason": reason}
+    return {
+        "status": "ok" if rep.ok else "failed",
+        "max_diff": rep.max_diff,
+        "bad_pixel_frac": round(rep.bad_pixel_frac, 6),
+        "seam_step": round(rep.seam_step, 4),
+        "typical_step": round(rep.typical_step, 4),
+        "reason": rep.reason,
+    }
+
+
 def _mad(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.abs(a.astype(np.int16) - b.astype(np.int16)).mean())
 

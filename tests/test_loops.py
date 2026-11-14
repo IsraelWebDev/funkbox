@@ -65,3 +65,56 @@ def test_resample_keeps_look_controls():
     assert rec.layers[0].params["u_kaleido"] == 6
     resample_params(rec)
     assert rec.layers[0].params == {"u_kaleido": 6, "k_spin": 1}  # zoom 0 is the default
+
+
+def _sidecar(res):
+    import json
+    from pathlib import Path
+
+    return json.loads(Path(res.paths["json"]).read_text(encoding="utf-8"))
+
+
+def test_sidecar_records_checked_loop_and_still_loads(gl, tmp_path):
+    from funkbox.gl import render_recipe
+    from funkbox.gl.loopcheck import loop_check_entry
+    from funkbox.gl.recipe import load_recipe
+
+    rec = small("acid-plasma")
+    rep = validate_loop(rec, size=SZ)
+    res = render_recipe(rec, tmp_path, "chk", mp4=False, gif=False, loop_check=loop_check_entry(rep))
+    side = _sidecar(res)
+    assert side["loop_check"]["status"] == "ok"
+    assert {"max_diff", "bad_pixel_frac", "seam_step", "typical_step"} <= set(side["loop_check"])
+    assert load_recipe(res.paths["json"]).to_dict() == res.recipe.to_dict()  # the new key is ignored on load
+
+
+def test_sidecar_without_loop_check_has_no_entry(gl, tmp_path):
+    from funkbox.gl import render_recipe
+
+    res = render_recipe(small("acid-plasma"), tmp_path, "plain", mp4=False, gif=False)
+    assert "loop_check" not in _sidecar(res)
+
+
+def test_mcp_render_path_records_ok_and_skipped_for_audio(gl, tmp_path, monkeypatch):
+    monkeypatch.setenv("FUNK_INPUTS", str(tmp_path))
+    import wave
+
+    from funkbox.gl.recipe import load_recipe
+    from funkbox.loops import tools
+
+    res, rep = tools._render_gl(small("acid-plasma"), tmp_path, "mcp-ok")
+    assert rep is not None and _sidecar(res)["loop_check"]["status"] == "ok"
+
+    wav = tmp_path / "s.wav"
+    with wave.open(str(wav), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(8000)
+        w.writeframes(b"\0\0" * 8000)
+    rec = small("acid-plasma")
+    rec.settings.audio = str(wav)
+    res, rep = tools._render_gl(rec, tmp_path, "mcp-audio")
+    assert rep is None
+    side = _sidecar(res)
+    assert side["loop_check"] == {"status": "skipped", "reason": "audio"}
+    assert load_recipe(res.paths["json"]).settings.audio  # still loads

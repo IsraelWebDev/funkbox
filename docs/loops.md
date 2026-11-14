@@ -172,7 +172,9 @@ Blend modes: `normal add screen multiply overlay difference softlight hue`. Post
 posterize scanlines vignette grain`. Relative paths resolve against the recipe's folder, then `FUNK_HOME`;
 **files must live inside `FUNK_HOME`, `FUNK_OUT` or `FUNK_INPUTS`** (drop your images in `inputs/`). Optional
 `"audio": "song.wav"` in `settings` (PCM WAV) drives `iAudio`/`iChannel3`, defaults `seconds` to the clip
-length, is muxed into the mp4, and skips the loop check (audio loops are not seamless unless the music is).
+length, is muxed into the mp4, and skips the loop check (audio loops are not seamless unless the music is). The JSON sidecar records which
+happened in a `"loop_check"` entry: `{"status": "ok", ...}` with the report's numbers, or
+`{"status": "skipped", "reason": "audio"}` (`"no_check"` with the CLI's `--no-check`). Loading the sidecar ignores it.
 `examples/disco_cat.json` is a runnable sample; `python examples/make_cat.py` regenerates its image.
 
 A shader or image layer can carry a `mask`: an image (PNG with alpha) whose alpha scales the layer, so the layer shows
