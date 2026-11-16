@@ -17,14 +17,21 @@ entries of `$STATE/posts.jsonl` (the post log, next to the day folders; it may n
 2. `final.text_audit.json` says `"ok": true`, and `python promo/lint.py DAY` prints `lint: OK` (it checks that
    captions stay clear of code-card text, the variety rules, the feedback file and that every claim cites a real
    fact id). Still look for background text peeking out beside a caption box yourself.
+   **If reel.json has `"voiceover": true`** (you cannot listen, so read what the machine heard): lint also requires
+   a real local voice and `heard.json` for this exact final.mp4 with every line heard as written. Open heard.json
+   and compare each `heard` with its `expected` yourself; a name or number heard wrong is a FAIL even when the
+   similarity passed. Check that each spoken line is on screen as a caption while it is spoken (the audit's
+   voiceover and caption entries for the same copy id and shot), so the video still reads with the sound off.
 
-## Check every word (on screen, title, description, tags, X text)
+## Check every word (on screen, spoken, title, description, tags, X text)
 3. Every claim maps to a fact in FACTS.md, or to an M-key in measured.json whose meaning it matches. Judge numbers
    for honesty, not exact digits: counts (strings, tools, presets, cores) must match, but a render time drifts a few
    seconds between renders of the same video, so one within 15% of M-render, or an "under N" bound M-render meets
    (`say_rough`), is fine; lint checks this. A paraphrase that means the same as a fact is fine ("no GPU" only if
    M-machine says so). No superlatives, no invented numbers, no
    named competitors, no testimonials, nothing about Anthropic beyond "works with Claude".
+   Spoken words are claims too: the `text` of each `voiceover` entry in final.text_audit.json is what the voice
+   was given. A copy line's `say` field can differ from its caption: read every `say` in copy.json as a claim.
 4. If the brief uses a trend (`trend` is not null), the tie-in is honest. Read `trend.kind`:
    - `event` (news): the sources in brief.json are real, recent (last 7 days) and say what the brief says.
    - `genre` (a style people are making): the sources (at most 30 days old; 2 or more, or an owner seed, whose

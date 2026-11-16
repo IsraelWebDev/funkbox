@@ -16,6 +16,9 @@
    check 7). Lint does not judge what it approves; the reviewer does, and only for the content it names.
 6. Quoted times: a render time in caption.json, copy.json or a brief claim is within RENDER_TOLERANCE of today's
    M-render (or an "under N" that M-render meets), so a number left over from an earlier render is caught here.
+7. Voiceover: when reel.json turns it on, the text audit used a real local voice (Kokoro, one of the approved voices,
+   or Piper; never the test stub), every spoken line is exact, and heard.json (promo/hear.py) is for this exact
+   final.mp4 and heard every line back as written.
 """
 
 from __future__ import annotations
@@ -303,9 +306,56 @@ def trend_problems(day: Path) -> list[str]:
     return out
 
 
+def voiceover_problems(day: Path) -> list[str]:
+    """Rule 7. Nothing to check when the reel has no voiceover."""
+    audio_cfg = _json(day / "reel.json").get("audio", {}) or {}
+    if not audio_cfg.get("voiceover"):
+        return []
+    from funkbox.reel.audio import APPROVED_VOICES
+
+    audit = _json(day / "final.text_audit.json")
+    if not audit:
+        return ["voiceover: no final.text_audit.json; render with promo/measure.py render first"]
+    out = []
+    tts = audit.get("tts") or {}
+    mode, voice = tts.get("mode"), tts.get("voice")
+    if mode not in ("kokoro", "piper"):
+        out.append(f"voiceover: the audit's voice mode is {mode!r}; it must be a real local voice (kokoro or piper)")
+    elif mode == "kokoro" and voice not in APPROVED_VOICES:
+        out.append(f"voiceover: voice {voice!r} is not one of the approved voices {list(APPROVED_VOICES)}")
+    spoken = [e for e in audit.get("entries", []) if e.get("kind") == "voiceover"]
+    if not spoken:
+        out.append('voiceover: reel.json turns it on but no line was spoken (give shots a "vo" copy id)')
+    out += [
+        f"voiceover: spoken line {e.get('copy_id')!r} is not exact in the audit"
+        for e in spoken
+        if not e.get("text_exact")
+    ]
+    heard = _json(day / "heard.json")
+    if spoken:
+        sys.path.insert(0, str(HERE))
+        from hear import sha256
+
+        if not heard:
+            out.append("voiceover: no heard.json; run python promo/hear.py on the day (measure.py render does)")
+        elif (day / "final.mp4").is_file() and heard.get("video_sha256") != sha256(day / "final.mp4"):
+            out.append("voiceover: heard.json is for another render of final.mp4; run promo/hear.py again")
+        else:
+            out += [
+                f"voiceover: line {x.get('copy_id')!r} was heard as {x.get('heard')!r}, not {x.get('expected')!r} "
+                f"(similarity {x.get('similarity')}); fix the wording or add a pronounce entry in copy.json"
+                for x in heard.get("lines", [])
+                if not x.get("ok")
+            ]
+            if len(heard.get("lines", [])) != len(spoken):
+                out.append("voiceover: heard.json does not cover every spoken line; run promo/hear.py again")
+    return out
+
+
 def check(day: Path) -> list[str]:
     return (
         caption_problems(day)
+        + voiceover_problems(day)
         + variety_problems(day)
         + feedback_problems(day)
         + claim_problems(day)

@@ -538,7 +538,7 @@ def test_measured_facts_are_written_with_plain_sentences(tmp_path, monkeypatch):
     doc = measure.write(day, render_s=87.4, frames=580)
     f = doc["facts"]
     assert f["M-render"]["say"] == "this video rendered in 87 seconds on a 2-core CPU with no GPU (software OpenGL)"
-    assert f["M-audit"]["value"] == {"strings": 9, "ok": True} and "M-video" not in f  # no video, no claim
+    assert f["M-audit"]["value"] == {"strings": 9, "spoken": 0, "ok": True} and "M-video" not in f  # no video, no claim
     assert json.loads((day / "measured.json").read_text())["facts"]["M-tools"]["value"] == 37
 
 
@@ -848,3 +848,73 @@ def test_lint_catches_a_render_time_left_over_from_an_earlier_render(tmp_path):
     assert problems("Rendered in under 40 seconds.") == []
     assert problems("Rendered in 30 s.") and problems("Rendered in 45 s.")  # stale or rounded far off
     assert problems("Rendered in under 35 seconds.")  # the bound must hold
+
+
+# --------------------------------------------------------------------------- voiceover: lint rule 7 and hear.py
+def test_hear_compares_letters_and_digits_only():
+    import hear
+
+    assert hear.similarity("Made with funkbox.", "Made with funk box") == 1.0
+    assert hear.similarity("One copy deck.", "1 Copy Deck") >= hear.MIN_SIMILARITY - 0.15  # numerals differ a bit
+    assert hear.similarity("Every caption comes from this file", "Every caption comes from this file.") == 1.0
+    assert hear.similarity("Free and open source", "Free credits forever") < hear.MIN_SIMILARITY
+    assert hear.similarity("", "anything") == 0.0
+
+
+def _vo_day(tmp_path, *, voiceover=True, mode="kokoro", voice="kokoro:af_heart", exact=True, heard=None):
+    import hear
+
+    d = tmp_path / "2026-11-20"
+    d.mkdir(parents=True)
+    (d / "reel.json").write_text(json.dumps({"audio": {"voiceover": voiceover}}))
+    (d / "final.mp4").write_bytes(b"video bytes")
+    entries = [{"kind": "caption", "copy_id": "hook", "text_exact": True}]
+    entries.append({"kind": "voiceover", "copy_id": "hook", "text": "Hello there", "text_exact": exact})
+    (d / "final.text_audit.json").write_text(json.dumps({"tts": {"mode": mode, "voice": voice}, "entries": entries}))
+    if heard is not None:
+        heard.setdefault("video_sha256", hear.sha256(d / "final.mp4"))
+        (d / "heard.json").write_text(json.dumps(heard))
+    return d
+
+
+def test_lint_voiceover_rules(tmp_path):
+    import lint
+
+    good = {"ok": True, "lines": [{"copy_id": "hook", "expected": "Hello there", "heard": "Hello there.", "ok": True}]}
+    assert lint.voiceover_problems(_vo_day(tmp_path / "a", heard=dict(good))) == []
+    assert lint.voiceover_problems(_vo_day(tmp_path / "b", voiceover=False)) == []  # nothing to check
+    assert any("real local voice" in p for p in lint.voiceover_problems(_vo_day(tmp_path / "c", mode="stub")))
+    assert any("approved" in p for p in lint.voiceover_problems(_vo_day(tmp_path / "d", voice="kokoro:xx_new")))
+    assert any(
+        "not exact" in p for p in lint.voiceover_problems(_vo_day(tmp_path / "e", exact=False, heard=dict(good)))
+    )
+    assert any("no heard.json" in p for p in lint.voiceover_problems(_vo_day(tmp_path / "f")))
+    stale = dict(good, video_sha256="0" * 64)
+    assert any("another render" in p for p in lint.voiceover_problems(_vo_day(tmp_path / "g", heard=stale)))
+    miss = {"ok": False, "lines": [{"copy_id": "hook", "expected": "Hello there", "heard": "Yellow hair", "ok": False}]}
+    probs = lint.voiceover_problems(_vo_day(tmp_path / "h", heard=miss))
+    assert any("'Yellow hair'" in p for p in probs)
+
+
+def test_measure_counts_spoken_lines_apart_and_m_voice_needs_this_render(tmp_path):
+    import hear
+    import measure
+
+    d = tmp_path / "2026-11-20"
+    d.mkdir()
+    (d / "final.mp4").write_bytes(b"v")
+    entries = [{"kind": "caption"}, {"kind": "caption"}, {"kind": "voiceover"}]
+    (d / "final.text_audit.json").write_text(
+        json.dumps({"ok": True, "tts": {"mode": "kokoro", "voice": "kokoro:af_heart"}, "entries": entries})
+    )
+    a = measure.audit(d)
+    assert (
+        a["value"] == {"strings": 2, "spoken": 1, "ok": True} and "2 on-screen strings and 1 spoken lines" in a["say"]
+    )
+    assert measure.voice(d) is None  # no heard.json yet
+    heard = {"video_sha256": hear.sha256(d / "final.mp4"), "ok": True, "lines": [{"ok": True}]}
+    (d / "heard.json").write_text(json.dumps(heard))
+    v = measure.voice(d)
+    assert v["value"]["heard_ok"] and "kokoro:af_heart" in v["say"]
+    (d / "final.mp4").write_bytes(b"another render")
+    assert measure.voice(d) is None
