@@ -99,6 +99,14 @@ def cmd_storyboard(a) -> int:
     return 0
 
 
+def _print_beat_audit(out) -> None:
+    from funkbox.reel.beataudit import report_line
+
+    line = report_line(out)
+    if line:
+        print(line)
+
+
 def cmd_render(a) -> int:
     from funkbox.reel import render
 
@@ -125,6 +133,7 @@ def cmd_render(a) -> int:
             print(f"warning: {w}")
         if a.audit:
             print(f"text audit: {'OK' if out.audit_ok else 'PROBLEMS (see the JSON)'}")
+        _print_beat_audit(out)
     return 0 if out.audit_ok is not False else 2
 
 
@@ -377,6 +386,7 @@ def cmd_project_render(a) -> int:
         print(f"{k}: {v}")
     print(out.report_line())
     print(f"text audit: {'OK' if out.audit_ok else 'PROBLEMS (see the JSON)'}")
+    _print_beat_audit(out)
     project.advance_status(a.project, "rendered")
     return 0 if out.audit_ok else 2
 
@@ -444,7 +454,11 @@ def add_cli(sub) -> None:
     p.add_argument("--project")
     p.add_argument("--draft", action="store_true", help="540 px wide, 24 fps, no depth model")
     p.add_argument("--format", help="render only this format (default: every format the reel declares)")
-    p.add_argument("--audit", action="store_true", help="also write <name>.text_audit.json")
+    p.add_argument(
+        "--audit",
+        action="store_true",
+        help="also write <name>.text_audit.json (and <name>.beat_audit.json when cuts snap to beats)",
+    )
     p.add_argument("--name")
     p.add_argument("--out", help="output folder (default FUNK_OUT / ./out)")
     p.add_argument("--no-audio", action="store_true")

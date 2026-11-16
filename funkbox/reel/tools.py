@@ -32,6 +32,7 @@ from funkbox.reel import (
 from funkbox.reel import project as projmod
 from funkbox.reel.schema import ANCHORS, MOTION_TYPES, REVEALS, TRANSITIONS
 from funkbox.tool_options import CaptionStyle, Pace, TimelineAction
+from funkbox.reel.beataudit import report_line as _beat_line
 from funkbox.reel.storyboard import storyboard as _storyboard
 from funkbox.reel.validate import validate as _validate
 
@@ -197,6 +198,9 @@ def _render_result(outs, audit: bool) -> list:
             lines.append(
                 f"text audit: {'OK, every drawn string matches the copy deck' if out.audit_ok else 'PROBLEMS, see text_audit.json'}"
             )
+        beat = _beat_line(out)
+        if beat:
+            lines.append(beat)
     res: list = ["\n".join(lines)]
     for out in outs:
         if "png" in out.paths:
@@ -216,7 +220,8 @@ def reel_render(
     """Render the reel (or project=<name>) to <out>/<name>.mp4 (a project renders into its own out/ folder and
     name defaults to the project name). Use draft=true first (540 px wide, 24fps, no depth model).
     A reel with `formats` renders every format as <name>-<format>.mp4 (format=<id> renders just one).
-    Also writes <name>.text_audit.json proving every drawn string equals its copy entry."""
+    Also writes <name>.text_audit.json proving every drawn string equals its copy entry, and, when the reel snaps
+    its cuts to beats, <name>.beat_audit.json with every cut's distance from the beat in ms."""
     name = name or (project or "")
     if not OUT_NAME_RE.match(name or ""):
         raise ValueError("bad name: use 1-60 chars of A-Z a-z 0-9 _ -")

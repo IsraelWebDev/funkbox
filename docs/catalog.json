@@ -2249,7 +2249,7 @@
     },
     {
       "area": "reel",
-      "description": "Render the reel (or project=<name>) to <out>/<name>.mp4 (a project renders into its own out/ folder and\nname defaults to the project name). Use draft=true first (540 px wide, 24fps, no depth model).\nA reel with `formats` renders every format as <name>-<format>.mp4 (format=<id> renders just one).\nAlso writes <name>.text_audit.json proving every drawn string equals its copy entry.",
+      "description": "Render the reel (or project=<name>) to <out>/<name>.mp4 (a project renders into its own out/ folder and\nname defaults to the project name). Use draft=true first (540 px wide, 24fps, no depth model).\nA reel with `formats` renders every format as <name>-<format>.mp4 (format=<id> renders just one).\nAlso writes <name>.text_audit.json proving every drawn string equals its copy entry, and, when the reel snaps\nits cuts to beats, <name>.beat_audit.json with every cut's distance from the beat in ms.",
       "input_schema": {
         "properties": {
           "audit": {
