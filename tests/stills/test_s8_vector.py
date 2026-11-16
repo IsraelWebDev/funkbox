@@ -182,3 +182,10 @@ def test_the_arc_map_is_the_inverse_of_the_pixel_warp():
     img2[95:105, 245:255] = 255
     ys, xs = np.nonzero(warp_text(img2, (150, 100), arc=120.0, skew_x=10, rotate_deg=15)[..., 3] > 128)
     assert abs(xs.mean() - x2) < 1.5 and abs(ys.mean() - y2) < 1.5
+
+
+def test_the_warning_names_the_poster_level_effects(tmp_path):
+    post = [{"name": "grain", "amount": 0.02}, {"name": "vignette", "amount": 0.3}]
+    r = render.render_document(doc(FLAT, post=post), base_dir=tmp_path)
+    rep = vector.export(r, tmp_path / "p.svg")
+    assert "poster-level effects (grain, vignette) are only in the pixel exports" in rep["warnings"]

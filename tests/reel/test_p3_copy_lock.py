@@ -338,3 +338,11 @@ def test_mcp_fallback_needs_user_confirmed_in_chat(penv):
     assert "only set this after the user explicitly approved the exact listing in this conversation" in " ".join(
         tools["project_approve_copy"].split()
     )
+
+
+def test_the_missing_copy_message_names_the_real_tools(penv):
+    from funkbox.reel import project
+
+    project.new_project("bare")
+    msg = project.copy_lock_error("bare")
+    assert "run project_propose_copy, then project_approve_copy." in msg

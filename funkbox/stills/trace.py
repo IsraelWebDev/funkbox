@@ -194,7 +194,7 @@ def trace(
             raise ValueError('lift_text: "auto" or a list of colours ("#rrggbb" or {"color", "within": [x, y, w, h]})')
         for it in lift_text:
             c = it if isinstance(it, str) else (it.get("color") if isinstance(it, dict) else None)
-            w = None if isinstance(it, str) else it.get("within")
+            w = it.get("within") if isinstance(it, dict) else None
             if not isinstance(c, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", c):
                 raise ValueError(f"lift_text: {it!r} needs a #rrggbb colour")
             if w is not None and not (
