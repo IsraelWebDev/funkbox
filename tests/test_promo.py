@@ -791,13 +791,68 @@ def test_trend_shape_is_linted(tmp_path):
     assert any("seed" in p for p in lint.trend_problems(_trend_brief(tmp_path, trend=dict(ok_genre, seed="x"))))
 
 
-# --------------------------------------------------------------------------- the day's tempo and key image
-def test_day_bpm_is_seeded_and_in_range():
-    import assets
+# --------------------------------------------------------------------------- the day's music and key image
+def test_music_style_rotates_so_neighbouring_days_differ():
+    import datetime as dt
 
-    values = {assets.day_bpm(s) for s in range(20261001, 20261040)}
-    assert all(96 <= v <= 128 for v in values) and len(values) > 5  # varies from day to day
-    assert assets.day_bpm(20261103) == assets.day_bpm(20261103)
+    import music
+
+    days = [(dt.date(2026, 11, 25) + dt.timedelta(n)).isoformat() for n in range(40)]  # across a month end
+    styles = [music.day_style(d, 0) for d in days]
+    assert all(a != b for a, b in zip(styles, styles[1:]))
+    assert set(styles) == set(music.STYLE_ORDER)
+    assert music.day_style("not-a-date", 3) == music.STYLE_ORDER[3 % len(music.STYLE_ORDER)]
+
+
+def test_every_style_draws_a_valid_score_inside_its_brief():
+    import music
+    from funkbox.music.score import check
+
+    for name, st in music.STYLES.items():
+        for seed in (1, 20261116):
+            sc = music.style_score(name, 30.0, seed, soundfont="builtin")
+            assert check(sc) == [], name
+            lo, hi = st["brief"]["bpm_range"]
+            assert lo <= sc["bpm"] <= hi and sc["bars"] * 4 * 60 / sc["bpm"] >= 30.0
+            progs = {t["name"]: t.get("program") for t in sc["tracks"]}
+            assert progs["pad"] in st["pad"] and progs["bass"] in st["bass"]
+            assert progs.get("arp") in st["arp"]
+    a = music.style_score("lofi-keys", 30.0, 5, soundfont="builtin")
+    assert a == music.style_score("lofi-keys", 30.0, 5, soundfont="builtin")  # reproducible
+    assert a != music.style_score("lofi-keys", 30.0, 6, soundfont="builtin")
+
+
+def test_day_track_is_heard_at_its_own_tempo_and_reproducible(tmp_path, monkeypatch):
+    import music
+    from funkbox.reel.audio import detect_beats
+
+    monkeypatch.setattr(music, "SOUNDFONT", "builtin")  # no download in tests
+    a, info = music.day_track(tmp_path / "a.wav", 12.0, 20261116, style="funk-shuffle")
+    b, again = music.day_track(tmp_path / "b.wav", 12.0, 20261116, style="funk-shuffle")
+    assert info == again and a.read_bytes()[44:] == b.read_bytes()[44:]
+    assert info["style"] == "funk-shuffle" and info["soundfont"] == "builtin" and info["tries"] >= 1
+    assert abs(detect_beats(a).bpm - info["bpm"]) <= music.TEMPO_TOLERANCE
+    with wave.open(str(a)) as w:
+        assert abs(w.getnframes() / w.getframerate() - 12.0) < 0.01
+
+
+def test_day_track_falls_back_to_the_classic_bed_when_a_style_is_misheard(tmp_path, monkeypatch):
+    import music
+    from funkbox.reel import audio
+
+    monkeypatch.setattr(music, "SOUNDFONT", "builtin")
+    real = audio.detect_beats
+    calls = []
+
+    def deaf_to_styles(path):  # every styled draw is "heard" at the wrong tempo; the classic bed is heard right
+        calls.append(path)
+        info = real(path)
+        return info if len(calls) > music.MAX_TRIES else type("B", (), {"bpm": info.bpm * 2 / 3})()
+
+    monkeypatch.setattr(audio, "detect_beats", deaf_to_styles)
+    path, info = music.day_track(tmp_path / "c.wav", 12.0, 7, style="lofi-keys")
+    assert info["style"] == "synth-classic" and music.CLASSIC_BPM[0] <= info["bpm"] <= music.CLASSIC_BPM[1]
+    assert info["tries"] > music.MAX_TRIES
 
 
 def test_key_image_is_seeded_and_skips_a_dull_one(tmp_path):

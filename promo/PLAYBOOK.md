@@ -78,8 +78,8 @@ today" in observation only if the searches really showed nothing.
 - Write `copy.json` (the ONLY on-screen text; 3-5 short caption lines, max ~45 chars each, plus `end_head`, `end_sub`,
   `url` = "github.com/IsraelWebDev/funkbox") and `reel.json` (copy only by id). Start from
   `promo/templates/promo.reel.json`. Rules: 9:16 1080x1920, 15-25 s, `"audio": {"music": "assets/music.mp3",
-  "snap_cuts_to_beats": true, "voiceover": false}` (no `bpm`: the day's tempo is seeded, in assets.json, and the beat
-  grid is detected from the music; `assets/key.png` is the day's key image), cuts as `beats:N`, at least one `frame` push-in on a code card or
+  "snap_cuts_to_beats": true, "voiceover": false}` (no `bpm`: the day's music style rotates daily and its tempo is
+  drawn, both in assets.json's `music`, and the beat grid is detected from the music; `assets/key.png` is the day's key image), cuts as `beats:N`, at least one `frame` push-in on a code card or
   the demo ad, end card `brand-split`. Captions must be readable with the sound off. On a code card, the caption
   must stay clear of the card's text (its `text_rect` in assets.json): anchor it at the bottom, and if you push in,
   push toward the text with no caption, or keep the window wide enough that the text stays above the caption.
