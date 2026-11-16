@@ -88,6 +88,17 @@ def _moved_one(a: list, b: list):
     return max(cands, key=lambda x: (abs(a.index(x) - b.index(x)), a.index(x) - b.index(x)))
 
 
+def _log_path_for(reel_path: Path) -> Path:
+    """``X.reel.json`` -> ``X.edits.jsonl`` beside it."""
+    return reel_path.with_name(reel_path.name[: -len(".reel.json")] + ".edits.jsonl")
+
+
+def _read_log(log_path: Path) -> list[dict]:
+    if not log_path.is_file():
+        return []
+    return [json.loads(l) for l in log_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+
+
 def _v(x) -> str:
     if x is None:
         return "(none)"
@@ -133,7 +144,7 @@ class Editor:
         self.path = resolve_path(str(path))
         if not self.path.name.endswith(".reel.json"):
             raise ValueError("the timeline edits a *.reel.json file")
-        self.log_path = self.path.with_name(self.path.name[: -len(".reel.json")] + ".edits.jsonl")
+        self.log_path = _log_path_for(self.path)
         self.pump = None if run_gl else GLPump()  # without a GL runner, whoever runs the editor pumps it
         self.run_gl = run_gl or self.pump
         self.lock = threading.RLock()
@@ -168,10 +179,7 @@ class Editor:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     def edits(self, last: int = 20) -> list[dict]:
-        if not self.log_path.is_file():
-            return []
-        rows = [json.loads(l) for l in self.log_path.read_text(encoding="utf-8").splitlines() if l.strip()]
-        return rows[-last:]
+        return _read_log(self.log_path)[-last:]
 
     def refresh(self) -> bool:
         """Pick up changes made outside the page (Claude, an editor); log them. True when the file changed."""
@@ -425,10 +433,7 @@ def changes_text(path: str | Path, last: int = 15) -> str:
     from funkbox.config import resolve_path
 
     p = resolve_path(str(path))
-    logp = p.with_name(p.name[: -len(".reel.json")] + ".edits.jsonl")
-    rows = []
-    if logp.is_file():
-        rows = [json.loads(l) for l in logp.read_text(encoding="utf-8").splitlines() if l.strip()][-last:]
+    rows = _read_log(_log_path_for(p))[-last:]
     raw = json.loads(p.read_text(encoding="utf-8-sig"))
     lines = [
         f"{p.name}: {len(raw.get('shots', []))} shots: " + ", ".join(str(s.get("id")) for s in raw.get("shots", []))

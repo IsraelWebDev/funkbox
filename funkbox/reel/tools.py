@@ -67,6 +67,14 @@ def _plan(reel: Any, project: str | None = None, fmt: str = "") -> render.Plan:
     return plan
 
 
+def _out_name(name: str, project: str) -> str:
+    """The output name (the project name when none is given), checked against OUT_NAME_RE."""
+    name = name or project or ""
+    if not OUT_NAME_RE.match(name):
+        raise ValueError("bad name: use 1-60 chars of A-Z a-z 0-9 _ -")
+    return name
+
+
 # --------------------------------------------------------------------------- #
 @safe
 def reel_copy_lines(path: str = "", project: str = "") -> str:
@@ -222,9 +230,7 @@ def reel_render(
     A reel with `formats` renders every format as <name>-<format>.mp4 (format=<id> renders just one).
     Also writes <name>.text_audit.json proving every drawn string equals its copy entry, and, when the reel snaps
     its cuts to beats, <name>.beat_audit.json with every cut's distance from the beat in ms."""
-    name = name or (project or "")
-    if not OUT_NAME_RE.match(name or ""):
-        raise ValueError("bad name: use 1-60 chars of A-Z a-z 0-9 _ -")
+    name = _out_name(name, project)
     out_dir = projmod.project_dir(project) / "out" if project else None
 
     def go():
@@ -261,9 +267,7 @@ def reel_variants(
     All lists must be the same length (at most 12 variants). Every variant is validated before any render, then
     rendered and text-audited against the approved copy into <out>/<name>-variants/. sheet=true also builds
     contact_sheet.png, one numbered cell per variant's opening. Returns the manifest (variants.json)."""
-    name = name or (project or "")
-    if not OUT_NAME_RE.match(name or ""):
-        raise ValueError("bad name: use 1-60 chars of A-Z a-z 0-9 _ -")
+    name = _out_name(name, project)
     vary_map = _vary_arg(vary)
     out_dir = projmod.project_dir(project) / "out" if project else None
 

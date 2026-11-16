@@ -962,7 +962,10 @@ def parse_reel(d: Any, base_dir: str | None = None) -> Reel:
         reel.formats = parse_formats(r.raw("formats"), errs)
     known = {f.id for f in reel.formats}
     for i, sd in enumerate(shots):
-        for fid in (sd.get("formats") or {}) if isinstance(sd, dict) and isinstance(sd.get("formats"), dict) else {}:
+        shot_formats = sd.get("formats") if isinstance(sd, dict) else None
+        if not isinstance(shot_formats, dict):
+            continue
+        for fid in shot_formats:
             if fid not in known:
                 errs.append(f"shots[{i}].formats.{fid}: no such format (reel formats: {sorted(known) or 'none'})")
     r.finish()
@@ -1022,8 +1025,6 @@ def materialize(raw: dict, fmt: str) -> dict:
     """The plain reel dict of one format: its size and safe area in ``settings``, every shot's overrides for
     that format applied (``motion`` replaced whole; ``caption`` / ``product`` / ``source`` merged), and no
     ``formats`` keys left. Raises ReelError for an unknown format id."""
-    import copy
-
     errs: list[str] = []
     fmts = {f.id: f for f in parse_formats(raw.get("formats"), errs)} if "formats" in raw else {}
     if fmt not in fmts:
