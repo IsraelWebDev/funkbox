@@ -221,6 +221,11 @@ def _line_x(lay: dict, lo: captions.Layout, i: int, frame_w: int) -> float:
 # --------------------------------------------------------------------------- #
 # effects and drawing
 # --------------------------------------------------------------------------- #
+SHADOW_DEFAULTS = {"opacity": 0.5, "dx": 0.04, "dy": 0.06, "blur": 0.05, "color": "#000000"}
+STROKE_DEFAULTS = {"width": 0.0, "opacity": 1.0, "color": "#000000"}
+GLOW_DEFAULTS = {"opacity": 0.5, "radius": 0.25, "color": None}
+
+
 def _fx(lay: dict, key: str, ctx: RCtx, px: int, fill_rgb: tuple[int, int, int], defaults: dict) -> dict | None:
     e = (lay.get("effects") or {}).get(key)
     if e is None or e is False:
@@ -244,11 +249,9 @@ def draw_text(lay: dict, lo: captions.Layout, frame_w: int, ctx: RCtx) -> tuple[
     W, H = ctx.full
     px = lo.px
     fill = rgba_of(lay.get("color", "brand.text"), ctx.brand)[:3]
-    shadow = _fx(
-        lay, "shadow", ctx, px, fill, {"opacity": 0.5, "dx": 0.04, "dy": 0.06, "blur": 0.05, "color": "#000000"}
-    )
-    stroke = _fx(lay, "stroke", ctx, px, fill, {"width": 0.0, "opacity": 1.0, "color": "#000000"})
-    glow = _fx(lay, "glow", ctx, px, fill, {"opacity": 0.5, "radius": 0.25, "color": None})
+    shadow = _fx(lay, "shadow", ctx, px, fill, SHADOW_DEFAULTS)
+    stroke = _fx(lay, "stroke", ctx, px, fill, STROKE_DEFAULTS)
+    glow = _fx(lay, "glow", ctx, px, fill, GLOW_DEFAULTS)
     sw = int(round(stroke["width"] * px)) if stroke else 0
     margin = int(px * 1.2) + sw + 4
     bw, bh = frame_w, lo.box_h
@@ -308,6 +311,11 @@ def draw_text(lay: dict, lo: captions.Layout, frame_w: int, ctx: RCtx) -> tuple[
     return canvas, drawn
 
 
+def _geometry_entry(lay: dict) -> dict:
+    """The audit's record of a layer's arc, rotate and slant, as the layer gives them (empty when there are none)."""
+    return {k: lay[k] for k in ("arc", "rotate_deg", "skew_x", "skew_y") if lay.get(k)}
+
+
 def raster_text(lay: dict, ctx: RCtx, doc: Doc, deck: CopyDeck | None) -> tuple[np.ndarray, dict]:
     """The RGBA layer for a text layer (canvas-sized at the render scale) and its audit entry."""
     if "copy_id" in lay:
@@ -337,10 +345,11 @@ def raster_text(lay: dict, ctx: RCtx, doc: Doc, deck: CopyDeck | None) -> tuple[
             "box": list(ts.box),
         }
         typo = {k: lay[k] for k in ("letter_spacing", "on_path") if lay.get(k)}
-        typo |= {"runs": [r["match"] for r in lay["runs"]]} if lay.get("runs") else {}
+        if lay.get("runs"):
+            typo["runs"] = [r["match"] for r in lay["runs"]]
         if typo:
             entry["typography"] = typo
-        geo = {k: lay[k] for k in ("arc", "rotate_deg", "skew_x", "skew_y") if lay.get(k)}
+        geo = _geometry_entry(lay)
         if geo:
             entry["geometry"] = geo
         return rgba, entry
@@ -364,12 +373,10 @@ def raster_text(lay: dict, ctx: RCtx, doc: Doc, deck: CopyDeck | None) -> tuple[
         "font": lay.get("style", "caption"),
         "px": lo.px,
         "box": [lo.x0, lo.y0, frame_w, lo.box_h],
-        **(
-            {"geometry": {k: lay[k] for k in ("arc", "rotate_deg", "skew_x", "skew_y") if lay.get(k)}}
-            if any(lay.get(k) for k in ("arc", "rotate_deg", "skew_x", "skew_y"))
-            else {}
-        ),
     }
+    geometry = _geometry_entry(lay)
+    if geometry:
+        entry["geometry"] = geometry
     if ctx.scale != 1.0 or (ctx.w, ctx.h) != ctx.full:
         full = _downscale(full, ctx.w, ctx.h)
     return full, entry
@@ -383,11 +390,9 @@ def draw_set(lay: dict, ts, ctx: RCtx) -> np.ndarray:
     px = ts.px * k
     fills = [(col, coverage(cmds, ctx.w, ctx.h, k)) for col, cmds in ts.by_color]
     base = rgba_of(lay.get("color", "brand.text"), ctx.brand)
-    shadow = _fx(
-        lay, "shadow", ctx, ts.px, base[:3], {"opacity": 0.5, "dx": 0.04, "dy": 0.06, "blur": 0.05, "color": "#000000"}
-    )
-    stroke = _fx(lay, "stroke", ctx, ts.px, base[:3], {"width": 0.0, "opacity": 1.0, "color": "#000000"})
-    glow = _fx(lay, "glow", ctx, ts.px, base[:3], {"opacity": 0.5, "radius": 0.25, "color": None})
+    shadow = _fx(lay, "shadow", ctx, ts.px, base[:3], SHADOW_DEFAULTS)
+    stroke = _fx(lay, "stroke", ctx, ts.px, base[:3], STROKE_DEFAULTS)
+    glow = _fx(lay, "glow", ctx, ts.px, base[:3], GLOW_DEFAULTS)
     sil = np.zeros((ctx.h, ctx.w), np.float32)
     for _, m in fills:
         sil = np.maximum(sil, m)

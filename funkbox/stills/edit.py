@@ -328,6 +328,14 @@ def _overlay_place(body: dict) -> tuple[float, float, float, float]:
     )
 
 
+def _save_png_atomic(im: Image.Image, path: Path) -> None:
+    """Write a cache PNG under a unique temporary name, then move it into place (safe with parallel renders)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f"{path.stem}.{uuid.uuid4().hex}.part")
+    im.save(tmp, format="PNG")
+    os.replace(tmp, path)
+
+
 def _depth_factor(shaped: Image.Image, x: float, y: float, strength: float) -> float:
     """1 + strength * (2 * depth - 1) at the overlay's centre: near ground keeps or grows its size, far ground shrinks."""
     from funkbox.reel import depth as reel_depth  # the depth model is optional, so it is imported only when asked for
@@ -336,10 +344,7 @@ def _depth_factor(shaped: Image.Image, x: float, y: float, strength: float) -> f
     key = hashlib.sha1(f"{rgb.width}x{rgb.height}|".encode() + rgb.tobytes()).hexdigest()
     src = funk_out() / "cache" / "depth-src" / f"{key}.png"
     if not src.exists():
-        src.parent.mkdir(parents=True, exist_ok=True)
-        tmp = src.with_name(f"{src.stem}.{uuid.uuid4().hex}.part")
-        rgb.save(tmp, format="PNG")
-        os.replace(tmp, src)
+        _save_png_atomic(rgb, src)
     try:
         d = reel_depth.estimate_depth(src)
     except reel_depth.DepthUnavailable as e:
@@ -376,10 +381,7 @@ def _shadow_layer(ov_path: str, W: int, H: int, x: float, y: float, scale: float
     ).hexdigest()
     out = funk_out() / "cache" / "shadow" / f"{key}.png"
     if not out.exists():
-        out.parent.mkdir(parents=True, exist_ok=True)
-        tmp = out.with_name(f"{out.stem}.{uuid.uuid4().hex}.part")
-        Image.merge("LA", (Image.new("L", (W, H), 0), mask)).save(tmp, format="PNG")
-        os.replace(tmp, out)
+        _save_png_atomic(Image.merge("LA", (Image.new("L", (W, H), 0), mask)), out)
     return out
 
 

@@ -294,13 +294,12 @@ def typeset(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> Set:
         if fits and inside:
             break
         if px <= min_px:
-            why = (
-                "it is longer than the path"
-                if on_path
-                else "a word is wider than the line"
-                if not fits
-                else "the block runs outside the canvas; move x/y, widen max_width or shorten the text"
-            )
+            if on_path:
+                why = "it is longer than the path"
+            elif not fits:
+                why = "a word is wider than the line"
+            else:
+                why = "the block runs outside the canvas; move x/y, widen max_width or shorten the text"
             raise PosterError(
                 [f"{label}: text does not fit at the minimum size ({ctx.min_text} x canvas height = {min_px}px): {why}"]
             )

@@ -121,7 +121,7 @@ def _shader_recipe(lay: dict, ctx: RCtx, gl: glmod.GL, index: int, doc_seed: int
             p = resolve_path(src, ctx.base_dir)
             d, bd = json.loads(p.read_text(encoding="utf-8-sig")), p.parent
         else:
-            d, bd = copy.deepcopy(src), ctx.base_dir
+            d, bd = src, ctx.base_dir
         d = copy.deepcopy(d)
         st = dict(d.get("settings", {}))
         st.update(width=gl.w, height=gl.h)
@@ -177,6 +177,7 @@ class _Run:
         self.resolved_layers: dict[str, dict] = {}
         self.audit: list[dict] = []
         self._deck = None
+        self._clips: dict[str, np.ndarray] = {}
 
     def layer_rgba(self, lay: dict, index: int, backdrop) -> np.ndarray:
         """Raster -> fx -> mask for one layer (``backdrop()`` reads the composite so far, for colour matching)."""
@@ -253,7 +254,7 @@ class _Run:
 
     def clip_alpha(self, layer_id: str) -> np.ndarray:
         """Coverage (0..1) of a shape or svg layer, used as a clip; cached per id."""
-        cache = self.__dict__.setdefault("_clips", {})
+        cache = self._clips
         if layer_id not in cache:
             from .shapes import raster_shape, raster_svg
 

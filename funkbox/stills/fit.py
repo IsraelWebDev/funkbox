@@ -48,7 +48,8 @@ def fit(
     fit_mode: str = "cover",
     keep_inside: list | None = None,
 ) -> Fit:
-    raw = copy.deepcopy(schema.parse(doc).raw if not isinstance(doc, schema.Doc) else doc.raw)
+    start_doc = schema.parse(doc).raw if not isinstance(doc, schema.Doc) else doc.raw
+    raw = copy.deepcopy(start_doc)
     if not params or len(params) > MAX_PARAMS:
         raise ValueError(f"params: 1..{MAX_PARAMS} keys, each with a step or a [low, high] range")
     space = {}
@@ -68,7 +69,8 @@ def fit(
         else:
             raise ValueError(f"{key}: give a step (> 0) or a [low, high] range")
     ref = cmp._load(reference)
-    s = scale or min(1.0, 420 / max(schema.parse(raw).width, schema.parse(raw).height))
+    parsed = schema.parse(raw)
+    s = scale or min(1.0, 420 / max(parsed.width, parsed.height))
     n = [0]
     cache: dict = {}  # layers a candidate did not change are drawn once
     keep = []
@@ -125,7 +127,6 @@ def fit(
     full = render.render_document(raw, base_dir)
     res.doc = raw
     res.score = {k: round(float(v), 1) for k, v in cmp.compare(full.pil, ref, fit_mode).scores.items()}
-    start_doc = schema.parse(doc).raw if not isinstance(doc, schema.Doc) else doc.raw
     res.start = {
         k: round(float(v), 1)
         for k, v in cmp.compare(render.render_document(start_doc, base_dir).pil, ref, fit_mode).scores.items()

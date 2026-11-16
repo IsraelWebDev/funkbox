@@ -49,6 +49,15 @@ class Frame:
         return self.oy + float(v) * self.sy
 
 
+def _pin(rule: str, near: str, far: str, margin: float, share: float) -> float:
+    """Where the box starts along one axis (new canvas fraction): at the near edge, the far edge, or centred."""
+    if near in rule:
+        return margin
+    if far in rule:
+        return 1.0 - margin - share
+    return (1.0 - share) / 2
+
+
 def frame_for(
     rule: str,
     W0: int,
@@ -66,8 +75,8 @@ def frame_for(
     s = min((W1 - 2 * m) / bw, (H1 - 2 * m) / bh)
     sw, sh = s * bw / W1, s * bh / H1  # the box's share of the new canvas
     mx, my = m / W1, m / H1
-    hx = mx if "left" in rule else 1.0 - mx - sw if "right" in rule else (1.0 - sw) / 2
-    hy = my if "top" in rule else 1.0 - my - sh if "bottom" in rule else (1.0 - sh) / 2
+    hx = _pin(rule, "left", "right", mx, sw)
+    hy = _pin(rule, "top", "bottom", my, sh)
     sx, sy = s * W0 / W1, s * H0 / H1
     return Frame(sx, sy, hx - bx0 * sx, hy - by0 * sy, s)
 
