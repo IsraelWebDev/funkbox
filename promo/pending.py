@@ -160,7 +160,13 @@ if __name__ == "__main__":
     elif len(sys.argv) == 3 and sys.argv[1] in ("save", "restore", "done"):
         d = Path(sys.argv[2])
         try:
-            print({"save": save, "done": done}.get(sys.argv[1], lambda x: restore(x) or f"{x.name}: restored")(d))
+            if sys.argv[1] == "save":
+                print(save(d))
+            elif sys.argv[1] == "done":
+                print(done(d))
+            else:
+                restore(d)
+                print(f"{d.name}: restored")
         except PendingError as e:
             sys.exit(f"pending: {e}")
     else:

@@ -49,6 +49,7 @@ SCALES = {
     "blues": [0, 3, 5, 6, 7, 10, 12],
 }
 NOTE = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+ACCIDENTAL = {"#": 1, "b": -1, "": 0}
 DRUMS = {
     "kick": 36,
     "rim": 37,
@@ -100,7 +101,7 @@ def key_root(key: str) -> int:
     m = re.fullmatch(r"([A-Ga-g])([#b]?)", key or "C")
     if not m:
         raise ScoreError(f"key {key!r}: a note name like D, F# or Bb")
-    return NOTE[m.group(1).upper()] + {"#": 1, "b": -1, "": 0}[m.group(2)]
+    return NOTE[m.group(1).upper()] + ACCIDENTAL[m.group(2)]
 
 
 def pitch(tok: str, root: int, scale: list[int], octave: int) -> int:
@@ -116,7 +117,7 @@ def pitch(tok: str, root: int, scale: list[int], octave: int) -> int:
     m = re.fullmatch(r"([A-Ga-g])([#b]?)(-?\d)", tok)
     if not m:
         raise ScoreError(f"note {tok!r}: use D4, F#3, Bb2, ^1..^7, r or a chord [..]")
-    return 12 * (int(m.group(3)) + 1) + NOTE[m.group(1).upper()] + {"#": 1, "b": -1, "": 0}[m.group(2)]
+    return 12 * (int(m.group(3)) + 1) + NOTE[m.group(1).upper()] + ACCIDENTAL[m.group(2)]
 
 
 def parse_notes(
@@ -139,7 +140,12 @@ def parse_notes(
             dur = 4.0 / int(den)
             if dot:
                 dur *= 1.5
-        vel = min(127, velocity + 20) if acc == "!" else max(1, velocity - 30) if acc == "?" else velocity
+        if acc == "!":
+            vel = min(127, velocity + 20)
+        elif acc == "?":
+            vel = max(1, velocity - 30)
+        else:
+            vel = velocity
         if tok == "r":
             pass
         elif tok == "~":
@@ -505,7 +511,7 @@ def render(score, out: str | Path | None = None, base_dir=None) -> Music:
     mix = np.zeros((int((total * spb + tail) * SR), 2), np.float32)
     cache: dict = {}
     count = 0
-    for i, (t, ev, L) in enumerate(zip(sc["tracks"], events, lengths)):
+    for t, ev, L in zip(sc["tracks"], events, lengths):
         drums = bool(t.get("drums"))
         bank = 128 if drums else int(t.get("bank", 0))
         prog = int(t.get("kit", 0)) if drums else int(t.get("program", 0))

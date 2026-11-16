@@ -246,7 +246,6 @@ TREND_MAX_AGE = {"event": 7, "genre": 30}  # days between a source's date and th
 def trend_problems(day: Path) -> list[str]:
     """The shape of brief.json's trend, so the reviewer's honesty check has real sources to read."""
     import datetime as _dt
-    import re as _re
 
     if not (day / "brief.json").is_file():
         return []  # a missing brief is reported by the other checks
@@ -270,7 +269,7 @@ def trend_problems(day: Path) -> list[str]:
     origin = trend.get("origin", "web")
     if origin not in TREND_ORIGINS:
         out.append(f"trend.origin must be one of {list(TREND_ORIGINS)}")
-    if origin == "owner-seed" and not _re.match(r"^sd-\d{4}$", str(trend.get("seed", ""))):
+    if origin == "owner-seed" and not re.match(r"^sd-\d{4}$", str(trend.get("seed", ""))):
         out.append("trend.origin owner-seed needs trend.seed (the seed id, like sd-0001)")
     if kind == "genre" and not str(trend.get("demo", "")).strip():
         out.append("a genre trend needs trend.demo: how the video shows funkbox making this style itself")
@@ -287,7 +286,7 @@ def trend_problems(day: Path) -> list[str]:
         if (
             not isinstance(src, dict)
             or not str(src.get("title", "")).strip()
-            or not _re.match(r"^https?://\S+$", str(src.get("url", "")))
+            or not re.match(r"^https?://\S+$", str(src.get("url", "")))
         ):
             out.append(f"trend.sources[{i}] needs a title and an http(s) url")
             continue

@@ -162,8 +162,7 @@ def merge_servers(cfg: dict, entries: dict[str, dict]) -> tuple[dict, list[str]]
     migrated = [k for k in OLD_SERVER_KEYS if k in servers and k not in entries]
     for k in migrated:
         del servers[k]
-    for k, v in entries.items():
-        servers[k] = v
+    servers.update(entries)
     cfg["mcpServers"] = servers
     return cfg, migrated
 
@@ -315,9 +314,8 @@ def venv_ok(py: Path) -> bool:
     `uv python uninstall`-ed, or installed from inside packaged Claude Desktop: see msix_config_dirs)."""
     if not py.exists():
         return False
-    if (
-        sys.platform == "win32"
-    ):  # a Windows program starts with "MZ"; anything else cannot run, and launching it can hang
+    # a Windows program starts with "MZ"; anything else cannot run, and launching it can hang
+    if sys.platform == "win32":
         try:
             with py.open("rb") as f:
                 if f.read(2) != b"MZ":
@@ -395,7 +393,8 @@ def git_clone(r: Runner, url: str, dest: Path) -> bool:
     if not shutil.which("git") and not r.dry:
         r.say("   git not found; install git and run this again")
         return False
-    dest.parent.mkdir(parents=True, exist_ok=True) if not r.dry else None
+    if not r.dry:
+        dest.parent.mkdir(parents=True, exist_ok=True)
     return r.run(["git", "clone", "--depth", "1", url, str(dest)]) == 0
 
 

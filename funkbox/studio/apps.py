@@ -159,7 +159,6 @@ def sync_launcher(fastsd_dir: Path) -> list[str]:
     """Copy studio/start_local_mcp.py and studio/sdcore.py into the FastSD folder when missing or out of
     date, so a funkbox update (git pull) never runs against a stale launcher. Returns the names copied."""
     import hashlib
-    import shutil
 
     copied = []
     for name in ("start_local_mcp.py", "sdcore.py"):

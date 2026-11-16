@@ -44,7 +44,6 @@ def cylinder_shade(w: int, h: int, base: tuple[int, int, int], spec: float = 0.5
     """RGB float image of a lit cylinder: diffuse falloff to the edges + a soft specular stripe."""
     x = np.linspace(-1, 1, w, dtype=np.float32)
     nz = np.sqrt(np.clip(1 - x ** 2, 0, 1))
-    light = np.array([-0.45, 0.0, 0.89], np.float32)
     diffuse = np.clip(-0.45 * x + 0.89 * nz, 0, 1)
     shade = 0.38 + 0.62 * diffuse
     highlight = spec * np.exp(-((x + 0.42) / 0.07) ** 2) + 0.18 * np.exp(-((x - 0.62) / 0.05) ** 2)

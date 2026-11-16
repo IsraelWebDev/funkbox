@@ -293,5 +293,11 @@ if __name__ == "__main__":
     ap.add_argument("--seed", type=int, default=None)
     x = ap.parse_args()
     d = Path(x.day)
-    seed = x.seed if x.seed is not None else int(d.name.replace("-", "")) if d.name.replace("-", "").isdigit() else 7
+    digits = d.name.replace("-", "")
+    if x.seed is not None:
+        seed = x.seed
+    elif digits.isdigit():
+        seed = int(digits)
+    else:
+        seed = 7
     print(json.dumps(build(d, seed), indent=2))
