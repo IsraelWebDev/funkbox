@@ -12,14 +12,12 @@ the funkbox checkout.
 - Get a push-capable checkout of IsraelWebDev/funkbox (attach the repo with push access, then clone), `cd` into it.
   Also attach the state repo (`$PROMO_STATE_REPO`) with push access, then `eval "$(python promo/state.py env)"`
   (clones or pulls it, sets `STATE` and lets funkbox read and write the day folders) and `DAY=$STATE/days/<date>`.
-- `python -m pip install --break-system-packages --ignore-installed -r requirements.txt` (with `python -m`, so the
-  packages land in the Python that runs the scripts; `--ignore-installed` steps over Debian's own Pillow and PyJWT).
-  On Linux without a display, `export FUNK_GL_BACKEND=egl`. If `python -m funkbox doctor` says OpenGL needs Mesa's
-  libraries, `apt-get install -y libegl1 libegl-mesa0 libgl1-mesa-dri` (software OpenGL renders fine, only slower).
-- Only on a day that will speak (see Voiceover in step 2): `apt-get install -y espeak-ng`, then
-  `python -m pip install --break-system-packages -r requirements-reel.txt faster-whisper` and
-  `python -m funkbox reel setup-models --only kokoro` (about 340 MB, hashes checked; promo/hear.py fetches its
-  speech-to-text model on first use). If any of it fails twice, make the day without a voiceover.
+- `bash promo/setup_runner.sh` and `export FUNK_GL_BACKEND=egl`. It installs the Python requirements and, if OpenGL
+  cannot start, Mesa's EGL/GL libraries (software OpenGL renders fine, only slower), then checks OpenGL and ffmpeg
+  and prints `setup: OK`. It is idempotent, so run it every time. If it fails twice, stop and report it.
+- Only on a day that will speak (see Voiceover in step 2): `bash promo/setup_runner.sh --voice` (adds espeak-ng,
+  requirements-reel.txt, faster-whisper, the Kokoro voice, about 340 MB with hashes checked, and promo/hear.py's
+  speech-to-text model). If it fails twice, make the day without a voiceover.
 - If `promo/PAUSED` exists: report "paused" and stop.
 - Read `promo/FACTS.md`, `promo/REVIEW.md` and the last 14 lines of `$STATE/posts.jsonl` (if it exists).
 - Catch up first: `python promo/pending.py catchup`. It posts what earlier runs still owe (a reviewed video saved

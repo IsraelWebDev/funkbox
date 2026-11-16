@@ -35,6 +35,7 @@ takes a video by URL. Private works too, and X then gets a link to the Short.
 | `enqueue.py` | a queue of finished promos: `add` one, and the next run posts it (after the usual lint and review) instead of making a new video. An item can carry `owner_approval.json`, the owner's sign-off on specific content, for that item only (REVIEW.md check 7) |
 | `seeds.py` | owner seeds: `add` something you saw (a note and links) and the next run treats it as a candidate trend, ahead of web search; seeds expire after 21 days or once used. Lint checks the trend's shape (`event` or `genre`, source ages, a `demo` for genres) |
 | `state.py` | clones or pulls the state repo and commits to it |
+| `setup_runner.sh` | prepares a fresh Linux runner: Python requirements, Mesa's EGL/GL when OpenGL cannot start, and with `--voice` the voiceover stack; idempotent, checks OpenGL, ffmpeg (and the voice) at the end |
 | `auth_youtube.py` | one-time YouTube sign-in that prints the refresh token |
 
 ## The safeguards
