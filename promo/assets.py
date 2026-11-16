@@ -8,7 +8,7 @@ Writes into <day>/assets/ and prints assets.json, a manifest the agent picks sho
 - demo: the GLOWMOP demo ad (examples/mimic/preview.mp4)
 - stills: FastSD scenes, poster variations, the storyboard sheet, the social preview (real outputs)
 - cards: code / command "screenshots" drawn from REAL repo files (so what is shown exists), 1080x1920 PNG
-- music: a seeded music bed (promo/music.py)
+- music: the day's music bed, a style that rotates daily (promo/music.py)
 """
 
 from __future__ import annotations
@@ -138,14 +138,6 @@ def code_card(
     img.save(out)
     box = [round(20 / w, 4), round(170 / h, 4), round(min(right + 8, w) / w, 4), round(min(y, h) / h, 4)]
     return out, f"{first}-{first + shown - 1}", box
-
-
-BPM_RANGE = (96, 128)
-
-
-def day_bpm(seed: int) -> int:
-    """The day's tempo: a seeded whole number of beats per minute (own generator, so it never shifts the loop picks)."""
-    return random.Random(f"{seed}-bpm").randint(*BPM_RANGE)
 
 
 def _vivid_fraction(im: Image.Image) -> float:
@@ -279,13 +271,15 @@ def build(day: Path, seed: int) -> dict:
         man["key_image"] = key.relative_to(day).as_posix()
     import music
 
-    bpm = day_bpm(seed)
-    man["bpm"] = bpm
+    path, info = music.day_track(a / "music.mp3", 30.0, seed, day=day.name)
+    man["bpm"], man["music"] = info["bpm"], info
     add(
         "music",
-        music.write(a / "music.mp3", 30.0, float(bpm), seed),
-        f"seeded music bed, {bpm} BPM, 30 s (leave audio.bpm out of reel.json: the grid is detected from this file)",
-        bpm=bpm,
+        path,
+        f"the day's music bed, style {info['style']} ({info['note']}), {info['bpm']} BPM, 30 s "
+        "(leave audio.bpm out of reel.json: the grid is detected from this file)",
+        bpm=info["bpm"],
+        style=info["style"],
     )
     (day / "assets.json").write_text(json.dumps(man, indent=2) + "\n", encoding="utf-8")
     return man

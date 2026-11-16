@@ -25,7 +25,7 @@ takes a video by URL. Private works too, and X then gets a link to the Short.
 | `PLAYBOOK.md` | the daily steps the run follows |
 | `FACTS.md` | the only claims a promo may make (edit it when funkbox changes) |
 | `REVIEW.md` | the reviewer's checklist |
-| `assets.py`, `music.py` | the day's asset pack: fresh loops, the demo ad, real stills, code cards from real files, music |
+| `assets.py`, `music.py` | the day's asset pack: fresh loops, the demo ad, real stills, code cards from real files, and a music bed whose style rotates daily (funkbox scores) |
 | `measure.py` | renders the day's video and records numbers a promo may quote (render time and machine, counts, what changed) in `measured.json` |
 | `lint.py` | mechanical checks before review: captions clear of card text, a new format, selling point and hook each day, product feedback written, every claim citing a real fact |
 | `review.py` | writes the verdict, bound to the sha256 of the exact video and caption |
