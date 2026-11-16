@@ -346,10 +346,30 @@ def cmd_render(args) -> int:
 
     rec, label = _build_recipe(args)
     name = args.name or f"{label}-s{rec.settings.seed}"
-    if rec.settings.audio:
-        _err("warning: audio set; the loop check is skipped. Audio loops are not seamless unless the music is.")
+    out_dir = Path(args.out_dir) if args.out_dir else _default_out()
+    section = None
+    if args.audio_loop:
+        from funkbox.loops import audioloop
+
+        if not rec.settings.audio:
+            raise UsageError("--audio-loop needs --audio TRACK.wav (or a recipe with settings.audio)")
+        if args.seconds:
+            raise UsageError("--audio-loop sets the length (a whole number of bars); use --audio-bars, not --seconds")
+        try:
+            section = audioloop.apply(
+                rec, out_dir, name, start=args.audio_start, bars=args.audio_bars, meter=args.audio_meter
+            )
+        except ValueError as e:
+            raise UsageError(str(e)) from None
+        print(section.line())
+    skip_for_audio = bool(rec.settings.audio) and not rec.settings.audio_loop
+    if skip_for_audio:
+        _err(
+            "warning: audio set; the loop check is skipped. A whole track does not loop: "
+            "add --audio-loop to cut a section that does."
+        )
     rep = None
-    if not args.no_check and not rec.settings.audio:
+    if not args.no_check and not skip_for_audio:
         rep = validate_loop(rec)
         if not rep.ok:
             _err(f"loop check failed: {rep.reason}")
@@ -358,13 +378,14 @@ def cmd_render(args) -> int:
             _err(f"warning: {rep.reason}")
     res = render_recipe(
         rec,
-        Path(args.out_dir) if args.out_dir else _default_out(),
+        out_dir,
         name,
         mp4=not args.no_mp4,
         gif=args.gif,
         png=not args.no_png,
         gif_width=args.gif_width,
-        loop_check=loop_check_entry(rep, "audio" if rec.settings.audio else "no_check"),
+        loop_check=loop_check_entry(rep, "audio" if skip_for_audio else "no_check"),
+        audio_section=section.to_dict() if section else None,
     )
     print(res.timing_line())
     for k, p in res.paths.items():
@@ -436,6 +457,14 @@ def add_cli(sub) -> None:
 
     r = lsub.add_parser("render", help="render a seamless loop (mp4 + png + json; --gif for a GIF)")
     _add_source_args(r, render=True)
+    r.add_argument(
+        "--audio-loop",
+        action="store_true",
+        help="cut a 3-8 s section of whole bars from --audio, crossfaded at the wrap, so the loop check stays on",
+    )
+    r.add_argument("--audio-start", type=float, metavar="SECONDS", help="start the section at the beat nearest this")
+    r.add_argument("--audio-bars", type=int, metavar="N", help="bars in the section (default: chosen, 3-8 s)")
+    r.add_argument("--audio-meter", type=int, default=4, metavar="BEATS", help="beats per bar (default 4)")
     r.add_argument("--name")
     r.add_argument("--out-dir", help="default: $FUNK_OUT or <funkbox>/out")
     r.add_argument("--no-mp4", action="store_true")

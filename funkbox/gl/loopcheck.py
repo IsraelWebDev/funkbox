@@ -7,12 +7,15 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from funkbox.config import resolve_path
+
 from .engine import Engine
 from .recipe import Recipe2
 
 BAD_FRAC_MAX = 0.001
 SEAM_FACTOR = 2.5
 SEAM_SLACK = 0.5
+AUDIO_SEAM_FACTOR = 1.5  # audio loops: the seam step against the largest step inside the loop
 STATIC_STEP = 0.05
 
 
@@ -51,7 +54,12 @@ def validate_loop(
     recipe: Recipe2, size: int = 192, frames: int | None = None, engine: Engine | None = None
 ) -> LoopReport:
     """Render t=0 and t=1.0 (grain off) and compare; also compare the seam step with the
-    typical frame-to-frame step."""
+    typical frame-to-frame step.
+
+    An audio loop (settings.audio_loop) moves in bursts: a kick makes one step many times the mean, and a section
+    that starts on a beat has such a step at its seam. So there every step of the loop is measured, and the steps
+    at the wrap (between frames whose audio window reaches across it) are compared with the largest step in the
+    rest of the loop: the wrap may be as abrupt as the music already is, not more."""
     rec = copy.deepcopy(recipe)
     if frames is not None:
         rec.settings.fps, rec.settings.seconds = int(frames), 1.0
@@ -67,12 +75,28 @@ def validate_loop(
         f0 = eng.render_at_t(rec, 0.0, grain=False)
         fn = eng.render_at_t(rec, 1.0, grain=False)
         fprev = eng.render(rec, n - 1, grain=False) if n > 1 else f0
-        k = max(1, n // 8)
+        audio_loop = bool(rec.settings.audio and rec.settings.audio_loop)
         steps = []
-        for i in range(0, max(1, n - 1), k):
-            a = eng.render(rec, i, grain=False)
-            b = eng.render(rec, min(i + 1, n), grain=False)
-            steps.append(_mad(a, b))
+        wrap_step = inner_step = 0.0
+        if audio_loop:  # every step, each frame rendered once
+            from .audio import wrap_frames
+
+            at_wrap = wrap_frames(resolve_path(rec.settings.audio, rec.base_dir), n)
+            a = f0
+            for i in range(1, n):
+                b = eng.render(rec, i, grain=False)
+                steps.append(_mad(a, b))
+                if i in at_wrap or i - 1 in at_wrap:
+                    wrap_step = max(wrap_step, steps[-1])
+                else:
+                    inner_step = max(inner_step, steps[-1])
+                a = b
+        else:
+            k = max(1, n // 8)
+            for i in range(0, max(1, n - 1), k):
+                a = eng.render(rec, i, grain=False)
+                b = eng.render(rec, min(i + 1, n), grain=False)
+                steps.append(_mad(a, b))
     finally:
         if own:
             eng.release()
@@ -80,6 +104,7 @@ def validate_loop(
     max_diff = int(diff.max())
     bad = float((diff.max(axis=2) > 3).mean())
     seam = _mad(fprev, f0)
+    wrap_step = max(wrap_step, seam)
     typical = float(np.mean(steps)) if steps else 0.0
 
     ok, reason = True, "seamless"
@@ -90,7 +115,14 @@ def validate_loop(
             f"(max diff {max_diff}); you probably animate with iTime, or multiply "
             "iPhase by a non-integer"
         )
-    elif seam > SEAM_FACTOR * typical + SEAM_SLACK:
+    elif audio_loop and inner_step > 0 and wrap_step > AUDIO_SEAM_FACTOR * inner_step + SEAM_SLACK:
+        ok = False
+        reason = (
+            f"the picture jumps at the loop point: the largest step around the wrap is {wrap_step:.2f} vs "
+            f"{inner_step:.2f} for the largest step in the rest of the loop; the audio does not wrap cleanly "
+            "(cut the section with --audio-loop / audio_loop=true)"
+        )
+    elif not audio_loop and seam > SEAM_FACTOR * typical + SEAM_SLACK:
         ok = False
         reason = (
             f"motion jumps at the loop point: the step from the last frame to the first "

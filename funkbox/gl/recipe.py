@@ -49,6 +49,7 @@ class Settings2:
     seconds: float = 4.0
     seed: int = 1
     audio: str | None = None
+    audio_loop: bool = False  # the audio is one loop long (a cut section): analysed as a circle, loop check on
 
     @property
     def frames(self) -> int:
@@ -167,7 +168,11 @@ class Recipe2:
     def to_dict(self) -> dict:
         d: dict[str, Any] = {
             "version": 2,
-            "settings": {k: v for k, v in vars(self.settings).items() if not (k == "audio" and v is None)},
+            "settings": {
+                k: v
+                for k, v in vars(self.settings).items()
+                if not ((k == "audio" and v is None) or (k == "audio_loop" and not v))
+            },
             "palette": {"name": self.palette, "cycles": self.cycles},
             "layers": [l.to_dict() for l in self.layers],
             "post": [p.to_dict() for p in self.post],
@@ -198,12 +203,20 @@ class Recipe2:
             tk = {f.name for f in fields(TextSpec)}
             text = TextSpec(**{k: v for k, v in t.items() if k in tk})
         settings = Settings2(**s)
+        if not isinstance(settings.audio_loop, bool):
+            raise ValueError("settings.audio_loop must be true or false")
+        if settings.audio_loop and not settings.audio:
+            raise ValueError("settings.audio_loop needs settings.audio (the cut loop's WAV)")
         if settings.audio:
             settings.audio = Path(settings.audio).as_posix()
             if "seconds" not in s:  # audio set: the clip defaults to the audio's length
                 from .audio import wav_duration
 
                 settings.seconds = round(wav_duration(resolve_path(settings.audio, base_dir)), 3)
+            if settings.audio_loop:
+                from .audio import check_loop_length
+
+                check_loop_length(resolve_path(settings.audio, base_dir), settings.seconds)
         return cls(
             settings=settings,
             palette=pal.get("name", "acid"),
@@ -406,7 +419,12 @@ def layer_seed(seed: int, index: int) -> int:
 
 
 def save_recipe(
-    recipe: Recipe2, path: str | Path, resolve: bool = True, outputs: dict | None = None, loop_check: dict | None = None
+    recipe: Recipe2,
+    path: str | Path,
+    resolve: bool = True,
+    outputs: dict | None = None,
+    loop_check: dict | None = None,
+    audio_section: dict | None = None,
 ) -> Recipe2:
     r = resolve_recipe(recipe) if resolve else recipe
     d = r.to_dict()
@@ -414,6 +432,8 @@ def save_recipe(
         d["outputs"] = {k: Path(v).as_posix() for k, v in outputs.items()}
     if loop_check:  # informational like "outputs": Recipe2.from_dict ignores top-level keys it does not know
         d["loop_check"] = loop_check
+    if audio_section:  # informational too: where the audio loop was cut from (audioloop.Section)
+        d["audio_section"] = audio_section
     for lay in d["layers"]:
         for k in ("shader", "path"):
             if isinstance(lay.get(k), str):

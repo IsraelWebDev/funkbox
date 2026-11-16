@@ -44,10 +44,12 @@ def render_recipe(
     gif_width: int = 400,
     engine: Engine | None = None,
     loop_check: dict | None = None,
+    audio_section: dict | None = None,
 ) -> RenderResult:
     """Render the whole loop to out_dir/name.{mp4,gif,png,json}. The JSON sidecar is a v2 recipe
     with inline shader source, so it reproduces the render by itself. ``loop_check`` (see
-    ``loopcheck.loop_check_entry``) is recorded in it as "loop_check" when given."""
+    ``loopcheck.loop_check_entry``) is recorded in it as "loop_check" when given, and ``audio_section`` (where an
+    audio loop was cut from, ``audioloop.Section.to_dict``) as "audio_section"."""
     rec = copy.deepcopy(recipe)
     st = rec.settings
     st.width -= st.width % 2
@@ -75,5 +77,5 @@ def render_recipe(
             eng.release()
     dt = time.perf_counter() - t0
     paths["json"] = f"{base}.json"
-    resolved = save_recipe(rec, f"{base}.json", outputs=paths, loop_check=loop_check)
+    resolved = save_recipe(rec, f"{base}.json", outputs=paths, loop_check=loop_check, audio_section=audio_section)
     return RenderResult(paths, n, eng.w if own else st.width, eng.h if own else st.height, dt, resolved)
