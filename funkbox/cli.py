@@ -32,7 +32,12 @@ def cmd_doctor(args) -> int:
 
     def line(ok: bool | None, what: str, detail: str) -> None:
         nonlocal problems
-        mark = "ok  " if ok else ("--  " if ok is None else "FAIL")
+        if ok:
+            mark = "ok  "
+        elif ok is None:
+            mark = "--  "
+        else:
+            mark = "FAIL"
         problems += ok is False
         print(f"  {mark} {what:<12} {detail}")
 
@@ -44,7 +49,13 @@ def cmd_doctor(args) -> int:
         probes = gl_context.probe()
         working = [p for p in probes if p.ok]
         for p in probes:  # a failed variant is a diagnostic unless nothing works
-            line(True if p.ok else (False if not working else None), "GL " + p.label, p.detail)
+            if p.ok:
+                status = True
+            elif working:
+                status = None
+            else:
+                status = False
+            line(status, "GL " + p.label, p.detail)
         if working:
             line(True, "OpenGL", "software only: renders work but are slower" if working[0].software else "GPU")
         else:

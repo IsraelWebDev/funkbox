@@ -54,10 +54,7 @@ def block_glyphs(t: float) -> dict[str, dict]:
 
     def add(chars: str, w: float, *strokes):
         L, R = h, w - h
-        res = []
-        for s in strokes:
-            pts = [(_v(x, w, L, R), _v(y, 1, T, B)) for x, y in s]
-            res.append(pts)
+        res = [[(_v(x, L, R), _v(y, T, B)) for x, y in s] for s in strokes]
         for c in chars:
             g[c] = {"width": w, "strokes": res}
 
@@ -161,7 +158,7 @@ def block_glyphs(t: float) -> dict[str, dict]:
     return g
 
 
-def _v(v, size: float, lo: float, hi: float) -> float:
+def _v(v, lo: float, hi: float) -> float:
     if v in ("L", "T"):
         return lo
     if v in ("R", "B"):
