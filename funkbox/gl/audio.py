@@ -3,6 +3,7 @@
 For every video frame: an FFT of a Hann window centred on the frame time gives
 iAudio = (bass 20-150 Hz, mid 150-2k, treble 2k-8k, rms), each normalised to 0..1 by its own
 95th percentile over the clip, plus a 512-bin log-spaced magnitude row (bound as iChannel3).
+With ``loop`` the clip is one loop long and the windows wrap round its ends (settings.audio_loop).
 PCM WAV only (8/16/24/32-bit integer); convert other formats with ffmpeg first.
 """
 
@@ -21,8 +22,8 @@ SPEC_LO, SPEC_HI = 20.0, 16000.0
 FLOOR = 1e-4  # amplitude floor (-80 dB): silence in a band must not be amplified into noise
 
 
-def read_wav(path: str | Path) -> tuple[np.ndarray, int]:
-    """Return (mono float32 samples in [-1, 1], sample rate)."""
+def read_wav_channels(path: str | Path) -> tuple[np.ndarray, int]:
+    """Return (float32 samples in [-1, 1] as frames x channels, sample rate)."""
     try:
         with wave.open(str(path), "rb") as w:
             n, ch, width, sr = w.getnframes(), w.getnchannels(), w.getsampwidth(), w.getframerate()
@@ -44,13 +45,40 @@ def read_wav(path: str | Path) -> tuple[np.ndarray, int]:
         x = np.frombuffer(raw, "<i4").astype(np.float32) / float(1 << 31)
     else:
         raise ValueError(f"unsupported WAV sample width {width}")
-    x = x.reshape(-1, ch).mean(axis=1) if ch > 1 else x
-    return np.ascontiguousarray(x, dtype=np.float32), int(sr)
+    return np.ascontiguousarray(x.reshape(-1, ch), dtype=np.float32), int(sr)
+
+
+def read_wav(path: str | Path) -> tuple[np.ndarray, int]:
+    """Return (mono float32 samples in [-1, 1], sample rate)."""
+    x, sr = read_wav_channels(path)
+    return np.ascontiguousarray(x.mean(axis=1) if x.shape[1] > 1 else x[:, 0], dtype=np.float32), sr
 
 
 def wav_duration(path: str | Path) -> float:
     with wave.open(str(path), "rb") as w:
         return w.getnframes() / float(w.getframerate())
+
+
+LOOP_LENGTH_TOLERANCE_S = 0.05
+
+
+def check_loop_length(path: str | Path, seconds: float) -> None:
+    """An audio loop must be as long as the loop it drives; a whole track with ``audio_loop`` set is a mistake."""
+    dur = wav_duration(path)
+    if abs(dur - seconds) > LOOP_LENGTH_TOLERANCE_S:
+        raise ValueError(
+            f"settings.audio_loop: {Path(path).name} is {dur:.2f}s but the loop is {seconds:.2f}s; an audio loop "
+            "must be one loop long. Cut one from the track with `funkbox loop render --audio-loop` "
+            "(or loop_render audio_loop=true), or remove audio_loop"
+        )
+
+
+def wrap_frames(path: str | Path, n_frames: int) -> set[int]:
+    """The frames of a looped clip whose analysis window reaches across the wrap (``analyze(..., loop=True)``)."""
+    with wave.open(str(path), "rb") as w:
+        total = w.getnframes()
+    centres = ((i, round(i * total / n_frames)) for i in range(n_frames))
+    return {i for i, c in centres if min(c, total - c) < WINDOW // 2}
 
 
 @dataclass
@@ -70,8 +98,12 @@ class AudioFeatures:
         return self.spectrum[self._idx(frame)]
 
 
-def analyze(path: str | Path, fps: int, n_frames: int) -> AudioFeatures:
-    """Features for frames 0..n_frames inclusive (the extra one serves t=1.0)."""
+def analyze(path: str | Path, fps: int, n_frames: int, loop: bool = False) -> AudioFeatures:
+    """Features for frames 0..n_frames inclusive (the extra one serves t=1.0).
+
+    ``loop``: the clip is exactly one loop (see funkbox.loops.audioloop). Frame i then sits at i / n_frames of the
+    clip and its window wraps round the clip's ends, so frame n_frames gets the same samples as frame 0 and the
+    features are periodic."""
     x, sr = read_wav(path)
     n = n_frames + 1
     win = np.hanning(WINDOW).astype(np.float32)
@@ -90,9 +122,13 @@ def analyze(path: str | Path, fps: int, n_frames: int) -> AudioFeatures:
         pad, lo, hi = np.pad(x, WINDOW), WINDOW + len(x) // 2, WINDOW + len(x) // 2
     raw = np.zeros((n, 4), np.float64)
     spec = np.zeros((n, SPEC_BINS), np.float32)
+    around = np.arange(-(WINDOW // 2), WINDOW // 2)
     for i in range(n):
-        centre = int(min(max(round(i / fps * sr), lo), hi))
-        seg = pad[centre - WINDOW // 2 : centre + WINDOW // 2]
+        if loop:
+            seg = x.take(round(i * len(x) / n_frames) + around, mode="wrap")
+        else:
+            centre = int(min(max(round(i / fps * sr), lo), hi))
+            seg = pad[centre - WINDOW // 2 : centre + WINDOW // 2]
         mag = np.abs(np.fft.rfft(seg * win)) / wsum
         for k, m in enumerate(masks):
             raw[i, k] = float(np.sqrt(np.sum(mag[m] ** 2)))

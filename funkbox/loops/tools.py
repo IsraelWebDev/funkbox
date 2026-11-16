@@ -319,36 +319,62 @@ def loop_sheet(recipe: Recipe | None = None, seeds: str = "1-6", look: LookName 
     return [f"saved {path}\nseeds: {seed_list}", _png(sheet, 900)]
 
 
-def _render_gl(rec: Recipe2, out_dir: Path, name: str, gif: bool = False):
+def _render_gl(rec: Recipe2, out_dir: Path, name: str, gif: bool = False, section: dict | None = None):
     eng = _engine(rec.settings.width, rec.settings.height)
     rep = None
-    if not rec.settings.audio:
+    if not rec.settings.audio or rec.settings.audio_loop:  # a whole track does not loop; a cut audio loop does
         rep = validate_loop(rec, size=160)
         if not rep.ok:
             return None, rep
-    return render_recipe(rec, out_dir, name, gif=gif, engine=eng, loop_check=loop_check_entry(rep)), rep
+    res = render_recipe(
+        rec, out_dir, name, gif=gif, engine=eng, loop_check=loop_check_entry(rep), audio_section=section
+    )
+    return res, rep
 
 
 @safe
-def loop_render(recipe: Recipe | None = None, name: str = "", gif: bool = False, look: LookName | None = None) -> list:
+def loop_render(
+    recipe: Recipe | None = None,
+    name: str = "",
+    gif: bool = False,
+    look: LookName | None = None,
+    audio_loop: bool = False,
+    audio_start: float | None = None,
+    audio_bars: int | None = None,
+    audio_meter: int = 4,
+) -> list:
     """Render a seamless loop (MP4 + PNG poster + JSON sidecar that fully reproduces it; GIF only if
     gif=True, since it is ~10x slower than the mp4 on busy loops). Give a recipe, or a named look instead.
     Limits: <=1080px per side, <=20 s, <=60 fps. Runs the loop check first and refuses a broken loop.
-    With settings.audio the check is skipped and the result says "loop check skipped"."""
+    With settings.audio (a whole track) the check is skipped and the result says "loop check skipped".
+    audio_loop=true makes a loop that reacts to the music and still loops: it cuts a 3-8 s section of whole bars
+    from settings.audio (saved as <name>.loop.wav, crossfaded where it wraps), sets the loop's length to it and
+    keeps the loop check on. audio_start (seconds) starts the section at the nearest beat and audio_bars sets its
+    length; without them the section whose two ends sound most alike is chosen. audio_meter is beats per bar."""
     rec = _parse_recipe(_recipe_arg(recipe, look))
-    _limits(rec)
     if not name:
         name = "funk-" + hashlib.sha1(json.dumps(rec.to_dict(), sort_keys=True).encode()).hexdigest()[:8]
     if not OUT_NAME_RE.match(name):
         raise ValueError("bad name: use 1-60 chars of A-Z a-z 0-9 _ -")
-    res, rep = on_gl(_render_gl, rec, funk_out(), name, gif)
+    section = None
+    if audio_loop:
+        from funkbox.loops import audioloop
+
+        section = audioloop.apply(rec, funk_out(), name, start=audio_start, bars=audio_bars, meter=audio_meter)
+    _limits(rec)
+    res, rep = on_gl(_render_gl, rec, funk_out(), name, gif, section.to_dict() if section else None)
     if res is None:
         return [f"NOT RENDERED - the loop is not seamless.\n{_loop_line(rep)}"]
     lines = [res.timing_line(), *(f"{k}: {v}" for k, v in res.paths.items())]
+    if section is not None:
+        lines.append(section.line())
     if rep is not None:
         lines.append(_loop_line(rep))
     else:
-        lines.append("loop check skipped: audio is set, and audio loops are not seamless unless the music is")
+        lines.append(
+            "loop check skipped: audio is set, and a whole track does not loop "
+            "(audio_loop=true cuts a section that does)"
+        )
     return ["\n".join(lines), _png(PILImage.open(res.paths["png"]))]
 
 

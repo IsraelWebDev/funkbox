@@ -172,9 +172,23 @@ Blend modes: `normal add screen multiply overlay difference softlight hue`. Post
 posterize scanlines vignette grain`. Relative paths resolve against the recipe's folder, then `FUNK_HOME`;
 **files must live inside `FUNK_HOME`, `FUNK_OUT` or `FUNK_INPUTS`** (drop your images in `inputs/`). Optional
 `"audio": "song.wav"` in `settings` (PCM WAV) drives `iAudio`/`iChannel3`, defaults `seconds` to the clip
-length, is muxed into the mp4, and skips the loop check (audio loops are not seamless unless the music is). The JSON sidecar records which
+length, is muxed into the mp4, and skips the loop check (a whole track does not loop). The JSON sidecar records which
 happened in a `"loop_check"` entry: `{"status": "ok", ...}` with the report's numbers, or
 `{"status": "skipped", "reason": "audio"}` (`"no_check"` with the CLI's `--no-check`). Loading the sidecar ignores it.
+
+**Audio loops: react to the music and still loop.** `funkbox loop render ... --audio song.wav --audio-loop` (MCP:
+`loop_render` with `audio_loop=true`) cuts a section of the track that is a whole number of bars and 3 to 8 s long,
+rounds it to whole frames, crossfades the audio where it wraps (50 ms) and saves it as `<name>.loop.wav`. The loop
+takes that file as its audio and its length, sets `"audio_loop": true` in `settings`, and the loop check stays on:
+the audio is analysed as a circle, so the last frame leads into the first. Without options the section is chosen
+automatically: any detected beat may start it, and the start and bar count whose two ends sound most alike win
+(quiet intros and breaks are skipped). `--audio-start SECONDS` (`audio_start`) starts it at the nearest beat,
+`--audio-bars N` (`audio_bars`) sets its length, `--audio-meter BEATS` (`audio_meter`, default 4) is the beats per
+bar; the detector finds beats, not bars, so a track that is not in 4 needs the meter. The sidecar records the cut in
+`"audio_section"` (source, start, bars, BPM, length, `drift_ms` = how far whole frames moved it off the bars) and
+renders again by itself. For an audio loop the check compares the steps around the wrap with the largest step in
+the rest of the loop, since a kick already makes the picture jump. A hand-made loop file works too: set
+`"audio_loop": true` and make `seconds` its length; the check then tells you whether it wraps cleanly.
 `examples/disco_cat.json` is a runnable sample; `python examples/make_cat.py` regenerates its image.
 
 A shader or image layer can carry a `mask`: an image (PNG with alpha) whose alpha scales the layer, so the layer shows

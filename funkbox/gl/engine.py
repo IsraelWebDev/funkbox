@@ -210,16 +210,17 @@ class Engine:
             _set(prog, f"iChannel{i}", i)
 
     def _audio_for(self, rec: Recipe2):
-        """Analyse settings.audio once per (file, fps, frames); None when no audio is set."""
+        """Analyse settings.audio once per (file, fps, frames, loop); None when no audio is set. With
+        settings.audio_loop the file is one loop long (Recipe2.from_dict checks) and is analysed as a circle."""
         st = rec.settings
         if not st.audio:
             return None
         p = resolve_path(st.audio, rec.base_dir)
-        key = (str(p), p.stat().st_mtime_ns, st.fps, st.frames)
+        key = (str(p), p.stat().st_mtime_ns, st.fps, st.frames, bool(st.audio_loop))
         feats = self._audio_cache.get(key)
         if feats is None:
             self._audio_cache.clear()
-            feats = self._audio_cache[key] = _audio.analyze(p, st.fps, st.frames)
+            feats = self._audio_cache[key] = _audio.analyze(p, st.fps, st.frames, loop=bool(st.audio_loop))
         return feats
 
     def _audio_vec(self, frame: int) -> tuple[float, float, float, float]:
