@@ -473,7 +473,7 @@ def build(r, base_dir: str | Path | None = None) -> tuple[list[Group], dict]:
     if doc.post:
         report["warnings"].append(
             "poster-level effects ("
-            + ", ".join(p.get("type", "?") for p in doc.post)
+            + ", ".join(p.get("name", "?") for p in doc.post)
             + ") are only in the pixel exports"
         )
     return groups, report

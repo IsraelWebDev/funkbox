@@ -145,7 +145,7 @@ def cmd_render(a) -> int:
         if a.audit:
             print(f"text audit: {'OK' if out.audit_ok else 'PROBLEMS (see the JSON)'}")
         _print_beat_audit(out)
-    return 0 if out.audit_ok is not False else 2
+    return 2 if any(o.audit_ok is False for o in outs) else 0  # every format's text audit, not only the last
 
 
 def cmd_variants(a) -> int:
@@ -389,11 +389,11 @@ def cmd_project_render(a) -> int:
         for k, v in o.paths.items():
             print(f"{k}: {v}")
         print(o.report_line())
-    out = outs[-1]
-    print(f"text audit: {'OK' if out.audit_ok else 'PROBLEMS (see the JSON)'}")
-    _print_beat_audit(out)
+    audit_ok = all(o.audit_ok for o in outs)  # every format's text audit, not only the last
+    print(f"text audit: {'OK' if audit_ok else 'PROBLEMS (see the JSON)'}")
+    _print_beat_audit(outs[-1])
     project.advance_status(a.project, "rendered")
-    return 0 if out.audit_ok else 2
+    return 0 if audit_ok else 2
 
 
 def cmd_project_shortcuts(a) -> int:

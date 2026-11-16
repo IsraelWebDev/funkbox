@@ -131,3 +131,17 @@ def test_a_reel_can_use_a_score_for_music_and_beats(tmp_path, monkeypatch):
     assert audio.music_file(reel) == wav  # cached by content
     grid = audio.beat_grid_for(reel)
     assert grid[:2] == [0.0, pytest.approx(0.6667, abs=1e-3)]
+
+
+def test_a_string_where_a_number_belongs_is_a_score_problem_not_a_crash():
+    base = {"tracks": [{"notes": "1 2 3 4"}]}
+    assert score.check(base) == []
+    assert score.check({**base, "swing": "0.1"}) == ["swing: 0..0.5"]
+    assert score.check({**base, "reverb": None}) == ["reverb: 0..1"]
+    track = {"notes": "1 2 3 4", "program": "40", "pan": "left", "velocity": "90"}
+    assert score.check({"tracks": [track]}) == [
+        "tracks[0]: program is a General MIDI number 0..127",
+        "tracks[0]: pan -1 (left) .. 1 (right)",
+        "tracks[0]: velocity 1..127",
+    ]
+    assert score.check({"tracks": [{"notes": "1", "program": 40, "pan": -0.5, "velocity": 127}]}) == []

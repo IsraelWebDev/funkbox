@@ -424,9 +424,9 @@ def check(score: dict) -> list[str]:
         errs.append("meter: beats per bar, 2..12")
     if "bars" in score and not (isinstance(score["bars"], int) and 1 <= score["bars"] <= 128):
         errs.append("bars: 1..128")
-    if not 0 <= score.get("swing", 0) <= 0.5:
+    if not _number_in(score.get("swing", 0), 0, 0.5):
         errs.append("swing: 0..0.5")
-    if not 0 <= score.get("reverb", 0.2) <= 1:
+    if not _number_in(score.get("reverb", 0.2), 0, 1):
         errs.append("reverb: 0..1")
     tr = score.get("tracks")
     if not isinstance(tr, list) or not 1 <= len(tr) <= 16:
@@ -458,13 +458,18 @@ def check(score: dict) -> list[str]:
                 errs.append(f"{w}: a drum track needs `pattern` {{name: 'x...x...'}}")
         elif not isinstance(t.get("notes"), str) or not t["notes"].strip():
             errs.append(f'{w}: needs `notes` (or "drums": true and a `pattern`)')
-        if not 0 <= t.get("program", 0) <= 127:
+        if not _number_in(t.get("program", 0), 0, 127):
             errs.append(f"{w}: program is a General MIDI number 0..127")
-        if not -1 <= t.get("pan", 0) <= 1:
+        if not _number_in(t.get("pan", 0), -1, 1):
             errs.append(f"{w}: pan -1 (left) .. 1 (right)")
-        if not 1 <= t.get("velocity", 90) <= 127:
+        if not _number_in(t.get("velocity", 90), 1, 127):
             errs.append(f"{w}: velocity 1..127")
     return errs
+
+
+def _number_in(v, lo: float, hi: float) -> bool:
+    """A number within lo..hi. Anything else (a string such as "0.1", None) is a score problem, not a crash."""
+    return isinstance(v, (int, float)) and lo <= v <= hi
 
 
 def load_score(score) -> tuple[dict, Path | None]:

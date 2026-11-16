@@ -182,7 +182,7 @@ def copy_lock_error(slug: str, data: bytes | None = None) -> str | None:
     d = project_dir(slug)
     cp = d / "copy.json"
     if cp.is_symlink() or not cp.is_file():
-        return f"project {slug!r} has no approved copy.json; run propose_copy, then approve_copy."
+        return f"project {slug!r} has no approved copy.json; run project_propose_copy, then project_approve_copy."
     meta = load_meta(slug)
     lock = meta.get("copy_lock")
     if not lock:

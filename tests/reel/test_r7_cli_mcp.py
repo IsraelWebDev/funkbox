@@ -440,3 +440,45 @@ def test_storyboard_tiny_tiles_use_the_ad_layout(gl, tmp_path):
     plan = R.prepare(str(demo / "s.reel.json"))
     sheet = SB.storyboard(plan, tmp_path / "sb.png", tile_w=60)
     assert sheet.width > 60
+
+
+def _fake_out(audit_ok):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        paths={"mp4": "x.mp4"}, report_line=lambda: "report", warnings=[], audit_ok=audit_ok, beat_ok=None
+    )
+
+
+@pytest.mark.parametrize(
+    "audits, code",
+    [([True, True], 0), ([False, True], 2), ([True, False], 2), ([None, None], 0), ([False, None], 2)],
+)
+def test_render_exit_code_covers_every_format(monkeypatch, tmp_path, audits, code):
+    """A failed text audit on any format fails the render, not only on the last one rendered."""
+    from types import SimpleNamespace
+
+    from funkbox.reel import cli, render
+
+    monkeypatch.setattr(render, "render_formats", lambda *a, **kw: [_fake_out(x) for x in audits])
+    args = SimpleNamespace(
+        reel=str(tmp_path / "x.reel.json"), project=None, name="x", out=None, format=None, draft=True,
+        audit=True, no_audio=True, gif=False,
+    )  # fmt: skip
+    assert cli.cmd_render(args) == code
+
+
+def test_project_render_reports_and_exits_on_every_format(monkeypatch, tmp_path, capsys):
+    from types import SimpleNamespace
+
+    from funkbox.reel import cli, project, render
+
+    (tmp_path / "demo.reel.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(project, "project_dir", lambda slug: tmp_path)
+    monkeypatch.setattr(project, "advance_status", lambda *a, **kw: None)
+    monkeypatch.setattr(render, "render_formats", lambda *a, **kw: [_fake_out(False), _fake_out(True)])
+    assert cli.cmd_project_render(SimpleNamespace(project="demo", full=False, format=None)) == 2
+    assert "text audit: PROBLEMS (see the JSON)" in capsys.readouterr().out
+    monkeypatch.setattr(render, "render_formats", lambda *a, **kw: [_fake_out(True), _fake_out(True)])
+    assert cli.cmd_project_render(SimpleNamespace(project="demo", full=False, format=None)) == 0
+    assert "text audit: OK" in capsys.readouterr().out
