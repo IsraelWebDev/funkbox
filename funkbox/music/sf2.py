@@ -219,9 +219,9 @@ class SoundFont:
         total = held + release
         n = max(1, int(total * sr))
         pos = np.arange(n, dtype=np.float64) * step
+        rel = start + pos
         if looped:
             L = le - ls
-            rel = start + pos
             if mode == 3:  # loop while held, then play on to the end
                 n_held = int(held * sr)
                 over = rel[:n_held] >= ls
@@ -233,7 +233,6 @@ class SoundFont:
                 over = rel >= ls
                 rel[over] = ls + (rel[over] - ls) % L
         else:
-            rel = start + pos
             stop = np.searchsorted(rel, end - 1)
             n = max(1, min(n, int(stop)))
             rel = rel[:n]

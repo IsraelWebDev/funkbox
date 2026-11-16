@@ -318,7 +318,7 @@ class Engine:
         self._audio = self._audio_for(rec)
         if not rec.layers:
             raise ValueError("recipe has no layers")
-        A, B, L = 0, 1, 2
+        A, B = 0, 1
         self._fbo[A].use()
         self.ctx.clear(0.0, 0.0, 0.0, 1.0)
 
@@ -339,10 +339,10 @@ class Engine:
                 _set(p.prog, "u_fit", fit)
                 _set(p.prog, "u_warp", warp)
                 _set(p.prog, "u_img", (float(size[0]), float(size[1])))
-            self._draw(p, L)
+            self._draw(p, _L)
             # composite L over A -> B, scaled by the layer's mask when it has one
             has_mask = lay.mask is not None
-            src = L
+            src = _L
             if has_mask:
                 self._render_mask(lay, rec, t, frame)
                 if lay.bevel is not None:

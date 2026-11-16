@@ -358,15 +358,14 @@ def _gradient_item(lay: dict, ctx) -> PathItem:
 
 
 def _text_items(lay: dict, ctx, text: str) -> list[PathItem]:
-    from .text import _fx, _line_x, layout_text
+    from .text import STROKE_DEFAULTS, _fx, _line_x, layer_fonts, layout_text
     from .typeset import typeset, use_outlines
-    from .text import layer_fonts
 
     fonts = layer_fonts(lay, ctx)
     if use_outlines(lay):
         ts = typeset(lay, text, ctx, fonts)
         base = _rgba(lay.get("color", "brand.text"), ctx.brand)
-        st = _fx(lay, "stroke", ctx, ts.px, base[:3], {"width": 0.0, "opacity": 1.0, "color": "#000000"})
+        st = _fx(lay, "stroke", ctx, ts.px, base[:3], STROKE_DEFAULTS)
         stroke = (*st["rgb"], int(round(255 * st.get("opacity", 1.0)))) if st else None
         sw = 2 * round(st["width"] * ts.px) if st else 0.0
         return [PathItem(c, fill=col, stroke=stroke, stroke_w=sw, join="round", cap="round") for col, c in ts.by_color]
@@ -383,7 +382,7 @@ def _text_items(lay: dict, ctx, text: str) -> list[PathItem]:
         f = text_geometry((lo.x0 + frame_w / 2, lo.y0 + lo.box_h / 2), **geo)
         cmds = map_points(flatten(cmds) if "arc" in geo else cmds, f)
     fill = _rgba(lay.get("color", "brand.text"), ctx.brand)
-    st = _fx(lay, "stroke", ctx, lo.px, fill[:3], {"width": 0.0, "opacity": 1.0, "color": "#000000"})
+    st = _fx(lay, "stroke", ctx, lo.px, fill[:3], STROKE_DEFAULTS)
     sw = st["width"] * lo.px if st else 0.0
     stroke = (*st["rgb"], int(round(255 * st.get("opacity", 1.0)))) if st else None
     return [PathItem(cmds, fill=fill, stroke=stroke, stroke_w=2 * round(sw), join="round", cap="round")]

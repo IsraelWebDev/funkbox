@@ -15,7 +15,8 @@ import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-_TOKEN = re.compile(r"[MmLlHhVvCcSsQqTtAaZz]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
+_NUM = r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
+_TOKEN = re.compile(r"[MmLlHhVvCcSsQqTtAaZz]|" + _NUM)
 _ARGS = {"M": 2, "L": 2, "H": 1, "V": 1, "C": 6, "S": 4, "Q": 4, "T": 2, "A": 7, "Z": 0}
 
 
@@ -271,7 +272,7 @@ def color(v: str | None, defs: dict) -> str | None:
 def _matrix(tf: str | None) -> tuple[float, ...]:
     m = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
     for name, args in re.findall(r"(matrix|translate|scale|rotate|skewX|skewY)\s*\(([^)]*)\)", tf or ""):
-        a = [float(x) for x in re.findall(r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?", args)]
+        a = [float(x) for x in re.findall(_NUM, args)]
         if name == "matrix" and len(a) == 6:
             n = tuple(a)
         elif name == "translate":
@@ -344,7 +345,7 @@ def svg_items(path: str | Path, tol: float = 0.5) -> tuple[list[dict], tuple[flo
         if _local(g.tag) in ("linearGradient", "radialGradient") and g.get("id"):
             stop = next((s for s in g if _local(s.tag) == "stop"), None)
             if stop is not None:
-                st = dict(_style(stop, {}))
+                st = _style(stop, {})
                 defs[g.get("id")] = color(stop.get("stop-color") or st.get("stop-color") or "#000000", {})
     items: list[dict] = []
     warnings: list[str] = []
@@ -393,7 +394,7 @@ def svg_items(path: str | Path, tol: float = 0.5) -> tuple[list[dict], tuple[flo
         elif tag == "line":
             subs = [([(_f(el, "x1"), _f(el, "y1")), (_f(el, "x2"), _f(el, "y2"))], False)]
         elif tag in ("polyline", "polygon"):
-            n = [float(v) for v in re.findall(r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?", el.get("points", ""))]
+            n = [float(v) for v in re.findall(_NUM, el.get("points", ""))]
             subs = [(list(zip(n[0::2], n[1::2])), tag == "polygon")]
         elif tag == "text":
             warnings.append("an SVG <text> element was skipped: convert text to outlines (paths) before importing")

@@ -111,21 +111,7 @@ def synth(seconds: float, bpm: float, seed: int) -> np.ndarray:
 
 
 def write(out: Path, seconds: float, bpm: float, seed: int) -> Path:
-    out = Path(out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    wav = out.with_suffix(".wav")
-    with wave.open(str(wav), "wb") as w:
-        w.setnchannels(2)
-        w.setsampwidth(2)
-        w.setframerate(SR)
-        w.writeframes((synth(seconds, bpm, seed) * 32767).astype("<i2").tobytes())
-    if out.suffix.lower() == ".wav":
-        return wav
-    from funkbox.media import require_ffmpeg
-
-    subprocess.run([require_ffmpeg(), "-y", "-loglevel", "error", "-i", str(wav), "-b:a", "160k", str(out)], check=True)
-    wav.unlink()
-    return out
+    return _write_samples(out, synth(seconds, bpm, seed), SR)
 
 
 # --------------------------------------------------------------------------- the day's style

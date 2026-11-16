@@ -141,7 +141,12 @@ def ink(doc: dict, layer_id: str, base_dir=None, scale: float | None = None, cac
     s = scale or _scale(doc)
     lay = next(l for l in doc["layers"] if l.get("id") == layer_id)
     col = _hex(lay.get("color"))
-    bgs = [(255, 255, 255)] if col and sum(col) < 480 else [(0, 0, 0)] if col else [(255, 255, 255), (0, 0, 0)]
+    if not col:  # unknown colour: render on both and keep what differs
+        bgs = [(255, 255, 255), (0, 0, 0)]
+    elif sum(col) < 480:
+        bgs = [(255, 255, 255)]
+    else:
+        bgs = [(0, 0, 0)]
     shots = []
     for bg in bgs:
         d = dict(doc, layers=[{"id": "_bg", "type": "solid", "color": "#%02x%02x%02x" % bg}, copy.deepcopy(lay)])

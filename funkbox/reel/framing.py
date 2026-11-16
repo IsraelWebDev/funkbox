@@ -92,7 +92,8 @@ def decode_fps(fps: int, speed: tuple[float, float]) -> int:
 # --------------------------------------------------------------------------- #
 # Where the camera looks
 # --------------------------------------------------------------------------- #
-def _ease(kind: str, u: float) -> float:
+def ease(kind: str, u: float) -> float:
+    """The easing named ``kind`` (smooth | linear | in | out | hold) at ``u`` in 0..1."""
     u = min(1.0, max(0.0, u))
     if kind == "linear":
         return u
@@ -103,11 +104,6 @@ def _ease(kind: str, u: float) -> float:
     if kind == "hold":
         return 1.0 if u >= 1.0 else 0.0
     return u * u * (3.0 - 2.0 * u)
-
-
-def ease(kind: str, u: float) -> float:
-    """The easing named ``kind`` (smooth | linear | in | out | hold) at ``u`` in 0..1."""
-    return _ease(kind, u)
 
 
 def key_times(keys: tuple[FrameKey, ...], shot_seconds: float) -> list[float]:
@@ -127,7 +123,7 @@ def rect_at(keys: tuple[FrameKey, ...], u: float, shot_seconds: float) -> tuple[
     for i in range(1, len(keys)):
         if u <= ts[i]:
             span = ts[i] - ts[i - 1]
-            e = _ease(keys[i].ease, (u - ts[i - 1]) / span if span > 0 else 1.0)
+            e = ease(keys[i].ease, (u - ts[i - 1]) / span if span > 0 else 1.0)
             (x0, y0, w0, h0), (x1, y1, w1, h1) = keys[i - 1].rect, keys[i].rect
             cx = (x0 + w0 / 2) + ((x1 + w1 / 2) - (x0 + w0 / 2)) * e
             cy = (y0 + h0 / 2) + ((y1 + h1 / 2) - (y0 + h0 / 2)) * e

@@ -166,6 +166,13 @@ def cmd_poster_animate(a) -> int:
     return 0 if res.all_exact else 1
 
 
+def _write_poster(doc: dict, a, suffix: str) -> Path:
+    """Write a tuned poster to ``-o`` or, by default, ``<poster stem><suffix>`` in the working folder."""
+    out = Path(a.output or (Path(a.poster).with_suffix("").with_suffix("").name + suffix))
+    out.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return out
+
+
 def cmd_poster_fit(a) -> int:
     from funkbox.stills import fit
 
@@ -180,8 +187,7 @@ def cmd_poster_fit(a) -> int:
         "cover",
         _json_arg(a.keep_inside) if a.keep_inside else None,
     )
-    out = Path(a.output or (Path(a.poster).with_suffix("").with_suffix("").name + ".fit.poster.json"))
-    out.write_text(json.dumps(res.doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    out = _write_poster(res.doc, a, ".fit.poster.json")
     print(f"overall {res.start['overall']} -> {res.score['overall']} after {res.evaluations} previews")
     for k, (x, y) in res.changed.items():
         print(f"  {k}: {x} -> {y}")
@@ -194,8 +200,7 @@ def cmd_poster_fit_inside(a) -> int:
 
     doc, base = _doc(a)
     res = inside.fit_inside(doc, _json_arg(a.specs), base, not a.no_equal_size)
-    out = Path(a.output or (Path(a.poster).with_suffix("").with_suffix("").name + ".inside.poster.json"))
-    out.write_text(json.dumps(res.doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    out = _write_poster(res.doc, a, ".inside.poster.json")
     for k, v in res.changed.items():
         print(f"{k}: size {v['size']}, x {v['x']}, y {v['y']}")
     for n in res.notes:
@@ -223,17 +228,14 @@ def cmd_image_trace(a) -> int:
     from funkbox.stills import api, trace
 
     pal = [c.strip() for c in a.palette.split(",")] if a.palette else None
-    lift = None
-    if a.lift_text:
-        lift = (
-            "auto"
-            if a.lift_text == "auto"
-            else (
-                json.loads(a.lift_text)
-                if a.lift_text.lstrip().startswith("[")
-                else [c.strip() for c in a.lift_text.split(",")]
-            )
-        )
+    if not a.lift_text:
+        lift = None
+    elif a.lift_text == "auto":
+        lift = "auto"
+    elif a.lift_text.lstrip().startswith("["):
+        lift = json.loads(a.lift_text)
+    else:
+        lift = [c.strip() for c in a.lift_text.split(",")]
     res = trace.trace(
         _abs(a.image), a.colors, pal, a.detail, a.smooth, a.tolerance, lift_text=lift, max_letter=a.max_letter
     )

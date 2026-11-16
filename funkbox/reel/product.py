@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 from .motion import Camera
 from .schema import ProductSpec
@@ -95,7 +95,7 @@ def _clipped_fraction(lab: np.ndarray, max_over: float = 1.2) -> float:
     return float((over > max_over).any(axis=-1).mean())
 
 
-def _fit(lp, mp, sp, mb, sb, k: float) -> ColorTransform:
+def _fit(mp, sp, mb, sb, k: float) -> ColorTransform:
     gain, bias = [], []
     for c in range(3):
         new_std = sp[c] + k * (sb[c] - sp[c])
@@ -129,7 +129,7 @@ def compute_transform(
     mp, sp, mb, sb = lp.mean(0), lp.std(0), lb.mean(0), lb.std(0)
     k = float(strength)
     while k > 0.01:
-        tr = _fit(lp, mp, sp, mb, sb, k)
+        tr = _fit(mp, sp, mb, sb, k)
         lab2 = lp * np.array(tr.gain, np.float32) + np.array(tr.bias, np.float32)
         if _clipped_fraction(lab2) <= max_clipped:
             return tr
@@ -228,8 +228,6 @@ class ProductCompositor:
         pad = int(0.25 * w)
         cw, ch = w + 2 * pad, max(8, int(0.16 * h))
         m = Image.new("L", (cw, ch), 0)
-        from PIL import ImageDraw
-
         ImageDraw.Draw(m).ellipse((pad + 0.08 * w, ch * 0.25, pad + 0.92 * w, ch * 0.75), fill=255)
         contact = np.asarray(_gauss(m, ch * 0.14), dtype=np.float32) / 255.0
         # drop shadow: blurred silhouette offset by 6% of the height

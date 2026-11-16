@@ -210,24 +210,21 @@ def check_reel_copy(copy_path: Path, base_dir: str | Path | None, data: bytes | 
     root = projects_root()
     rel = _inside(copy_path, root)
     base_rel = _inside(Path(base_dir), root) if base_dir else None
-    slug = None
-    if rel is not None and rel.parts:
-        slug = rel.parts[0]
-    elif base_rel is not None and base_rel.parts:
-        slug = base_rel.parts[0]
-        return (
-            f"reel is stored in project {slug!r} but its copy deck {copy_path} is not that project's "
-            f"copy.json; project reels may only use the approved copy.json"
-        )
-    if slug is None:
+    if rel is None or not rel.parts:  # the deck is outside the projects folder
+        if base_rel is not None and base_rel.parts:
+            return (
+                f"reel is stored in project {base_rel.parts[0]!r} but its copy deck {copy_path} is not that "
+                f"project's copy.json; project reels may only use the approved copy.json"
+            )
         return None
+    slug = rel.parts[0]
     if base_rel is not None and base_rel.parts and base_rel.parts[0] != slug:
         return f"reel is stored in project {base_rel.parts[0]!r} but uses the copy deck of project {slug!r}"
     if not SLUG_RE.match(slug) or not (root / slug / "project.json").is_file():
         return f"copy deck {copy_path} is inside the projects folder but not in a project"
-    if rel is None or tuple(rel.parts) != (slug, "copy.json"):
+    if tuple(rel.parts) != (slug, "copy.json"):
         return (
             f"inside project {slug!r} only the approved copy.json may be used as the copy deck "
-            f"(got {'/'.join(rel.parts[1:]) if rel else copy_path}); copy.draft.json never reaches pixels"
+            f"(got {'/'.join(rel.parts[1:])}); copy.draft.json never reaches pixels"
         )
     return copy_lock_error(slug, data)

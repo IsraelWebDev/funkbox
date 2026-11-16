@@ -21,7 +21,7 @@ from funkbox.media import require_ffmpeg
 
 from . import audio, brand as brandmod, captions, collision, copydeck, depth
 from . import project as P
-from .schema import Brand, ReelError
+from .schema import FORMAT_PRESETS, Brand, ReelError
 from .timeline import VO_LEAD, VO_TAIL
 
 W, H, FPS = 1080, 1920, 30
@@ -204,8 +204,6 @@ def auto_reel(
     if bpm is not None and not 30 <= float(bpm) <= 300:
         raise ReelError(["bpm must be between 30 and 300"])
     if formats:
-        from .schema import FORMAT_PRESETS
-
         bad = [f for f in formats if f not in FORMAT_PRESETS]
         if bad:
             raise ReelError([f"unknown formats {bad}; presets are {list(FORMAT_PRESETS)}"])
@@ -512,7 +510,7 @@ def auto_reel(
     P.advance_status(slug, "reel-built")
     n_prod = sum(1 for s in shots if "product" in s)
     n_clip = sum(1 for s in shots if "video" in s["source"])
-    res = AutoResult(
+    return AutoResult(
         slug,
         reel,
         path,
@@ -532,7 +530,6 @@ def auto_reel(
             "end_card": (end or {}).get("copy"),
         },
     )
-    return res
 
 
 def _resolve_collision(sh: dict, deck: copydeck.CopyDeck, style: str, fonts, brand: Brand, asp: float) -> None:

@@ -52,24 +52,21 @@ def luminance(rgb) -> float:
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
+def _rgb(c):
+    """An sRGB colour given as a tuple or as #rrggbb, as a tuple."""
+    return hex_to_rgb(c) if isinstance(c, str) else c
+
+
 def contrast(a, b) -> float:
     """WCAG 2 contrast ratio between two sRGB colours (tuples or #rrggbb)."""
-    if isinstance(a, str):
-        a = hex_to_rgb(a)
-    if isinstance(b, str):
-        b = hex_to_rgb(b)
-    la, lb = luminance(a), luminance(b)
+    la, lb = luminance(_rgb(a)), luminance(_rgb(b))
     hi, lo = max(la, lb), min(la, lb)
     return (hi + 0.05) / (lo + 0.05)
 
 
 def delta_e(a, b) -> float:
     """CIE76 colour difference between two sRGB colours."""
-    if isinstance(a, str):
-        a = hex_to_rgb(a)
-    if isinstance(b, str):
-        b = hex_to_rgb(b)
-    la, lb = srgb_to_lab(np.array(a, np.float32)), srgb_to_lab(np.array(b, np.float32))
+    la, lb = srgb_to_lab(np.array(_rgb(a), np.float32)), srgb_to_lab(np.array(_rgb(b), np.float32))
     return float(np.linalg.norm(la - lb))
 
 

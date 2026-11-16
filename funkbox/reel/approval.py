@@ -234,13 +234,19 @@ def approve(slug: str, draft_sha256: str, method: str) -> dict:
     if cp.is_symlink():
         raise ApprovalError("copy.json is a symlink; refusing to write through it")
     _atomic_write(cp, data)
+    lock = _record_lock(slug, cp, method, sha)
+    return {"copy_lock": lock, "method": method, "lines": len(deck["lines"])}
+
+
+def _record_lock(slug: str, cp: Path, method: str, draft_sha256: str | None) -> str:
+    """Lock copy.json as it is on disk: store its sha256 and the approval in project.json. Returns the lock."""
     lock = P.sha256_file(cp)
     meta = P.load_meta(slug)
     meta["copy_lock"] = lock
-    meta["copy_approval"] = {"at": P.now_iso(), "method": method, "draft_sha256": sha}
+    meta["copy_approval"] = {"at": P.now_iso(), "method": method, "draft_sha256": draft_sha256}
     P.save_meta(slug, meta)
     P.advance_status(slug, "copy-approved")
-    return {"copy_lock": lock, "method": method, "lines": len(deck["lines"])}
+    return lock
 
 
 def relock(slug: str, method: str = "cli") -> dict:
@@ -263,12 +269,7 @@ def relock(slug: str, method: str = "cli") -> dict:
             bad.append(err)
     if bad:
         raise ApprovalError("copy.json has lines that do not fit: " + "; ".join(bad))
-    lock = P.sha256_file(cp)
-    meta = P.load_meta(slug)
-    meta["copy_lock"] = lock
-    meta["copy_approval"] = {"at": P.now_iso(), "method": method, "draft_sha256": None}
-    P.save_meta(slug, meta)
-    P.advance_status(slug, "copy-approved")
+    lock = _record_lock(slug, cp, method, None)
     return {"copy_lock": lock, "method": method, "lines": len(deck.lines)}
 
 

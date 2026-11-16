@@ -60,6 +60,7 @@ def levels(line: str, base: int | None = None) -> list[int]:
     # N1/N2: neutrals take the direction of the strong types around them (numbers count as R), else the paragraph's
     strong = ["R" if k == "N" else k for k in kinds]
     n = len(line)
+    para = "R" if base else "L"
     out = list(strong)
     i = 0
     while i < n:
@@ -69,18 +70,20 @@ def levels(line: str, base: int | None = None) -> list[int]:
         j = i
         while j < n and strong[j] == "-":
             j += 1
-        before = strong[i - 1] if i > 0 else ("R" if base else "L")
-        after = strong[j] if j < n else ("R" if base else "L")
-        fill = before if before == after else ("R" if base else "L")
+        before = strong[i - 1] if i > 0 else para
+        after = strong[j] if j < n else para
+        fill = before if before == after else para
         for k in range(i, j):
             out[k] = fill
         i = j
     lv = []
     for k, d in zip(kinds, out):
-        if base == 0:
-            lv.append(2 if k == "N" else 1 if d == "R" else 0)
+        if k == "N" or (base != 0 and k == "L"):
+            lv.append(2)
+        elif d == "R":
+            lv.append(1)
         else:
-            lv.append(2 if k in ("L", "N") else 1 if d == "R" else 2)
+            lv.append(0 if base == 0 else 2)
     # L1: trailing whitespace goes back to the paragraph level
     j = n
     while j > 0 and line[j - 1].isspace():

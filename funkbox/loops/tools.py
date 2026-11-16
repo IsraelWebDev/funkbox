@@ -12,7 +12,7 @@ import json
 import re
 from pathlib import Path
 
-from PIL import Image as PILImage
+from PIL import Image as PILImage, ImageDraw
 
 from funkbox.config import funk_home, funk_inputs, funk_out
 from funkbox.gl.context import gl_info as _gl_info
@@ -288,8 +288,6 @@ def _sheet_gl(rec: Recipe2, seeds: list[int], t: float, w: int, h: int):
         r.settings.seed = s
         resample_params(r)  # resample seeded params per tile
         im = PILImage.fromarray(eng.render_at_t(r, t))
-        from PIL import ImageDraw
-
         ImageDraw.Draw(im).text(
             (8, 6), f"seed {s}", font=font(max(12, eng.h // 16)), fill="#ffffff", stroke_width=2, stroke_fill="#000000"
         )

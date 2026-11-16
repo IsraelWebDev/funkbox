@@ -280,7 +280,7 @@ def _check_effects(e: Any, where: str, errs: list[str]) -> None:
             for kk in set(v) - {"color"}:
                 if not _num(v[kk], -200, 200):
                     errs.append(f"{where}.effects.{k}.{kk}: must be a number")
-        elif not _num(v, 0, 1 if k != "stroke" else 1):
+        elif not _num(v, 0, 1):
             errs.append(f"{where}.effects.{k}: a number 0..1 (strength) or an object")
 
 

@@ -327,34 +327,29 @@ def ingest(slug: str, source: str | Path | None = None, move: bool = True) -> In
         seen.add(sha)
         todo.append((f, sha))
 
+    def file_as_is(f: Path, sha: str, folder: Path, kind: str, note: str = "") -> None:
+        dest = _unique(folder, _safe_name(f.stem), f.suffix.lower())
+        _put(f, dest, do_move)
+        rel = dest.relative_to(d).as_posix()
+        res.items.append(Item(str(f), rel, kind, note))
+        index[sha] = rel
+
     imgs: list[Img] = []
     for f, sha in todo:
         ext = f.suffix.lower()
         lname = f.stem.lower()
         if ext in AUDIO:
-            dest = _unique(d / "music", _safe_name(f.stem), ext)
-            _put(f, dest, do_move)
-            res.items.append(Item(str(f), dest.relative_to(d).as_posix(), "music"))
-            index[sha] = dest.relative_to(d).as_posix()
+            file_as_is(f, sha, d / "music", "music")
         elif ext in VIDEO:
-            dest = _unique(d / "clips", _safe_name(f.stem), ext)
-            _put(f, dest, do_move)
-            res.items.append(Item(str(f), dest.relative_to(d).as_posix(), "clip"))
-            index[sha] = dest.relative_to(d).as_posix()
+            file_as_is(f, sha, d / "clips", "clip")
         elif ext in FONT:
-            dest = _unique(d / "brand" / "fonts", _safe_name(f.stem), ext)
-            _put(f, dest, do_move)
-            res.items.append(Item(str(f), dest.relative_to(d).as_posix(), "font"))
-            index[sha] = dest.relative_to(d).as_posix()
+            file_as_is(f, sha, d / "brand" / "fonts", "font")
         elif ext == ".svg":
-            dest = _unique(d / "brand", _safe_name(f.stem), ext)
-            _put(f, dest, do_move)
-            res.items.append(Item(str(f), dest.relative_to(d).as_posix(), "logo", "SVG"))
+            file_as_is(f, sha, d / "brand", "logo", "SVG")
             res.warnings.append(
                 f"{f.name}: SVG logos are not rasterised here; convert it to PNG and drop it in "
                 f"the inbox again (it is not used until then)"
             )
-            index[sha] = dest.relative_to(d).as_posix()
         elif ext in IMAGE:
             try:
                 im, changed = _load_image(f)
@@ -438,23 +433,22 @@ def _ingest_images(
             _put(img.src, dest, do_move)
         index[img.sha] = dest.relative_to(d).as_posix()
 
+    def keep_product_png(img: Img, folder: str, note: str) -> None:
+        dest = _unique(d / "product" / folder, _safe_name(img.src.stem), ".png")
+        _save_image(img.im, dest)
+        if do_move:
+            img.src.unlink()
+        rel = dest.relative_to(d).as_posix()
+        index[img.sha] = rel
+        res.items.append(Item(str(img.src), rel, "product", note))
+
     for img in imgs:
         if img is chosen and not already:
             _set_product_from(d, slug, meta, img, why, do_move, res, index)
         elif any(img is t for t in tied) and not already:
-            dest = _unique(d / "product" / "candidates", _safe_name(img.src.stem), ".png")
-            _save_image(img.im, dest)
-            if do_move:
-                img.src.unlink()
-            index[img.sha] = dest.relative_to(d).as_posix()
-            res.items.append(Item(str(img.src), dest.relative_to(d).as_posix(), "product", "candidate"))
+            keep_product_png(img, "candidates", "candidate")
         elif id(img) in cand_ids:
-            dest = _unique(d / "product" / "alt", _safe_name(img.src.stem), ".png")
-            _save_image(img.im, dest)
-            if do_move:
-                img.src.unlink()
-            index[img.sha] = dest.relative_to(d).as_posix()
-            res.items.append(Item(str(img.src), dest.relative_to(d).as_posix(), "product", "alternative, not used"))
+            keep_product_png(img, "alt", "alternative, not used")
         else:
             dest = _unique(d / "shots", _safe_name(img.src.stem), img.src.suffix.lower())
             put_orig_and_processed(img, dest)

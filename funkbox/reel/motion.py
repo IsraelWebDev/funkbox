@@ -74,7 +74,8 @@ class Camera:
     def backward(self, p: np.ndarray, d: float | np.ndarray = 0.5) -> np.ndarray:
         """Output-frame points -> source-frame points. p: (...,2)."""
         c = np.array([0.5, 0.5])
-        s = np.asarray(self.scale(d))[..., None] if np.ndim(self.scale(d)) else self.scale(d)
+        sc = self.scale(d)
+        s = np.asarray(sc)[..., None] if np.ndim(sc) else sc
         ox, oy = self.offset(d)
         off = np.stack(np.broadcast_arrays(ox, oy), axis=-1)
         return c + (p - c) / s + off

@@ -419,8 +419,6 @@ def wrap(text: str, font: ImageFont.FreeTypeFont, avail: float) -> tuple[list[tu
 
 def hook_style(style: Style) -> Style:
     """The hook title: the caption's text in the display font, HOOK_SIZE times larger, always boxed, centred."""
-    from dataclasses import replace
-
     size = style.size if style.size == "auto" else style.size * HOOK_SIZE
     box = style.box if style.box not in (None, "auto") else "primary"
     return replace(style, font="display", size=size, box=box, x=None, y=None)
@@ -658,13 +656,13 @@ def draw_block(
                 radius=int(round(st.highlight[1] * (y1 - y0))),
                 fill=(*hc, 255),
             )
+    from funkbox.bidi import shown
+
     for i, s in enumerate(strings):
         if s is None:
             continue
         base = m + lay.pad + i * lay.line_h + (lay.line_h + lay.cap_h) / 2
         x = m + lay.line_x(i)
-        from funkbox.bidi import shown
-
         s = shown(s)  # right-to-left lines in display order without libraqm
         if st.shadow > 0:
             off = max(1, int(round(st.shadow * lay.px)))

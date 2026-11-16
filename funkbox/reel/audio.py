@@ -50,14 +50,17 @@ APPROVED_VOICES = ("kokoro:af_heart", "kokoro:am_michael", "kokoro:bm_george")
 VOICE_RE = re.compile(r"^(piper|kokoro:[a-z]{2}_[a-z]+)$")
 
 
-def voice_files() -> tuple[Path, Path]:
-    fs = [models_dir() / f["dest"] for f in models_manifest()["voice"]["files"]]
+def _model_files(key: str) -> tuple[Path, Path]:
+    fs = [models_dir() / f["dest"] for f in models_manifest()[key]["files"]]
     return fs[0], fs[1]
+
+
+def voice_files() -> tuple[Path, Path]:
+    return _model_files("voice")
 
 
 def kokoro_files() -> tuple[Path, Path]:
-    fs = [models_dir() / f["dest"] for f in models_manifest()["kokoro"]["files"]]
-    return fs[0], fs[1]
+    return _model_files("kokoro")
 
 
 def _has(mod: str) -> bool:
@@ -172,10 +175,15 @@ def _kokoro_wav(text: str, voice_id: str, speed: float, path: Path, pause: float
     peak = float(np.abs(y).max()) if y.size else 0.0
     if peak > 0.98:
         y = y * (0.98 / peak)
+    _write_wav(path, y, int(sr))
+
+
+def _write_wav(path: Path, y: np.ndarray, sr: int) -> None:
+    """Mono 16-bit wav of ``y`` (floats in -1..1, clipped)."""
     with wave.open(str(path), "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
-        wf.setframerate(int(sr))
+        wf.setframerate(sr)
         wf.writeframes((np.clip(y, -1, 1) * 32767).astype("<i2").tobytes())
 
 
@@ -195,11 +203,7 @@ def _stub_wav(text: str, path: Path) -> None:
             y[a:b] += 0.35 * env * np.sin(2 * np.pi * f * t)
         pos += L
     path.parent.mkdir(parents=True, exist_ok=True)
-    with wave.open(str(path), "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(SR_VO)
-        wf.writeframes((np.clip(y, -1, 1) * 32767).astype("<i2").tobytes())
+    _write_wav(path, y, SR_VO)
 
 
 def synthesize(deck: CopyDeck, copy_id: str, voice: str | None = None, speed: float = 1.0) -> Path:
@@ -443,8 +447,6 @@ def music_file(reel: Reel) -> Path | None:
     p = resolve_path(reel.audio.music, reel.base_dir)
     if not p.name.endswith(".music.json"):
         return p
-    import hashlib
-    from funkbox.config import funk_out
     from funkbox.music.score import render as render_music
 
     out = (

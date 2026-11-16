@@ -17,7 +17,13 @@ def contact_sheet(
     if not images:
         raise ValueError("contact sheet needs at least one image")
     n = len(images)
-    cols = cols or (n if n <= 4 else 3 if n in (6, 9) else 4)
+    if not cols:
+        if n <= 4:
+            cols = n
+        elif n in (6, 9):
+            cols = 3
+        else:
+            cols = 4
     cols = max(1, min(cols, n))
     rows = -(-n // cols)
     cap = 26 if labels else 0
