@@ -952,6 +952,7 @@ class RenderOutput:
     audit_ok: bool | None = None
     warnings: list[str] = field(default_factory=list)
     end_card: bool = True
+    beat_ok: bool | None = None  # the beat audit's verdict; None when none was written
 
     def report_line(self) -> str:
         return (
@@ -980,7 +981,8 @@ def render_reel(
     progress: bool = False,
     plan: Plan | None = None,
 ) -> RenderOutput:
-    """Render a reel to ``<out_dir>/<name>.mp4`` (+ poster PNG, optional text audit JSON).
+    """Render a reel to ``<out_dir>/<name>.mp4`` (+ poster PNG, optional text audit JSON; with ``audit``, a reel
+    that snaps its cuts to beats also gets ``<name>.beat_audit.json``).
 
     ``draft``: 540 px wide, 24 fps, no depth model (parallax degrades to Ken Burns).
     """
@@ -1023,11 +1025,17 @@ def render_reel(
                 silent.replace(final)
             paths["mp4"] = str(final)
         paths.pop("video", None)
-        audit_ok = None
+        audit_ok = beat_ok = None
         if audit:
             rep = _audit_json(r, plan, name, out_dir)
             paths["text_audit"] = rep["path"]
             audit_ok = rep["ok"]
+            from .beataudit import write_beat_audit
+
+            brep = write_beat_audit(reel, r.spans, fps, name, out_dir)  # r.spans: the cuts as rendered
+            if brep is not None:
+                paths["beat_audit"] = brep["path"]
+                beat_ok = brep["ok"]
         frames, W, Hh = r.total_frames, r.w, r.h
     finally:
         r.release()
@@ -1043,6 +1051,7 @@ def render_reel(
         audit_ok,
         plan.report.warnings if plan.report is not None else [],
         reel.end_card is not None,
+        beat_ok,
     )
 
 

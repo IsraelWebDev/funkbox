@@ -59,6 +59,7 @@ def beat_grid_lines(plan: R.Plan) -> list[str]:
     """The beat grid the reel is cut against: tempo, beat count (up to the end of the reel), the first 8 beats, and
     for every cut the distance in ms to the nearest beat. ``["beat grid: none"]`` when the reel has no grid."""
     from . import audio, timeline
+    from .beataudit import nearest_beats
 
     try:
         beats = audio.beat_grid_for(plan.reel)
@@ -73,9 +74,8 @@ def beat_grid_lines(plan: R.Plan) -> list[str]:
         f"beat grid: {bpm:.1f} BPM, {n} beats in {total:.1f}s",
         "first beats (s): " + ", ".join(f"{b:.3f}" for b in beats[:8]),
     ]
-    for sp in plan.spans[1:]:  # a cut is where a shot starts, after the first
-        d = min(abs(sp.start - b) for b in beats)
-        lines.append(f"cut {sp.id} at {sp.start:.2f}s: {d * 1000:.0f} ms from the nearest beat")
+    for sp, t, b in nearest_beats(plan.spans, beats, plan.reel.settings.fps):  # the numbers the beat audit saves
+        lines.append(f"cut {sp.id} at {sp.start:.2f}s: {abs(t - b) * 1000:.0f} ms from the nearest beat")
     return lines
 
 

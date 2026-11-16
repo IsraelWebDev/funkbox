@@ -542,6 +542,26 @@ def test_measured_facts_are_written_with_plain_sentences(tmp_path, monkeypatch):
     assert json.loads((day / "measured.json").read_text())["facts"]["M-tools"]["value"] == 37
 
 
+def test_the_beat_audit_becomes_a_measured_fact(tmp_path):
+    import measure
+
+    day = tmp_path / "2026-11-16"
+    day.mkdir()
+    assert measure.beats(day) is None  # no beat audit (the reel does not snap its cuts): no claim
+    cuts = [{"cut": "s1", "offset_ms": 12.8}, {"cut": "s2", "offset_ms": -7.7}, {"cut": "end_card", "offset_ms": 5.1}]
+    doc = {"bpm": 104.0, "grid": "score", "threshold_ms": 30.0, "ok": True, "cuts": cuts}
+    (day / "final.beat_audit.json").write_text(json.dumps(doc))
+    f = measure.beats(day)
+    assert f["say"] == "every cut lands within 13 ms of the beat (3 cuts at 104 BPM)"  # 12.8 rounds up, so it holds
+    assert f["value"] == {"cuts": 3, "bpm": 104.0, "grid": "score", "max_offset_ms": 12.8, "within_ms": 13, "ok": True}
+    doc.update(grid="detected", ok=False)
+    cuts[1]["offset_ms"] = -153.8
+    (day / "final.beat_audit.json").write_text(json.dumps(doc))
+    assert measure.beats(day)["say"] == "1 of 3 cuts land more than 30 ms from the detected beat"
+    (day / "final.beat_audit.json").write_text(json.dumps({"ok": True, "cuts": []}))
+    assert measure.beats(day) is None  # one shot, no cut: nothing to say
+
+
 def test_queue_add_and_take(tmp_path, monkeypatch):
     import enqueue as pq
     import state
