@@ -96,14 +96,14 @@ class EndCardRenderer:
         self.bar_h = int(round(self.tpl["bar_height"] * H))
         self.static = self._background()
         self.product = None
+        self.logo = None
+        head = C.layout_block(
+            ec.copy["headline"], txt("headline"), sty("headline"), self.fonts, self.brand, W, H, safe_area="none"
+        )
+        self.items.append(Item("headline", "main", ec.copy["headline"], head, ec.headline_reveal, t0))
         if "sub" in self.tpl["slots"]:  # brand-split, logo-clean: headline + sub (no sub slot: headline only)
-            head = C.layout_block(
-                ec.copy["headline"], txt("headline"), sty("headline"), self.fonts, self.brand, W, H, safe_area="none"
-            )
             hs = C.reveal_seconds(head, ec.headline_reveal)
-            self.items.append(Item("headline", "main", ec.copy["headline"], head, ec.headline_reveal, t0))
-            ss = sty("sub")
-            sub = C.layout_block(ec.copy["sub"], txt("sub"), ss, self.fonts, self.brand, W, H, safe_area="none")
+            sub = C.layout_block(ec.copy["sub"], txt("sub"), sty("sub"), self.fonts, self.brand, W, H, safe_area="none")
             sub = replace(sub, y0=head.y0 + head.box_h + int(round(float(self.tpl["sub"].get("gap", 0.04)) * H)))
             self.items.append(Item("sub", "main", ec.copy["sub"], sub, "pop", t0 + hs + 0.2))
             pj = self.tpl.get("product")
@@ -118,11 +118,6 @@ class EndCardRenderer:
                     match_color=0.0,
                 )
                 self.product = P.ProductCompositor(self.resolve(ec.product), spec, W, H)
-        else:  # centered-logo, bottom-banner: headline only
-            head = C.layout_block(
-                ec.copy["headline"], txt("headline"), sty("headline"), self.fonts, self.brand, W, H, safe_area="none"
-            )
-            self.items.append(Item("headline", "main", ec.copy["headline"], head, ec.headline_reveal, t0))
         # any template that declares a "logo" block places brand.logo (x: left edge fraction; centred if absent)
         lg = self.tpl.get("logo")
         if lg and self.reel.brand.logo:
@@ -132,8 +127,7 @@ class EndCardRenderer:
             lx = int(round(lg["x"] * W)) if "x" in lg else (W - lw) // 2
             self.logo = (np.asarray(logo.resize((lw, lh), Image.LANCZOS)), lx, int(round(lg["y"] * H)))
         if "url" in self.tpl["slots"]:  # a template with no url slot draws none
-            us = sty("url")
-            url = C.layout_block(ec.copy["url"], txt("url"), us, self.fonts, self.brand, W, H, safe_area="none")
+            url = C.layout_block(ec.copy["url"], txt("url"), sty("url"), self.fonts, self.brand, W, H, safe_area="none")
             if self.bar_h > 0:  # url in both brand bars
                 for inst, cy in (("top", self.bar_h / 2), ("bottom", H - self.bar_h / 2)):
                     self.items.append(
@@ -178,7 +172,7 @@ class EndCardRenderer:
         fr = self.static.copy()
         if self.product is not None:
             fr = self.product.draw(fr, Camera("kenburns", 1.0, (0.0, 0.0)))
-        if getattr(self, "logo", None) is not None:
+        if self.logo is not None:
             arr, x, y = self.logo
             fr = C.Sprite(arr, x, y).over(fr)
         for it in self.items:

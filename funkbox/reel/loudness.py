@@ -68,9 +68,8 @@ def measure_lufs(path: str | Path) -> tuple[float | None, str | None]:
     if value.endswith("inf"):
         return None, "silent"
     lufs = float(value)
-    if (
-        lufs <= ABSOLUTE_GATE_LUFS
-    ):  # no block passed the absolute gate: nothing audible (some builds print -70, not -inf)
+    # no block passed the absolute gate: nothing audible (some builds print -70, not -inf)
+    if lufs <= ABSOLUTE_GATE_LUFS:
         return None, "silent"
     return lufs, None
 
