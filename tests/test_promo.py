@@ -942,6 +942,14 @@ def test_lint_catches_a_render_time_left_over_from_an_earlier_render(tmp_path):
     assert problems("Rendered in under 35 seconds.")  # the bound must hold
 
 
+def test_playbook_commit_rule_allows_the_product_pr_only():
+    # Promo state (day files, logs, videos) never goes to funkbox; the daily product PR (step 5) is the one exception.
+    pb = (ROOT / "promo" / "PLAYBOOK.md").read_text()
+    assert "never commit anything for the promo to funkbox" not in pb
+    assert "never commit promo state to funkbox" in pb
+    assert "step 5" in pb and "product PR" in pb
+
+
 # --------------------------------------------------------------------------- voiceover: lint rule 7 and hear.py
 def test_hear_compares_letters_and_digits_only():
     import hear

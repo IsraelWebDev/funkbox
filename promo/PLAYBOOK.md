@@ -122,7 +122,8 @@ today" in observation only if the searches really showed nothing.
   fails, note it in the report and continue.
 - Commit the day BEFORE posting (the catch-up needs the review): `python promo/state.py commit "<date> <angle>"
   days/<date>`. The state repo's .gitignore keeps the day's video and assets out. Never commit secrets anywhere,
-  and never commit anything for the promo to funkbox.
+  and never commit promo state to funkbox (the day's files, logs and videos stay in the state repo). The one change
+  a run makes to funkbox is the daily product PR in step 5.
 - `python promo/post.py $DAY` (it refuses without a PASS for the exact files, posts each promo once
   per platform and at most once per platform per day, posts X only after the Short is up, and dry-runs a platform
   whose secrets are missing). If it fails, run it once more; if it fails again, stop: the catch-up retries tomorrow.
