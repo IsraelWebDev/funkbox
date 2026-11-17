@@ -31,11 +31,13 @@ takes a video by URL. Private works too, and X then gets a link to the Short.
 | `measure.py` | renders the day's video and records numbers a promo may quote (render time and machine, counts, what changed) in `measured.json` |
 | `lint.py` | mechanical checks before review: captions clear of card text, a new format, selling point and hook each day, product feedback written, every claim citing a real fact |
 | `review.py` | writes the verdict, bound to the sha256 of the exact video and caption |
+| `hear.py` | on a voiceover day, transcribes each spoken line of `final.mp4` locally (faster-whisper) and writes `heard.json`; lint fails a line not heard as written, since the reviewer cannot listen |
 | `post.py` | posts. Refuses without a matching PASS; each promo once per platform and at most once per platform per day; X only after the Short is up; dry-runs a platform without credentials |
 | `pending.py` | saves the reviewed video before posting; the next run's `catchup` finishes what a failed run left (a missed upload, or an X post whose Short is up), for up to 2 days |
 | `enqueue.py` | a queue of finished promos: `add` one, and the next run posts it (after the usual lint and review) instead of making a new video. An item can carry `owner_approval.json`, the owner's sign-off on specific content, for that item only (REVIEW.md check 7) |
 | `seeds.py` | owner seeds: `add` something you saw (a note and links) and the next run treats it as a candidate trend, ahead of web search; seeds expire after 21 days or once used. Lint checks the trend's shape (`event` or `genre`, source ages, a `demo` for genres) |
 | `state.py` | clones or pulls the state repo and commits to it |
+| `setup_runner.sh` | prepares a fresh Linux runner: Python requirements, Mesa's EGL/GL when OpenGL cannot start, and with `--voice` the voiceover stack; idempotent, checks OpenGL, ffmpeg (and the voice) at the end |
 | `auth_youtube.py` | one-time YouTube sign-in that prints the refresh token |
 
 ## The safeguards
