@@ -49,6 +49,7 @@ SCALES = {
     "blues": [0, 3, 5, 6, 7, 10, 12],
 }
 NOTE = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+ACCIDENTAL = {"#": 1, "b": -1, "": 0}
 DRUMS = {
     "kick": 36,
     "rim": 37,
@@ -100,7 +101,7 @@ def key_root(key: str) -> int:
     m = re.fullmatch(r"([A-Ga-g])([#b]?)", key or "C")
     if not m:
         raise ScoreError(f"key {key!r}: a note name like D, F# or Bb")
-    return NOTE[m.group(1).upper()] + {"#": 1, "b": -1, "": 0}[m.group(2)]
+    return NOTE[m.group(1).upper()] + ACCIDENTAL[m.group(2)]
 
 
 def pitch(tok: str, root: int, scale: list[int], octave: int) -> int:
@@ -116,7 +117,7 @@ def pitch(tok: str, root: int, scale: list[int], octave: int) -> int:
     m = re.fullmatch(r"([A-Ga-g])([#b]?)(-?\d)", tok)
     if not m:
         raise ScoreError(f"note {tok!r}: use D4, F#3, Bb2, ^1..^7, r or a chord [..]")
-    return 12 * (int(m.group(3)) + 1) + NOTE[m.group(1).upper()] + {"#": 1, "b": -1, "": 0}[m.group(2)]
+    return 12 * (int(m.group(3)) + 1) + NOTE[m.group(1).upper()] + ACCIDENTAL[m.group(2)]
 
 
 def parse_notes(
@@ -139,7 +140,12 @@ def parse_notes(
             dur = 4.0 / int(den)
             if dot:
                 dur *= 1.5
-        vel = min(127, velocity + 20) if acc == "!" else max(1, velocity - 30) if acc == "?" else velocity
+        if acc == "!":
+            vel = min(127, velocity + 20)
+        elif acc == "?":
+            vel = max(1, velocity - 30)
+        else:
+            vel = velocity
         if tok == "r":
             pass
         elif tok == "~":
@@ -418,9 +424,9 @@ def check(score: dict) -> list[str]:
         errs.append("meter: beats per bar, 2..12")
     if "bars" in score and not (isinstance(score["bars"], int) and 1 <= score["bars"] <= 128):
         errs.append("bars: 1..128")
-    if not 0 <= score.get("swing", 0) <= 0.5:
+    if not _number_in(score.get("swing", 0), 0, 0.5):
         errs.append("swing: 0..0.5")
-    if not 0 <= score.get("reverb", 0.2) <= 1:
+    if not _number_in(score.get("reverb", 0.2), 0, 1):
         errs.append("reverb: 0..1")
     tr = score.get("tracks")
     if not isinstance(tr, list) or not 1 <= len(tr) <= 16:
@@ -452,13 +458,18 @@ def check(score: dict) -> list[str]:
                 errs.append(f"{w}: a drum track needs `pattern` {{name: 'x...x...'}}")
         elif not isinstance(t.get("notes"), str) or not t["notes"].strip():
             errs.append(f'{w}: needs `notes` (or "drums": true and a `pattern`)')
-        if not 0 <= t.get("program", 0) <= 127:
+        if not _number_in(t.get("program", 0), 0, 127):
             errs.append(f"{w}: program is a General MIDI number 0..127")
-        if not -1 <= t.get("pan", 0) <= 1:
+        if not _number_in(t.get("pan", 0), -1, 1):
             errs.append(f"{w}: pan -1 (left) .. 1 (right)")
-        if not 1 <= t.get("velocity", 90) <= 127:
+        if not _number_in(t.get("velocity", 90), 1, 127):
             errs.append(f"{w}: velocity 1..127")
     return errs
+
+
+def _number_in(v, lo: float, hi: float) -> bool:
+    """A number within lo..hi. Anything else (a string such as "0.1", None) is a score problem, not a crash."""
+    return isinstance(v, (int, float)) and lo <= v <= hi
 
 
 def load_score(score) -> tuple[dict, Path | None]:
@@ -505,7 +516,7 @@ def render(score, out: str | Path | None = None, base_dir=None) -> Music:
     mix = np.zeros((int((total * spb + tail) * SR), 2), np.float32)
     cache: dict = {}
     count = 0
-    for i, (t, ev, L) in enumerate(zip(sc["tracks"], events, lengths)):
+    for t, ev, L in zip(sc["tracks"], events, lengths):
         drums = bool(t.get("drums"))
         bank = 128 if drums else int(t.get("bank", 0))
         prog = int(t.get("kit", 0)) if drums else int(t.get("program", 0))

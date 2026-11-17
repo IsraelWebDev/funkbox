@@ -54,8 +54,7 @@ def _src(path) -> Path:
 
 
 def _run(args: list[str]) -> subprocess.CompletedProcess:
-    r = subprocess.run([require_ffmpeg(), "-hide_banner", *args], capture_output=True)
-    return r
+    return subprocess.run([require_ffmpeg(), "-hide_banner", *args], capture_output=True)
 
 
 def seconds(t: str | float | int) -> float:
@@ -214,7 +213,12 @@ def trim(path, start, end=None, out_dir=None, name: str = "", accurate: bool = T
     H.264 + AAC); ``accurate=False`` copies the streams (instant, but starts on the nearest earlier keyframe)."""
     inf = info(path)
     a = seconds(start)
-    b = seconds(end) if end is not None else (a + seconds(duration) if duration is not None else inf.duration)
+    if end is not None:
+        b = seconds(end)
+    elif duration is not None:
+        b = a + seconds(duration)
+    else:
+        b = inf.duration
     if not 0 <= a < b:
         raise VideoError(f"trim: need 0 <= start < end (got {a:g}..{b:g})")
     if a >= inf.duration:

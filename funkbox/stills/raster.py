@@ -92,11 +92,10 @@ def place_image(
     tw, th = max(1, round(iw * sx * scale)), max(1, round(ih * sy * scale))
     out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     cx, cy = x * w, y * h
+    spr = _resize_rgba(im.convert("RGBA"), (tw, th))
     if abs(rotate_deg) < 1e-9:
-        spr = _resize_rgba(im.convert("RGBA"), (tw, th))
         ox, oy = round(cx - tw / 2), round(cy - th / 2)
     else:
-        spr = _resize_rgba(im.convert("RGBA"), (tw, th))
         spr = spr.rotate(-rotate_deg, resample=Image.BICUBIC, expand=True)
         ox, oy = round(cx - spr.width / 2), round(cy - spr.height / 2)
     out.paste(spr, (ox, oy))  # replaces the pixels (the canvas is transparent), clipped at the edges

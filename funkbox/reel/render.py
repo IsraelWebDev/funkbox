@@ -45,6 +45,15 @@ def hex_rgb(h: str) -> tuple[int, int, int]:
     return int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)
 
 
+def _camera_mode(motion_type: str, parallax_ok: bool) -> str:
+    """The camera mode of a still: parallax when it has depth, Ken Burns for kenburns (and parallax without depth)."""
+    if motion_type == "parallax" and parallax_ok:
+        return "parallax"
+    if motion_type in ("kenburns", "parallax"):
+        return "kenburns"
+    return "none"
+
+
 ANNOTATION_DRAW_S = 0.4  # seconds for a shape to draw on, when its ``draw`` is true
 
 
@@ -217,9 +226,8 @@ class VideoStream:
                 self.proc.wait(timeout=5)
             except Exception:  # noqa: BLE001
                 pass
-            for s in (self.proc.stdout,):
-                if s:
-                    s.close()
+            if self.proc.stdout:
+                self.proc.stdout.close()
             self.proc = None
 
 
@@ -341,12 +349,7 @@ class Renderer:
                 stt.image = self._contained(path, d)
             else:
                 stt.image = self.motion.load(path, d)
-        mode = (
-            "parallax"
-            if (sh.motion.type == "parallax" and stt.parallax_ok)
-            else ("kenburns" if sh.motion.type in ("kenburns", "parallax") else "none")
-        )
-        cam = motionmod.camera(sh.motion, t, mode)
+        cam = motionmod.camera(sh.motion, t, _camera_mode(sh.motion.type, stt.parallax_ok))
         return self.motion.render(stt.image, cam)[..., :3]
 
     # ---- framed sources (framing.py): crop + scale only, for video and for `frame` motion on stills
@@ -478,12 +481,8 @@ class Renderer:
         t = local / max(1, span.end_frame - span.start_frame)
         if sh.source.kind != "image" or framing.needs_windowing_image(sh.source, sh.motion):
             return motionmod.camera(sh.motion, t, "none")
-        mode = (
-            "parallax"
-            if (sh.motion.type == "parallax" and stt is not None and stt.parallax_ok)
-            else ("kenburns" if sh.motion.type in ("kenburns", "parallax") else "none")
-        )
-        return motionmod.camera(sh.motion, t, mode)
+        parallax_ok = stt is not None and stt.parallax_ok
+        return motionmod.camera(sh.motion, t, _camera_mode(sh.motion.type, parallax_ok))
 
     def _contained(self, path: Path, d: np.ndarray | None) -> motionmod.SourceTex:
         im = Image.open(path).convert("RGB")
@@ -555,8 +554,7 @@ class Renderer:
 
     def fonts(self) -> captions_mod.Fonts:
         if self._fonts is None:
-            b = self.reel.brand
-            self._fonts = captions_mod.fonts_for(b, self.reel.base_dir)
+            self._fonts = captions_mod.fonts_for(self.reel.brand, self.reel.base_dir)
         return self._fonts
 
     def _caption_free_mid_frame(self, span: ShotSpan) -> np.ndarray:
@@ -815,7 +813,7 @@ class Renderer:
         e["last_frame"] = f0
         if spr.n > e["chars"] or e["chars"] < 0:
             e["chars"] = spr.n
-            e["drawn_lines"] = [s for s in spr.drawn]
+            e["drawn_lines"] = list(spr.drawn)
             e["text"] = lay.reconstruct(spr.drawn)
         if e["complete_frame"] is None and e["text"] == lay.text:
             e["complete_frame"] = f0
@@ -952,6 +950,7 @@ class RenderOutput:
     audit_ok: bool | None = None
     warnings: list[str] = field(default_factory=list)
     end_card: bool = True
+    beat_ok: bool | None = None  # the beat audit's verdict; None when none was written
 
     def report_line(self) -> str:
         return (
@@ -980,7 +979,8 @@ def render_reel(
     progress: bool = False,
     plan: Plan | None = None,
 ) -> RenderOutput:
-    """Render a reel to ``<out_dir>/<name>.mp4`` (+ poster PNG, optional text audit JSON).
+    """Render a reel to ``<out_dir>/<name>.mp4`` (+ poster PNG, optional text audit JSON; with ``audit``, a reel
+    that snaps its cuts to beats also gets ``<name>.beat_audit.json``).
 
     ``draft``: 540 px wide, 24 fps, no depth model (parallax degrades to Ken Burns).
     """
@@ -990,11 +990,9 @@ def render_reel(
     out_dir.mkdir(parents=True, exist_ok=True)
     if draft:
         w, h = draft_size(reel)
-        fps, dm = DRAFT_FPS, "off"
+        fps, dm = DRAFT_FPS, (depth_mode or "off")
     else:
         w, h, fps, dm = reel.settings.width, reel.settings.height, reel.settings.fps, (depth_mode or "auto")
-    if depth_mode and draft:
-        dm = depth_mode
     t0 = time.perf_counter()
     r = Renderer(reel, deck, spans, width=w, height=h, fps=fps, depth_mode=dm)
     if audit:
@@ -1014,7 +1012,7 @@ def render_reel(
         final = out_dir / f"{name}.mp4"
         audio_path = None
         if with_audio:
-            audio_path = _build_audio(plan, out_dir, name, fps)
+            audio_path = _build_audio(plan, out_dir, name)
             if audio_path is not None:
                 mux_audio(silent, audio_path, final)
                 silent.unlink(missing_ok=True)
@@ -1023,11 +1021,17 @@ def render_reel(
                 silent.replace(final)
             paths["mp4"] = str(final)
         paths.pop("video", None)
-        audit_ok = None
+        audit_ok = beat_ok = None
         if audit:
             rep = _audit_json(r, plan, name, out_dir)
             paths["text_audit"] = rep["path"]
             audit_ok = rep["ok"]
+            from .beataudit import write_beat_audit
+
+            brep = write_beat_audit(reel, r.spans, fps, name, out_dir)  # r.spans: the cuts as rendered
+            if brep is not None:
+                paths["beat_audit"] = brep["path"]
+                beat_ok = brep["ok"]
         frames, W, Hh = r.total_frames, r.w, r.h
     finally:
         r.release()
@@ -1043,10 +1047,11 @@ def render_reel(
         audit_ok,
         plan.report.warnings if plan.report is not None else [],
         reel.end_card is not None,
+        beat_ok,
     )
 
 
-def _build_audio(plan: Plan, out_dir: Path, name: str, fps: int) -> Path | None:
+def _build_audio(plan: Plan, out_dir: Path, name: str) -> Path | None:
     try:
         from . import audio
     except ImportError:
@@ -1076,14 +1081,17 @@ def _audit_json(r: Renderer, plan: Plan, name: str, out_dir: Path) -> dict:
                     expected.add(f"{sh.id}/variant_index/{j}")
                 elif cell.label:
                     expected.add(f"{sh.id}/grid_label/{j}")
-    ec = plan.reel.end_card
-    if ec:
+    if plan.reel.end_card:
         for it in r.endcard().items:
             expected.add(f"end_card/{it.slot}/{it.instance}")
-    seen = {f"{e['shot']}/{e['slot']}/{e['instance']}" for e in entries}
+
+    def key(e: dict) -> str:
+        return f"{e['shot']}/{e['slot']}/{e['instance']}"
+
+    seen = {key(e) for e in entries}
     missing = sorted(expected - seen)
-    inexact = [f"{e['shot']}/{e['slot']}/{e['instance']}" for e in entries if not e["text_exact"]]
-    incomplete = [f"{e['shot']}/{e['slot']}/{e['instance']}" for e in entries if e["complete_frame"] is None]
+    inexact = [key(e) for e in entries if not e["text_exact"]]
+    incomplete = [key(e) for e in entries if e["complete_frame"] is None]
     ok = not missing and not inexact
     deck = str(plan.deck.path)
     try:  # relative to the audit file, so audits can be committed and shared

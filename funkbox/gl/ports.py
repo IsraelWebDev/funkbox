@@ -157,7 +157,10 @@ def _blobs() -> str:
             f"uniform int   k_fy{i};   // @param 1 3 2",
             f"uniform float u_ph{i};   // @param 0.0 6.2831853 3.0",
         ]
-    arr = lambda pre: ", ".join(f"{pre}{i}" for i in range(7))  # noqa: E731
+
+    def arr(pre: str) -> str:
+        return ", ".join(f"{pre}{i}" for i in range(7))
+
     return (
         _HEAD.format(name="blobs", blurb="lava-lamp metaballs on Lissajous orbits")
         + "\n".join(decl)

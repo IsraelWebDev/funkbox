@@ -7,6 +7,7 @@ text audit proving what was drawn. GL work runs on the one GL thread (``mcp_util
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from PIL import Image as PILImage
@@ -22,6 +23,14 @@ def _out_dir(doc: dict) -> Path:
 
         return projmod.project_dir(doc["project"]) / "out"
     return api.posters_dir()
+
+
+def _write_poster(doc: dict, out_dir: Path, filename: str) -> Path:
+    """Write a tuned poster document as JSON into the (fenced) output folder."""
+    out = render.fence_out(out_dir) / filename
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -262,14 +271,11 @@ def poster_fit(
     compare sheet. Use it after the design is right (shapes, glyphs, colours) to close the last few points.
     ``keep_inside`` (the specs of poster_fit_inside) rejects any candidate whose words leave their bar or plate, so
     a fit to a reference with flaws cannot push the words out of the artwork."""
-    import json as _json
     from funkbox.stills import compare as cmp, fit as fitmod
 
     doc, base = api.load_poster(poster, project)
     res = on_gl(fitmod.fit, doc, reference, params, rounds, None, base, "cover", keep_inside)
-    out = render.fence_out(_out_dir(doc)) / f"{name}.fit.poster.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(_json.dumps(res.doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    out = _write_poster(res.doc, _out_dir(doc), f"{name}.fit.poster.json")
     sheet = cmp.compare(on_gl(lambda: render.render_document(res.doc, base)).pil, reference).sheet
     lines = [
         f"overall {res.start['overall']} -> {res.score['overall']} after {res.evaluations} previews",
@@ -289,14 +295,11 @@ def poster_fit_inside(
     shape of the same colour), "margin": 0.003, "tolerance": 60}. The region is the artwork colour around the point,
     from the layers below the text. ``equal_size`` gives the layers the smallest of their sizes. Sets only size, x
     and y (and align left, no wrap); the words never change. Writes <out>/posters/<name>.inside.poster.json."""
-    import json as _json
     from funkbox.stills import inside
 
     doc, base = api.load_poster(poster, project)
     res = on_gl(inside.fit_inside, doc, specs, base, equal_size)
-    out = render.fence_out(_out_dir(doc)) / f"{name}.inside.poster.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(_json.dumps(res.doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    out = _write_poster(res.doc, _out_dir(doc), f"{name}.inside.poster.json")
     lines = [f"{k}: size {v['size']}, x {v['x']}, y {v['y']}" for k, v in res.changed.items()] + res.notes
     lines.append(f"poster: {out}")
     return ["\n".join(lines)]

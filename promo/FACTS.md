@@ -59,8 +59,9 @@ of the same video) or as the "under N" bound in M-render's `say_rough`, which su
 
 ## Measured each run (measured.json; cite the M-key)
 - M-render (this video's render time and machine), M-machine (CPU cores, GPU or none), M-video (length, size),
-  M-audit (strings checked, all exact; with a voiceover, spoken lines counted apart), M-tools / M-presets /
-  M-shaders / M-tests (counts read from the code), M-commits (what changed since the last promo, by commit subject),
+  M-audit (strings checked, all exact; with a voiceover, spoken lines counted apart), M-beats (largest distance of a
+  cut from the beat, in ms; only when the reel snaps its cuts to beats), M-tools / M-presets / M-shaders / M-tests
+  (counts read from the code), M-commits (what changed since the last promo, by commit subject),
   M-voice (with a voiceover: the local voice, how many lines it spoke, each heard back as written by promo/hear.py).
 
 ## Limits (say these plainly when relevant; never imply otherwise)

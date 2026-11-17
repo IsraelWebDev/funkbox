@@ -24,6 +24,7 @@ inbox/, get an ad).
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -51,6 +52,16 @@ def _reel_arg(a) -> str:
     if not a.reel:
         raise ValueError("give a reel file or --project NAME")
     return _abs(a.reel)
+
+
+def _output_name(a, src: str) -> str:
+    """--name, else the reel file's name without .reel.json / .json."""
+    return a.name or Path(src).name.replace(".reel.json", "").replace(".json", "")
+
+
+def _output_dir(a, src: str) -> str | None:
+    """--out, else a project's out/ folder for --project, else None (the default output folder)."""
+    return a.out or (str(Path(src).parent / "out") if getattr(a, "project", None) else None)
 
 
 def cmd_validate(a) -> int:
@@ -99,12 +110,20 @@ def cmd_storyboard(a) -> int:
     return 0
 
 
+def _print_beat_audit(out) -> None:
+    from funkbox.reel.beataudit import report_line
+
+    line = report_line(out)
+    if line:
+        print(line)
+
+
 def cmd_render(a) -> int:
     from funkbox.reel import render
 
     src = _reel_arg(a)
-    name = a.name or Path(src).name.replace(".reel.json", "").replace(".json", "")
-    out_dir = a.out or (str(Path(src).parent / "out") if getattr(a, "project", None) else None)
+    name = _output_name(a, src)
+    out_dir = _output_dir(a, src)
     outs = render.render_formats(
         src,
         name,
@@ -125,22 +144,20 @@ def cmd_render(a) -> int:
             print(f"warning: {w}")
         if a.audit:
             print(f"text audit: {'OK' if out.audit_ok else 'PROBLEMS (see the JSON)'}")
-    return 0 if out.audit_ok is not False else 2
+        _print_beat_audit(out)
+    return 2 if any(o.audit_ok is False for o in outs) else 0  # every format's text audit, not only the last
 
 
 def cmd_variants(a) -> int:
-    import json as _json
-    import re as _re
-
     from funkbox.config import funk_out
     from funkbox.reel import variants_render
     from funkbox.reel.variants import ReelVariantError
 
     src = _reel_arg(a)
-    reel = _json.loads(Path(src).read_text(encoding="utf-8-sig"))
-    vary = _json.loads(Path(a.vary).read_text(encoding="utf-8-sig"))
-    name = a.name or Path(src).name.replace(".reel.json", "").replace(".json", "")
-    if not _re.match(r"^[A-Za-z0-9_\-]{1,60}$", name):
+    reel = json.loads(Path(src).read_text(encoding="utf-8-sig"))
+    vary = json.loads(Path(a.vary).read_text(encoding="utf-8-sig"))
+    name = _output_name(a, src)
+    if not re.match(r"^[A-Za-z0-9_\-]{1,60}$", name):
         return _err("bad name: use 1-60 chars of A-Z a-z 0-9 _ -")
     if a.count is not None:
         if not isinstance(vary, dict) or not all(isinstance(v, list) for v in vary.values()):
@@ -148,7 +165,7 @@ def cmd_variants(a) -> int:
         lengths = {len(v) for v in vary.values()}
         if lengths != {a.count}:
             return _err(f"--count {a.count} must equal the length of every vary list (got {sorted(lengths) or 'none'})")
-    out_dir = a.out or (str(Path(src).parent / "out") if getattr(a, "project", None) else None)
+    out_dir = _output_dir(a, src)
     try:
         manifest = variants_render.render_variants(
             reel,
@@ -368,17 +385,15 @@ def cmd_project_render(a) -> int:
     outs = render.render_formats(
         str(reel), name, fmt=a.format, out_dir=d / "out", draft=not a.full, audit=True, progress=True
     )
-    out = outs[-1]
-    for o in outs[:-1]:
+    for o in outs:
         for k, v in o.paths.items():
             print(f"{k}: {v}")
         print(o.report_line())
-    for k, v in out.paths.items():
-        print(f"{k}: {v}")
-    print(out.report_line())
-    print(f"text audit: {'OK' if out.audit_ok else 'PROBLEMS (see the JSON)'}")
+    audit_ok = all(o.audit_ok for o in outs)  # every format's text audit, not only the last
+    print(f"text audit: {'OK' if audit_ok else 'PROBLEMS (see the JSON)'}")
+    _print_beat_audit(outs[-1])
     project.advance_status(a.project, "rendered")
-    return 0 if out.audit_ok else 2
+    return 0 if audit_ok else 2
 
 
 def cmd_project_shortcuts(a) -> int:
@@ -444,7 +459,11 @@ def add_cli(sub) -> None:
     p.add_argument("--project")
     p.add_argument("--draft", action="store_true", help="540 px wide, 24 fps, no depth model")
     p.add_argument("--format", help="render only this format (default: every format the reel declares)")
-    p.add_argument("--audit", action="store_true", help="also write <name>.text_audit.json")
+    p.add_argument(
+        "--audit",
+        action="store_true",
+        help="also write <name>.text_audit.json (and <name>.beat_audit.json when cuts snap to beats)",
+    )
     p.add_argument("--name")
     p.add_argument("--out", help="output folder (default FUNK_OUT / ./out)")
     p.add_argument("--no-audio", action="store_true")

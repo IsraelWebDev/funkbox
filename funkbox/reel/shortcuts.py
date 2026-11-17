@@ -56,7 +56,6 @@ def make_shortcuts(dry_run: bool = False, platform: str | None = None) -> list[s
     """Create (or, off Windows, print the commands for) the two shortcuts. Returns the lines to show."""
     plat = platform or sys.platform
     links = targets()
-    out: list[str] = []
     if plat.startswith("win"):
         script = windows_script(links)
         if dry_run:
@@ -69,6 +68,4 @@ def make_shortcuts(dry_run: bool = False, platform: str | None = None) -> list[s
         if r.returncode != 0:
             raise RuntimeError("could not create the shortcuts: " + (r.stderr.strip() or r.stdout.strip()))
         return [f"created desktop shortcut {n!r} -> {t}" for n, t in links]
-    out.append("Not Windows: run these commands to make the desktop links:")
-    out += posix_commands(links)
-    return out
+    return ["Not Windows: run these commands to make the desktop links:", *posix_commands(links)]

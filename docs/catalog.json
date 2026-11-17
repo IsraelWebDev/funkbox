@@ -649,9 +649,43 @@
     },
     {
       "area": "loop",
-      "description": "Render a seamless loop (MP4 + PNG poster + JSON sidecar that fully reproduces it; GIF only if\ngif=True, since it is ~10x slower than the mp4 on busy loops). Give a recipe, or a named look instead.\nLimits: <=1080px per side, <=20 s, <=60 fps. Runs the loop check first and refuses a broken loop.\nWith settings.audio the check is skipped and the result says \"loop check skipped\".",
+      "description": "Render a seamless loop (MP4 + PNG poster + JSON sidecar that fully reproduces it; GIF only if\ngif=True, since it is ~10x slower than the mp4 on busy loops). Give a recipe, or a named look instead.\nLimits: <=1080px per side, <=20 s, <=60 fps. Runs the loop check first and refuses a broken loop.\nWith settings.audio (a whole track) the check is skipped and the result says \"loop check skipped\".\naudio_loop=true makes a loop that reacts to the music and still loops: it cuts a 3-8 s section of whole bars\nfrom settings.audio (saved as <name>.loop.wav, crossfaded where it wraps), sets the loop's length to it and\nkeeps the loop check on. audio_start (seconds) starts the section at the nearest beat and audio_bars sets its\nlength; without them the section whose two ends sound most alike is chosen. audio_meter is beats per bar.",
       "input_schema": {
         "properties": {
+          "audio_bars": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Audio Bars"
+          },
+          "audio_loop": {
+            "default": false,
+            "title": "Audio Loop",
+            "type": "boolean"
+          },
+          "audio_meter": {
+            "default": 4,
+            "title": "Audio Meter",
+            "type": "integer"
+          },
+          "audio_start": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Audio Start"
+          },
           "gif": {
             "default": false,
             "title": "Gif",
@@ -2249,7 +2283,7 @@
     },
     {
       "area": "reel",
-      "description": "Render the reel (or project=<name>) to <out>/<name>.mp4 (a project renders into its own out/ folder and\nname defaults to the project name). Use draft=true first (540 px wide, 24fps, no depth model).\nA reel with `formats` renders every format as <name>-<format>.mp4 (format=<id> renders just one).\nAlso writes <name>.text_audit.json proving every drawn string equals its copy entry.",
+      "description": "Render the reel (or project=<name>) to <out>/<name>.mp4 (a project renders into its own out/ folder and\nname defaults to the project name). Use draft=true first (540 px wide, 24fps, no depth model).\nA reel with `formats` renders every format as <name>-<format>.mp4 (format=<id> renders just one).\nAlso writes <name>.text_audit.json proving every drawn string equals its copy entry, and, when the reel snaps\nits cuts to beats, <name>.beat_audit.json with every cut's distance from the beat in ms.",
       "input_schema": {
         "properties": {
           "audit": {

@@ -96,8 +96,6 @@ class Photo:
 
 def people_flag(query: str, people: bool | None = None) -> bool:
     """True when the caller says so or the query names people. The caller cannot switch the check off."""
-    if people is None:
-        return bool(PEOPLE_RX.search(query))
     return bool(people) or bool(PEOPLE_RX.search(query))
 
 
@@ -322,7 +320,7 @@ def _take(p: Photo, query: str, want_people: bool, stem: str, env, http_bytes: C
     text = "\n".join(
         [
             f"saved {dest}",
-            f"image path: {dest.relative_to(config.get().home).as_posix() if dest.is_relative_to(config.get().home) else dest}",
+            f"image path: {images._rel(dest)}",
             f"{rec['credit_line']} ({rec['licence_name']})",
             f"contains people: {'yes' if want_people else 'no'}; release: {rec['release_status']}",
             f"record: {dest.with_suffix('.credit.json')}",

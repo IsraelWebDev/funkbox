@@ -88,10 +88,6 @@ def detect_style(source: str) -> str:
     raise ShaderError("define vec4 effect(vec2 p) or mainImage(...)")
 
 
-def _num(s: str) -> float:
-    return float(s)
-
-
 def _fixed(rest: list[str]) -> bool:
     return len(rest) >= 4 and rest[3] == "fixed"
 
@@ -114,7 +110,7 @@ def parse_params(source: str) -> list[Param]:
                 lo, hi, df = int(rest[0]), int(rest[1]), int(rest[2])
                 out.append(Param(name, "int", lo, hi, df, _fixed(rest)))
             else:
-                lo, hi, df = _num(rest[0]), _num(rest[1]), _num(rest[2])
+                lo, hi, df = float(rest[0]), float(rest[1]), float(rest[2])
                 out.append(Param(name, "float", lo, hi, df, _fixed(rest)))
         except (ValueError, IndexError):
             raise ShaderError(
@@ -179,7 +175,7 @@ def parse_driver_log(log: str, offset: int, n_user_lines: int) -> list[dict]:
                 errors.append({"line": None, "message": f"(engine prelude/wrapper, driver line {line}) {msg}"})
             break
         else:
-            if raw.lower().startswith(("error", "fatal")) or "error" in raw.lower():
+            if raw.lower().startswith("fatal") or "error" in raw.lower():
                 errors.append({"line": None, "message": raw})
     if not errors and log.strip():
         errors.append({"line": None, "message": log.strip()})

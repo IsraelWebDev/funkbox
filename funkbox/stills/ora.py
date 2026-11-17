@@ -65,40 +65,30 @@ def write_ora(r, path: str | Path) -> Path:
         used.add(n.lower())
         return n
 
+    def add_layer(name: str, opacity: str, op: str, pixels: np.ndarray) -> None:
+        src = f"data/{uniq(name)}.png"
+        ET.SubElement(
+            stack,
+            "layer",
+            {
+                "name": name,
+                "src": src,
+                "x": "0",
+                "y": "0",
+                "opacity": opacity,
+                "visibility": "visible",
+                "composite-op": op,
+            },
+        )
+        entries.append((src, _png(pixels)))
+
     for lay in reversed(r.layers):  # stack.xml lists the TOP layer first
-        fn = uniq(lay.id)
-        ET.SubElement(
-            stack,
-            "layer",
-            {
-                "name": lay.id,
-                "src": f"data/{fn}.png",
-                "x": "0",
-                "y": "0",
-                "opacity": f"{float(lay.opacity):.4f}".rstrip("0").rstrip(".") or "0",
-                "visibility": "visible",
-                "composite-op": OP[lay.blend],
-            },
-        )
-        entries.append((f"data/{fn}.png", _png(lay.rgba)))
+        opacity = f"{float(lay.opacity):.4f}".rstrip("0").rstrip(".") or "0"
+        add_layer(lay.id, opacity, OP[lay.blend], lay.rgba)
     if r.alpha is None:  # an opaque canvas has a background layer at the bottom
-        fn = uniq("background")
-        ET.SubElement(
-            stack,
-            "layer",
-            {
-                "name": "background",
-                "src": f"data/{fn}.png",
-                "x": "0",
-                "y": "0",
-                "opacity": "1",
-                "visibility": "visible",
-                "composite-op": OP["normal"],
-            },
-        )
         bg = np.empty((h, w, 4), np.uint8)
         bg[:] = (*r.background, 255)
-        entries.append((f"data/{fn}.png", _png(bg)))
+        add_layer("background", "1", OP["normal"], bg)
     merged = r.flat_pil
     thumb = merged.copy()
     thumb.thumbnail((THUMB, THUMB), Image.LANCZOS)

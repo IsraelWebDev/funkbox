@@ -256,13 +256,14 @@ def _render_locked(
     if sheet:
         sheet_info, sheet_error = _sheet(reel, entries, vdir, base_dir, draft, sheet_video)
 
+    base_hash = variant_hash(reel)
     manifest = {
         "name": name,
         "count": len(entries),
         "flags": flags,
-        "base_reel_sha256": variant_hash(reel),
+        "base_reel_sha256": base_hash,
         "vary": vary,
-        "manifest_sha256": _manifest_hash(variant_hash(reel), vary, flags, entries, sheet_info),
+        "manifest_sha256": _manifest_hash(base_hash, vary, flags, entries, sheet_info),
         "variants": entries,
     }
     if sheet:

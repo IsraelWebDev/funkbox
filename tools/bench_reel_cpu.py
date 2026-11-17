@@ -292,10 +292,8 @@ def measure(setup: Setup, size: str, depth: str, out_dir: Path, repeat: int) -> 
         try:
             if depth == "on":
                 setup.clear_depth_cache()  # a locked cache file raises here, and the case becomes an error row
-            setup.plan.reel.settings.width, setup.plan.reel.settings.height = (
-                w,
-                h,
-            )  # in memory only; the reel file is not written
+            # in memory only; the reel file is not written
+            setup.plan.reel.settings.width, setup.plan.reel.settings.height = w, h
             stop_children = child_cpu_meter()
             cpu0, wall0 = time.process_time(), time.perf_counter()
             out = setup.render(setup.plan, out_dir, depth_mode)

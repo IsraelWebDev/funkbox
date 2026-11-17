@@ -10,6 +10,8 @@ may cite an M-key instead of a FACTS.md id; the reviewer checks the words agains
   M-machine    the machine: CPU cores and whether there was a GPU at all (software OpenGL = none)
   M-video      length, size and frame rate of this video
   M-audit      how many on-screen strings (and spoken lines, with a voiceover) the text audit checked, all exact
+  M-beats      how close the cuts land to the beat (only when the reel snaps its cuts to beats): the largest
+               distance in ms, from final.beat_audit.json
   M-voice      with a voiceover: the local voice, how many lines it spoke, and that promo/hear.py heard each back
   M-tools, M-presets, M-shaders, M-tests   counts read from the code right now
   M-commits    what changed in funkbox since the previous promo day (subjects of commits), for "what's new"
@@ -18,6 +20,7 @@ may cite an M-key instead of a FACTS.md id; the reviewer checks the words agains
 from __future__ import annotations
 
 import json
+import math
 import os
 import platform
 import re
@@ -167,6 +170,38 @@ def voice(day: Path) -> dict | None:
     }
 
 
+def beats(day: Path) -> dict | None:
+    """M-beats from final.beat_audit.json (the render writes it when the reel snaps its cuts to beats). The sentence
+    gives a whole-ms bound at or above the largest distance, and says "detected beat" when funkbox found the beats in
+    the music itself (a score or audio.bpm states its tempo, so there it is "the beat")."""
+    try:
+        a = json.loads((day / "final.beat_audit.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    cuts = a.get("cuts") or []
+    if not cuts:
+        return None
+    n, thr = len(cuts), float(a.get("threshold_ms", 30))
+    worst = max(abs(float(c["offset_ms"])) for c in cuts)
+    within = max(1, math.ceil(worst))
+    over = sum(1 for c in cuts if abs(float(c["offset_ms"])) > thr)
+    beat = "the detected beat" if a.get("grid") == "detected" else "the beat"
+    count = f"{n} cut{'' if n == 1 else 's'} at {float(a.get('bpm', 0)):.0f} BPM"
+    return {
+        "value": {
+            "cuts": n,
+            "bpm": a.get("bpm"),
+            "grid": a.get("grid"),
+            "max_offset_ms": worst,
+            "within_ms": within,
+            "ok": bool(a.get("ok")),
+        },
+        "say": f"every cut lands within {within} ms of {beat} ({count})"
+        if a.get("ok")
+        else f"{over} of {n} cuts land more than {thr:.0f} ms from {beat}",
+    }
+
+
 def render_bound(seconds: float) -> int:
     """A round upper bound for a render time ("under 40 seconds"): the next multiple of 10 above it (of 30 past two
     minutes). Render times drift a few seconds between renders of the same video, so a promo that quotes the bound
@@ -177,7 +212,7 @@ def render_bound(seconds: float) -> int:
 
 def write(day: Path, render_s: float | None = None, frames: int | None = None) -> dict:
     facts = {"M-machine": machine(), **repo_counts(), "M-commits": commits_since(day)}
-    for key, fn in (("M-video", video), ("M-audit", audit), ("M-voice", voice)):
+    for key, fn in (("M-video", video), ("M-audit", audit), ("M-beats", beats), ("M-voice", voice)):
         v = fn(day)
         if v:
             facts[key] = v

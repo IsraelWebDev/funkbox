@@ -400,6 +400,11 @@ def _check_timeline(reel: Reel, rep: Report, vo: dict[str, float] | None, beats:
     rep.info.update(total_seconds=total, shots=len(reel.shots), summary=f"{len(reel.shots)} shots, {total:.2f}s total")
 
 
+def _shot_span(rep: Report, i: int) -> timeline.ShotSpan | None:
+    """The timeline span of shot ``i``, or None when the timeline could not be built."""
+    return next((s for s in rep.spans if s.kind == "shot" and s.index == i), None)
+
+
 def _window_error(where: str, start: float, end: float | None, duration: float) -> str | None:
     """A callout or annotation window must start before its shot ends, and end no later than the shot."""
     if start >= duration:
@@ -413,7 +418,7 @@ def _check_windows(reel: Reel, rep: Report) -> None:
     """Callout and annotation windows against each shot's resolved length. ``auto`` and ``beats:N`` shots only have a
     length once the timeline is built, so this runs after it."""
     for i, sh in enumerate(reel.shots):
-        sp = next((s for s in rep.spans if s.kind == "shot" and s.index == i), None)
+        sp = _shot_span(rep, i)
         if sp is None:
             continue
         for kind, items in (("callouts", sh.callouts), ("annotations", sh.annotations)):
@@ -448,7 +453,7 @@ def _check_grid(reel: Reel, rep: Report, beats: list[float] | None) -> None:
             if not (reel.audio.music or reel.audio.bpm):  # with music or bpm set, the timeline check has the cause
                 rep.errors.append(f"shots[{i}] ({sh.id}).source.grid.stagger: {e}")
             continue
-        sp = next((s for s in rep.spans if s.kind == "shot" and s.index == i), None)
+        sp = _shot_span(rep, i)
         if g.reveal != "sequence" or sp is None:
             continue
         late = [
@@ -489,7 +494,7 @@ def _check_grid_label_crops(reel: Reel, rep: Report) -> None:
     W, H = reel.settings.width, reel.settings.height
     for i, sh in enumerate(reel.shots):
         g = sh.source.grid
-        sp = next((s for s in rep.spans if s.kind == "shot" and s.index == i), None)
+        sp = _shot_span(rep, i)
         if g is None or sp is None or sh.motion.type not in ("kenburns", "frame"):
             continue
         for j, (cell, rect) in enumerate(zip(g.cells, grid_mod.cell_rects(g.cols, g.rows, g.gap, W, H))):
@@ -560,7 +565,7 @@ def _check_framing(reel: Reel, rep: Report) -> None:
                 )
         if info is not None and info.duration and not src.loop:
             start, end = src.trim if src.trim else (0.0, info.duration)
-            sp = next((s for s in rep.spans if s.kind == "shot" and s.index == i), None)
+            sp = _shot_span(rep, i)
             if sp is not None:
                 need = framing.source_time(sp.duration, sp.duration, src.speed)
                 if need > (end - start) + 0.05:

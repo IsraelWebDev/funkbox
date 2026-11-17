@@ -140,3 +140,10 @@ def test_min_text_lets_an_emblem_keep_its_small_print():
     r2 = render.render_document(small)
     assert not any("raised" in w for w in r2.warnings) and r2.audit[0]["text_exact"]
     assert schema.check(dict(base, min_text=0.005))
+
+
+def test_a_lift_text_item_that_is_not_a_colour_is_refused_with_the_usual_message(tmp_path):
+    src = emblem(tmp_path)
+    for bad in ([5], [None], [["#1b224b"]]):
+        with pytest.raises(ValueError, match="needs a #rrggbb colour"):
+            trace.trace(src, lift_text=bad, measure=False)
