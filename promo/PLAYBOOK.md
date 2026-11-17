@@ -15,12 +15,16 @@ the funkbox checkout.
 - `python -m pip install --break-system-packages --ignore-installed -r requirements.txt` (with `python -m`, so the
   packages land in the Python that runs the scripts; `--ignore-installed` steps over Debian's own Pillow and PyJWT).
   On Linux without a display, `export FUNK_GL_BACKEND=egl`.
+- Check OpenGL: `python -m funkbox doctor | grep OpenGL` must print `ok`. A fresh container often lacks Mesa's EGL
+  libraries (`libEGL.so not loaded`, or "OpenGL needs Mesa's EGL/GL libraries"); install them with the command the
+  doctor prints (Debian/Ubuntu: `apt-get install -y libegl1 libegl-mesa0 libgl1-mesa-dri`, after `apt-get update`
+  if that fails) and check again. Without it nothing renders and `measure.py` leaves M-machine out.
 - If `promo/PAUSED` exists: report "paused" and stop.
 - Read `promo/FACTS.md`, `promo/REVIEW.md` and the last 14 lines of `$STATE/posts.jsonl` (if it exists).
 - Catch up first: `python promo/pending.py catchup`. It posts what earlier runs still owe (a reviewed video saved
   before a failed upload, or an X post whose Short is already up) through the same gates. If it changed the log,
   `python promo/state.py commit "catch up" posts.jsonl`. If it posted to YouTube today, today's
-  slot is used: skip to step 5 and report the catch-up.
+  slot is used: skip to step 7 and report the catch-up.
 
 ## Queue first
 `python promo/enqueue.py take $DAY`. If it prints `took <item>`, the owner queued a finished promo: today's folder now
@@ -112,12 +116,35 @@ today" in observation only if the searches really showed nothing.
   per platform and at most once per platform per day, posts X only after the Short is up, and dry-runs a platform
   whose secrets are missing). If it fails, run it once more; if it fails again, stop: the catch-up retries tomorrow.
 - `python promo/pending.py done $DAY` (drops the saved copy once YouTube has it).
-- `python promo/lint.py feedback $DAY` (adds today's feedback to `$STATE/feedback.jsonl`).
-- `python promo/state.py commit "<date> posted" posts.jsonl feedback.jsonl`.
 
-## 5. Report
+## 5. Build today's suggestion as a pull request
+After posting (or after deciding not to post: the suggestion stands either way), turn `feedback.json`'s suggestion
+into one pull request on IsraelWebDev/funkbox for the owner to review. This is the one change a run makes to funkbox,
+and it never touches `main`: a branch, a PR, nothing merged.
+- Skip it (and say why in the report) when: the suggestion's `effort` is `large`; an open PR or a commit on `main`
+  already does it (search the open PRs and `git log` first); or the run already used two tries on something that broke.
+  A skipped suggestion still goes to the backlog below.
+- `git checkout -b feedback/<date>-<short-slug>` from an up-to-date `main`. Implement the smallest version that
+  delivers the suggestion, following the repo's own rules (AGENTS.md, docs, the existing tests' style): code, a test
+  for each new behaviour, and the docs line a user would look for (regenerate `docs/catalog.json` with
+  `python -m funkbox catalog` if an MCP tool changed; `--check` verifies it).
+- Never change `promo/` in this PR: not FACTS.md, REVIEW.md, PLAYBOOK.md, nor any promo/*.py. A suggestion that
+  needs a promo change is reported, not built. No promo state, day files or secrets in the commit.
+- Run the tests that cover what changed, then the whole suite (`FUNK_GL_BACKEND=egl python -m pytest -q`); open the
+  PR only when they pass. If they fail twice after fixes, push nothing and report it.
+- Push the branch and open the PR (ready for review, not draft). Title: what it adds, in plain words. Body: the
+  observation and its evidence links, what changed, how it was tested, and "From the <date> promo run's product
+  feedback". If the PR template exists, follow its headings.
+- Add `"pr": "<the PR URL>"` to `$DAY/feedback.json` so the backlog links to it.
+
+## 6. Log the feedback and commit
+- `python promo/lint.py feedback $DAY` (adds today's feedback to `$STATE/feedback.jsonl`).
+- `python promo/state.py commit "<date> posted" posts.jsonl feedback.jsonl days/<date>/feedback.json`.
+
+## 7. Report
 Reply with: the format, selling point and angle (and the other candidates you passed on), its source links, the
-product feedback (observation and suggestion), the post URLs (or "dry run" / "skipped" and why), and the reviewer's notes.
+product feedback (observation and suggestion) and its PR URL (or why it was skipped), the post URLs (or "dry run" /
+"skipped" and why), and the reviewer's notes.
 
 ## When nothing new fits
 Use a format with no trend: behind-the-scenes (today's measured.json), how-to, tip, use-case or whats-new. They

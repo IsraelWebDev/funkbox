@@ -68,6 +68,18 @@ class _Prepared:
     post_progs: list[tuple[str, _Prog, dict]] = field(default_factory=list)
 
 
+def beat_vec(t: float, beats: int, meter: int = 4) -> tuple[float, float, float, float]:
+    """iBeat for loop position ``t``: (beat phase, bar phase, beat index, beats per loop), zeros when ``beats`` is 0.
+
+    ``beats`` is a whole number per loop, so every component is the same at t = 1 as at t = 0 and the loop holds."""
+    if beats <= 0:
+        return (0.0, 0.0, 0.0, 0.0)
+    b = (t % 1.0) * beats
+    idx = math.floor(b + 1e-9)  # t = k / beats lands on beat k even when the float is a hair below it
+    phase = max(b - idx, 0.0)
+    return (phase, ((idx % meter) + phase) / meter, float(idx % beats), float(beats))
+
+
 def _set(prog: moderngl.Program, name: str, value) -> None:
     if name in prog:
         prog[name].value = value
@@ -206,6 +218,7 @@ class Engine:
         _set(prog, "u_pal_d", d)
         _set(prog, "u_pal_cycles", int(x.get("cycles", rec.cycles)))
         _set(prog, "iAudio", self._audio_vec(frame))
+        _set(prog, "iBeat", beat_vec(t, st.beats, st.meter))
         for i in range(4):
             _set(prog, f"iChannel{i}", i)
 

@@ -2,7 +2,9 @@
 
 Once a day a scheduled agent looks for what is new in AI video, picks an honest angle, makes a short vertical video
 about funkbox **with funkbox**, has a **second agent** review it, and posts it: the video to YouTube Shorts, then to X
-(through Buffer). This folder is the code and the rules; it holds no promo content.
+(through Buffer). It also turns the day's product feedback (what creators want that funkbox could do) into one pull
+request on funkbox for the owner to review; it never merges. This folder is the code and the rules; it holds no promo
+content.
 
 ## Where things live
 
