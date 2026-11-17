@@ -222,7 +222,8 @@ def cut_section(
 
 def apply(recipe, out_dir: str | Path, name: str, **opts) -> Section:
     """Cut a section of the recipe's ``settings.audio`` to ``<out_dir>/<name>.loop.wav`` and point the recipe at
-    it: ``audio`` becomes that file, ``seconds`` its length and ``audio_loop`` true. ``opts`` go to cut_section."""
+    it: ``audio`` becomes that file, ``seconds`` its length, ``audio_loop`` true and ``beats`` / ``meter`` the
+    section's beat grid (for iBeat). ``opts`` go to cut_section."""
     from funkbox.config import resolve_path
 
     st = recipe.settings
@@ -233,4 +234,5 @@ def apply(recipe, out_dir: str | Path, name: str, **opts) -> Section:
     src = resolve_path(st.audio, recipe.base_dir)
     sec = cut_section(src, Path(out_dir) / f"{name}.loop.wav", st.fps, **opts)
     st.audio, st.seconds, st.audio_loop = sec.path, sec.seconds, True
+    st.beats, st.meter = sec.bars * sec.meter, sec.meter  # the section starts on a beat: iBeat lines up with it
     return sec

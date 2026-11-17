@@ -41,9 +41,19 @@ def _run(*args: str, timeout: float = 120) -> str:
         return ""
 
 
-def machine() -> dict:
-    gl = re.search(r"OpenGL\s+(.+)", _run(sys.executable, "-m", "funkbox", "doctor"))
-    renderer = gl.group(1).strip() if gl else "unknown"
+def machine() -> dict | None:
+    """M-machine, or None (with the install hint on stderr) when `funkbox doctor` says OpenGL does not work: the
+    doctor's failure text is not a renderer name, and a machine we cannot describe is not claimed."""
+    doctor = _run(sys.executable, "-m", "funkbox", "doctor")
+    gl = re.search(r"^\s*ok\s+OpenGL\s+(.+)$", doctor, re.M)
+    if not gl:
+        print(
+            "M-machine: not measured, OpenGL does not work here. funkbox doctor says:\n"
+            + "\n".join(l for l in doctor.splitlines() if "OpenGL" in l or "install" in l.lower() or "  sudo" in l),
+            file=sys.stderr,
+        )
+        return None
+    renderer = gl.group(1).strip()
     software = bool(re.search(r"llvmpipe|softpipe|swiftshader|software", renderer, re.I))
     cpu = platform.processor() or ""
     try:
@@ -211,12 +221,13 @@ def render_bound(seconds: float) -> int:
 
 
 def write(day: Path, render_s: float | None = None, frames: int | None = None) -> dict:
-    facts = {"M-machine": machine(), **repo_counts(), "M-commits": commits_since(day)}
+    m = machine()
+    facts = {**({"M-machine": m} if m else {}), **repo_counts(), "M-commits": commits_since(day)}
     for key, fn in (("M-video", video), ("M-audit", audit), ("M-beats", beats), ("M-voice", voice)):
         v = fn(day)
         if v:
             facts[key] = v
-    if render_s is not None:
+    if render_s is not None and "M-machine" in facts:
         where = facts["M-machine"]["say"]
         under = render_bound(render_s)
         facts["M-render"] = {

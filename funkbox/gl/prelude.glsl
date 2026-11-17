@@ -14,6 +14,7 @@ uniform sampler2D iChannel1;
 uniform sampler2D iChannel2;
 uniform sampler2D iChannel3;
 uniform vec4  iAudio;        // (bass, mid, treble, level)
+uniform vec4  iBeat;         // (beat phase 0..1, bar phase 0..1, beat index, beats per loop); zeros without settings.beats
 uniform int   u_frames;      // frames per loop (engine internal, used by grain)
 uniform vec3  u_pal_a;
 uniform vec3  u_pal_b;

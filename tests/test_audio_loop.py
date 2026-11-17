@@ -282,3 +282,67 @@ def test_mcp_loop_render_cuts_the_section_and_reports_it(gl, tmp_path):
     assert doc["loop_check"]["status"] == "ok" and doc["audio_section"]["bars"] in (2, 4)
     assert (out / "mcp-al.loop.wav").is_file() and (out / "mcp-al.mp4").is_file()
     assert "loop check skipped" in whole and "audio_loop=true" in whole  # a whole track: unchecked, with the way out
+
+
+# ---------------------------------------------------------------- iBeat: the section's beat grid in the shader
+FLASH = "vec4 effect(vec2 p) { return vec4(vec3(exp(-8.0 * iBeat.x)), 1.0); }\n"
+
+
+def test_beat_vec_counts_beats_and_bars_and_wraps():
+    from funkbox.gl.engine import beat_vec
+
+    assert beat_vec(0.3, 0) == (0.0, 0.0, 0.0, 0.0)  # no grid: zeros, as iAudio without audio
+    assert beat_vec(0.0, 8) == (0.0, 0.0, 0.0, 8.0)
+    assert beat_vec(1.0, 8) == beat_vec(0.0, 8)  # t = 1 is t = 0: the loop holds
+    x, y, z, w = beat_vec(5 / 8 + 1 / 16, 8, 4)  # halfway through beat 5, the second bar's second beat
+    assert (x, y, z, w) == pytest.approx((0.5, 0.375, 5.0, 8.0))
+    assert beat_vec(3 / 7, 7, 7)[:3] == pytest.approx((0.0, 3 / 7, 3.0))  # on a beat even when the float is a hair low
+
+
+def test_recipe_settings_beats_and_meter(tmp_path):
+    plain = {"settings": {"seconds": 2.0}, "layers": [{"type": "shader", "source": FLASH}]}
+    rec = Recipe2.from_dict(plain)
+    assert rec.settings.beats == 0 and "beats" not in rec.to_dict()["settings"]  # written as before
+    assert "meter" not in rec.to_dict()["settings"]
+    rec = Recipe2.from_dict({**plain, "settings": {"seconds": 2.0, "beats": 6, "meter": 3}})
+    assert rec.to_dict()["settings"]["beats"] == 6 and rec.to_dict()["settings"]["meter"] == 3
+    with pytest.raises(ValueError, match="whole number of bars"):
+        Recipe2.from_dict({**plain, "settings": {"seconds": 2.0, "beats": 6}})  # 6 beats are not whole bars of 4
+    for bad in ({"beats": -1}, {"beats": 2.5}, {"beats": True}, {"meter": 0}):
+        with pytest.raises(ValueError, match="whole number"):
+            Recipe2.from_dict({**plain, "settings": {"seconds": 2.0, **bad}})
+
+
+def test_apply_sets_the_sections_beat_grid(tmp_path, monkeypatch):
+    monkeypatch.setenv("FUNK_INPUTS", str(tmp_path))
+    write_wav(tmp_path / "song.wav", track())
+    rec = Recipe2.from_dict(
+        {"settings": {"fps": 30, "audio": "song.wav"}, "layers": [{"type": "shader", "source": FLASH}]}
+    )
+    sec = audioloop.apply(rec, tmp_path / "out", "clip")
+    assert rec.settings.beats == sec.bars * sec.meter and rec.settings.meter == sec.meter
+    again = Recipe2.from_dict(rec.to_dict())  # the sidecar renders again with the same grid
+    assert (again.settings.beats, again.settings.meter) == (rec.settings.beats, rec.settings.meter)
+
+
+def test_a_flash_on_every_beat_lands_on_the_beat_and_still_loops(gl, tmp_path, monkeypatch):
+    monkeypatch.setenv("FUNK_INPUTS", str(tmp_path))
+    write_wav(tmp_path / "song.wav", track())
+    rec = Recipe2.from_dict(
+        {
+            "settings": {"width": 32, "height": 32, "fps": 30, "audio": "song.wav"},
+            "layers": [{"type": "shader", "source": FLASH}],
+        }
+    )
+    audioloop.apply(rec, tmp_path / "out", "clip")
+    st = rec.settings
+    e = Engine(32, 32, gl)
+    try:
+        rep = validate_loop(rec, size=32, engine=e)
+        level = [float(e.render(rec, i, grain=False).mean()) for i in range(st.frames)]
+    finally:
+        e.release()
+    assert rep.ok, rep.reason
+    on_beat = {round(k * st.frames / st.beats) for k in range(st.beats)}
+    peaks = {i for i in range(st.frames) if level[i] > level[i - 1] and level[i] >= level[(i + 1) % st.frames]}
+    assert peaks == on_beat  # one flash per beat, on the frame nearest the beat

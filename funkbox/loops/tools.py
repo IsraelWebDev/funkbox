@@ -189,7 +189,7 @@ def loop_list() -> str:
     lines.append("== PALETTES == " + ", ".join(PALETTES))
     lines.append(
         "== SHADER CONTRACT == uniforms iResolution iLoop iPhase iTime iFrame iSeed iChannel0..3 "
-        "iAudio; helpers uv() pal() palette(x) loopNoise(p,r) snoise2/3/4 rot() wrap01() src0(p); "
+        "iAudio iBeat(beat phase, bar phase, beat index, beats per loop); helpers uv() pal() palette(x) loopNoise(p,r) snoise2/3/4 rot() wrap01() src0(p); "
         "uv().y points UP; `uniform float u_x; // @param min max default` exposes a param; "
         "ints named k_* must be integer multipliers of iPhase."
     )
