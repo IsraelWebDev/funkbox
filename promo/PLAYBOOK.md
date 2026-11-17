@@ -12,13 +12,13 @@ the funkbox checkout.
 - Get a push-capable checkout of IsraelWebDev/funkbox (attach the repo with push access, then clone), `cd` into it.
   Also attach the state repo (`$PROMO_STATE_REPO`) with push access, then `eval "$(python promo/state.py env)"`
   (clones or pulls it, sets `STATE` and lets funkbox read and write the day folders) and `DAY=$STATE/days/<date>`.
-- `python -m pip install --break-system-packages --ignore-installed -r requirements.txt` (with `python -m`, so the
-  packages land in the Python that runs the scripts; `--ignore-installed` steps over Debian's own Pillow and PyJWT).
-  On Linux without a display, `export FUNK_GL_BACKEND=egl`.
-- Check OpenGL: `python -m funkbox doctor | grep OpenGL` must print `ok`. A fresh container often lacks Mesa's EGL
-  libraries (`libEGL.so not loaded`, or "OpenGL needs Mesa's EGL/GL libraries"); install them with the command the
-  doctor prints (Debian/Ubuntu: `apt-get install -y libegl1 libegl-mesa0 libgl1-mesa-dri`, after `apt-get update`
-  if that fails) and check again. Without it nothing renders and `measure.py` leaves M-machine out.
+- `bash promo/setup_runner.sh` and `export FUNK_GL_BACKEND=egl`. It installs the Python requirements and, if OpenGL
+  cannot start, Mesa's EGL/GL libraries (software OpenGL renders fine, only slower), then checks OpenGL and ffmpeg
+  and prints `setup: OK`. It is idempotent, so run it every time. If it fails twice, stop and report it: without
+  OpenGL nothing renders and `measure.py` leaves M-machine out.
+- Only on a day that will speak (see Voiceover in step 2): `bash promo/setup_runner.sh --voice` (adds espeak-ng,
+  requirements-reel.txt, faster-whisper, the Kokoro voice, about 340 MB with hashes checked, and promo/hear.py's
+  speech-to-text model). If it fails twice, make the day without a voiceover.
 - If `promo/PAUSED` exists: report "paused" and stop.
 - Read `promo/FACTS.md`, `promo/REVIEW.md` and the last 14 lines of `$STATE/posts.jsonl` (if it exists).
 - Catch up first: `python promo/pending.py catchup`. It posts what earlier runs still owe (a reviewed video saved
@@ -88,10 +88,21 @@ today" in observation only if the searches really showed nothing.
   must stay clear of the card's text (its `text_rect` in assets.json): anchor it at the bottom, and if you push in,
   push toward the text with no caption, or keep the window wide enough that the text stays above the caption.
   Vary the shots too: not every promo needs a code card or the demo ad; pick what proves today's claim.
+- **Voiceover (optional).** The template's `"voiceover": false` is the default. A day may speak when the voice earns
+  its place (a how-to read aloud, the voiceover feature itself, a hook that lands better heard). Then set
+  `"voiceover": true, "voice": "kokoro:af_heart"` (or another voice in funkbox/reel/audio.py `APPROVED_VOICES`),
+  `"duck_db": -10`, and give each spoken shot `"vo": "<copy id>"`. Spoken words are copy lines, nothing else: the
+  voice reads the line's text, or its `say` field in copy.json when the spoken form must differ (numbers, symbols);
+  `pronounce` fixes a name. Every spoken line is also on screen as that shot's caption (sound off still reads), and
+  every spoken word is a claim like any other. Speak 2-4 lines, not every shot; `reel validate` names a shot too
+  short for its line (lengthen it in beats). `measure.py render` then runs `python promo/hear.py $DAY`, which
+  transcribes each spoken line from final.mp4 and writes `heard.json`; lint fails a line that was not heard as
+  written: reword it or add a `pronounce` entry, and re-render.
 - `python -m funkbox reel validate`, then `reel storyboard` and LOOK at it. Fix and repeat until it reads well.
 - Render with `python promo/measure.py render $DAY`: it renders `final.mp4` and the text audit, times the render and
   writes `measured.json` (the M- facts claims may cite). Re-run it after any change to the video.
-- `python promo/lint.py $DAY` must print `lint: OK` (captions clear of card text, variety, feedback, claim ids).
+- `python promo/lint.py $DAY` must print `lint: OK` (captions clear of card text, variety, feedback, claim ids, and
+  with a voiceover: a real local voice, exact spoken lines, each heard back as written).
   Fix what it names and re-render; never edit its rules. After a re-render, lint also checks that quoted render times
   still match M-render; quoting `say_rough` ("under 40 seconds") avoids chasing the number.
 - Write `caption.json`: {"youtube": {"title" (<= 100 chars, no < >), "description" (2-4 short lines; first line the

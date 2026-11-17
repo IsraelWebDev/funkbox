@@ -9,9 +9,10 @@ may cite an M-key instead of a FACTS.md id; the reviewer checks the words agains
   M-render     how long this video took to render, and on what (M-machine); "say_rough" gives a safe "under N"
   M-machine    the machine: CPU cores and whether there was a GPU at all (software OpenGL = none)
   M-video      length, size and frame rate of this video
-  M-audit      how many on-screen strings the text audit checked, and that all were exact
+  M-audit      how many on-screen strings (and spoken lines, with a voiceover) the text audit checked, all exact
   M-beats      how close the cuts land to the beat (only when the reel snaps its cuts to beats): the largest
                distance in ms, from final.beat_audit.json
+  M-voice      with a voiceover: the local voice, how many lines it spoke, and that promo/hear.py heard each back
   M-tools, M-presets, M-shaders, M-tests   counts read from the code right now
   M-commits    what changed in funkbox since the previous promo day (subjects of commits), for "what's new"
 """
@@ -146,10 +147,36 @@ def audit(day: Path) -> dict | None:
         a = json.loads((day / "final.text_audit.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    n = len(a.get("entries", []))
+    entries = a.get("entries", [])
+    spoken = sum(1 for e in entries if e.get("kind") == "voiceover")
+    n = len(entries) - spoken
+    what = f"{n} on-screen strings" + (f" and {spoken} spoken lines" if spoken else "")
     return {
-        "value": {"strings": n, "ok": bool(a.get("ok"))},
-        "say": f"the text audit checked {n} on-screen strings: " + ("all exact" if a.get("ok") else "NOT all exact"),
+        "value": {"strings": n, "spoken": spoken, "ok": bool(a.get("ok"))},
+        "say": f"the text audit checked {what}: " + ("all exact" if a.get("ok") else "NOT all exact"),
+    }
+
+
+def voice(day: Path) -> dict | None:
+    """M-voice: only for a voiceover video, and only from a heard.json made for this exact final.mp4."""
+    try:
+        a = json.loads((day / "final.text_audit.json").read_text(encoding="utf-8"))
+        heard = json.loads((day / "heard.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    tts = a.get("tts") or {}
+    lines = heard.get("lines", [])
+    sys.path.insert(0, str(ROOT / "promo"))
+    from hear import sha256
+
+    if not lines or heard.get("video_sha256") != sha256(day / "final.mp4"):
+        return None
+    ok = bool(heard.get("ok"))
+    name = str(tts.get("voice") or tts.get("mode"))
+    return {
+        "value": {"mode": tts.get("mode"), "voice": tts.get("voice"), "lines": len(lines), "heard_ok": ok},
+        "say": f"{len(lines)} lines spoken by a local voice ({name}) on this computer, "
+        + ("each heard back as written by a speech-to-text check" if ok else "NOT all heard back as written"),
     }
 
 
@@ -196,7 +223,7 @@ def render_bound(seconds: float) -> int:
 def write(day: Path, render_s: float | None = None, frames: int | None = None) -> dict:
     m = machine()
     facts = {**({"M-machine": m} if m else {}), **repo_counts(), "M-commits": commits_since(day)}
-    for key, fn in (("M-video", video), ("M-audit", audit), ("M-beats", beats)):
+    for key, fn in (("M-video", video), ("M-audit", audit), ("M-beats", beats), ("M-voice", voice)):
         v = fn(day)
         if v:
             facts[key] = v
@@ -238,7 +265,20 @@ def render(day: Path) -> dict:
     if r.returncode:
         sys.exit(r.returncode)
     m = re.search(r"(\d+) frames rendered", r.stdout + r.stderr)
+    (day / "heard.json").unlink(missing_ok=True)  # it belonged to the previous render
+    if _has_voiceover(day):
+        h = subprocess.run([sys.executable, str(ROOT / "promo" / "hear.py"), str(day)], cwd=ROOT, text=True)
+        if h.returncode:
+            print("measure: the voiceover was not heard as written; see heard.json (lint will name it)")
     return write(day, took, int(m.group(1)) if m else None)
+
+
+def _has_voiceover(day: Path) -> bool:
+    try:
+        a = json.loads((day / "final.text_audit.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return any(e.get("kind") == "voiceover" for e in a.get("entries", []))
 
 
 if __name__ == "__main__":
