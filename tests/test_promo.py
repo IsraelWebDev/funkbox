@@ -542,6 +542,23 @@ def test_measured_facts_are_written_with_plain_sentences(tmp_path, monkeypatch):
     assert json.loads((day / "measured.json").read_text())["facts"]["M-tools"]["value"] == 37
 
 
+def test_machine_is_not_claimed_when_opengl_does_not_work(monkeypatch, capsys):
+    import measure
+
+    broken = (
+        "CHECKS\n  !!   OpenGL       OpenGL needs Mesa's EGL/GL libraries. Install them with:\n"
+        "(libEGL was not found)\n  sudo apt install -y libegl1 libegl-mesa0 libgl1-mesa-dri\n"
+    )
+    monkeypatch.setattr(measure, "_run", lambda *a, **k: broken)
+    assert measure.machine() is None  # the doctor's error text is not a renderer, and no "gpu": true
+    assert "libegl1" in capsys.readouterr().err  # the install hint is passed on
+    monkeypatch.setattr(
+        measure, "_run", lambda *a, **k: "  ok   OpenGL       software only: renders work but are slower\n"
+    )
+    m = measure.machine()
+    assert m["value"]["gpu"] is False and "no GPU (software OpenGL)" in m["say"]
+
+
 def test_the_beat_audit_becomes_a_measured_fact(tmp_path):
     import measure
 

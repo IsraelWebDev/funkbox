@@ -50,6 +50,8 @@ class Settings2:
     seed: int = 1
     audio: str | None = None
     audio_loop: bool = False  # the audio is one loop long (a cut section): analysed as a circle, loop check on
+    beats: int = 0  # beats per loop: drives iBeat (0 = no beat grid); an audio loop sets it to bars x meter
+    meter: int = 4  # beats per bar, for iBeat's bar phase
 
     @property
     def frames(self) -> int:
@@ -171,7 +173,12 @@ class Recipe2:
             "settings": {
                 k: v
                 for k, v in vars(self.settings).items()
-                if not ((k == "audio" and v is None) or (k == "audio_loop" and not v))
+                if not (
+                    (k == "audio" and v is None)
+                    or (k == "audio_loop" and not v)
+                    or (k == "beats" and not v)
+                    or (k == "meter" and v == 4)
+                )
             },
             "palette": {"name": self.palette, "cycles": self.cycles},
             "layers": [l.to_dict() for l in self.layers],
@@ -207,6 +214,17 @@ class Recipe2:
             raise ValueError("settings.audio_loop must be true or false")
         if settings.audio_loop and not settings.audio:
             raise ValueError("settings.audio_loop needs settings.audio (the cut loop's WAV)")
+        for key in ("beats", "meter"):
+            v = getattr(settings, key)
+            if isinstance(v, bool) or not isinstance(v, int) or v < (0 if key == "beats" else 1):
+                raise ValueError(
+                    f"settings.{key} must be a whole number" + (" (0 or more)" if key == "beats" else " (1 or more)")
+                )
+        if settings.beats and settings.beats % settings.meter:
+            raise ValueError(
+                f"settings.beats ({settings.beats}) must be a whole number of bars of settings.meter "
+                f"({settings.meter}) beats, or iBeat's bar phase would jump at the wrap"
+            )
         if settings.audio:
             settings.audio = Path(settings.audio).as_posix()
             if "seconds" not in s:  # audio set: the clip defaults to the audio's length

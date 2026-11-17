@@ -135,6 +135,7 @@ or Shadertoy's `void mainImage(out vec4 fragColor, in vec2 fragCoord)`.
 | `iChannel0` | sampler2D | everything composited below this layer (post passes: their input) |
 | `iChannel1..3` | sampler2D | images listed in the layer's `channels`; with audio, `iChannel3` is the 512x1 log spectrum |
 | `iAudio` | vec4 | (bass, mid, treble, level) 0..1 for this frame; zeros without audio |
+| `iBeat` | vec4 | (beat phase 0..1, bar phase 0..1, beat index, beats per loop) from `settings.beats`; zeros without it. Loop-safe: a flash on `iBeat.x` hits every beat and the loop still holds |
 | `uv()` | vec2 | centred coords, short side spans [-1, 1], **+y points up** |
 | `palette(x)` | vec3 | the recipe palette; rotates `cycles` times per loop |
 | `pal(x,a,b,c,d)` | vec3 | Inigo Quilez cosine palette |
@@ -186,7 +187,12 @@ automatically: any detected beat may start it, and the start and bar count whose
 `--audio-bars N` (`audio_bars`) sets its length, `--audio-meter BEATS` (`audio_meter`, default 4) is the beats per
 bar; the detector finds beats, not bars, so a track that is not in 4 needs the meter. The sidecar records the cut in
 `"audio_section"` (source, start, bars, BPM, length, `drift_ms` = how far whole frames moved it off the bars) and
-renders again by itself. For an audio loop the check compares the steps around the wrap with the largest step in
+renders again by itself. The cut also sets `settings.beats` (bars x meter) and `settings.meter`, so a shader can
+hit the beat exactly with `iBeat`: `iBeat.x` is the phase within the current beat (0 on the beat), `iBeat.y` the phase
+within the bar (counted from the section's first beat; the detector does not know which beat is the downbeat),
+`iBeat.z` the beat's index and `iBeat.w` the beats per loop. `exp(-8.0 * iBeat.x)` is a flash that decays after
+every beat. `settings.beats` works without audio too (a 4 s loop with `"beats": 8` is 120 BPM); it must be a whole
+number of bars so the loop still holds. For an audio loop the check compares the steps around the wrap with the largest step in
 the rest of the loop, since a kick already makes the picture jump. A hand-made loop file works too: set
 `"audio_loop": true` and make `seconds` its length; the check then tells you whether it wraps cleanly.
 `examples/disco_cat.json` is a runnable sample; `python examples/make_cat.py` regenerates its image.
