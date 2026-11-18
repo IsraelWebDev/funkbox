@@ -45,6 +45,7 @@ def image_generate(
     name: str = "",
     steps: int = 1,
     confirm_slow: bool = False,
+    transparent: bool = False,
 ) -> list:
     """Text-to-image with FastSD (SD-Turbo, OpenVINO on the iGPU); auto-starts FastSD. Aspect presets:
     square 512x512, portrait 512x768, landscape 768x512, story 512x896, wide 896x512. n=2-8 returns variations
@@ -53,8 +54,11 @@ def image_generate(
     compiled per image size (~2-3 min the first time at each size); this tool answers with a warning and does
     nothing until you pass confirm_slow=true. PREFER 'square': SD-Turbo is trained at 512x512 and tall/wide sizes often duplicate the subject (two dogs stacked, a room on two floors); for 9:16 use square and let reel/stills cover-crop it (image_upscale first for sharper crops). Never request a product or text in the prompt. SD-Turbo output is
     under the Stability AI Community License (free commercial use under US$1M annual revenue; Stability asks
-    commercial users to register). Not for pictures of people: use image_find (stock first, people never generated)."""
-    return _blocks(images.generate(prompt, aspect, seed, n, negative_prompt, name, steps, confirm_slow))
+    commercial users to register). Not for pictures of people: use image_find (stock first, people never generated).
+    transparent=true also cuts the subject out of each picture into <name>-cutout.png (RGBA, cropped to the subject,
+    with a quality score; a poor score says why), ready as a reel product shot, a poster layer or a loop layer. Ask
+    for a plain backdrop in the prompt (e.g. "on a plain white background") for a clean cut-out."""
+    return _blocks(images.generate(prompt, aspect, seed, n, negative_prompt, name, steps, confirm_slow, transparent))
 
 
 @safe

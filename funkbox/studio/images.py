@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import random
+import shutil
 import time
 import uuid
 from dataclasses import dataclass
@@ -123,6 +124,7 @@ def generate(
     name: str = "",
     steps: int = 1,
     confirm_slow: bool = False,
+    transparent: bool = False,
 ) -> ImageResult:
     """Text-to-image with FastSD (SD-Turbo, OpenVINO on the iGPU); auto-starts FastSD. Aspect presets:
     square 512x512, portrait 512x768, landscape 768x512, story 512x896, wide 896x512. n=2-8 returns variations
@@ -131,7 +133,9 @@ def generate(
     compiled per image size (~2-3 min the first time at each size); this tool answers with a warning and does
     nothing until you pass confirm_slow=true. PREFER 'square': SD-Turbo is trained at 512x512 and tall/wide sizes often duplicate the subject (two dogs stacked, a room on two floors); for 9:16 use square and let reel/stills cover-crop it (upscale_image first for sharper crops). Never request a product or text in the prompt. SD-Turbo output is
     under the Stability AI Community License (free commercial use under US$1M annual revenue; Stability asks
-    commercial users to register)."""
+    commercial users to register). transparent=true also cuts the subject out of each picture (the same cut-out as
+    image_edit's remove_background) and saves it as ``<name>-cutout.png``, an RGBA PNG cropped to the subject, with
+    its quality score."""
     if not 1 <= int(n) <= 8:
         raise ValueError("n must be 1..8")
     w, h = sdcore.aspect_size(aspect)
@@ -147,7 +151,25 @@ def generate(
         res = _run_generate(body)
         res["seed"] = sd
         results.append(res)
-    return _result(results, prompt, base)
+    extra = "\n".join(_cutout_line(Path(r["path"])) for r in results) if transparent else ""
+    return _result(results, prompt, base, extra)
+
+
+def _cutout_line(src: Path) -> str:
+    """Cut the subject out of a generated picture into ``<stem>-cutout.png`` next to it; one line for the result."""
+    from funkbox.reel import ingest
+
+    dest = src.with_name(src.stem + "-cutout.png")
+    work = config.get().out / f".cutout-{uuid.uuid4().hex[:8]}"
+    try:
+        with PILImage.open(src) as im:
+            q = ingest.build_product_png(im, dest, work)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    line = f"  cut-out: {dest}  (image path: {_rel(dest)})  {q['size'][0]}x{q['size'][1]}, score {q['score']}"
+    if not q["ok"]:
+        line += " - " + "; ".join(q["problems"]) + (f" ({q['advice']})" if q.get("advice") else "")
+    return line
 
 
 def restyle(
@@ -219,9 +241,10 @@ def add_cli(sub) -> None:
     p.add_argument("--name", default="")
     p.add_argument("--steps", type=int, default=1)
     p.add_argument("--confirm-slow", action="store_true", help="allow a size that costs a 2-3 min model recompile")
+    p.add_argument("--transparent", action="store_true", help="also cut the subject out into <name>-cutout.png (RGBA)")
     p.set_defaults(
         fn=lambda a: _show(
-            generate(a.prompt, a.aspect, a.seed, a.n, a.negative_prompt, a.name, a.steps, a.confirm_slow)
+            generate(a.prompt, a.aspect, a.seed, a.n, a.negative_prompt, a.name, a.steps, a.confirm_slow, a.transparent)
         )
     )
     p = ap.add_parser("restyle", help="img2img: re-render a picture in a new style")

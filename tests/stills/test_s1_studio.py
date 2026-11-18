@@ -245,3 +245,51 @@ def test_install_copies_the_launcher_with_its_helper_and_licence_is_documented(c
     for t in (notices, doc):
         assert "Stability AI Community License" in t and "US$1M" in t
     assert "register" in notices and "register" in doc
+
+
+# ------------------------------------------------------------------ transparent: generate, then cut the subject out
+def _subject_on_white(prompt, w, h, seed=0, init=None, strength=0.5):
+    arr = np.full((h, w, 3), 245, np.uint8)
+    arr[h // 4 : 3 * h // 4, w // 3 : 2 * w // 3] = (30, 90, 160)  # a subject on a plain backdrop
+    return Image.fromarray(arr)
+
+
+@pytest.fixture
+def stub_home(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    (home / "inputs").mkdir(parents=True)
+    for k, v in {"FUNK_HOME": home, "FUNK_OUT": home / "out", "FUNK_INPUTS": home / "inputs"}.items():
+        monkeypatch.setenv(k, str(v))
+    monkeypatch.setenv("STUDIO_FAKE_SD", "1")
+    monkeypatch.setattr(sdcore, "fake_image", _subject_on_white)
+    return home
+
+
+def test_generate_transparent_saves_a_cutout_next_to_each_picture(stub_home):
+    from funkbox.studio import images
+
+    res = images.generate("a blue box on a plain white background", seed=3, n=2, name="box", transparent=True)
+    for i in (1, 2):
+        cut = stub_home / "inputs" / f"box-{i}-cutout.png"
+        assert (stub_home / "inputs" / f"box-{i}.png").is_file() and cut.is_file()
+        im = Image.open(cut)
+        assert im.mode == "RGBA" and im.size[0] < 200  # cropped to the subject
+        assert im.getpixel((im.width // 2, im.height // 2))[3] == 255
+        assert f"box-{i}-cutout.png" in res.text
+    assert res.text.count("cut-out:") == 2 and "score" in res.text
+    assert not list((stub_home / "out").glob(".cutout-*"))  # the work folder is cleaned up
+
+
+def test_generate_without_transparent_writes_no_cutout(stub_home):
+    from funkbox.studio import images
+
+    res = images.generate("a blue box", seed=3, name="plain")
+    assert (stub_home / "inputs" / "plain.png").is_file()
+    assert not (stub_home / "inputs" / "plain-cutout.png").exists() and "cut-out" not in res.text
+
+
+def test_cli_generate_transparent_flag(stub_home, capsys):
+    from funkbox.cli import main
+
+    assert main(["image", "generate", "a blue box", "--seed", "1", "--name", "cli", "--transparent"]) in (0, None)
+    assert (stub_home / "inputs" / "cli-cutout.png").is_file() and "cut-out:" in capsys.readouterr().out
