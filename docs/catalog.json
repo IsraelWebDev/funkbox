@@ -166,7 +166,7 @@
     },
     {
       "area": "image",
-      "description": "Text-to-image with FastSD (SD-Turbo, OpenVINO on the iGPU); auto-starts FastSD. Aspect presets:\nsquare 512x512, portrait 512x768, landscape 768x512, story 512x896, wide 896x512. n=2-8 returns variations\n(seeds seed, seed+1, ... or random) as a contact sheet plus one file each in the inputs folder. seed -1 =\nrandom (the seeds used are reported). steps 1 is best for SD-Turbo. COST OF SIZE CHANGES: the model is\ncompiled per image size (~2-3 min the first time at each size); this tool answers with a warning and does\nnothing until you pass confirm_slow=true. PREFER 'square': SD-Turbo is trained at 512x512 and tall/wide sizes often duplicate the subject (two dogs stacked, a room on two floors); for 9:16 use square and let reel/stills cover-crop it (image_upscale first for sharper crops). Never request a product or text in the prompt. SD-Turbo output is\nunder the Stability AI Community License (free commercial use under US$1M annual revenue; Stability asks\ncommercial users to register). Not for pictures of people: use image_find (stock first, people never generated).",
+      "description": "Text-to-image with FastSD (SD-Turbo, OpenVINO on the iGPU); auto-starts FastSD. Aspect presets:\nsquare 512x512, portrait 512x768, landscape 768x512, story 512x896, wide 896x512. n=2-8 returns variations\n(seeds seed, seed+1, ... or random) as a contact sheet plus one file each in the inputs folder. seed -1 =\nrandom (the seeds used are reported). steps 1 is best for SD-Turbo. COST OF SIZE CHANGES: the model is\ncompiled per image size (~2-3 min the first time at each size); this tool answers with a warning and does\nnothing until you pass confirm_slow=true. PREFER 'square': SD-Turbo is trained at 512x512 and tall/wide sizes often duplicate the subject (two dogs stacked, a room on two floors); for 9:16 use square and let reel/stills cover-crop it (image_upscale first for sharper crops). Never request a product or text in the prompt. SD-Turbo output is\nunder the Stability AI Community License (free commercial use under US$1M annual revenue; Stability asks\ncommercial users to register). Not for pictures of people: use image_find (stock first, people never generated).\ntransparent=true also cuts the subject out of each picture into <name>-cutout.png (RGBA, cropped to the subject,\nwith a quality score; a poor score says why), ready as a reel product shot, a poster layer or a loop layer. Ask\nfor a plain backdrop in the prompt (e.g. \"on a plain white background\") for a clean cut-out.",
       "input_schema": {
         "properties": {
           "aspect": {
@@ -214,6 +214,11 @@
             "default": 1,
             "title": "Steps",
             "type": "integer"
+          },
+          "transparent": {
+            "default": false,
+            "title": "Transparent",
+            "type": "boolean"
           }
         },
         "required": [
