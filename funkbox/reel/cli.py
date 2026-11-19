@@ -99,8 +99,16 @@ def cmd_storyboard(a) -> int:
 
     from funkbox.config import funk_out
     from funkbox.reel import render
-    from funkbox.reel.storyboard import print_beat_grid, storyboard
+    from funkbox.reel.storyboard import ALL_FORMATS, formats_storyboard, print_beat_grid, storyboard
 
+    if a.format == ALL_FORMATS:  # one sheet, a row per declared format
+        src = _reel_arg(a)
+        t0 = time.perf_counter()
+        out = Path(a.output) if a.output else funk_out() / "storyboard-all.png"
+        _, fids = formats_storyboard(lambda f: render.prepare(src, fmt=f), out)
+        print(f"{out}  ({len(fids)} formats: {' '.join(fids)}, in {time.perf_counter() - t0:.1f}s)")
+        print_beat_grid(render.prepare(src))
+        return 0
     plan = render.prepare(_reel_arg(a), fmt=a.format)
     t0 = time.perf_counter()
     out = Path(a.output) if a.output else funk_out() / "storyboard.png"
@@ -452,7 +460,7 @@ def add_cli(sub) -> None:
     p.add_argument("--project")
     p.add_argument("-o", "--output")
     p.add_argument("--tile", type=int, default=270, help="tile width in px")
-    p.add_argument("--format", help="one of the reel's formats (e.g. 16x9)")
+    p.add_argument("--format", help="one of the reel's formats (e.g. 16x9), or 'all': a row per format on one sheet")
     p.set_defaults(fn=cmd_storyboard)
     p = rsub.add_parser("render", help="render the reel to mp4")
     p.add_argument("reel", nargs="?")

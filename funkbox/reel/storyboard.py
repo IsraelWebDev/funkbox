@@ -86,15 +86,21 @@ def print_beat_grid(plan: R.Plan, file=None) -> None:
 
 
 def storyboard(
-    plan: R.Plan, out: str | Path | None = None, tile_w: int = 270, cols: int | None = None, depth_mode: str = "cached"
+    plan: R.Plan,
+    out: str | Path | None = None,
+    tile_w: int = 270,
+    cols: int | None = None,
+    depth_mode: str = "cached",
+    label_size: int | None = None,
 ) -> Image.Image:
-    """Contact sheet PNG. Frames are taken at each shot's midpoint."""
+    """Contact sheet PNG. Frames are taken at each shot's midpoint. ``label_size`` fixes the label font size
+    (default: it follows the tile width)."""
     reel = plan.reel
     tile_h = round(tile_w * reel.settings.height / reel.settings.width) // 2 * 2
     n = len(plan.spans)
     cols = cols or (4 if n > 8 else min(n, 4))
     rows = -(-n // cols)
-    fs = max(11, tile_w // 20)
+    fs = label_size or max(11, tile_w // 20)
     font = _font(fs)
     label_h = LABEL_LINES * (fs + 4) + 8
     sheet = Image.new("RGB", (cols * (tile_w + PAD) + PAD, rows * (tile_h + label_h + PAD) + PAD), (24, 24, 28))
@@ -127,3 +133,43 @@ def storyboard(
         Path(out).parent.mkdir(parents=True, exist_ok=True)
         sheet.save(out)
     return sheet
+
+
+ALL_FORMATS = "all"
+
+
+def formats_storyboard(
+    plan_for, out: str | Path | None = None, tile_h: int = 320, depth_mode: str = "cached"
+) -> tuple[Image.Image, list[str]]:
+    """Every format the reel declares on one sheet: a row per format (the same shots, each at its midpoint, at that
+    size), headed by the format id, so a crop that cuts the subject or a caption that lands badly in one size shows
+    up in one look. ``plan_for(fmt)`` returns the plan for one format id (``None``: the reel as written). Tiles share
+    one height, so the shapes compare directly. A reel without ``formats`` gives one row. Returns the sheet and the
+    row ids, top to bottom."""
+    base = plan_for(None)
+    fids = [f.id for f in base.reel.formats]
+    rows: list[tuple[str, Image.Image]] = []
+    for fid in fids or [None]:
+        plan = base if fid is None else plan_for(fid)
+        s = plan.reel.settings
+        tile_w = max(2, round(tile_h * s.width / s.height) // 2 * 2)
+        sheet = storyboard(
+            plan, None, tile_w=tile_w, cols=len(plan.spans), depth_mode=depth_mode, label_size=max(11, tile_h // 30)
+        )
+        rows.append((fid or f"{s.width}x{s.height}", sheet))
+    fs = max(14, tile_h // 14)
+    font = _font(fs)
+    head = fs + 12
+    width = max(sh.width for _, sh in rows)
+    height = sum(head + sh.height for _, sh in rows)
+    board = Image.new("RGB", (width, height), (24, 24, 28))
+    d = ImageDraw.Draw(board)
+    y = 0
+    for fid, sh in rows:
+        d.text((PAD + 2, y + 6), f"format {fid}", font=font, fill=(235, 235, 235))
+        board.paste(sh, (0, y + head))
+        y += head + sh.height
+    if out is not None:
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        board.save(out)
+    return board, [fid for fid, _ in rows]
