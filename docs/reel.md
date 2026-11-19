@@ -270,7 +270,9 @@ the grid (BPM, beat count, first 8 beats) and each cut's distance in ms to the n
 
 **Formats.** `"formats": ["9x16", "16x9"]` (presets `9x16`, `16x9`, `1x1`, `4x5`, or `{"id", "width", "height",
 "safe_area"}`) renders the same edit at each size: `reel_render` / `project_render` write `<name>-9x16.mp4` and
-`<name>-16x9.mp4` (`format=` renders one; `reel_storyboard` and `reel_still` take `format=` too). A shot can override
+`<name>-16x9.mp4` (`format=` renders one; `reel_storyboard` and `reel_still` take `format=` too). To check every size before rendering, `funkbox reel storyboard X.reel.json --format all` (or
+`reel_storyboard(format="all")`) draws one sheet with a row per declared format, the same shots at the same tile
+height, so a crop that cuts the subject or a caption that lands badly in one size shows at a glance. A shot can override
 per format: `"formats": {"16x9": {"caption": {"anchor": "bottom"}, "motion": {...}}}` (motion is replaced whole;
 `caption.anchor`, `product` x/y/height and `source` focus/fit/pad are merged). `validate` checks every format and
 prefixes problems with `[16x9]`. Safe areas: `reels` (keeps captions clear of the 9:16 app UI), `landscape`, `none`.

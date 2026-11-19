@@ -2387,7 +2387,7 @@
     },
     {
       "area": "reel",
-      "description": "Contact sheet: one frame per shot (at its midpoint) plus the end card, with shot id, duration and\ncopy IDs printed below each frame. The fast way to iterate. Takes a reel or project=<name>; format=<id> shows\none of the reel's formats (e.g. 16x9).",
+      "description": "Contact sheet: one frame per shot (at its midpoint) plus the end card, with shot id, duration and\ncopy IDs printed below each frame. The fast way to iterate. Takes a reel or project=<name>; format=<id> shows\none of the reel's formats (e.g. 16x9); format=\"all\" puts every declared format on one sheet, a row each, so a\ncrop or caption that fails in one size shows at a glance.",
       "input_schema": {
         "properties": {
           "format": {

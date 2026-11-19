@@ -33,6 +33,8 @@ from funkbox.reel import project as projmod
 from funkbox.reel.schema import ANCHORS, MOTION_TYPES, REVEALS, TRANSITIONS
 from funkbox.tool_options import CaptionStyle, Pace, TimelineAction
 from funkbox.reel.beataudit import report_line as _beat_line
+from funkbox.reel.storyboard import ALL_FORMATS
+from funkbox.reel.storyboard import formats_storyboard as _formats_storyboard
 from funkbox.reel.storyboard import storyboard as _storyboard
 from funkbox.reel.validate import validate as _validate
 
@@ -156,7 +158,22 @@ def reel_validate(reel: dict | str | None = None, project: str = "") -> str:
 def reel_storyboard(reel: dict | str | None = None, project: str = "", format: str = "") -> list:
     """Contact sheet: one frame per shot (at its midpoint) plus the end card, with shot id, duration and
     copy IDs printed below each frame. The fast way to iterate. Takes a reel or project=<name>; format=<id> shows
-    one of the reel's formats (e.g. 16x9)."""
+    one of the reel's formats (e.g. 16x9); format="all" puts every declared format on one sheet, a row each, so a
+    crop or caption that fails in one size shows at a glance."""
+
+    if format == ALL_FORMATS:
+
+        def go_all():
+            where = (
+                (projmod.project_dir(project) / "out" / f"{project}-all-storyboard.png")
+                if project
+                else funk_out() / "storyboard-all.png"
+            )
+            img, fids = _formats_storyboard(lambda f: _plan(reel, project or None, f or ""), where)
+            return img, fids, where
+
+        img, fids, where = on_gl(go_all)
+        return [f"{len(fids)} formats ({', '.join(fids)}), a row each; saved {where}", _png(img, 1400)]
 
     def go():
         plan = _plan(reel, project or None, format)
