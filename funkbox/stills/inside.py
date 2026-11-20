@@ -50,9 +50,9 @@ def check_specs(doc: dict, specs) -> list[dict]:
         lay = doc["layers"][layers[lid]]
         if lay.get("type") != "text":
             raise ValueError(f"spec: layer {lid!r} is not a text layer")
-        if lay.get("on_path") or lay.get("arc"):
+        if lay.get("on_path") or lay.get("arc") or lay.get("ring"):
             raise ValueError(
-                f"spec: layer {lid!r} is bent (arc/on_path); only straight, optionally slanted text can be fitted inside"
+                f"spec: layer {lid!r} is bent (arc/ring/on_path); only straight, optionally slanted text can be fitted inside"
             )
         at = s["at"]
         if not (
