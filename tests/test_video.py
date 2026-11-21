@@ -108,3 +108,27 @@ def test_subtitles_are_burned_in_only_during_their_cue(work):
         clip.subtitles(p, cues=[{"start": 0, "end": 1, "text": "x"}], style="comic-sans")
     with pytest.raises(clip.VideoError, match="before end"):
         clip.subtitles(p, cues=[{"start": 2, "end": 1, "text": "x"}])
+
+
+def test_contact_sheet_has_one_labelled_frame_per_interval(work):
+    p = make_clip(work / "c.mp4")  # 3 s, cuts at 1 s and 2 s
+    res = clip.contact_sheet(p, every_s=1.0, cols=3, tw=160)
+    assert res.times == [0.0, 1.0, 2.0]
+    assert res.image.width == 3 * 160
+    assert res.image.height == 1 * (round(160 * 180 / 320) + 18)  # one row of frames plus label strips
+    assert res.path.exists() and res.path.name == "c-contact.jpg"
+
+
+def test_contact_sheet_refuses_a_bad_interval(work):
+    p = make_clip(work / "c.mp4")
+    with pytest.raises(clip.VideoError, match="every_s"):
+        clip.contact_sheet(p, every_s=0)
+    with pytest.raises(clip.VideoError, match="every_s"):
+        clip.contact_sheet(p, every_s=-1)
+
+
+def test_contact_sheet_never_overwrites(work):
+    p = make_clip(work / "c.mp4")
+    first = clip.contact_sheet(p, every_s=1.0).path
+    second = clip.contact_sheet(p, every_s=1.0).path
+    assert first != second and first.exists() and second.exists()

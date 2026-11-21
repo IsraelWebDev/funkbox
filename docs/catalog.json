@@ -2,7 +2,7 @@
   "catalog_version": 1,
   "engine_version": "4.4.1",
   "server": "funkbox",
-  "tool_count": 51,
+  "tool_count": 52,
   "tools": [
     {
       "area": "apps",
@@ -2558,6 +2558,39 @@
         "type": "object"
       },
       "name": "reel_variants"
+    },
+    {
+      "area": "video",
+      "description": "A grid of frames every ``every_s`` seconds of a video, each labelled with its time, to find moments the cuts\nmiss (single takes, home video). Writes <out>/video/<name>-contact.jpg and shows it.",
+      "input_schema": {
+        "properties": {
+          "cols": {
+            "default": 6,
+            "title": "Cols",
+            "type": "integer"
+          },
+          "every_s": {
+            "default": 2.0,
+            "title": "Every S",
+            "type": "number"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "video_contact_sheetArguments",
+        "type": "object"
+      },
+      "name": "video_contact_sheet"
     },
     {
       "area": "video",
