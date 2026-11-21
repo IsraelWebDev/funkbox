@@ -80,7 +80,17 @@ def _first_cue_mid(cues, srt) -> float:
     return (c.start + c.end) / 2
 
 
-TOOLS = [video_info, video_scenes, video_trim, video_subtitles]
+@safe
+def video_contact_sheet(path: str, every_s: float = 2.0, cols: int = 6, name: str = "") -> list:
+    """A grid of frames every ``every_s`` seconds of a video, each labelled with its time, to find moments the cuts
+    miss (single takes, home video). Writes <out>/video/<name>-contact.jpg and shows it."""
+    from funkbox.video import clip
+
+    res = clip.contact_sheet(path, every_s, cols, 240, name)
+    return [f"{res.text()}\nfile: {res.path}", _png(res.image, 1600)]
+
+
+TOOLS = [video_info, video_scenes, video_trim, video_subtitles, video_contact_sheet]
 
 
 def register(server) -> None:
@@ -130,9 +140,17 @@ def cmd_subtitles(a) -> int:
     return 0
 
 
+def cmd_sheet(a) -> int:
+    from funkbox.video import clip
+
+    res = clip.contact_sheet(_abs(a.video), a.every, a.cols, 240, a.name or "", a.out)
+    print(f"{res.text()}\nfile: {res.path}")
+    return 0
+
+
 def add_cli(sub) -> None:
     ap = sub.add_parser("video", help="video files: info, scene cuts, trim, burned-in subtitles")
-    vs = ap.add_subparsers(dest="verb", required=True, metavar="{info,scenes,trim,subtitles}")
+    vs = ap.add_subparsers(dest="verb", required=True, metavar="{info,scenes,trim,subtitles,sheet}")
     p = vs.add_parser("info", help="duration, size, fps, codec, audio")
     p.add_argument("video")
     p.set_defaults(fn=cmd_info)
@@ -161,3 +179,10 @@ def add_cli(sub) -> None:
     p.add_argument("--out")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_subtitles)
+    p = vs.add_parser("sheet", help="a grid of frames every N seconds, labelled with their times")
+    p.add_argument("video")
+    p.add_argument("--every", type=float, default=2.0, help="seconds between frames")
+    p.add_argument("--cols", type=int, default=6)
+    p.add_argument("--out")
+    p.add_argument("--name")
+    p.set_defaults(fn=cmd_sheet)

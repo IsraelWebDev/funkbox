@@ -376,3 +376,54 @@ def subtitles(
     if not all(a["text_exact"] for a in audit):
         raise VideoError(f"subtitles: a cue was not drawn exactly; see {ap}")
     return Subtitled(out, ap, len(audit))
+
+
+# --------------------------------------------------------------------------- contact sheet
+MAX_SHEET_FRAMES = 240
+
+
+@dataclass
+class ContactSheet:
+    path: Path
+    times: list[float]
+    image: Image.Image
+
+    def text(self) -> str:
+        return (
+            f"{len(self.times)} frames every {self.times[1] - self.times[0]:g}s"
+            if len(self.times) > 1
+            else (f"{len(self.times)} frame")
+        )
+
+
+def contact_sheet(
+    path, every_s: float = 2.0, cols: int = 6, tw: int = 240, name: str = "", out_dir=None
+) -> ContactSheet:
+    """A grid of frames every ``every_s`` seconds, each labelled with its time, saved as <name>-contact.jpg. Use it to
+    find moments in a clip that cuts miss (single takes, home video)."""
+    if every_s <= 0:
+        raise VideoError("every_s must be more than 0 seconds")
+    if not 1 <= cols <= 12:
+        raise VideoError("cols: 1..12")
+    inf = info(path)
+    times = []
+    t = 0.0
+    while t < inf.duration:
+        times.append(round(t, 3))
+        t += every_s
+    if len(times) > MAX_SHEET_FRAMES:
+        raise VideoError(f"{len(times)} frames is too many: use a longer every_s (at most {MAX_SHEET_FRAMES})")
+    th = max(1, round(tw * inf.height / max(1, inf.width)))
+    rows = -(-len(times) // cols)
+    S = Image.new("RGB", (cols * tw, rows * (th + 18)), (20, 20, 24))
+    d = ImageDraw.Draw(S)
+    for i, t in enumerate(times):
+        r, c = divmod(i, cols)
+        try:
+            S.paste(frame_at(inf.path, t, tw).resize((tw, th)), (c * tw, r * (th + 18)))
+        except VideoError:
+            pass
+        d.text((c * tw + 3, r * (th + 18) + th + 3), f"{t:.1f}s", fill=(255, 220, 0))
+    p = _out_path(inf.path, out_dir, name or _default_name(inf.path, "contact"), ".jpg")
+    S.save(p, quality=85)
+    return ContactSheet(p, times, S)
