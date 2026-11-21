@@ -429,3 +429,89 @@ def test_flash_cuts_from_a_file_with_a_timestamp_gap_keep_their_length(work):
     last = stats[-1].split("time=")[1].split()[0]
     h, m, sec = last.split(":")
     assert float(h) * 3600 + float(m) * 60 + float(sec) == pytest.approx(expected, abs=0.15)
+
+
+# --------------------------------------------------------------------------- stabilization
+def make_shaky(path, secs=6):
+    """A still picture with a camera jitter of about 18 px: the crop window wobbles over the frame, so only the camera
+    moves, not the content."""
+    still = path.with_suffix(".png")
+    subprocess.run(
+        [require_ffmpeg(), "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=s=640x360",
+         "-frames:v", "1", "-y", str(still)],
+        check=True,
+    )  # fmt: skip
+    expr = "crop=600:320:'20+18*sin(t*9)':'20+14*cos(t*13)',scale=640:360"
+    subprocess.run(
+        [require_ffmpeg(), "-hide_banner", "-loglevel", "error", "-loop", "1", "-i", str(still), "-t", str(secs),
+         "-r", "30", "-vf", expr, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", str(path)],
+        check=True,
+    )  # fmt: skip
+    return path
+
+
+def make_steady(path, secs=6):
+    """A tripod shot: one still frame held for the whole length."""
+    still = path.with_suffix(".png")
+    subprocess.run(
+        [require_ffmpeg(), "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=s=640x360",
+         "-frames:v", "1", "-y", str(still)],
+        check=True,
+    )  # fmt: skip
+    subprocess.run(
+        [require_ffmpeg(), "-hide_banner", "-loglevel", "error", "-loop", "1", "-i", str(still), "-t", str(secs),
+         "-r", "30", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", str(path)],
+        check=True,
+    )  # fmt: skip
+    return path
+
+
+needs_vidstab = pytest.mark.skipif(not clip._has_filter("vidstabdetect"), reason="this ffmpeg has no libvidstab")
+
+
+@needs_vidstab
+def test_shaky_source_is_detected_and_steadied_and_steady_one_is_left_alone(work):
+    shaky, steady = make_shaky(work / "shaky.mp4"), make_steady(work / "steady.mp4")
+    f_shaky, s_shaky = clip._stabilize_source(shaky, 30.0)
+    f_steady, s_steady = clip._stabilize_source(steady, 30.0)
+    assert s_shaky >= clip.STAB_MIN_SHAKE and f_shaky != shaky and f_shaky.exists()
+    assert s_steady < clip.STAB_MIN_SHAKE and f_steady == steady
+    # timing is kept: the steadied copy has the same length as the source, so cut points do not move
+    assert clip.info(f_shaky).duration == pytest.approx(clip.info(shaky).duration, abs=0.1)
+
+
+@needs_vidstab
+def test_edit_steadies_shaky_sources_by_default_and_not_when_off(work):
+    shaky = make_shaky(work / "shaky.mp4")
+    cuts = [{"path": str(shaky), "start": 0.5, "end": 2.5}] * 3
+    on = clip.edit(cuts, transition="flash", grade="none", aspect="9:16", preview=True, name="stab-on")
+    assert on.stabilized == 1
+    assert "stabilized 1 shaky source" in on.text()
+    assert on.duration == pytest.approx(3 * 2.0 - 2 * clip.FLASH_S, abs=0.1)
+    off = clip.edit(cuts, transition="flash", grade="none", aspect="9:16", preview=True, name="stab-off",
+                    stabilize="off")  # fmt: skip
+    assert off.stabilized == 0 and "stabilized" not in off.text()
+    assert off.duration == pytest.approx(on.duration, abs=0.1)
+
+
+@needs_vidstab
+def test_stabilize_detection_is_cached_per_file(work, monkeypatch):
+    shaky = make_shaky(work / "shaky.mp4")
+    clip._stabilize_source(shaky, 30.0)
+    calls = []
+    monkeypatch.setattr(clip, "_run_in", lambda *a, **k: calls.append(a) or None)
+    clip._stabilize_source(shaky, 30.0)  # second time: read from the cache, no ffmpeg run
+    assert calls == []
+
+
+def test_stabilize_skipped_with_a_note_when_ffmpeg_has_no_vidstab(work, monkeypatch):
+    monkeypatch.setattr(clip, "_has_filter", lambda name: False)
+    src = make_steady(work / "steady.mp4", secs=3)
+    res = clip.edit([{"path": str(src), "start": 0.5, "end": 2.0}], grade="none", preview=True, name="no-vidstab")
+    assert res.stabilized == 0 and any("no vidstab" in n for n in res.notes)
+
+
+def test_stabilize_rejects_unknown_mode(work):
+    src = make_steady(work / "steady.mp4", secs=3)
+    with pytest.raises(clip.VideoError):
+        clip.edit([{"path": str(src), "start": 0.5, "end": 2.0}], stabilize="sometimes")

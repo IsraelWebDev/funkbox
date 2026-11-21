@@ -2594,7 +2594,7 @@
     },
     {
       "area": "video",
-      "description": "Render a cut list [{\"path\": ..., \"start\": ..., \"end\": ...}, ...] into one video in <out>/video/, for example a\nhighlight reel. ``aspect``: 9:16 or 16:9, at 30 fps. ``frame``: pad (the whole picture, bars where it does not\nfill), crop (fills the frame, the edges go) or blurred-bg (bars filled with a blurred copy). ``grade``: funky (more\ncolour, a vignette), warm, or none. ``transition``: flash (a white flash between cuts, audio crossfaded) or cut.\n``target_mb`` aims the bitrate at a file size. ``preview`` renders half size in seconds, to check the cuts before\nthe final render (the same call without preview). Take the trims from video_scenes or video_contact_sheet. Never\noverwrites.",
+      "description": "Render a cut list [{\"path\": ..., \"start\": ..., \"end\": ...}, ...] into one video in <out>/video/, for example a\nhighlight reel. ``aspect``: 9:16 or 16:9, at 30 fps. ``frame``: pad (the whole picture, bars where it does not\nfill), crop (fills the frame, the edges go) or blurred-bg (bars filled with a blurred copy). ``grade``: funky (more\ncolour, a vignette), warm, or none. ``transition``: flash (a white flash between cuts, audio crossfaded) or cut.\n``stabilize``: auto (default) checks each source for camera shake and steadies only the shaky ones; off keeps the\npicture as shot. ``target_mb`` aims the bitrate at a file size. ``preview`` renders half size in seconds, to check\nthe cuts before the final render (the same call without preview). Take the trims from video_scenes or\nvideo_contact_sheet. Never overwrites.",
       "input_schema": {
         "properties": {
           "aspect": {
@@ -2626,6 +2626,11 @@
             "default": false,
             "title": "Preview",
             "type": "boolean"
+          },
+          "stabilize": {
+            "default": "auto",
+            "title": "Stabilize",
+            "type": "string"
           },
           "target_mb": {
             "anyOf": [
