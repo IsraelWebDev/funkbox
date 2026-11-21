@@ -2,7 +2,7 @@
   "catalog_version": 1,
   "engine_version": "4.4.1",
   "server": "funkbox",
-  "tool_count": 54,
+  "tool_count": 55,
   "tools": [
     {
       "area": "apps",
@@ -2642,6 +2642,48 @@
         "type": "object"
       },
       "name": "video_edit"
+    },
+    {
+      "area": "video",
+      "description": "Propose the best moments of one or more videos (home video, gameplay, trailers): windows of ``seg_s`` seconds\nranked by motion, each new one scored by how different it looks from the moments already chosen, so repeats are\ndropped. Fills up to the top of ``target_s`` (default [30, 60] seconds). Writes <out>/video/<name>.jpg, a labelled\nsheet to approve, and <name>.json, the cut list. Nothing is cut yet: after approval pass the cuts to video_edit.",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "paths": {
+            "items": {},
+            "title": "Paths",
+            "type": "array"
+          },
+          "seg_s": {
+            "default": 3.0,
+            "title": "Seg S",
+            "type": "number"
+          },
+          "target_s": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Target S"
+          }
+        },
+        "required": [
+          "paths"
+        ],
+        "title": "video_highlightsArguments",
+        "type": "object"
+      },
+      "name": "video_highlights"
     },
     {
       "area": "video",

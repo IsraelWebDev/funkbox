@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -251,3 +252,56 @@ def test_edit_refuses_bad_input_and_never_overwrites(work):
     first = clip.edit(ok, transition="cut", grade="none", name="same").path
     second = clip.edit(ok, transition="cut", grade="none", name="same").path
     assert first != second and first.exists() and second.exists()
+
+
+def make_lavfi(path, graph, seconds):
+    """A generated clip from an ffmpeg source (testsrc2 moves, gradients drifts, a colour is still)."""
+    subprocess.run(
+        [require_ffmpeg(), "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", graph,
+         "-t", str(seconds), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", str(path)],
+        check=True,
+    )  # fmt: skip
+    return path
+
+
+def test_highlights_pick_the_moving_stretches_not_the_still_ones(work):
+    still = make_clip(work / "still.mp4", colours=((60, 60, 60),), each=6.0)
+    dance = make_lavfi(work / "dance.mp4", "testsrc2=size=320x180:rate=25", 6.0)
+    res = clip.highlights([still, dance], target_s=(3, 9), seg_s=3.0, name="pick")
+    assert res.cuts and all(c["path"].endswith("dance.mp4") for c in res.cuts)
+    assert 3 <= res.total <= 9 and all(c["end"] - c["start"] == pytest.approx(3.0, abs=0.05) for c in res.cuts)
+    assert res.path.exists() and res.path.name == "pick.jpg" and res.json_path.exists()
+
+
+def test_highlights_keep_different_moves_and_drop_repeats(work):
+    dance = make_lavfi(work / "dance.mp4", "testsrc2=size=320x180:rate=25", 6.0)
+    drift = make_lavfi(work / "drift.mp4", "gradients=s=320x180:rate=25:speed=0.05", 6.0)
+    twin = work / "twin.mp4"
+    twin.write_bytes(dance.read_bytes())  # the same take twice
+    res = clip.highlights([dance, drift, twin], target_s=(9, 18), seg_s=3.0, name="styles")
+    srcs = {Path(c["path"]).name for c in res.cuts}
+    assert {"dance.mp4", "drift.mp4"} <= srcs  # both styles are in the reel
+    assert "twin.mp4" not in srcs  # an identical take adds nothing new
+
+
+def test_highlights_say_so_when_there_is_not_enough_to_reach_the_target(work):
+    dance = make_lavfi(work / "dance.mp4", "testsrc2=size=320x180:rate=25", 6.0)
+    res = clip.highlights([dance], target_s=(30, 60), seg_s=3.0, name="short")
+    assert res.short and res.total < 30
+
+
+def test_highlights_refuse_bad_targets_and_nothing_moving(work):
+    still = make_clip(work / "still.mp4", colours=((60, 60, 60),), each=4.0)
+    with pytest.raises(clip.VideoError, match="target_s"):
+        clip.highlights([still], target_s=(60, 30))
+    with pytest.raises(clip.VideoError, match="target_s"):
+        clip.highlights([still], target_s=(30,))
+    with pytest.raises(clip.VideoError, match="nothing moving"):
+        clip.highlights([still], target_s=(3, 9), seg_s=3.0)
+
+
+def test_highlights_feed_straight_into_edit(work):
+    dance = make_lavfi(work / "dance.mp4", "testsrc2=size=320x180:rate=25", 6.0)
+    res = clip.highlights([dance], target_s=(6, 9), seg_s=3.0, name="feed")
+    out = clip.edit(res.cuts, transition="cut", grade="none", name="reel")
+    assert clip.info(out.path).duration == pytest.approx(res.total, abs=0.15)
