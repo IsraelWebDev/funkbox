@@ -8,6 +8,8 @@ subtitles whose text is exactly what you wrote.
     subtitles("clip.mp4", cues=[...] | srt=)  -> a new file with captions drawn by funkbox's caption engine
                                                  (brand fonts, Hebrew right to left, a text audit)
     import_clips("camera_folder")             -> the video files of a folder copied into FUNK_INPUTS, never overwriting
+    edit([{"path", "start", "end"}, ...])     -> one render: each cut padded to 9:16 or 16:9, graded, joined with a white
+                                                 flash or a cut, audio crossfaded, aimed at an optional size target
 
 Inputs are never modified and outputs never overwrite anything: a name that exists gets -2, -3 ...
 """
@@ -473,3 +475,123 @@ def import_clips(folder, dest=None) -> Imported:
         shutil.copy2(c, to)
         res.copied.append(to)
     return res
+
+
+# --------------------------------------------------------------------------- edit
+TRANSITIONS = ("flash", "cut")
+GRADES = ("funky", "none")
+ASPECTS = {"9:16": (720, 1280), "16:9": (1280, 720)}
+FLASH_S = 0.25  # the white flash, and the audio crossfade, between two cuts
+FUNKY = "eq=saturation=1.45:contrast=1.12:brightness=0.02,colorbalance=rm=0.08:bm=0.06:gh=-0.03,unsharp=5:5:0.6,vignette=PI/5"
+AUDIO_KBPS = 96
+
+
+@dataclass
+class Edited:
+    path: Path
+    cuts: int
+    duration: float
+
+    def text(self) -> str:
+        mb = self.path.stat().st_size / (1024 * 1024)
+        return f"{self.cuts} cuts, {self.duration:.2f}s, {mb:.1f} MB"
+
+
+def edit(
+    cuts,
+    transition: str = "flash",
+    grade: str = "funky",
+    aspect: str = "9:16",
+    target_mb: float | None = None,
+    out_dir=None,
+    name: str = "",
+) -> Edited:
+    """Render a list of cuts ``[{"path", "start", "end"}, ...]`` into one file in FUNK_OUT/video/. Each cut is padded
+    (never cropped) to the aspect at 30 fps; ``grade="funky"`` boosts colour and adds a vignette; ``transition="flash"``
+    joins cuts with a white flash (``cut`` joins them hard). ``target_mb`` sets the video bitrate to land near that size;
+    without it the picture is CRF 22."""
+    import tempfile
+
+    if transition not in TRANSITIONS:
+        raise VideoError(f"transition must be one of {', '.join(TRANSITIONS)}")
+    if grade not in GRADES:
+        raise VideoError(f"grade must be one of {', '.join(GRADES)}")
+    if aspect not in ASPECTS:
+        raise VideoError(f"aspect must be one of {', '.join(ASPECTS)}")
+    if not cuts:
+        raise VideoError("edit needs at least one cut")
+    W, H = ASPECTS[aspect]
+    segs = []
+    for n, c in enumerate(cuts, 1):
+        if not all(k in c for k in ("path", "start", "end")):
+            raise VideoError(f"cut {n}: each cut needs path, start and end")
+        src = info(c["path"])
+        a, b = seconds(c["start"]), seconds(c["end"])
+        if not 0 <= a < b:
+            raise VideoError(f"cut {n}: need start < end (got {a:g}..{b:g})")
+        if a >= src.duration:
+            raise VideoError(f"cut {n}: start {a:g}s is past the end of the video ({src.duration:.2f}s)")
+        segs.append((src, a, min(b, src.duration)))
+    dur = [b - a for _, a, b in segs]
+    flash = transition == "flash" and len(segs) > 1
+    if flash and min(dur) < 2 * FLASH_S:
+        raise VideoError(f"a cut is too short for a flash ({min(dur):.2f}s; each needs at least {2 * FLASH_S}s)")
+    n = len(segs)
+    grade_f = f",{FUNKY}" if grade == "funky" else ""
+    parts, inputs = [], []
+    for i, (src, a, b) in enumerate(segs):
+        inputs += ["-i", str(src.path)]
+        parts.append(
+            f"[{i}:v]trim=start={a:.3f}:end={b:.3f},setpts=PTS-STARTPTS,"
+            f"scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black,"
+            f"setsar=1,fps=30{grade_f},format=yuv420p[v{i}]"
+        )
+        if src.audio:
+            parts.append(
+                f"[{i}:a]atrim=start={a:.3f}:end={b:.3f},asetpts=PTS-STARTPTS,"
+                f"aformat=sample_rates=48000:channel_layouts=stereo[a{i}]"
+            )
+        else:  # a silent source still gets a silent track, so the joins line up
+            parts.append(f"aevalsrc=0:d={dur[i]:.3f}:s=48000:c=stereo[a{i}]")
+    if flash:
+        cur, acc = "v0", dur[0]
+        acur = "a0"
+        for k in range(1, n):
+            last = k == n - 1
+            vo, ao = ("vout" if last else f"vx{k}"), ("aout" if last else f"ax{k}")
+            parts.append(f"[{cur}][v{k}]xfade=transition=fadewhite:duration={FLASH_S}:offset={acc - FLASH_S:.3f}[{vo}]")
+            parts.append(f"[{acur}][a{k}]acrossfade=d={FLASH_S}:c1=tri:c2=tri[{ao}]")
+            cur, acur = vo, ao
+            acc += dur[k] - FLASH_S
+        total = acc
+    else:
+        vin = "".join(f"[v{i}]" for i in range(n))
+        ain = "".join(f"[a{i}]" for i in range(n))
+        parts.append(f"{vin}concat=n={n}:v=1:a=0[vout]")
+        parts.append(f"{ain}concat=n={n}:v=0:a=1[aout]")
+        total = sum(dur)
+    if target_mb:
+        kbps = target_mb * 8 * 1024 * 1024 * 0.92 / total / 1000 - AUDIO_KBPS
+        if kbps < 150:
+            raise VideoError(f"target too small: {target_mb} MB for {total:.1f}s needs about 150 kbps or more")
+        venc = ["-b:v", f"{int(kbps)}k", "-maxrate", f"{int(kbps * 1.2)}k", "-bufsize", f"{int(kbps * 2)}k"]
+    else:
+        venc = ["-crf", "22"]
+    out = _out_path(segs[0][0].path, out_dir, name or "edit")
+    with tempfile.TemporaryDirectory() as td:
+        script = Path(td) / "graph.txt"
+        script.write_text(";".join(parts), encoding="utf-8")
+        args = [
+            *inputs,
+            *filter_script_args(script),
+            "-map", "[vout]",
+            "-map", "[aout]",
+            "-c:v", "libx264", "-preset", "medium", *venc, "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", f"{AUDIO_KBPS}k",
+            "-movflags", "+faststart", "-y", str(out),
+        ]  # fmt: skip
+        r = _run(args)
+    if r.returncode != 0:
+        out.unlink(missing_ok=True)
+        raise VideoError("ffmpeg edit failed: " + r.stderr.decode("utf-8", "replace").strip()[-400:])
+    return Edited(out, n, info(out).duration)

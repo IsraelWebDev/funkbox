@@ -2,7 +2,7 @@
   "catalog_version": 1,
   "engine_version": "4.4.1",
   "server": "funkbox",
-  "tool_count": 53,
+  "tool_count": 54,
   "tools": [
     {
       "area": "apps",
@@ -2591,6 +2591,57 @@
         "type": "object"
       },
       "name": "video_contact_sheet"
+    },
+    {
+      "area": "video",
+      "description": "Render a cut list [{\"path\": ..., \"start\": ..., \"end\": ...}, ...] into one video in <out>/video/, for example a\nhighlight reel. Each cut is padded (never cropped) to 9:16 or 16:9 at 30 fps. ``grade``: funky (more colour, a\nvignette) or none. ``transition``: flash (a white flash between cuts, audio crossfaded) or cut. ``target_mb`` aims\nthe bitrate at a file size. Take the trims from video_scenes or video_contact_sheet. Never overwrites.",
+      "input_schema": {
+        "properties": {
+          "aspect": {
+            "default": "9:16",
+            "title": "Aspect",
+            "type": "string"
+          },
+          "cuts": {
+            "items": {},
+            "title": "Cuts",
+            "type": "array"
+          },
+          "grade": {
+            "default": "funky",
+            "title": "Grade",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "target_mb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Target Mb"
+          },
+          "transition": {
+            "default": "flash",
+            "title": "Transition",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cuts"
+        ],
+        "title": "video_editArguments",
+        "type": "object"
+      },
+      "name": "video_edit"
     },
     {
       "area": "video",
