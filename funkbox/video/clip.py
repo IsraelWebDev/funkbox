@@ -7,6 +7,7 @@ subtitles whose text is exactly what you wrote.
     trim("clip.mp4", 3.2, 6.0)                -> a new file; frame-accurate (re-encoded) or fast (stream copy)
     subtitles("clip.mp4", cues=[...] | srt=)  -> a new file with captions drawn by funkbox's caption engine
                                                  (brand fonts, Hebrew right to left, a text audit)
+    import_clips("camera_folder")             -> the video files of a folder copied into FUNK_INPUTS, never overwriting
 
 Inputs are never modified and outputs never overwrite anything: a name that exists gets -2, -3 ...
 """
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -427,3 +429,47 @@ def contact_sheet(
     p = _out_path(inf.path, out_dir, name or _default_name(inf.path, "contact"), ".jpg")
     S.save(p, quality=85)
     return ContactSheet(p, times, S)
+
+
+# --------------------------------------------------------------------------- import
+VIDEO_EXTS = (".mp4", ".mov", ".m4v", ".mkv", ".avi", ".webm", ".mts", ".m2ts", ".3gp")
+
+
+@dataclass
+class Imported:
+    dest: Path
+    copied: list[Path] = field(default_factory=list)
+    skipped: list[Path] = field(default_factory=list)  # already in dest under the same name
+
+    def text(self) -> str:
+        lines = [f"{len(self.copied)} copied, {len(self.skipped)} already there -> {self.dest}"]
+        lines += [f"  + {p.name}" for p in self.copied]
+        lines += [f"  = {p.name} (kept, not overwritten)" for p in self.skipped]
+        return "\n".join(lines)
+
+
+def import_clips(folder, dest=None) -> Imported:
+    """Copy the video files of one folder (not its sub-folders) into ``dest``, default FUNK_INPUTS/<folder name>.
+    Existing files are never overwritten. The source must sit inside an allowed folder (see funkbox.config)."""
+    from funkbox.config import funk_inputs
+
+    src = _src(folder)
+    if not src.is_dir():
+        raise VideoError(f"not a folder: {folder}")
+    clips = sorted(p for p in src.iterdir() if p.is_file() and p.suffix.lower() in VIDEO_EXTS)
+    if not clips:
+        raise VideoError(f"no video files in {folder} (looked for {', '.join(VIDEO_EXTS)})")
+    target = Path(dest) if dest else funk_inputs() / src.name
+    res = Imported(dest=target)
+    if target.resolve() == src.resolve():
+        res.skipped = clips
+        return res
+    target.mkdir(parents=True, exist_ok=True)
+    for c in clips:
+        to = target / c.name
+        if to.exists():
+            res.skipped.append(to)
+            continue
+        shutil.copy2(c, to)
+        res.copied.append(to)
+    return res

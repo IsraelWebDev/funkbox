@@ -90,7 +90,17 @@ def video_contact_sheet(path: str, every_s: float = 2.0, cols: int = 6, name: st
     return [f"{res.text()}\nfile: {res.path}", _png(res.image, 1600)]
 
 
-TOOLS = [video_info, video_scenes, video_trim, video_subtitles, video_contact_sheet]
+@safe
+def video_import(folder: str) -> str:
+    """Copy the video files of a folder (not its sub-folders) into the inputs folder, where the video tools and reels
+    read them. Never overwrites: a file already there is kept and listed. The folder must be inside an allowed
+    folder (out, inputs, projects or the funkbox folder); copy anything else in first."""
+    from funkbox.video import clip
+
+    return clip.import_clips(folder).text()
+
+
+TOOLS = [video_info, video_scenes, video_trim, video_subtitles, video_contact_sheet, video_import]
 
 
 def register(server) -> None:
@@ -148,9 +158,16 @@ def cmd_sheet(a) -> int:
     return 0
 
 
+def cmd_import(a) -> int:
+    from funkbox.video import clip
+
+    print(clip.import_clips(_abs(a.folder)).text())
+    return 0
+
+
 def add_cli(sub) -> None:
     ap = sub.add_parser("video", help="video files: info, scene cuts, trim, burned-in subtitles")
-    vs = ap.add_subparsers(dest="verb", required=True, metavar="{info,scenes,trim,subtitles,sheet}")
+    vs = ap.add_subparsers(dest="verb", required=True, metavar="{info,scenes,trim,subtitles,sheet,import}")
     p = vs.add_parser("info", help="duration, size, fps, codec, audio")
     p.add_argument("video")
     p.set_defaults(fn=cmd_info)
@@ -186,3 +203,6 @@ def add_cli(sub) -> None:
     p.add_argument("--out")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_sheet)
+    p = vs.add_parser("import", help="copy a folder's video files into the inputs folder, never overwriting")
+    p.add_argument("folder")
+    p.set_defaults(fn=cmd_import)

@@ -1,6 +1,6 @@
 # Video files
 
-Five tools work on video files you already have (recordings, trailers, gameplay, phone clips). The original is never
+Six tools work on video files you already have (recordings, trailers, gameplay, phone clips). The original is never
 changed and nothing is overwritten: outputs go to `FUNK_OUT/video/` and a name that exists gets `-2`, `-3` ...
 
 | tool | CLI | does |
@@ -10,6 +10,7 @@ changed and nothing is overwritten: outputs go to `FUNK_OUT/video/` and a name t
 | `video_trim(path, start, end \| duration, accurate)` | `funkbox video trim clip.mp4 3.2 6.0` | a piece in a new file; frame-accurate (re-encoded H.264/AAC) by default, `--fast` copies the streams from the nearest earlier keyframe |
 | `video_subtitles(path, cues \| srt, style, anchor, brand)` | `funkbox video subtitles clip.mp4 --srt subs.srt` | burns subtitles into a copy. `style` is one of the caption styles (auto-box, bold-pop, callout, lower-third, red-box); `anchor` is top, center or bottom |
 | `video_contact_sheet(path, every_s, cols, name)` | `funkbox video sheet clip.mp4 --every 2` | a grid of frames every N seconds, each labelled with its time (`<name>-contact.jpg`). Use it to find moments the cuts miss, such as single takes in home video. At most 240 frames |
+| `video_import(folder)` | `funkbox video import trip-clips` | copies the video files of one folder (not its sub-folders) into the inputs folder, under the folder's name. A file already there is kept, never overwritten; the result lists what was copied and what was kept. The folder must be inside an allowed folder; copy anything else in first |
 
 **Scenes.** ffmpeg's scene score marks a cut where the picture changes by more than `threshold` (0.05..0.95, default
 0.3; lower finds more). Shots shorter than `min_shot` seconds are merged into their neighbour. The usual flow for a

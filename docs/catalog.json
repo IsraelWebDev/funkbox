@@ -2,7 +2,7 @@
   "catalog_version": 1,
   "engine_version": "4.4.1",
   "server": "funkbox",
-  "tool_count": 52,
+  "tool_count": 53,
   "tools": [
     {
       "area": "apps",
@@ -2591,6 +2591,24 @@
         "type": "object"
       },
       "name": "video_contact_sheet"
+    },
+    {
+      "area": "video",
+      "description": "Copy the video files of a folder (not its sub-folders) into the inputs folder, where the video tools and reels\nread them. Never overwrites: a file already there is kept and listed. The folder must be inside an allowed\nfolder (out, inputs, projects or the funkbox folder); copy anything else in first.",
+      "input_schema": {
+        "properties": {
+          "folder": {
+            "title": "Folder",
+            "type": "string"
+          }
+        },
+        "required": [
+          "folder"
+        ],
+        "title": "video_importArguments",
+        "type": "object"
+      },
+      "name": "video_import"
     },
     {
       "area": "video",
