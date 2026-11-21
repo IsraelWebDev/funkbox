@@ -108,7 +108,13 @@ def _adapt_layer(lay: dict, W0: int, H0: int, W1: int, H1: int, warn: list[str],
     if rule == "fill":
         return
     f = frame_for(rule, W0, H0, W1, H1, box, margin)
-    if t == "text":
+    if t == "text" and lay.get("ring"):  # ring text: the circle moves and scales, the line is placed on it
+        ring = lay["ring"]
+        lay["ring"] = dict(ring, cx=f.x(ring["cx"]), cy=f.y(ring["cy"]), r=float(ring["r"]) * f.sx)
+        lay["size"] = float(lay.get("size", TEXT_SIZE)) * f.sy
+        if "max_width" in lay:
+            lay["max_width"] = float(lay["max_width"]) * f.sx
+    elif t == "text":
         mw = float(lay.get("max_width", 0.84))
         lay["x"] = f.x(lay.get("x", (1 - mw) / 2))
         lay["y"] = f.y(lay.get("y", 0.1))

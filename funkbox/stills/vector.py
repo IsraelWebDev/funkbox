@@ -358,10 +358,11 @@ def _gradient_item(lay: dict, ctx) -> PathItem:
 
 
 def _text_items(lay: dict, ctx, text: str) -> list[PathItem]:
-    from .text import STROKE_DEFAULTS, _fx, _line_x, layer_fonts, layout_text
+    from .text import STROKE_DEFAULTS, _fx, _line_x, layer_fonts, layout_text, resolve_ring
     from .typeset import typeset, use_outlines
 
     fonts = layer_fonts(lay, ctx)
+    lay = resolve_ring(lay, text, ctx, fonts)
     if use_outlines(lay):
         ts = typeset(lay, text, ctx, fonts)
         base = _rgba(lay.get("color", "brand.text"), ctx.brand)

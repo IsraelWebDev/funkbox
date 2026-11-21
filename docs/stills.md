@@ -66,7 +66,7 @@ of a shape or svg layer to show this layer only inside, often an invisible one u
 | `gradient` | `stops`, `kind` linear/radial, `angle`, `cx`, `cy`, `radius`, `dither` |
 | `shader` | one of `shader` (.frag path), `source` (GLSL), `recipe` (loop recipe or path); `t` (0..1), `palette`, `cycles`, `params`, `seed`. A recipe that draws its own text is refused |
 | `product` | `image` (PNG with alpha), `x`, `y` (bottom centre), `height`, `shadow`, `match_color`, `effects`. Same compositor as the reel: the product's pixels are composited, never regenerated |
-| `text` | `copy_id` or `text`, `style` display/caption, `size`, `x`, `y`, `max_width`, `color`, `align`, `line_height`, `effects` (shadow, stroke, glow); `wrap: false` (one line, shrunk to fit `max_width`); geometry: `arc` (bend along a circle: radius in canvas widths, + a smile, - a frown), `skew_x`, `skew_y` (slant, degrees), `rotate_deg` |
+| `text` | `copy_id` or `text`, `style` display/caption, `size`, `x`, `y`, `max_width`, `color`, `align`, `line_height`, `effects` (shadow, stroke, glow); `wrap: false` (one line, shrunk to fit `max_width`); geometry: `arc` (bend along a circle: radius in canvas widths, + a smile, - a frown), `ring` (`{cx, cy, r, side}`: one line set on a circle, see below), `skew_x`, `skew_y` (slant, degrees), `rotate_deg` |
 | `shape` | `kind` polygon/rect/ellipse/polyline/path, `points` (`[x, y]` canvas fractions; rect and ellipse take two corners), `fill`, `stroke` + `stroke_px` (an outline outside the shape), and for a polyline `width` (fraction of the canvas width) and `cap` square/butt: a thick bar with mitred corners, for ribbons and block lettering. `kind: path` takes `d`, SVG path data (M L H V C S Q T A Z, curves and arcs), in canvas fractions or with `units: px` in canvas pixels, and `fill_rule` nonzero (default) or evenodd |
 | `svg` | `path` to an .svg file, `x`, `y` (top-left), `width` (canvas fractions; `height` follows its viewBox unless given). Paths, rects, circles, ellipses, lines, polygons, groups with transforms, fill/stroke/opacity; a gradient fills with its first colour; `<text>` is skipped with a warning (convert text to outlines first) |
 | `group` | `layers` (flattened, then blended as one layer; nesting up to 8) |
@@ -76,6 +76,14 @@ Text geometry is applied after the text is laid out and shaped, so letters, kern
 untouched and the text audit still checks the exact string; the audit entry records the `geometry` used. A ribbon
 and the text on it line up when the ribbon's polyline follows the same circle as the text's `arc` (see
 `examples/stills/badge.poster.json`: a shield, a slanted band, block strokes, Hebrew, and arched text).
+
+**Text round a badge.** For a round badge or patch, give the text layer `ring` instead of `x`, `y` and `arc`:
+`"ring": {"cx": 0.5, "cy": 0.5, "r": 0.3, "side": "top"}`, the circle's centre (canvas fractions) and radius
+(canvas widths, like `arc`), and the side the line reads along: `top` (bent as a frown) or `bottom` (a smile, reading
+upright). funkbox centres the line on `cx`, bends it along the circle and puts its middle on the circle at that side;
+the text is one line (`wrap` false), `max_width` (default: the circle's diameter) caps it, and the audit records the
+ring. Two text layers with the same `cx`, `cy`, `r` (one `top`, one `bottom`) and a circle shape make the badge;
+resizing the poster moves and scales the ring with it. `poster_fit_inside` refuses ring text, as it does any bent text.
 
 `adjust`: brightness, contrast, saturation, hue, levels `[black, white, gamma]`, temperature, invert. `filters`: blur,
 sharpen, posterize, halftone, duotone `[dark, light]`, pixelate, chroma, vignette. Masks: `radial`, `linear`, `image`

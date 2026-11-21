@@ -73,6 +73,7 @@ TYPE_KEYS: dict[str, set[str]] = {
         "line_height",
         "effects",
         "arc",
+        "ring",
         "rotate_deg",
         "skew_x",
         "skew_y",
@@ -340,6 +341,31 @@ def _check_layers(layers: Any, where: str, errs: list[str], seen: set[str], dept
 RUN_KEYS = {"match", "font", "color", "scale", "all"}
 
 
+RING_KEYS = {"cx", "cy", "r", "side"}
+
+
+def _check_ring(lay: dict, w: str, errs: list[str]) -> None:
+    """``ring``: text set on a circle (a round badge's rim): {cx, cy (canvas fractions), r (canvas widths), side}."""
+    if "ring" not in lay:
+        return
+    ring = lay["ring"]
+    if not isinstance(ring, dict) or set(ring) - RING_KEYS or not {"cx", "cy", "r"} <= set(ring):
+        errs.append(
+            f"{w}: ring is {{cx, cy, r, side}}: the circle's centre (canvas fractions) and radius (canvas widths)"
+        )
+        return
+    for k, lo, hi in (("cx", 0, 1), ("cy", 0, 1), ("r", 0.05, 20)):
+        if not _num(ring[k], lo, hi):
+            errs.append(f"{w}: ring.{k} must be a number in {lo}..{hi}")
+    if ring.get("side", "top") not in ("top", "bottom"):
+        errs.append(f"{w}: ring.side is top (reads along the top, a frown) or bottom (a smile)")
+    for k in ("arc", "on_path", "x", "y"):
+        if k in lay:
+            errs.append(f"{w}: ring places and bends the line itself; drop {k}")
+    if "\n" in str(lay.get("text", "")):
+        errs.append(f"{w}: ring text is one line (no line breaks)")
+
+
 def _check_typography(lay: dict, w: str, errs: list[str]) -> None:
     if "letter_spacing" in lay and not _num(lay["letter_spacing"], -0.2, 1):
         errs.append(f"{w}: letter_spacing is extra space per letter in ems: -0.2..1")
@@ -468,6 +494,7 @@ def _check_type(t: str, lay: dict, w: str, errs: list[str], seen: set[str], dept
             errs.append(
                 f"{w}: arc is the radius of the bend in canvas widths: -20..-0.05 (a frown) or 0.05..20 (a smile)"
             )
+        _check_ring(lay, w, errs)
         _check_typography(lay, w, errs)
         _check_effects(lay.get("effects"), w, errs)
     elif t == "shape":

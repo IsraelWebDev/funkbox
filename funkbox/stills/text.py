@@ -312,8 +312,39 @@ def draw_text(lay: dict, lo: captions.Layout, frame_w: int, ctx: RCtx) -> tuple[
 
 
 def _geometry_entry(lay: dict) -> dict:
-    """The audit's record of a layer's arc, rotate and slant, as the layer gives them (empty when there are none)."""
-    return {k: lay[k] for k in ("arc", "rotate_deg", "skew_x", "skew_y") if lay.get(k)}
+    """The audit's record of a layer's ring, arc, rotate and slant, as the layer gives them (empty when there are none)."""
+    return {k: lay[k] for k in ("ring", "arc", "rotate_deg", "skew_x", "skew_y") if lay.get(k)}
+
+
+def ring_max_width(ring: dict) -> float:
+    """The default line width of ring text: the circle's diameter, kept inside the canvas left and right."""
+    cx = float(ring["cx"])
+    return max(0.05, min(2 * float(ring["r"]), 2 * cx, 2 * (1 - cx)))
+
+
+def resolve_ring(lay: dict, text: str, ctx: RCtx, fonts: captions.Fonts) -> dict:
+    """A copy of a ``ring`` text layer with the plain keys that draw it: one line (``wrap`` false), centred on the
+    circle's ``cx``, bent along it (``arc`` = -r on the top side, a frown; +r on the bottom side, a smile) and placed
+    so the line's middle sits on the circle at that side. ``max_width`` (default: the circle's diameter) caps the
+    line; ``ring`` stays in the copy for the audit. A layer without ``ring`` comes back unchanged."""
+    ring = lay.get("ring")
+    if not ring:
+        return lay
+    W, H = ctx.full
+    r = float(ring["r"])
+    top = ring.get("side", "top") == "top"
+    mw = float(lay.get("max_width", ring_max_width(ring)))
+    out = dict(lay, x=float(ring["cx"]) - mw / 2, y=0.0, max_width=mw, arc=-r if top else r, wrap=False)
+    out.setdefault("align", "center")
+    from . import typeset
+
+    if typeset.use_outlines(out):
+        box_h = typeset.typeset(out, text, ctx, fonts).box[3]
+    else:
+        box_h = layout_text(out, text, ctx, fonts)[0].box_h
+    mid_y = float(ring["cy"]) * H + (-r if top else r) * W
+    out["y"] = (mid_y - box_h / 2) / H
+    return out
 
 
 def raster_text(lay: dict, ctx: RCtx, doc: Doc, deck: CopyDeck | None) -> tuple[np.ndarray, dict]:
@@ -327,6 +358,7 @@ def raster_text(lay: dict, ctx: RCtx, doc: Doc, deck: CopyDeck | None) -> tuple[
             raise PosterError([f"text layer {lay['id']!r}: literal text is not allowed here"])
         source, text = "literal", lay["text"]
     fonts = layer_fonts(lay, ctx)
+    lay = resolve_ring(lay, text, ctx, fonts)
     from . import typeset
 
     if typeset.use_outlines(lay):
