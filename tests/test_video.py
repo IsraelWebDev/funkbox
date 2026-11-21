@@ -132,3 +132,43 @@ def test_contact_sheet_never_overwrites(work):
     first = clip.contact_sheet(p, every_s=1.0).path
     second = clip.contact_sheet(p, every_s=1.0).path
     assert first != second and first.exists() and second.exists()
+
+
+def test_import_copies_clips_and_lists_what_it_took(work):
+    cam = work / "camera"
+    cam.mkdir()
+    make_clip(cam / "IMG_1.MOV")
+    make_clip(cam / "b.mp4", colours=((10, 200, 10),) * 2)
+    (cam / "notes.txt").write_text("not a clip")
+    dest = work / "in"
+    res = clip.import_clips(cam, dest=dest)
+    assert sorted(p.name for p in res.copied) == ["IMG_1.MOV", "b.mp4"]
+    assert res.skipped == [] and res.dest == dest
+    assert clip.info(dest / "IMG_1.MOV").duration == pytest.approx(3.0, abs=0.1)
+    assert "2 copied" in res.text()
+
+
+def test_import_never_overwrites(work):
+    cam = work / "camera"
+    cam.mkdir()
+    make_clip(cam / "a.mp4")
+    dest = work / "in"
+    dest.mkdir()
+    (dest / "a.mp4").write_bytes(b"keep me")
+    res = clip.import_clips(cam, dest=dest)
+    assert res.copied == [] and [p.name for p in res.skipped] == ["a.mp4"]
+    assert (dest / "a.mp4").read_bytes() == b"keep me"
+
+
+def test_import_refuses_a_file_an_empty_folder_and_outside_paths(work):
+    cam = work / "camera"
+    cam.mkdir()
+    make_clip(cam / "x.txt.mp4")
+    with pytest.raises(clip.VideoError, match="not a folder"):
+        clip.import_clips(cam / "x.txt.mp4", dest=work / "in")
+    empty = work / "empty"
+    empty.mkdir()
+    with pytest.raises(clip.VideoError, match="no video"):
+        clip.import_clips(empty, dest=work / "in")
+    with pytest.raises(ValueError):
+        clip.import_clips("/etc", dest=work / "in")
