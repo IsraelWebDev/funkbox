@@ -9,6 +9,8 @@ local voice-over (Kokoro, or Piper), a music bed with ducking and loudness norma
 **Text is exact by construction.** Shots reference copy by ID; the validator rejects any literal-text key;
 `reel render --audit` writes `<name>.text_audit.json` proving every drawn string equals its copy entry byte for
 byte. The only tool that writes the copy deck is `project_approve_copy`, after your approval.
+It also writes `<name>.srt`: closed captions for upload (YouTube, TikTok, X), one cue per shot caption, timed
+from its first to its last drawn frame, with the same exact approved text.
 
 ```
 pip install -r requirements-reel.txt          # optional: onnxruntime + kokoro-onnx + piper-tts

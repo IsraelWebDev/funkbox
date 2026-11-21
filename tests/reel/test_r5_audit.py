@@ -76,3 +76,33 @@ def test_audit_reports_missing_entries(demo, gl, work, monkeypatch):
     out = render.render_reel(d, "short", base_dir=demo, out_dir=work, audit=True, with_audio=False)
     doc = json.loads((work / "short.text_audit.json").read_text())
     assert doc["never_fully_typed"]
+
+
+def test_audited_render_writes_srt_captions_with_the_exact_text(demo, gl, work, monkeypatch):
+    monkeypatch.setenv("REEL_DEPTH", "stub")
+    out = render.render_reel(small_reel(demo), "subs", base_dir=demo, out_dir=work, audit=True, with_audio=False)
+    srt = work / "subs.srt"
+    assert out.paths["captions"] == str(srt)
+    doc = json.loads((work / "subs.text_audit.json").read_text(encoding="utf-8"))
+    caps = sorted((e for e in doc["entries"] if e["slot"] == "caption"), key=lambda e: e["first_frame"])
+    assert caps
+    blocks = srt.read_text(encoding="utf-8").strip().split("\n\n")
+    assert len(blocks) == len(caps)
+    for i, (b, e) in enumerate(zip(blocks, caps), start=1):
+        num, times, *text = b.split("\n")
+        assert num == str(i)
+        assert times == f"{render._srt_time(e['first_frame'] / 10)} --> {render._srt_time((e['last_frame'] + 1) / 10)}"
+        assert "\n".join(text).encode("utf-8") == e["text"].encode("utf-8")
+
+
+def test_srt_times_and_cue_order():
+    entries = [
+        {"kind": "caption", "slot": "caption", "first_frame": 45, "last_frame": 89, "text": "Two\nlines"},
+        {"kind": "caption", "slot": "caption", "first_frame": 0, "last_frame": 29, "text": "One"},
+        {"kind": "voiceover", "slot": "voiceover", "first_frame": 0, "last_frame": 20, "text": "spoken"},
+        {"kind": "endcard", "slot": "headline", "first_frame": 90, "last_frame": 120, "text": "end"},
+    ]
+    assert render.captions_srt(entries, 30) == (
+        "1\n00:00:00,000 --> 00:00:01,000\nOne\n\n2\n00:00:01,500 --> 00:00:03,000\nTwo\nlines\n"
+    )
+    assert render._srt_time(3725.25) == "01:02:05,250"
