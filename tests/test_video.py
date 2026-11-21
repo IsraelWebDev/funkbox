@@ -172,3 +172,82 @@ def test_import_refuses_a_file_an_empty_folder_and_outside_paths(work):
         clip.import_clips(empty, dest=work / "in")
     with pytest.raises(ValueError):
         clip.import_clips("/etc", dest=work / "in")
+
+
+def _edit_clips(work):
+    red = make_clip(work / "red.mp4", colours=((220, 30, 40),), each=2.0)
+    blue = make_clip(work / "blue.mp4", colours=((20, 20, 120),), each=2.0)
+    return red, blue
+
+
+def _centre(img):
+    a = np.asarray(img).astype(int)
+    return a[a.shape[0] // 2, a.shape[1] // 2]
+
+
+def test_edit_joins_cuts_with_a_white_flash_padded_to_9_16(work):
+    red, blue = _edit_clips(work)
+    cuts = [{"path": str(red), "start": 0.5, "end": 1.5}, {"path": str(blue), "start": 0.0, "end": 1.0}]
+    res = clip.edit(cuts, transition="flash", grade="none", name="flash")
+    i = clip.info(res.path)
+    assert (i.width, i.height) == (720, 1280) and i.audio
+    assert i.duration == pytest.approx(1.75, abs=0.1)  # 1 s + 1 s, minus the 0.25 s flash overlap
+    assert clip.frame_at(res.path, 0.1, 360).getpixel((180, 5))[:3] == (0, 0, 0)  # pillarbox bars
+    assert _centre(clip.frame_at(res.path, 0.3, 360))[0] > 150  # red first cut
+    flash = [_centre(clip.frame_at(res.path, t, 360)).min() for t in np.arange(0.75, 1.0, 0.03)]
+    assert max(flash) > 230  # the white flash is in the join
+    assert _centre(clip.frame_at(res.path, 1.5, 360))[2] > 90  # blue second cut
+
+
+def test_edit_cut_mode_has_no_flash_and_is_exactly_the_sum(work):
+    red, blue = _edit_clips(work)
+    cuts = [{"path": str(red), "start": 0.5, "end": 1.5}, {"path": str(blue), "start": 0.0, "end": 1.0}]
+    res = clip.edit(cuts, transition="cut", grade="none", name="cut")
+    assert clip.info(res.path).duration == pytest.approx(2.0, abs=0.1)
+    before, after = _centre(clip.frame_at(res.path, 0.95, 360)), _centre(clip.frame_at(res.path, 1.05, 360))
+    assert before[0] > 150 and before[2] < 90 and after[2] > 90 and after.min() < 120
+
+
+def test_edit_funky_grade_pushes_colour_and_none_leaves_it(work):
+    red, _ = _edit_clips(work)
+    cuts = [{"path": str(red), "start": 0.5, "end": 1.5}]
+    plain = clip.edit(cuts, transition="cut", grade="none", name="plain")
+    funky = clip.edit(cuts, transition="cut", grade="funky", name="funky")
+    p, f = _centre(clip.frame_at(plain.path, 0.5, 360)), _centre(clip.frame_at(funky.path, 0.5, 360))
+    assert (f[0] - f[1]) > (p[0] - p[1]) + 10  # saturation up: the red is redder
+
+
+def test_edit_aspect_16_9_and_silent_sources_still_get_audio(work):
+    silent = make_clip(work / "silent.mp4", colours=((90, 90, 90),), each=1.5, audio=False)
+    res = clip.edit([{"path": str(silent), "start": 0, "end": 1.0}], transition="cut", grade="none", aspect="16:9")
+    i = clip.info(res.path)
+    assert (i.width, i.height) == (1280, 720) and i.audio
+
+
+def test_edit_size_target_is_aimed_at(work):
+    red, blue = _edit_clips(work)
+    cuts = [{"path": str(red), "start": 0.0, "end": 2.0}, {"path": str(blue), "start": 0.0, "end": 2.0}]
+    res = clip.edit(cuts, transition="cut", grade="funky", target_mb=0.4, name="small")
+    assert res.path.stat().st_size <= 0.4 * 1024 * 1024 * 1.15
+    with pytest.raises(clip.VideoError, match="too small"):
+        clip.edit(cuts, transition="cut", grade="none", target_mb=0.001)
+
+
+def test_edit_refuses_bad_input_and_never_overwrites(work):
+    red, blue = _edit_clips(work)
+    ok = [{"path": str(red), "start": 0.5, "end": 1.5}]
+    with pytest.raises(clip.VideoError, match="start < end"):
+        clip.edit([{"path": str(red), "start": 1.5, "end": 0.5}])
+    with pytest.raises(clip.VideoError, match="transition"):
+        clip.edit(ok, transition="fade")
+    with pytest.raises(clip.VideoError, match="grade"):
+        clip.edit(ok, grade="warm")
+    with pytest.raises(clip.VideoError, match="aspect"):
+        clip.edit(ok, aspect="4:3")
+    with pytest.raises(clip.VideoError, match="too short"):
+        clip.edit(ok + [{"path": str(red), "start": 0.0, "end": 0.3}], transition="flash")
+    with pytest.raises(clip.VideoError, match="at least one"):
+        clip.edit([])
+    first = clip.edit(ok, transition="cut", grade="none", name="same").path
+    second = clip.edit(ok, transition="cut", grade="none", name="same").path
+    assert first != second and first.exists() and second.exists()

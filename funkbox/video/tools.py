@@ -91,6 +91,26 @@ def video_contact_sheet(path: str, every_s: float = 2.0, cols: int = 6, name: st
 
 
 @safe
+def video_edit(
+    cuts: list,
+    transition: str = "flash",
+    grade: str = "funky",
+    aspect: str = "9:16",
+    target_mb: float | None = None,
+    name: str = "",
+) -> list:
+    """Render a cut list [{"path": ..., "start": ..., "end": ...}, ...] into one video in <out>/video/, for example a
+    highlight reel. Each cut is padded (never cropped) to 9:16 or 16:9 at 30 fps. ``grade``: funky (more colour, a
+    vignette) or none. ``transition``: flash (a white flash between cuts, audio crossfaded) or cut. ``target_mb`` aims
+    the bitrate at a file size. Take the trims from video_scenes or video_contact_sheet. Never overwrites."""
+    from funkbox.video import clip
+
+    res = clip.edit(cuts, transition, grade, aspect, target_mb, None, name)
+    frame = clip.frame_at(res.path, res.duration / 2, 720)
+    return [f"{res.text()}\nfile: {res.path}", _png(frame, 720)]
+
+
+@safe
 def video_import(folder: str) -> str:
     """Copy the video files of a folder (not its sub-folders) into the inputs folder, where the video tools and reels
     read them. Never overwrites: a file already there is kept and listed. The folder must be inside an allowed
@@ -100,7 +120,7 @@ def video_import(folder: str) -> str:
     return clip.import_clips(folder).text()
 
 
-TOOLS = [video_info, video_scenes, video_trim, video_subtitles, video_contact_sheet, video_import]
+TOOLS = [video_info, video_scenes, video_trim, video_subtitles, video_contact_sheet, video_edit, video_import]
 
 
 def register(server) -> None:
@@ -158,6 +178,19 @@ def cmd_sheet(a) -> int:
     return 0
 
 
+def cmd_edit(a) -> int:
+    import json
+    from funkbox.video import clip
+
+    cuts = json.loads(Path(a.cuts).read_text(encoding="utf-8-sig"))
+    for c in cuts:
+        if isinstance(c, dict) and "path" in c:
+            c["path"] = _abs(str(c["path"]))
+    res = clip.edit(cuts, a.transition, a.grade, a.aspect, a.target_mb, a.out, a.name or "")
+    print(f"{res.text()}\nfile: {res.path}")
+    return 0
+
+
 def cmd_import(a) -> int:
     from funkbox.video import clip
 
@@ -167,7 +200,7 @@ def cmd_import(a) -> int:
 
 def add_cli(sub) -> None:
     ap = sub.add_parser("video", help="video files: info, scene cuts, trim, burned-in subtitles")
-    vs = ap.add_subparsers(dest="verb", required=True, metavar="{info,scenes,trim,subtitles,sheet,import}")
+    vs = ap.add_subparsers(dest="verb", required=True, metavar="{info,scenes,trim,subtitles,sheet,edit,import}")
     p = vs.add_parser("info", help="duration, size, fps, codec, audio")
     p.add_argument("video")
     p.set_defaults(fn=cmd_info)
@@ -203,6 +236,15 @@ def add_cli(sub) -> None:
     p.add_argument("--out")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_sheet)
+    p = vs.add_parser("edit", help="render a cut list into one video: 9:16 or 16:9, graded, flash or cut joins")
+    p.add_argument("cuts", help='JSON file: [{"path", "start", "end"}, ...]')
+    p.add_argument("--transition", default="flash", choices=["flash", "cut"])
+    p.add_argument("--grade", default="funky", choices=["funky", "none"])
+    p.add_argument("--aspect", default="9:16", choices=["9:16", "16:9"])
+    p.add_argument("--target-mb", type=float, default=None, help="aim the bitrate at this file size")
+    p.add_argument("--out")
+    p.add_argument("--name")
+    p.set_defaults(fn=cmd_edit)
     p = vs.add_parser("import", help="copy a folder's video files into the inputs folder, never overwriting")
     p.add_argument("folder")
     p.set_defaults(fn=cmd_import)
