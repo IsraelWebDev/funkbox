@@ -242,7 +242,7 @@ def test_edit_refuses_bad_input_and_never_overwrites(work):
     with pytest.raises(clip.VideoError, match="transition"):
         clip.edit(ok, transition="fade")
     with pytest.raises(clip.VideoError, match="grade"):
-        clip.edit(ok, grade="warm")
+        clip.edit(ok, grade="sepia")
     with pytest.raises(clip.VideoError, match="aspect"):
         clip.edit(ok, aspect="4:3")
     with pytest.raises(clip.VideoError, match="too short"):
@@ -305,3 +305,40 @@ def test_highlights_feed_straight_into_edit(work):
     res = clip.highlights([dance], target_s=(6, 9), seg_s=3.0, name="feed")
     out = clip.edit(res.cuts, transition="cut", grade="none", name="reel")
     assert clip.info(out.path).duration == pytest.approx(res.total, abs=0.15)
+
+
+def test_warm_grade_warms_a_grey_clip_and_none_does_not(work):
+    grey = make_clip(work / "grey.mp4", colours=((120, 120, 120),), each=1.5)
+    cuts = [{"path": str(grey), "start": 0.0, "end": 1.0}]
+    warm = clip.edit(cuts, transition="cut", grade="warm", name="warm")
+    plain = clip.edit(cuts, transition="cut", grade="none", name="plain")
+    w = _centre(clip.frame_at(warm.path, 0.5, 360))
+    p = _centre(clip.frame_at(plain.path, 0.5, 360))
+    assert w[0] - w[2] > 8 and abs(int(p[0]) - int(p[2])) < 6  # warm leans red-yellow, none stays neutral
+
+
+def test_frame_crop_fills_the_frame_with_no_bars(work):
+    red, _ = _edit_clips(work)
+    cuts = [{"path": str(red), "start": 0.5, "end": 1.5}]
+    res = clip.edit(cuts, transition="cut", grade="none", frame="crop", name="crop")
+    assert _centre(clip.frame_at(res.path, 0.5, 360))[0] > 150
+    assert clip.frame_at(res.path, 0.5, 360).getpixel((180, 5))[0] > 120  # red at the top: no black bar
+
+
+def test_frame_blurred_bg_fills_the_bars_with_the_blurred_picture(work):
+    red, _ = _edit_clips(work)
+    cuts = [{"path": str(red), "start": 0.5, "end": 1.5}]
+    res = clip.edit(cuts, transition="cut", grade="none", frame="blurred-bg", name="blur")
+    top = clip.frame_at(res.path, 0.5, 360).getpixel((180, 5))[:3]
+    assert top[0] > 90 and top[1] < 110  # the bar is the red picture, blurred, not black
+    centre = _centre(clip.frame_at(res.path, 0.5, 360))
+    assert centre[0] > 150  # the sharp picture is still in the middle
+
+
+def test_unknown_frame_and_grade_names_are_refused(work):
+    red, _ = _edit_clips(work)
+    ok = [{"path": str(red), "start": 0.5, "end": 1.5}]
+    with pytest.raises(clip.VideoError, match="frame must be one of"):
+        clip.edit(ok, frame="stretch")
+    with pytest.raises(clip.VideoError, match="grade must be one of"):
+        clip.edit(ok, grade="sepia")
