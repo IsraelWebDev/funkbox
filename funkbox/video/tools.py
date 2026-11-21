@@ -111,6 +111,22 @@ def video_edit(
 
 
 @safe
+def video_highlights(paths: list, target_s: list | None = None, seg_s: float = 3.0, name: str = "") -> list:
+    """Propose the best moments of one or more videos (home video, gameplay, trailers): windows of ``seg_s`` seconds
+    ranked by motion, each new one scored by how different it looks from the moments already chosen, so repeats are
+    dropped. Fills up to the top of ``target_s`` (default [30, 60] seconds). Writes <out>/video/<name>.jpg, a labelled
+    sheet to approve, and <name>.json, the cut list. Nothing is cut yet: after approval pass the cuts to video_edit."""
+    import json
+
+    from funkbox.video import clip
+
+    res = clip.highlights(paths, tuple(target_s or [30, 60]), seg_s, None, name)
+    cuts = json.dumps(res.cuts)
+    text = f"{res.text()}\nsheet: {res.path}\ncut list: {res.json_path}\ncuts: {cuts}"
+    return [text, _png(res.sheet, 1600)]
+
+
+@safe
 def video_import(folder: str) -> str:
     """Copy the video files of a folder (not its sub-folders) into the inputs folder, where the video tools and reels
     read them. Never overwrites: a file already there is kept and listed. The folder must be inside an allowed
@@ -120,7 +136,16 @@ def video_import(folder: str) -> str:
     return clip.import_clips(folder).text()
 
 
-TOOLS = [video_info, video_scenes, video_trim, video_subtitles, video_contact_sheet, video_edit, video_import]
+TOOLS = [
+    video_info,
+    video_scenes,
+    video_trim,
+    video_subtitles,
+    video_contact_sheet,
+    video_edit,
+    video_highlights,
+    video_import,
+]
 
 
 def register(server) -> None:
@@ -191,6 +216,14 @@ def cmd_edit(a) -> int:
     return 0
 
 
+def cmd_highlights(a) -> int:
+    from funkbox.video import clip
+
+    res = clip.highlights([_abs(v) for v in a.videos], tuple(a.target), a.seg, a.out, a.name or "")
+    print(f"{res.text()}\nsheet: {res.path}\ncut list: {res.json_path}")
+    return 0
+
+
 def cmd_import(a) -> int:
     from funkbox.video import clip
 
@@ -200,7 +233,9 @@ def cmd_import(a) -> int:
 
 def add_cli(sub) -> None:
     ap = sub.add_parser("video", help="video files: info, scene cuts, trim, burned-in subtitles")
-    vs = ap.add_subparsers(dest="verb", required=True, metavar="{info,scenes,trim,subtitles,sheet,edit,import}")
+    vs = ap.add_subparsers(
+        dest="verb", required=True, metavar="{info,scenes,trim,subtitles,sheet,edit,highlights,import}"
+    )
     p = vs.add_parser("info", help="duration, size, fps, codec, audio")
     p.add_argument("video")
     p.set_defaults(fn=cmd_info)
@@ -245,6 +280,13 @@ def add_cli(sub) -> None:
     p.add_argument("--out")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_edit)
+    p = vs.add_parser("highlights", help="propose the best moments of videos, ranked by motion, repeats dropped")
+    p.add_argument("videos", nargs="+")
+    p.add_argument("--target", type=float, nargs=2, default=[30, 60], metavar=("LOW", "HIGH"), help="seconds")
+    p.add_argument("--seg", type=float, default=3.0, help="seconds per moment")
+    p.add_argument("--out")
+    p.add_argument("--name")
+    p.set_defaults(fn=cmd_highlights)
     p = vs.add_parser("import", help="copy a folder's video files into the inputs folder, never overwriting")
     p.add_argument("folder")
     p.set_defaults(fn=cmd_import)

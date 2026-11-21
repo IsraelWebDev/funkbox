@@ -10,6 +10,8 @@ subtitles whose text is exactly what you wrote.
     import_clips("camera_folder")             -> the video files of a folder copied into FUNK_INPUTS, never overwriting
     edit([{"path", "start", "end"}, ...])     -> one render: each cut padded to 9:16 or 16:9, graded, joined with a white
                                                  flash or a cut, audio crossfaded, aimed at an optional size target
+    highlights(["a.mov", "b.mov"], target_s=(30, 60)) -> proposed cuts ranked by motion, dropping repeats, with a sheet
+                                                 to approve before edit()
 
 Inputs are never modified and outputs never overwrite anything: a name that exists gets -2, -3 ...
 """
@@ -595,3 +597,113 @@ def edit(
         out.unlink(missing_ok=True)
         raise VideoError("ffmpeg edit failed: " + r.stderr.decode("utf-8", "replace").strip()[-400:])
     return Edited(out, n, info(out).duration)
+
+
+# --------------------------------------------------------------------------- highlights
+HL_FPS = 2.0  # frames per second sampled for the analysis
+HL_W, HL_H = 64, 36  # analysis size, small on purpose
+HL_MIN_MOTION = 0.005  # mean change per pixel per step; below this a window is still
+HL_REPEAT_SIM = 0.9  # histogram overlap above which a window repeats one already chosen
+
+
+@dataclass
+class Highlights:
+    cuts: list[dict]  # [{"path", "start", "end"}], ready for edit()
+    total: float
+    short: bool  # fewer seconds than the target's minimum were found
+    sheet: Image.Image
+    path: Path  # <name>.jpg, one labelled frame per cut
+    json_path: Path  # <name>.json, the cut list
+
+    def text(self) -> str:
+        head = f"{len(self.cuts)} moments, {self.total:.0f}s"
+        if self.short:
+            head += " (short of the target: not enough different motion in these clips)"
+        return head
+
+
+def _frames(path: Path):
+    import numpy as np
+
+    r = _run(["-i", str(path), "-vf", f"fps={HL_FPS},scale={HL_W}:{HL_H}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+    if r.returncode != 0:
+        raise VideoError(f"could not read frames of {path.name}")
+    n = len(r.stdout) // (HL_W * HL_H * 3)
+    return np.frombuffer(r.stdout, np.uint8)[: n * HL_W * HL_H * 3].reshape(n, HL_H, HL_W, 3)
+
+
+def _hist(frames):
+    """Colour histogram of a window: 4 levels per channel, averaged over its frames, sums to 1."""
+    import numpy as np
+
+    q = (frames // 64).astype(np.int32)
+    idx = q[..., 0] * 16 + q[..., 1] * 4 + q[..., 2]
+    h = np.stack([np.bincount(f.ravel(), minlength=64) for f in idx]).mean(axis=0)
+    return h / h.sum()
+
+
+def highlights(paths, target_s=(30.0, 60.0), seg_s: float = 3.0, out_dir=None, name: str = "") -> Highlights:
+    """Propose moments from one or more videos: windows of ``seg_s`` seconds ranked by motion, each new one scored
+    by how different its colours are from the moments already chosen. Repeats are dropped and the reel is filled
+    up to the top of ``target_s``. Nothing is cut yet: approve the sheet, then pass ``cuts`` to edit()."""
+    import numpy as np
+
+    lo, hi = (float(x) for x in target_s) if len(target_s) == 2 else (0.0, 0.0)
+    if not 0 < lo < hi:
+        raise VideoError("target_s needs two seconds, low then high (e.g. [30, 60])")
+    if not 1 <= seg_s <= hi:
+        raise VideoError(f"seg_s must be between 1 and the target's high end ({hi:g}s)")
+    infos = [info(p) for p in paths]
+    win = max(2, round(seg_s * HL_FPS))
+    cands = []
+    for si, inf in enumerate(infos):
+        F = _frames(inf.path)
+        for s0 in range(0, len(F) - win + 1, max(1, round(HL_FPS))):  # one window per second
+            seg = F[s0 : s0 + win]
+            motion = float(np.abs(np.diff(seg.astype(np.int16), axis=0)).mean()) / 255
+            if motion < HL_MIN_MOTION:
+                continue
+            cands.append(
+                {"src": si, "start": s0 / HL_FPS, "end": (s0 + win) / HL_FPS, "motion": motion, "hist": _hist(seg)}
+            )
+    if not cands:
+        raise VideoError("nothing moving in these videos: no moments to highlight")
+    chosen, total = [], 0.0
+    while total + seg_s <= hi + 1e-9:
+        best, best_score = None, 0.0
+        for c in cands:
+            if any(s["src"] == c["src"] and c["start"] < s["end"] and s["start"] < c["end"] for s in chosen):
+                continue  # overlaps a moment already chosen from the same video
+            sim = max((float(np.minimum(c["hist"], s["hist"]).sum()) for s in chosen), default=0.0)
+            if sim >= HL_REPEAT_SIM:
+                continue
+            score = c["motion"] * (1.0 - sim)
+            if score > best_score:
+                best, best_score = c, score
+        if best is None:
+            break
+        chosen.append(best)
+        total += seg_s
+    chosen.sort(key=lambda c: (c["src"], c["start"]))
+    cuts = [
+        {"path": str(infos[c["src"]].path), "start": round(c["start"], 2), "end": round(c["end"], 2)} for c in chosen
+    ]
+    tiles = [frame_at(c["path"], (c["start"] + c["end"]) / 2, 240) for c in cuts]
+    cols = min(5, len(tiles))
+    th = max(t.height for t in tiles)
+    S = Image.new("RGB", (cols * 240, -(-len(tiles) // cols) * (th + 18)), (20, 20, 20))
+    d = ImageDraw.Draw(S)
+    for i, (t, c, ch) in enumerate(zip(tiles, cuts, chosen)):
+        x, y = (i % cols) * 240, (i // cols) * (th + 18)
+        S.paste(t.resize((240, round(240 * t.height / t.width))), (x, y))
+        d.text(
+            (x + 3, y + th + 3),
+            f"{i + 1} {Path(c['path']).name} {c['start']:.1f}s m{ch['motion']:.3f}",
+            fill=(255, 220, 0),
+        )
+    stem = name or "highlights"
+    jpg = _out_path(infos[0].path, out_dir, stem, ".jpg")
+    S.save(jpg, quality=85)
+    jp = jpg.with_suffix(".json")
+    jp.write_text(json.dumps(cuts, indent=1), encoding="utf-8")
+    return Highlights(cuts, sum(c["end"] - c["start"] for c in cuts), total < lo, S, jpg, jp)
