@@ -96,16 +96,21 @@ def video_edit(
     transition: str = "flash",
     grade: str = "funky",
     aspect: str = "9:16",
+    frame: str = "pad",
     target_mb: float | None = None,
     name: str = "",
 ) -> list:
     """Render a cut list [{"path": ..., "start": ..., "end": ...}, ...] into one video in <out>/video/, for example a
-    highlight reel. Each cut is padded (never cropped) to 9:16 or 16:9 at 30 fps. ``grade``: funky (more colour, a
-    vignette) or none. ``transition``: flash (a white flash between cuts, audio crossfaded) or cut. ``target_mb`` aims
-    the bitrate at a file size. Take the trims from video_scenes or video_contact_sheet. Never overwrites."""
+    highlight reel. ``aspect``: 9:16 or 16:9, at 30 fps. ``frame``: pad (the whole picture, bars where it does not
+    fill), crop (fills the frame, the edges go) or blurred-bg (bars filled with a blurred copy). ``grade``: funky (more
+    colour, a vignette), warm, or none. ``transition``: flash (a white flash between cuts, audio crossfaded) or cut.
+    ``target_mb`` aims the bitrate at a file size. Take the trims from video_scenes or video_contact_sheet. Never
+    overwrites."""
     from funkbox.video import clip
 
-    res = clip.edit(cuts, transition, grade, aspect, target_mb, None, name)
+    res = clip.edit(
+        cuts, transition=transition, grade=grade, aspect=aspect, frame=frame, target_mb=target_mb, name=name
+    )
     frame = clip.frame_at(res.path, res.duration / 2, 720)
     return [f"{res.text()}\nfile: {res.path}", _png(frame, 720)]
 
@@ -211,7 +216,16 @@ def cmd_edit(a) -> int:
     for c in cuts:
         if isinstance(c, dict) and "path" in c:
             c["path"] = _abs(str(c["path"]))
-    res = clip.edit(cuts, a.transition, a.grade, a.aspect, a.target_mb, a.out, a.name or "")
+    res = clip.edit(
+        cuts,
+        transition=a.transition,
+        grade=a.grade,
+        aspect=a.aspect,
+        frame=a.frame,
+        target_mb=a.target_mb,
+        out_dir=a.out,
+        name=a.name or "",
+    )
     print(f"{res.text()}\nfile: {res.path}")
     return 0
 
@@ -274,8 +288,9 @@ def add_cli(sub) -> None:
     p = vs.add_parser("edit", help="render a cut list into one video: 9:16 or 16:9, graded, flash or cut joins")
     p.add_argument("cuts", help='JSON file: [{"path", "start", "end"}, ...]')
     p.add_argument("--transition", default="flash", choices=["flash", "cut"])
-    p.add_argument("--grade", default="funky", choices=["funky", "none"])
+    p.add_argument("--grade", default="funky", choices=["funky", "warm", "none"])
     p.add_argument("--aspect", default="9:16", choices=["9:16", "16:9"])
+    p.add_argument("--frame", default="pad", choices=["pad", "crop", "blurred-bg"])
     p.add_argument("--target-mb", type=float, default=None, help="aim the bitrate at this file size")
     p.add_argument("--out")
     p.add_argument("--name")

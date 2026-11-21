@@ -481,10 +481,12 @@ def import_clips(folder, dest=None) -> Imported:
 
 # --------------------------------------------------------------------------- edit
 TRANSITIONS = ("flash", "cut")
-GRADES = ("funky", "none")
+GRADES = ("funky", "warm", "none")
+FRAMES = ("pad", "crop", "blurred-bg")
 ASPECTS = {"9:16": (720, 1280), "16:9": (1280, 720)}
 FLASH_S = 0.25  # the white flash, and the audio crossfade, between two cuts
 FUNKY = "eq=saturation=1.45:contrast=1.12:brightness=0.02,colorbalance=rm=0.08:bm=0.06:gh=-0.03,unsharp=5:5:0.6,vignette=PI/5"
+WARM = "colorchannelmixer=rr=1.08:bb=0.92,eq=saturation=1.08"  # colorbalance midtones do not move a yuv frame reliably
 AUDIO_KBPS = 96
 
 
@@ -504,6 +506,7 @@ def edit(
     transition: str = "flash",
     grade: str = "funky",
     aspect: str = "9:16",
+    frame: str = "pad",
     target_mb: float | None = None,
     out_dir=None,
     name: str = "",
@@ -520,6 +523,8 @@ def edit(
         raise VideoError(f"grade must be one of {', '.join(GRADES)}")
     if aspect not in ASPECTS:
         raise VideoError(f"aspect must be one of {', '.join(ASPECTS)}")
+    if frame not in FRAMES:
+        raise VideoError(f"frame must be one of {', '.join(FRAMES)}")
     if not cuts:
         raise VideoError("edit needs at least one cut")
     W, H = ASPECTS[aspect]
@@ -539,15 +544,28 @@ def edit(
     if flash and min(dur) < 2 * FLASH_S:
         raise VideoError(f"a cut is too short for a flash ({min(dur):.2f}s; each needs at least {2 * FLASH_S}s)")
     n = len(segs)
-    grade_f = f",{FUNKY}" if grade == "funky" else ""
+    grade_f = {"funky": f",{FUNKY}", "warm": f",{WARM}", "none": ""}[grade]
     parts, inputs = [], []
     for i, (src, a, b) in enumerate(segs):
         inputs += ["-i", str(src.path)]
-        parts.append(
-            f"[{i}:v]trim=start={a:.3f}:end={b:.3f},setpts=PTS-STARTPTS,"
-            f"scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black,"
-            f"setsar=1,fps=30{grade_f},format=yuv420p[v{i}]"
-        )
+        head = f"[{i}:v]trim=start={a:.3f}:end={b:.3f},setpts=PTS-STARTPTS"
+        if frame == "blurred-bg":  # the picture fitted on a blurred copy of itself, which fills the bars
+            parts.append(
+                f"{head},split=2[bs{i}][fs{i}];"
+                f"[bs{i}]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},boxblur=20:2[bb{i}];"
+                f"[fs{i}]scale={W}:{H}:force_original_aspect_ratio=decrease[ff{i}];"
+                f"[bb{i}][ff{i}]overlay=(W-w)/2:(H-h)/2,setsar=1,fps=30{grade_f},format=yuv420p[v{i}]"
+            )
+        elif frame == "crop":  # fills the frame, the edges go
+            parts.append(
+                f"{head},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
+                f"setsar=1,fps=30{grade_f},format=yuv420p[v{i}]"
+            )
+        else:  # pad: the whole picture, black bars where it does not fill the frame
+            parts.append(
+                f"{head},scale={W}:{H}:force_original_aspect_ratio=decrease,"
+                f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=30{grade_f},format=yuv420p[v{i}]"
+            )
         if src.audio:
             parts.append(
                 f"[{i}:a]atrim=start={a:.3f}:end={b:.3f},asetpts=PTS-STARTPTS,"

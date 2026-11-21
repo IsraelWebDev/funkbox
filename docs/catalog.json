@@ -2594,7 +2594,7 @@
     },
     {
       "area": "video",
-      "description": "Render a cut list [{\"path\": ..., \"start\": ..., \"end\": ...}, ...] into one video in <out>/video/, for example a\nhighlight reel. Each cut is padded (never cropped) to 9:16 or 16:9 at 30 fps. ``grade``: funky (more colour, a\nvignette) or none. ``transition``: flash (a white flash between cuts, audio crossfaded) or cut. ``target_mb`` aims\nthe bitrate at a file size. Take the trims from video_scenes or video_contact_sheet. Never overwrites.",
+      "description": "Render a cut list [{\"path\": ..., \"start\": ..., \"end\": ...}, ...] into one video in <out>/video/, for example a\nhighlight reel. ``aspect``: 9:16 or 16:9, at 30 fps. ``frame``: pad (the whole picture, bars where it does not\nfill), crop (fills the frame, the edges go) or blurred-bg (bars filled with a blurred copy). ``grade``: funky (more\ncolour, a vignette), warm, or none. ``transition``: flash (a white flash between cuts, audio crossfaded) or cut.\n``target_mb`` aims the bitrate at a file size. Take the trims from video_scenes or video_contact_sheet. Never\noverwrites.",
       "input_schema": {
         "properties": {
           "aspect": {
@@ -2606,6 +2606,11 @@
             "items": {},
             "title": "Cuts",
             "type": "array"
+          },
+          "frame": {
+            "default": "pad",
+            "title": "Frame",
+            "type": "string"
           },
           "grade": {
             "default": "funky",
