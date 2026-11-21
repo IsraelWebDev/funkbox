@@ -342,3 +342,16 @@ def test_unknown_frame_and_grade_names_are_refused(work):
         clip.edit(ok, frame="stretch")
     with pytest.raises(clip.VideoError, match="grade must be one of"):
         clip.edit(ok, grade="sepia")
+
+
+def test_preview_is_half_size_with_the_same_timing_and_is_smaller(work):
+    red, blue = _edit_clips(work)
+    cuts = [{"path": str(red), "start": 0.5, "end": 1.5}, {"path": str(blue), "start": 0.0, "end": 1.0}]
+    final = clip.edit(cuts, transition="flash", grade="none", name="final")
+    prev = clip.edit(cuts, transition="flash", grade="none", preview=True)
+    pi = clip.info(prev.path)
+    assert (pi.width, pi.height) == (360, 640) and pi.audio
+    assert pi.duration == pytest.approx(clip.info(final.path).duration, abs=0.05)
+    assert prev.preview and prev.path.name == "preview.mp4" and "preview" in prev.text()
+    assert prev.path.stat().st_size < final.path.stat().st_size
+    assert not final.preview and clip.info(final.path).height == 1280
