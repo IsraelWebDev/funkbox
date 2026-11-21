@@ -495,10 +495,11 @@ class Edited:
     path: Path
     cuts: int
     duration: float
+    preview: bool = False
 
     def text(self) -> str:
         mb = self.path.stat().st_size / (1024 * 1024)
-        return f"{self.cuts} cuts, {self.duration:.2f}s, {mb:.1f} MB"
+        return f"{'preview, ' if self.preview else ''}{self.cuts} cuts, {self.duration:.2f}s, {mb:.1f} MB"
 
 
 def edit(
@@ -510,6 +511,7 @@ def edit(
     target_mb: float | None = None,
     out_dir=None,
     name: str = "",
+    preview: bool = False,
 ) -> Edited:
     """Render a list of cuts ``[{"path", "start", "end"}, ...]`` into one file in FUNK_OUT/video/. Each cut is padded
     (never cropped) to the aspect at 30 fps; ``grade="funky"`` boosts colour and adds a vignette; ``transition="flash"``
@@ -528,6 +530,8 @@ def edit(
     if not cuts:
         raise VideoError("edit needs at least one cut")
     W, H = ASPECTS[aspect]
+    if preview:  # half size, the same timing: a bad cut shows in seconds
+        W, H = W // 2, H // 2
     segs = []
     for n, c in enumerate(cuts, 1):
         if not all(k in c for k in ("path", "start", "end")):
@@ -596,8 +600,8 @@ def edit(
             raise VideoError(f"target too small: {target_mb} MB for {total:.1f}s needs about 150 kbps or more")
         venc = ["-b:v", f"{int(kbps)}k", "-maxrate", f"{int(kbps * 1.2)}k", "-bufsize", f"{int(kbps * 2)}k"]
     else:
-        venc = ["-crf", "22"]
-    out = _out_path(segs[0][0].path, out_dir, name or "edit")
+        venc = ["-crf", "30" if preview else "22"]
+    out = _out_path(segs[0][0].path, out_dir, name or ("preview" if preview else "edit"))
     with tempfile.TemporaryDirectory() as td:
         script = Path(td) / "graph.txt"
         script.write_text(";".join(parts), encoding="utf-8")
@@ -606,7 +610,7 @@ def edit(
             *filter_script_args(script),
             "-map", "[vout]",
             "-map", "[aout]",
-            "-c:v", "libx264", "-preset", "medium", *venc, "-pix_fmt", "yuv420p",
+            "-c:v", "libx264", "-preset", "veryfast" if preview else "medium", *venc, "-pix_fmt", "yuv420p",
             "-c:a", "aac", "-b:a", f"{AUDIO_KBPS}k",
             "-movflags", "+faststart", "-y", str(out),
         ]  # fmt: skip
@@ -614,7 +618,7 @@ def edit(
     if r.returncode != 0:
         out.unlink(missing_ok=True)
         raise VideoError("ffmpeg edit failed: " + r.stderr.decode("utf-8", "replace").strip()[-400:])
-    return Edited(out, n, info(out).duration)
+    return Edited(out, n, info(out).duration, preview)
 
 
 # --------------------------------------------------------------------------- highlights
