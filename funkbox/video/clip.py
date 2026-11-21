@@ -552,7 +552,9 @@ def edit(
     parts, inputs = [], []
     for i, (src, a, b) in enumerate(segs):
         inputs += ["-i", str(src.path)]
-        head = f"[{i}:v]trim=start={a:.3f}:end={b:.3f},setpts=PTS-STARTPTS"
+        # fps before trim: a camera file with timestamp gaps trims to the wrong length otherwise, and the flash
+        # joins (which assume each cut is its nominal length) then end the picture early
+        head = f"[{i}:v]fps=30,trim=start={a:.3f}:end={b:.3f},setpts=PTS-STARTPTS"
         if frame == "blurred-bg":  # the picture fitted on a blurred copy of itself, which fills the bars
             parts.append(
                 f"{head},split=2[bs{i}][fs{i}];"

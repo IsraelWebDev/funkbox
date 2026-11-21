@@ -355,3 +355,77 @@ def test_preview_is_half_size_with_the_same_timing_and_is_smaller(work):
     assert prev.preview and prev.path.name == "preview.mp4" and "preview" in prev.text()
     assert prev.path.stat().st_size < final.path.stat().st_size
     assert not final.preview and clip.info(final.path).height == 1280
+
+
+def test_flash_join_keeps_every_cut_across_a_long_chain(work):
+    # Regression: a flash chain of ten or more cuts lost its last seconds of picture (video ended at ~27.5 s
+    # while the audio ran on). The video must be as long as the expected sum of the cuts.
+    src = make_lavfi(work / "long.mp4", "testsrc2=size=320x180:rate=25", 40.0)
+    cuts = [{"path": str(src), "start": float(i), "end": float(i) + 3.0} for i in range(12)]
+    res = clip.edit(cuts, transition="flash", grade="none", aspect="9:16", preview=True, name="long-flash")
+    expected = 12 * 3.0 - 11 * clip.FLASH_S
+    video = subprocess.run(
+        [require_ffmpeg(), "-hide_banner", "-i", str(res.path), "-map", "0:v", "-c", "copy", "-f", "null", "-"],
+        capture_output=True,
+    )  # decode the whole video stream: a short stream shows up as a short duration below
+    probe = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v",
+            "-show_entries",
+            "stream=duration",
+            "-of",
+            "csv=p=0",
+            str(res.path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert video.returncode == 0
+    assert float(probe.stdout.strip()) == pytest.approx(expected, abs=0.1)
+    assert res.duration == pytest.approx(expected, abs=0.1)
+
+
+def test_flash_cuts_from_a_file_with_a_timestamp_gap_keep_their_length(work):
+    # Regression: a camera file with a gap in its timestamps trimmed to the wrong length, and a flash chain of
+    # those cuts ended the picture early. Every cut must come out at its nominal length.
+    gappy = work / "gappy.mp4"
+    subprocess.run(
+        [
+            require_ffmpeg(),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=320x180:rate=25",
+            "-t",
+            "20",
+            "-vf",
+            "select='not(between(t,12.8,13.3))'",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-y",
+            str(gappy),
+        ],
+        check=True,
+    )  # keeps the original timestamps: there is a real gap at 12.8-13.3 s
+    cuts = [{"path": str(gappy), "start": 12.9, "end": 15.9}] * 10
+    res = clip.edit(cuts, transition="flash", grade="none", aspect="9:16", preview=True, name="gap-flash")
+    expected = 10 * 3.0 - 9 * clip.FLASH_S
+    probe = subprocess.run(
+        [require_ffmpeg(), "-hide_banner", "-i", str(res.path), "-map", "0:v:0", "-c", "copy", "-f", "null", "-"],
+        capture_output=True,
+        text=True,
+    )
+    stats = [line for line in probe.stderr.splitlines() if "time=" in line]
+    assert probe.returncode == 0 and stats
+    last = stats[-1].split("time=")[1].split()[0]
+    h, m, sec = last.split(":")
+    assert float(h) * 3600 + float(m) * 60 + float(sec) == pytest.approx(expected, abs=0.15)
