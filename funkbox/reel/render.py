@@ -1025,6 +1025,7 @@ def render_reel(
         if audit:
             rep = _audit_json(r, plan, name, out_dir)
             paths["text_audit"] = rep["path"]
+            paths["captions"] = rep["srt"]
             audit_ok = rep["ok"]
             from .beataudit import write_beat_audit
 
@@ -1113,7 +1114,31 @@ def _audit_json(r: Renderer, plan: Plan, name: str, out_dir: Path) -> dict:
     }
     path = out_dir / f"{name}.text_audit.json"
     path.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return {"path": str(path), "ok": ok}
+    srt = out_dir / f"{name}.srt"
+    srt.write_text(captions_srt(entries, plan.reel.settings.fps), encoding="utf-8")
+    return {"path": str(path), "ok": ok, "srt": str(srt)}
+
+
+def _srt_time(seconds: float) -> str:
+    ms = max(0, round(seconds * 1000))
+    h, ms = divmod(ms, 3_600_000)
+    m, ms = divmod(ms, 60_000)
+    s, ms = divmod(ms, 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def captions_srt(entries: list[dict], fps: int) -> str:
+    """SubRip captions from text audit entries: one cue per shot caption, timed from its first to its last drawn
+    frame, with the exact approved text (the same strings the audit checked), ready to upload as closed captions."""
+    cues = sorted(
+        (e for e in entries if e.get("kind") == "caption" and e.get("slot") == "caption"),
+        key=lambda e: e["first_frame"],
+    )
+    blocks = [
+        f"{i}\n{_srt_time(e['first_frame'] / fps)} --> {_srt_time((e['last_frame'] + 1) / fps)}\n{e['text']}\n"
+        for i, e in enumerate(cues, start=1)
+    ]
+    return "\n".join(blocks)
 
 
 def render_formats(src, name: str, *, base_dir=None, fmt: str | None = None, **kw) -> list[RenderOutput]:
