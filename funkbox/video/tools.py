@@ -100,18 +100,28 @@ def video_edit(
     target_mb: float | None = None,
     name: str = "",
     preview: bool = False,
+    stabilize: str = "auto",
 ) -> list:
     """Render a cut list [{"path": ..., "start": ..., "end": ...}, ...] into one video in <out>/video/, for example a
     highlight reel. ``aspect``: 9:16 or 16:9, at 30 fps. ``frame``: pad (the whole picture, bars where it does not
     fill), crop (fills the frame, the edges go) or blurred-bg (bars filled with a blurred copy). ``grade``: funky (more
     colour, a vignette), warm, or none. ``transition``: flash (a white flash between cuts, audio crossfaded) or cut.
-    ``target_mb`` aims the bitrate at a file size. ``preview`` renders half size in seconds, to check the cuts before
-    the final render (the same call without preview). Take the trims from video_scenes or video_contact_sheet. Never
-    overwrites."""
+    ``stabilize``: auto (default) checks each source for camera shake and steadies only the shaky ones; off keeps the
+    picture as shot. ``target_mb`` aims the bitrate at a file size. ``preview`` renders half size in seconds, to check
+    the cuts before the final render (the same call without preview). Take the trims from video_scenes or
+    video_contact_sheet. Never overwrites."""
     from funkbox.video import clip
 
     res = clip.edit(
-        cuts, transition=transition, grade=grade, aspect=aspect, frame=frame, target_mb=target_mb, name=name
+        cuts,
+        transition=transition,
+        grade=grade,
+        aspect=aspect,
+        frame=frame,
+        target_mb=target_mb,
+        name=name,
+        preview=preview,
+        stabilize=stabilize,
     )
     frame = clip.frame_at(res.path, res.duration / 2, 720)
     return [f"{res.text()}\nfile: {res.path}", _png(frame, 720)]
@@ -228,6 +238,7 @@ def cmd_edit(a) -> int:
         out_dir=a.out,
         name=a.name or "",
         preview=a.preview,
+        stabilize=a.stabilize,
     )
     print(f"{res.text()}\nfile: {res.path}")
     return 0
@@ -296,6 +307,7 @@ def add_cli(sub) -> None:
     p.add_argument("--frame", default="pad", choices=["pad", "crop", "blurred-bg"])
     p.add_argument("--target-mb", type=float, default=None, help="aim the bitrate at this file size")
     p.add_argument("--preview", action="store_true", help="half size, a few seconds: check the cuts first")
+    p.add_argument("--stabilize", default="auto", choices=["auto", "off"], help="auto: steady only the shaky sources")
     p.add_argument("--out")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_edit)

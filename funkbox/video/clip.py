@@ -9,7 +9,7 @@ subtitles whose text is exactly what you wrote.
                                                  (brand fonts, Hebrew right to left, a text audit)
     import_clips("camera_folder")             -> the video files of a folder copied into FUNK_INPUTS, never overwriting
     edit([{"path", "start", "end"}, ...])     -> one render: each cut padded to 9:16 or 16:9, graded, joined with a white
-                                                 flash or a cut, audio crossfaded, aimed at an optional size target
+                                                 flash or a cut, audio crossfaded, shaky sources steadied, aimed at an optional size target
     highlights(["a.mov", "b.mov"], target_s=(30, 60)) -> proposed cuts ranked by motion, dropping repeats, with a sheet
                                                  to approve before edit()
 
@@ -18,10 +18,12 @@ Inputs are never modified and outputs never overwrite anything: a name that exis
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -480,6 +482,126 @@ def import_clips(folder, dest=None) -> Imported:
 
 
 # --------------------------------------------------------------------------- edit
+# --------------------------------------------------------------------------- stabilization
+STABILIZE = ("auto", "off")
+STAB_MIN_SHAKE = 0.3  # jitter, percent of the frame width per frame, from which a source is stabilized
+STAB_SMOOTH_S = 1.0  # motion slower than this (a pan, a walk) is intent and kept; faster motion is shake
+STAB_W, STAB_H = 320, 180  # analysis size for the shake check
+STAB_DETECT = "vidstabdetect=shakiness=5:accuracy=15:result=transforms.trf"
+STAB_TRANSFORM = (
+    "vidstabtransform=input=transforms.trf:smoothing=15:zoom=0:optzoom=1:interpol=bicubic,"
+    "unsharp=5:5:0.8:3:3:0.4"
+)  # the unsharp pass restores the edge the transform softens
+_FILTERS: str | None = None
+
+
+def _has_filter(name: str) -> bool:
+    global _FILTERS
+    if _FILTERS is None:
+        _FILTERS = _run(["-filters"]).stdout.decode("utf-8", "replace")
+    return re.search(rf"^\s*\S+\s+{name}\s+\S+->", _FILTERS, re.M) is not None
+
+
+def _stab_cache() -> Path:
+    from funkbox.config import funk_out
+    from funkbox.stills.render import fence_out
+
+    d = fence_out(funk_out() / "video" / "stab-cache")
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _stab_key(path: Path) -> str:
+    st = path.stat()
+    return hashlib.sha1(f"{path.resolve()}|{st.st_size}|{st.st_mtime_ns}".encode()).hexdigest()[:16]
+
+
+def _run_in(args: list[str], cwd: str) -> subprocess.CompletedProcess:
+    # run in a scratch folder so the detect file is a bare name: no drive colons to escape in the filter graph
+    return subprocess.run([require_ffmpeg(), "-hide_banner", *args], capture_output=True, cwd=cwd)
+
+
+def _shift(a, b) -> tuple[float, float]:
+    """Whole-pixel translation between two frames, by phase correlation."""
+    import numpy as np
+
+    h, w = a.shape
+    r = np.fft.ifft2(np.fft.fft2(b - b.mean()) * np.conj(np.fft.fft2(a - a.mean()))).real
+    r = r / (np.abs(r).max() + 1e-9)
+    y, x = np.unravel_index(int(np.argmax(r)), r.shape)
+
+    def sub(m, p, q):  # parabola through the peak and its two neighbours: a fraction of a pixel
+        den = m - 2 * p + q
+        return 0.5 * (m - q) / den if abs(den) > 1e-12 else 0.0
+
+    fx = sub(r[y, (x - 1) % w], r[y, x], r[y, (x + 1) % w])
+    fy = sub(r[(y - 1) % h, x], r[y, x], r[(y + 1) % h, x])
+    xs, ys = x + fx, y + fy
+    return (xs - w if xs > w / 2 else xs), (ys - h if ys > h / 2 else ys)
+
+
+def _shake(path: Path, fps: float) -> float:
+    """Camera shake of a source: how far each frame's motion strays from the smooth motion around it, as percent of the
+    frame width. A pan or a walk is slow and steady, so it is kept; the quick back-and-forth of a shaky hand counts. A
+    still picture measures 0. Frames are streamed, so a long clip does not fill the memory."""
+    import numpy as np
+
+    w, h = STAB_W, STAB_H
+    proc = subprocess.Popen(
+        [require_ffmpeg(), "-hide_banner", "-loglevel", "error", "-i", str(path), "-map", "0:v:0",
+         "-vf", f"scale={w}:{h},format=gray", "-f", "rawvideo", "-"],
+        stdout=subprocess.PIPE,
+    )  # fmt: skip
+    dx, dy, prev = [], [], None
+    try:
+        while len(buf := proc.stdout.read(w * h)) == w * h:
+            cur = np.frombuffer(buf, np.uint8).reshape(h, w).astype(np.float32)
+            if prev is not None:
+                x, y = _shift(prev, cur)
+                dx.append(x)
+                dy.append(y)
+            prev = cur
+    finally:
+        proc.stdout.close()
+        proc.wait()
+    if proc.returncode != 0 or len(dx) < 3:
+        raise VideoError(f"{path.name}: too short or unreadable to check for shake")
+    k = max(3, round(fps * STAB_SMOOTH_S))
+    kern = np.ones(k)
+    norm = np.convolve(np.ones(len(dx)), kern, mode="same")  # edges average over what is there, not zeros
+    rx = np.array(dx, float) - np.convolve(dx, kern, mode="same") / norm
+    ry = np.array(dy, float) - np.convolve(dy, kern, mode="same") / norm
+    return 100 * float(np.sqrt(np.mean(rx**2 + ry**2))) / w
+
+
+def _stabilize_source(path: Path, fps: float) -> tuple[Path, float]:
+    """The file to read for a source, and its shake. The shake is checked once per file and cached. A shaky source
+    (at or above ``STAB_MIN_SHAKE``) is transformed once with vidstab and the copy cached; a steady one is read as it
+    is. Timing is kept, so the cut points and flashes do not move."""
+    cache = _stab_cache()
+    key = _stab_key(path)
+    done, meta = cache / f"{key}.mp4", cache / f"{key}.json"
+    if meta.exists():
+        m = json.loads(meta.read_text(encoding="utf-8"))
+        return (done if m["stabilized"] else path), m["shake"]
+    shake = _shake(path, fps)
+    stab = shake >= STAB_MIN_SHAKE
+    if stab:
+        with tempfile.TemporaryDirectory() as td:
+            r = _run_in(["-i", str(path), "-vf", STAB_DETECT, "-f", "null", "-"], td)
+            if r.returncode == 0:
+                r = _run_in(
+                    ["-i", str(path), "-vf", STAB_TRANSFORM, "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+                     "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-y", str(done)],
+                    td,
+                )  # fmt: skip
+            if r.returncode != 0:
+                done.unlink(missing_ok=True)
+                raise VideoError("stabilize failed: " + r.stderr.decode("utf-8", "replace").strip()[-300:])
+    meta.write_text(json.dumps({"shake": round(shake, 3), "stabilized": stab}), encoding="utf-8")
+    return (done if stab else path), shake
+
+
 TRANSITIONS = ("flash", "cut")
 GRADES = ("funky", "warm", "none")
 FRAMES = ("pad", "crop", "blurred-bg")
@@ -496,10 +618,16 @@ class Edited:
     cuts: int
     duration: float
     preview: bool = False
+    stabilized: int = 0  # sources that were shaky and got the stabilize pass
+    notes: list[str] = field(default_factory=list)
 
     def text(self) -> str:
         mb = self.path.stat().st_size / (1024 * 1024)
-        return f"{'preview, ' if self.preview else ''}{self.cuts} cuts, {self.duration:.2f}s, {mb:.1f} MB"
+        parts = [f"{'preview, ' if self.preview else ''}{self.cuts} cuts, {self.duration:.2f}s, {mb:.1f} MB"]
+        if self.stabilized:
+            parts.append(f"stabilized {self.stabilized} shaky source{'s' if self.stabilized != 1 else ''}")
+        parts += self.notes
+        return ", ".join(parts)
 
 
 def edit(
@@ -512,13 +640,15 @@ def edit(
     out_dir=None,
     name: str = "",
     preview: bool = False,
+    stabilize: str = "auto",
 ) -> Edited:
     """Render a list of cuts ``[{"path", "start", "end"}, ...]`` into one file in FUNK_OUT/video/. Each cut is padded
     (never cropped) to the aspect at 30 fps; ``grade="funky"`` boosts colour and adds a vignette; ``transition="flash"``
     joins cuts with a white flash (``cut`` joins them hard). ``target_mb`` sets the video bitrate to land near that size;
-    without it the picture is CRF 22."""
-    import tempfile
-
+    without it the picture is CRF 22. ``stabilize="auto"`` checks each source for camera shake and steadies only the
+    shaky ones (cached per file); ``"off"`` uses the picture as shot."""
+    if stabilize not in STABILIZE:
+        raise VideoError(f"stabilize must be one of {', '.join(STABILIZE)}")
     if transition not in TRANSITIONS:
         raise VideoError(f"transition must be one of {', '.join(TRANSITIONS)}")
     if grade not in GRADES:
@@ -543,6 +673,17 @@ def edit(
         if a >= src.duration:
             raise VideoError(f"cut {n}: start {a:g}s is past the end of the video ({src.duration:.2f}s)")
         segs.append((src, a, min(b, src.duration)))
+    read: dict[Path, Path] = {}  # source -> the file to read: its stabilized copy when it was shaky
+    stabilized, notes = 0, []
+    if stabilize == "auto" and not _has_filter("vidstabdetect"):
+        notes.append("stabilize skipped: this ffmpeg has no vidstab")
+    elif stabilize == "auto":
+        for src, _, _ in segs:
+            if src.path in read:
+                continue
+            f, _ = _stabilize_source(src.path, src.fps or 30.0)
+            read[src.path] = f
+            stabilized += f != src.path
     dur = [b - a for _, a, b in segs]
     flash = transition == "flash" and len(segs) > 1
     if flash and min(dur) < 2 * FLASH_S:
@@ -551,7 +692,7 @@ def edit(
     grade_f = {"funky": f",{FUNKY}", "warm": f",{WARM}", "none": ""}[grade]
     parts, inputs = [], []
     for i, (src, a, b) in enumerate(segs):
-        inputs += ["-i", str(src.path)]
+        inputs += ["-i", str(read.get(src.path, src.path))]
         # fps before trim: a camera file with timestamp gaps trims to the wrong length otherwise, and the flash
         # joins (which assume each cut is its nominal length) then end the picture early
         head = f"[{i}:v]fps=30,trim=start={a:.3f}:end={b:.3f},setpts=PTS-STARTPTS"
@@ -620,7 +761,7 @@ def edit(
     if r.returncode != 0:
         out.unlink(missing_ok=True)
         raise VideoError("ffmpeg edit failed: " + r.stderr.decode("utf-8", "replace").strip()[-400:])
-    return Edited(out, n, info(out).duration, preview)
+    return Edited(out, n, info(out).duration, preview, stabilized, notes)
 
 
 # --------------------------------------------------------------------------- highlights
