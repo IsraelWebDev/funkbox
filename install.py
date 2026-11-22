@@ -39,7 +39,7 @@ GIMP_MCP_URL = "https://github.com/maorcc/gimp-mcp"
 GIMP_DOWNLOAD = "https://www.gimp.org/downloads/"
 GIMP_WINGET = "GIMP.GIMP.3"
 TORCH_CPU_INDEX = "https://download.pytorch.org/whl/cpu"
-PARTS = ("reel", "fastsd", "gimp")
+PARTS = ("reel", "fastsd", "gimp", "transcribe")
 
 
 # --------------------------------------------------------------------------- #
@@ -365,6 +365,8 @@ def make_venv(r: Runner, parts: tuple[str, ...]) -> bool:
     req = ["-r", str(r.root / "requirements.txt")]
     if "reel" in parts:
         req += ["-r", str(r.root / "requirements-reel.txt")]
+    if "transcribe" in parts:
+        req += ["-r", str(r.root / "requirements-transcribe.txt")]
     if uv:
         r.run([uv, "pip", "install", "--python", str(py), *req])
     else:

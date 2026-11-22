@@ -13,7 +13,7 @@ jobs:
       - name: System libraries (software OpenGL, ffmpeg, pdftoppm for the PDF export test)
         run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1-mesa-dri ffmpeg poppler-utils
       - name: Python dependencies
-        run: pip install -r requirements.txt pytest pypdf
+        run: pip install -r requirements.txt -r requirements-transcribe.txt pytest pypdf
       - name: Tests
         env:
           FUNK_GL_BACKEND: egl

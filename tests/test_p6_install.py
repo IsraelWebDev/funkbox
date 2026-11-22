@@ -43,6 +43,7 @@ def test_pyproject_in_sync_with_requirements():
     norm = lambda xs: sorted(re.sub(r"\s+", "", x).lower() for x in xs)
     assert norm(d["project"]["dependencies"]) == _reqs("requirements.txt")
     assert norm(d["project"]["optional-dependencies"]["reel"]) == _reqs("requirements-reel.txt")
+    assert norm(d["project"]["optional-dependencies"]["transcribe"]) == _reqs("requirements-transcribe.txt")
     assert "dev" in d["project"]["optional-dependencies"]
 
 
@@ -177,7 +178,7 @@ def test_the_registered_entry_starts_the_server_from_any_folder(tmp_path):
                 return {t.name for t in (await s.list_tools()).tools}
 
     names = asyncio.run(go())
-    assert len(names) == 55 and "project_approve_copy" in names
+    assert len(names) == 56 and "project_approve_copy" in names
 
 
 def test_gimp_cmd_template_rendered_without_machine_paths(tmp_path):

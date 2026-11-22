@@ -23,6 +23,10 @@ reel = [
   "kokoro-onnx>=0.4",
   "piper-tts>=1.2",
 ]
+transcribe = [
+  "faster-whisper>=1.1",
+  "av>=12,<14",
+]
 dev = [
   "pytest",
   "pypdf",
