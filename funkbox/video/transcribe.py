@@ -18,7 +18,8 @@ from pathlib import Path
 from funkbox.video.clip import VideoError, _default_name, _out_path, _src, info
 
 MODELS = ("tiny", "base", "small", "medium", "large-v3")
-DEFAULT_MODEL = "small"  # provisional: T-2 measures it on the laptop before this is final
+DEFAULT_MODEL = "small"  # English: T-2 on the laptop, small within 3% of large-v3 at a third of medium's time
+HEBREW_MODEL = "large-v3"  # Hebrew: small got 46% of words wrong on a short sample, large-v3 got 18% (2026-11-22)
 COMPUTE = "int8"  # CPU only (the laptop has no NVIDIA GPU); a bigger compute type gains little on speech
 _LOADED: dict = {}
 
@@ -34,10 +35,13 @@ class Transcript:
 
     def text(self) -> str:
         avg = sum(w["prob"] for w in self.words) / len(self.words) if self.words else 0.0
-        return (
+        out = (
             f"{len(self.words)} words, {self.duration:.1f}s, language {self.language}, model {self.model}, "
             f"average confidence {avg:.2f}"
         )
+        if self.language == "he" and self.model != HEBREW_MODEL:
+            out += f"\nHebrew is much more accurate on {HEBREW_MODEL}: rerun with model={HEBREW_MODEL} for captions."
+        return out
 
 
 def srt_time(t: float) -> str:
@@ -59,10 +63,16 @@ def _load(model: str):
     return _LOADED[model]
 
 
+def default_model(language) -> str:
+    """The model used when none is named: large-v3 for Hebrew, small for everything else (and for auto-detect)."""
+    return HEBREW_MODEL if language == "he" else DEFAULT_MODEL
+
+
 def transcribe(path, language=None, model=None, out_dir=None, name="") -> Transcript:
     """Transcribe the speech in a video. ``language`` is a code such as ``en`` or ``he``; left out, it is detected.
-    ``model`` is one of MODELS. Never overwrites: a name that exists gets -2, -3 ..."""
-    model = model or DEFAULT_MODEL
+    ``model`` is one of MODELS; left out, it follows the language (see default_model). Never overwrites: a name that
+    exists gets -2, -3 ..."""
+    model = model or default_model(language)
     if model not in MODELS:
         raise VideoError(f"model must be one of {', '.join(MODELS)}")
     if language is not None and not (language.isalpha() and 2 <= len(language) <= 3):

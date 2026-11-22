@@ -2890,7 +2890,7 @@
     },
     {
       "area": "video",
-      "description": "Speech to text for a video, on this machine (no cloud). Writes every word with its start and end in seconds to\n<out>/video/<name>.words.json (the data captions and cut finders read) and the phrases to <name>.srt. ``language``:\na code such as en or he; blank to detect. ``model``: tiny, base, small (default), medium or large-v3; a bigger model\nis more accurate and slower. The first use of a model downloads it. Never overwrites.",
+      "description": "Speech to text for a video, on this machine (no cloud). Writes every word with its start and end in seconds to\n<out>/video/<name>.words.json (the data captions and cut finders read) and the phrases to <name>.srt. ``language``:\na code such as en or he; blank to detect. ``model``: tiny, base, small, medium or large-v3. Blank picks by language:\nlarge-v3 for he (small misses about half the Hebrew words), small for everything else. A bigger model is more\naccurate and slower. The first use of a model downloads it. Never overwrites.",
       "input_schema": {
         "properties": {
           "language": {
@@ -2899,7 +2899,7 @@
             "type": "string"
           },
           "model": {
-            "default": "small",
+            "default": "",
             "title": "Model",
             "type": "string"
           },
