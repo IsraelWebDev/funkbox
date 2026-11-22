@@ -1,3 +1,4 @@
 # speech to text for video (funkbox video transcribe), optional, installed with install.py --with transcribe
 faster-whisper>=1.1  # the transcriber: OpenAI Whisper models run locally (MIT); models download on first use
 av>=12,<14           # PyAV, which faster-whisper decodes with; 14+ removed an argument faster-whisper 1.2 still passes
+opencv-python-headless>=4.10,<5  # face finder for subtitles (Haar cascade, Apache-2.0); OpenCV 5 dropped the cascade files
