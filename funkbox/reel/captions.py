@@ -8,6 +8,7 @@ Nothing here transforms case or touches characters.
 
 from __future__ import annotations
 
+import difflib
 import json
 import math
 import re
@@ -509,9 +510,17 @@ def layout_block(
 # --------------------------------------------------------------------------- #
 # Reveals
 # --------------------------------------------------------------------------- #
-def reveal_count(lay: Layout, reveal: str, t: float, vo_dur: float | None = None, span: float | None = None) -> int:
+def reveal_count(
+    lay: Layout,
+    reveal: str,
+    t: float,
+    vo_dur: float | None = None,
+    span: float | None = None,
+    timings: list[tuple[float, float]] | None = None,
+) -> int:
     """Number of characters of the copy text visible ``t`` seconds after the caption starts.
-    ``span`` is the shot's duration in seconds (resolves a cps of "auto"; None = the old fixed cps)."""
+    ``span`` is the shot's duration in seconds (resolves a cps of "auto"; None = the old fixed cps).
+    ``timings`` (from word_timings) puts each word on screen at its real start time for "words"."""
     n_total = len(lay.text)
     if t < 0:
         return 0
@@ -523,21 +532,101 @@ def reveal_count(lay: Layout, reveal: str, t: float, vo_dur: float | None = None
         words = [m.end() for m in re.finditer(r"[^\s]+", lay.text)]
         if not words:
             return n_total
+        if timings is not None:
+            k = words_visible(timings, t)
+            return words[k - 1] if k else 0
         dur = vo_dur if vo_dur else 0.3 * len(words)
         k = min(len(words), int(math.floor(t / (dur / len(words)))) + 1)
         return words[k - 1]
     raise ValueError(f"unknown reveal {reveal!r}")
 
 
-def reveal_seconds(lay: Layout, reveal: str, vo_dur: float | None = None, span: float | None = None) -> float:
+def reveal_seconds(
+    lay: Layout,
+    reveal: str,
+    vo_dur: float | None = None,
+    span: float | None = None,
+    timings: list[tuple[float, float]] | None = None,
+) -> float:
     """Time until the caption is fully visible. ``span`` is the shot's duration in seconds (resolves a
-    cps of "auto"; None = the old fixed cps)."""
+    cps of "auto"; None = the old fixed cps). With ``timings`` the last word's start is the end."""
     if reveal == "typewriter":
         return len(lay.text) / effective_cps(lay.style, lay.text, span)
     if reveal == "words":
+        if timings:
+            return timings[-1][0]
         n = len(re.findall(r"[^\s]+", lay.text))
         return (vo_dur if vo_dur else 0.3 * n) * (n - 1) / max(1, n)
     return 0.0
+
+
+# --------------------------------------------------------------------------- #
+# Word timings from a transcript
+# --------------------------------------------------------------------------- #
+_TOKEN = re.compile(r"\S+")
+
+
+def _key(token: str) -> str:
+    """A word for matching: letters and digits only, lower case (Hebrew and other scripts included)."""
+    return re.sub(r"[^\w]", "", token).lower()
+
+
+def word_timings(text: str, words: list[dict]) -> list[tuple[float, float]] | None:
+    """(start, end) in seconds for each word of ``text``, from a transcript's ``words`` (dicts with text, start, end).
+
+    Only the times come from the transcript: the words drawn are always the approved ``text``. Words are matched
+    in order; a word the transcript did not hear, or heard differently, takes the time between its matched
+    neighbours. Returns None when no word matches at all, so the caller can fall back to an untimed caption."""
+    caption = [m.group() for m in _TOKEN.finditer(text)]
+    heard = [(_key(x["text"]), float(x["start"]), float(x["end"])) for x in words]
+    ours = [_key(t) for t in caption]
+    out: list[tuple[float, float] | None] = [None] * len(caption)
+    matched = False
+    sm = difflib.SequenceMatcher(None, ours, [h[0] for h in heard], autojunk=False)
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            matched = True
+            for k in range(i2 - i1):
+                _, s, e = heard[j1 + k]
+                out[i1 + k] = (s, e)
+        elif tag == "replace" and i2 - i1 == j2 - j1:  # same count heard: a substitution, the same slot
+            matched = True
+            for k in range(i2 - i1):
+                _, s, e = heard[j1 + k]
+                out[i1 + k] = (s, e)
+    if not matched:
+        return None
+    # the unmatched words sit between their nearest timed neighbours, evenly spaced
+    last_end = 0.0
+    i = 0
+    while i < len(out):
+        if out[i] is not None:
+            last_end = out[i][1]
+            i += 1
+            continue
+        j = i
+        while j < len(out) and out[j] is None:
+            j += 1
+        nxt = out[j][0] if j < len(out) else last_end + 0.3 * (j - i)
+        gap = (nxt - last_end) / (j - i)
+        for k in range(i, j):
+            s = last_end + gap * (k - i)
+            out[k] = (s, s + gap)
+        last_end = out[j - 1][1]
+        i = j
+    res = []
+    prev = 0.0
+    for s, e in out:
+        s = max(s, prev)
+        e = max(e, s)
+        res.append((s, e))
+        prev = s
+    return res
+
+
+def words_visible(timings: list[tuple[float, float]], t: float) -> int:
+    """How many words are on screen ``t`` seconds into the caption: a word shows from its start."""
+    return sum(1 for s, _ in timings if s <= t + 1e-9)
 
 
 def revealed_lines(lay: Layout, n: int) -> list[str | None]:
@@ -717,11 +806,17 @@ def _animate(arr, x, y, lay: Layout, bw: int, bh: int, m: int, t: float, anim: s
 
 
 def render_caption(
-    lay: Layout, reveal: str, t: float, vo_dur: float | None = None, span: float | None = None
+    lay: Layout,
+    reveal: str,
+    t: float,
+    vo_dur: float | None = None,
+    span: float | None = None,
+    timings: list[tuple[float, float]] | None = None,
 ) -> Sprite | None:
     """Sprite for a caption ``t`` seconds after it started (t < 0: not yet visible).
-    ``span`` is the shot's duration in seconds (resolves a cps of "auto"; None = the old fixed cps)."""
-    n = reveal_count(lay, reveal, t, vo_dur, span)
+    ``span`` is the shot's duration in seconds (resolves a cps of "auto"; None = the old fixed cps).
+    ``timings`` puts the words of a "words" reveal on screen at their real times (see word_timings)."""
+    n = reveal_count(lay, reveal, t, vo_dur, span, timings)
     strings = revealed_lines(lay, n)
     if reveal == "none" and t < 0:
         return None

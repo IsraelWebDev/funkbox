@@ -2771,7 +2771,7 @@
     },
     {
       "area": "video",
-      "description": "Burn subtitles into a copy of a video. ``cues`` = [{\"start\": 1.2, \"end\": 3.0, \"text\": \"...\"}] or ``srt`` =\na .srt/.vtt file. Drawn by funkbox's caption engine in a caption style (lower-third, red-box, bold-pop) with the\nbrand's fonts and colours (brand = {primary, secondary, text, font_caption, font_display}); Hebrew reads right\nto left; text is never rewritten and a .text_audit.json proves each cue was drawn exactly.",
+      "description": "Burn subtitles into a copy of a video. ``cues`` = [{\"start\": 1.2, \"end\": 3.0, \"text\": \"...\"}] or ``srt`` =\na .srt/.vtt file. Drawn by funkbox's caption engine in a caption style (lower-third, red-box, bold-pop) with the\nbrand's fonts and colours (brand = {primary, secondary, text, font_caption, font_display}); Hebrew reads right\nto left; text is never rewritten and a .text_audit.json proves each cue was drawn exactly.\n``words`` = a <name>.words.json from video_transcribe: each word then appears when it is said, with the word\nhighlight following it. The cue text is still drawn exactly; the transcript only sets the times.",
       "input_schema": {
         "properties": {
           "anchor": {
@@ -2834,6 +2834,11 @@
               "red-box"
             ],
             "title": "Style",
+            "type": "string"
+          },
+          "words": {
+            "default": "",
+            "title": "Words",
             "type": "string"
           }
         },
