@@ -294,6 +294,49 @@ class Subtitled:
     cues: int
 
 
+def _load_words(words) -> list[dict] | None:
+    """A words.json (or a list of {text, start, end}) as a list of word dicts, or None when not given."""
+    if words is None:
+        return None
+    if isinstance(words, (str, Path)):
+        p = Path(words)
+        try:
+            data = json.loads(p.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError) as e:
+            raise VideoError(f"words: {p.name} is not a words.json file ({e})") from None
+    else:
+        data = words
+    items = data.get("words") if isinstance(data, dict) else data
+    if not isinstance(items, list):
+        raise VideoError("words: a words.json with a 'words' list, or a list of {text, start, end}")
+    out = []
+    for i, x in enumerate(items):
+        try:
+            out.append({"text": str(x["text"]), "start": float(x["start"]), "end": float(x["end"])})
+        except (KeyError, TypeError, ValueError):
+            raise VideoError(f"words[{i}]: needs text, start and end in seconds") from None
+    return out
+
+
+def _timed_states(lay, cue: Cue, timed: list[tuple[float, float]]) -> list[tuple[float, float, object, int]]:
+    """One (from, to, sprite, words) per state of a cue whose words appear at their real times: each word on screen
+    from its start until the next word starts (the last one until the cue ends)."""
+    from funkbox.reel import captions
+
+    ends = [m.end() for m in re.finditer(r"\S+", lay.text)]
+    starts = [min(max(s, cue.start), cue.end - 0.001) for s, _ in timed]
+    out = []
+    for m in range(1, len(ends) + 1):
+        a = starts[m - 1]
+        b = starts[m] if m < len(ends) else cue.end
+        if b - a <= 0:  # a word that starts with the next one is never on its own
+            continue
+        spr = captions.draw_block(lay, captions.revealed_lines(lay, ends[m - 1]))
+        if spr is not None:
+            out.append((a, b, spr, m))
+    return out
+
+
 def subtitles(
     path,
     cues=None,
@@ -303,16 +346,22 @@ def subtitles(
     out_dir=None,
     name: str = "",
     brand: dict | None = None,
+    words=None,
 ) -> Subtitled:
     """Burn cues into a copy of the video with funkbox's caption styles (red-box, bold-pop, lower-third).
     Each cue is laid out like a reel caption (wrapped on spaces, never shrunk below the minimum, Hebrew right to
-    left) and a text audit records every string drawn."""
+    left) and a text audit records every string drawn.
+
+    ``words`` (a words.json from ``video transcribe``, or a list of {text, start, end}) times the cues: each word
+    appears when it is said, and the word highlight follows it. The text drawn is always the cue's own text; the
+    transcript only supplies the times. A cue the transcript never heard is drawn whole, and the audit says so."""
     import tempfile
     from funkbox.reel import captions
     from funkbox.reel.schema import Brand
 
     inf = info(path)
     cs = _cues(cues, srt)
+    heard = _load_words(words)
     if style not in captions.list_styles():
         raise VideoError(f"style {style!r}: one of {', '.join(captions.list_styles())}")
     if anchor not in ("top", "center", "bottom"):
@@ -328,25 +377,38 @@ def subtitles(
         inputs, chain, last = [], [], "0:v"
         for i, c in enumerate(cs):
             lay = captions.layout_block(f"cue{i + 1}", c.text, st, fonts, b, W, H, anchor=anchor, safe_area=safe)
-            spr = captions.render_caption(lay, "none", 10.0)
-            if spr is None:
+            timed = None
+            if heard:
+                window = [x for x in heard if x["start"] >= c.start - 0.5 and x["end"] <= c.end + 0.5]
+                timed = captions.word_timings(c.text, window)
+            if timed:
+                states = _timed_states(lay, c, timed)
+            else:
+                spr = captions.render_caption(lay, "none", 10.0)
+                states = [(c.start, c.end, spr, 0)] if spr is not None else []
+            if not states:
                 continue
-            png = Path(td) / f"c{i}.png"
-            Image.fromarray(spr.rgba, "RGBA").save(png)
-            inputs += ["-i", str(png)]
-            k = len(inputs) // 2
-            tag = f"v{k}"
-            chain.append(f"[{last}][{k}:v]overlay={spr.x}:{spr.y}:enable='between(t,{c.start:.3f},{c.end:.3f})'[{tag}]")
-            last = tag
-            rebuilt = lay.reconstruct(spr.drawn)
+            for a, z, spr, _ in states:
+                png = Path(td) / f"c{len(inputs) // 2}.png"
+                Image.fromarray(spr.rgba, "RGBA").save(png)
+                inputs += ["-i", str(png)]
+                k = len(inputs) // 2
+                tag = f"v{k}"
+                chain.append(f"[{last}][{k}:v]overlay={spr.x}:{spr.y}:enable='between(t,{a:.3f},{z:.3f})'[{tag}]")
+                last = tag
+            final = states[-1][2]
             audit.append(
                 {
                     "cue": i + 1,
                     "start": c.start,
                     "end": c.end,
                     "text": c.text,
-                    "drawn_lines": spr.drawn,
-                    "text_exact": rebuilt == c.text,
+                    "drawn_lines": final.drawn,
+                    "text_exact": lay.reconstruct(final.drawn) == c.text,
+                    "timed": bool(timed),
+                    "states": [{"start": round(a, 3), "end": round(z, 3), "words": m} for a, z, _, m in states]
+                    if timed
+                    else [],
                 }
             )
         script = Path(td) / "graph.txt"

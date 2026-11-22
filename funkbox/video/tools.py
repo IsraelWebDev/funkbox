@@ -60,14 +60,17 @@ def video_subtitles(
     anchor: SubtitleAnchor = "bottom",
     name: str = "",
     brand: dict | None = None,
+    words: str = "",
 ) -> list:
     """Burn subtitles into a copy of a video. ``cues`` = [{"start": 1.2, "end": 3.0, "text": "..."}] or ``srt`` =
     a .srt/.vtt file. Drawn by funkbox's caption engine in a caption style (lower-third, red-box, bold-pop) with the
     brand's fonts and colours (brand = {primary, secondary, text, font_caption, font_display}); Hebrew reads right
-    to left; text is never rewritten and a .text_audit.json proves each cue was drawn exactly."""
+    to left; text is never rewritten and a .text_audit.json proves each cue was drawn exactly.
+    ``words`` = a <name>.words.json from video_transcribe: each word then appears when it is said, with the word
+    highlight following it. The cue text is still drawn exactly; the transcript only sets the times."""
     from funkbox.video import clip
 
-    res = clip.subtitles(path, cues, srt or None, style, anchor, None, name, brand)
+    res = clip.subtitles(path, cues, srt or None, style, anchor, None, name, brand, words=words or None)
     inf = clip.info(res.path)
     frame = clip.frame_at(res.path, min(inf.duration - 0.05, _first_cue_mid(cues, srt)), 720)
     return [f"{res.cues} cues drawn exactly\nfile: {res.path}\naudit: {res.audit}", _png(frame, 720)]
@@ -220,7 +223,16 @@ def cmd_subtitles(a) -> int:
     from funkbox.video import clip
 
     cues = json.loads(Path(a.cues).read_text(encoding="utf-8-sig")) if a.cues else None
-    res = clip.subtitles(_abs(a.video), cues, _abs(a.srt) if a.srt else None, a.style, a.anchor, a.out, a.name or "")
+    res = clip.subtitles(
+        _abs(a.video),
+        cues,
+        _abs(a.srt) if a.srt else None,
+        a.style,
+        a.anchor,
+        a.out,
+        a.name or "",
+        words=_abs(a.words) if a.words else None,
+    )
     print(f"{res.cues} cues drawn exactly\nfile: {res.path}\naudit: {res.audit}")
     return 0
 
@@ -310,6 +322,7 @@ def add_cli(sub) -> None:
     p.add_argument("--cues", help="JSON file: [{start, end, text}]")
     p.add_argument("--style", default="lower-third")
     p.add_argument("--anchor", default="bottom")
+    p.add_argument("--words", help="a <name>.words.json from `video transcribe`: each word appears when it is said")
     p.add_argument("--out")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_subtitles)
