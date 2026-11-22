@@ -169,16 +169,37 @@ def video_transcribe(path: str, language: str = "", model: str = "", name: str =
     return [f"{res.text()}\nwords: {res.path}\nsrt: {res.srt}"]
 
 
+def _fillers(spec: str) -> tuple[str, ...]:
+    """'default' -> cutfind.FILLERS; 'none' or '' -> none; otherwise a comma-separated list of words."""
+    from funkbox.video import cutfind
+
+    spec = (spec or "").strip()
+    if spec.lower() == "default":
+        return cutfind.FILLERS
+    if spec.lower() in ("", "none"):
+        return ()
+    return tuple(w.strip() for w in spec.split(",") if w.strip())
+
+
 @safe
-def video_cutplan(path: str, words: str = "", keep_s: float = 0.25, min_pause_s: float = 0.6, name: str = "") -> list:
+def video_cutplan(
+    path: str, words: str = "", keep_s: float = 0.25, min_pause_s: float = 0.6, fillers: str = "default", name: str = ""
+) -> list:
     """Propose cuts for a talking-head video, for a person to approve. Long pauses are found in the sound (a breath,
     ``keep_s`` seconds, is kept on each side); repeated takes are found in the words of a <name>.words.json from
-    video_transcribe (the earlier take is proposed for removal, the later one kept). Nothing is rendered: this writes
+    video_transcribe (the earlier take is proposed for removal, the later one kept), and so are filler words in those
+    words: ``fillers`` is "default" (um, uh, er, ah, hmm and their spellings), a comma-separated list of your own, or
+    "none" to keep them. Nothing is rendered: this writes
     <out>/video/<name>.cutplan.json with the proposed cuts. After approval, render those cuts with video_edit."""
     from funkbox.video import cutfind
 
     res = cutfind.cutplan(
-        _abs(path), words=_abs(words) if words else None, keep_s=keep_s, min_pause_s=min_pause_s, name=name
+        _abs(path),
+        words=_abs(words) if words else None,
+        keep_s=keep_s,
+        min_pause_s=min_pause_s,
+        fillers=_fillers(fillers),
+        name=name,
     )
     return [res.text()]
 
@@ -277,6 +298,7 @@ def cmd_cutplan(a) -> int:
         words=_abs(a.words) if a.words else None,
         keep_s=a.keep,
         min_pause_s=a.min_pause,
+        fillers=_fillers(a.fillers),
         out_dir=a.out,
         name=a.name or "",
     )
@@ -389,12 +411,18 @@ def add_cli(sub) -> None:
     p.add_argument("--name")
     p.set_defaults(fn=cmd_transcribe)
     p = vs.add_parser(
-        "cutplan", help="propose cuts to approve: long pauses from the sound, repeated takes from words.json"
+        "cutplan",
+        help="propose cuts to approve: long pauses from the sound, repeated takes and fillers from words.json",
     )
     p.add_argument("video")
     p.add_argument("--words", help="a <name>.words.json from `video transcribe`, for repeated takes")
     p.add_argument("--keep", type=float, default=0.25, help="seconds of breath kept on each side of a removed pause")
     p.add_argument("--min-pause", type=float, default=0.6, help="pauses shorter than this stay")
+    p.add_argument(
+        "--fillers",
+        default="default",
+        help='filler words to propose from --words: "default" (um, uh, er, ah, hmm ...), "none", or a list "um,like"',
+    )
     p.add_argument("--out")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_cutplan)

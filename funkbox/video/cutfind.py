@@ -1,10 +1,10 @@
-"""Propose cuts for approval: long pauses (from the audio) and repeated takes (from the transcript).
+"""Propose cuts for approval: long pauses (from the audio), repeated takes and filler words (from the transcript).
 
     cutplan("talk.mp4", words="talk.words.json") -> CutPlan(path=talk-cutplan.json, cuts=[{path, start, end}, ...])
 
 Pauses come from ffmpeg's silencedetect on the sound, so their edges do not depend on the transcript. Repeated takes
 come from the words: when the same run of words is said again soon after, the earlier take is proposed for removal and
-the later one kept. Nothing is rendered: the plan is a JSON file for a person to approve, then ``video_edit`` renders
+the later one kept. Filler words ("um", "uh", ...) in the transcript are proposed for removal too. Nothing is rendered: the plan is a JSON file for a person to approve, then ``video_edit`` renders
 its cuts. Each pause keeps a breath (``keep_s``) on either side so the cut does not clip the next word.
 """
 
@@ -23,6 +23,8 @@ KEEP_S = 0.25  # breath kept on each side of a removed pause
 MIN_PAUSE_S = 0.6  # pauses shorter than this stay
 MIN_WORDS = 4  # a repeat of fewer words is coincidence
 MAX_GAP_S = 30.0  # a retake is said within this many seconds of the take it replaces
+#: spoken fillers proposed for removal when the transcript has them (matched on letters only, any case)
+FILLERS = ("um", "umm", "uh", "uhm", "uhh", "er", "erm", "ah", "hmm", "mm")
 
 _START = re.compile(r"silence_start: (-?[\d.]+)")
 _END = re.compile(r"silence_end: (-?[\d.]+)")
@@ -111,6 +113,19 @@ def retake_removals(
     return out
 
 
+def filler_removals(words: list[dict], fillers=FILLERS) -> list[tuple[float, float, str]]:
+    """Each word that is a filler ("um", "uh", ...), as (start, end, text) to remove. Matching ignores case and
+    punctuation, so "Um," is a filler; a word that only contains one ("umbrella", "hummus") is not."""
+    keys = {_key(f) for f in fillers if _key(f)}
+    out = []
+    for x in words:
+        if keys and _key(str(x["text"])) in keys:
+            a, b = round(float(x["start"]), 3), round(float(x["end"]), 3)
+            if b > a:
+                out.append((a, b, str(x["text"]).strip()))
+    return out
+
+
 def _merge(spans: list[tuple[float, float, str]]) -> list[tuple[float, float, list[str]]]:
     merged: list[list] = []
     for a, b, why in sorted(spans):
@@ -145,10 +160,11 @@ class CutPlan:
     def text(self) -> str:
         pauses = sum(1 for r in self.removed for x in r["reasons"] if x.startswith("pause"))
         retakes = sum(1 for r in self.removed for x in r["reasons"] if x.startswith("retake"))
+        fillers = sum(1 for r in self.removed for x in r["reasons"] if x.startswith("filler"))
         gone = sum(r["end"] - r["start"] for r in self.removed)
         kept = sum(b - a for a, b in self.keep)
         return (
-            f"{pauses} pause(s) and {retakes} retake(s) proposed: {gone:.1f}s of {self.duration:.1f}s removed, "
+            f"{pauses} pause(s), {retakes} retake(s) and {fillers} filler word(s) proposed: {gone:.1f}s of {self.duration:.1f}s removed, "
             f"{kept:.1f}s kept. Not rendered: approve the plan, then video_edit renders its cuts.\nplan: {self.path}"
         )
 
@@ -162,10 +178,12 @@ def cutplan(
     min_silence_s: float = MIN_SILENCE_S,
     min_words: int = MIN_WORDS,
     max_gap_s: float = MAX_GAP_S,
+    fillers=FILLERS,
     out_dir=None,
     name: str = "",
 ) -> CutPlan:
-    """Propose what to cut from a talking-head video. Writes <name>.cutplan.json and renders nothing."""
+    """Propose what to cut from a talking-head video. Writes <name>.cutplan.json and renders nothing.
+    ``fillers``: the filler words to propose for removal from ``words`` (default ``FILLERS``; empty turns it off)."""
     if not 0 <= keep_s <= 1.0:
         raise VideoError("keep_s: between 0 and 1 second")
     if not 1 <= min_words <= 50:
@@ -179,6 +197,7 @@ def cutplan(
     ]
     if wl:
         spans += [(a, b, f"retake: {t}") for a, b, t in retake_removals(wl, min_words, max_gap_s)]
+        spans += [(a, b, f"filler: {t}") for a, b, t in filler_removals(wl, fillers or ())]
     removed = _merge(spans)
     keep = _keep(removed, inf.duration)
     cuts = [{"path": str(p), "start": a, "end": b} for a, b in keep if b - a >= 0.1]
@@ -193,6 +212,7 @@ def cutplan(
             "min_silence_s": min_silence_s,
             "min_words": min_words,
             "max_gap_s": max_gap_s,
+            "fillers": list(fillers or ()),
         },
         "removed": [{"start": a, "end": b, "reasons": r} for a, b, r in removed],
         "keep": [list(k) for k in keep],
