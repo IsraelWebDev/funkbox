@@ -2,7 +2,7 @@
   "catalog_version": 1,
   "engine_version": "4.4.1",
   "server": "funkbox",
-  "tool_count": 56,
+  "tool_count": 57,
   "tools": [
     {
       "area": "apps",
@@ -2591,6 +2591,44 @@
         "type": "object"
       },
       "name": "video_contact_sheet"
+    },
+    {
+      "area": "video",
+      "description": "Propose cuts for a talking-head video, for a person to approve. Long pauses are found in the sound (a breath,\n``keep_s`` seconds, is kept on each side); repeated takes are found in the words of a <name>.words.json from\nvideo_transcribe (the earlier take is proposed for removal, the later one kept). Nothing is rendered: this writes\n<out>/video/<name>.cutplan.json with the proposed cuts. After approval, render those cuts with video_edit.",
+      "input_schema": {
+        "properties": {
+          "keep_s": {
+            "default": 0.25,
+            "title": "Keep S",
+            "type": "number"
+          },
+          "min_pause_s": {
+            "default": 0.6,
+            "title": "Min Pause S",
+            "type": "number"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "words": {
+            "default": "",
+            "title": "Words",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "video_cutplanArguments",
+        "type": "object"
+      },
+      "name": "video_cutplan"
     },
     {
       "area": "video",

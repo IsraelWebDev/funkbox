@@ -1,0 +1,210 @@
+"""Propose cuts for approval: long pauses (from the audio) and repeated takes (from the transcript).
+
+    cutplan("talk.mp4", words="talk.words.json") -> CutPlan(path=talk-cutplan.json, cuts=[{path, start, end}, ...])
+
+Pauses come from ffmpeg's silencedetect on the sound, so their edges do not depend on the transcript. Repeated takes
+come from the words: when the same run of words is said again soon after, the earlier take is proposed for removal and
+the later one kept. Nothing is rendered: the plan is a JSON file for a person to approve, then ``video_edit`` renders
+its cuts. Each pause keeps a breath (``keep_s``) on either side so the cut does not clip the next word.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from funkbox.video.clip import VideoError, _default_name, _load_words, _out_path, _run, _src, info
+
+NOISE_DB = -30.0  # silence = quieter than this (dB)
+MIN_SILENCE_S = 0.35  # shorter quiet is a consonant or a breath, not a pause
+KEEP_S = 0.25  # breath kept on each side of a removed pause
+MIN_PAUSE_S = 0.6  # pauses shorter than this stay
+MIN_WORDS = 4  # a repeat of fewer words is coincidence
+MAX_GAP_S = 30.0  # a retake is said within this many seconds of the take it replaces
+
+_START = re.compile(r"silence_start: (-?[\d.]+)")
+_END = re.compile(r"silence_end: (-?[\d.]+)")
+
+
+def parse_silences(err: str, duration: float) -> list[tuple[float, float]]:
+    """(start, end) of each silence in silencedetect's log. A silence still open at the end runs to ``duration``."""
+    out: list[tuple[float, float]] = []
+    start = None
+    for line in err.splitlines():
+        m = _START.search(line)
+        if m:
+            start = max(0.0, float(m.group(1)))
+            continue
+        m = _END.search(line)
+        if m and start is not None:
+            out.append((start, min(float(m.group(1)), duration)))
+            start = None
+    if start is not None:
+        out.append((start, duration))
+    return out
+
+
+def silences(path, noise_db: float = NOISE_DB, min_s: float = MIN_SILENCE_S) -> list[tuple[float, float]]:
+    """The quiet stretches of a video's sound, at least ``min_s`` long."""
+    if not -90 <= noise_db <= -10:
+        raise VideoError("noise_db: between -90 and -10")
+    if not 0.1 <= min_s <= 10:
+        raise VideoError("min_silence_s: between 0.1 and 10 seconds")
+    p = _src(path)
+    dur = info(p).duration
+    r = _run(["-i", str(p), "-vn", "-af", f"silencedetect=noise={noise_db:g}dB:d={min_s:g}", "-f", "null", "-"])
+    if r.returncode != 0:
+        raise VideoError(f"could not read the sound of {p.name}")
+    return parse_silences(r.stderr.decode("utf-8", "replace"), dur)
+
+
+def pause_removals(
+    sil: list[tuple[float, float]], duration: float, keep_s: float = KEEP_S, min_pause_s: float = MIN_PAUSE_S
+) -> list[tuple[float, float]]:
+    """The middle of each long pause, leaving ``keep_s`` of quiet next to the speech on either side."""
+    out = []
+    for s, e in sil:
+        if e - s < min_pause_s:
+            continue
+        a = s + keep_s if s > 0 else 0.0
+        b = e - keep_s if e < duration else duration
+        if b - a > 0.05:
+            out.append((round(a, 3), round(b, 3)))
+    return out
+
+
+def _key(token: str) -> str:
+    """A word for matching: letters and digits only, lower case (Hebrew and other scripts included)."""
+    return re.sub(r"[^\w]", "", token).lower()
+
+
+def retake_removals(
+    words: list[dict], min_words: int = MIN_WORDS, max_gap_s: float = MAX_GAP_S
+) -> list[tuple[float, float, str]]:
+    """Earlier takes of a run of words that is said again within ``max_gap_s`` seconds: (start, end, text) to remove.
+    The later take is kept. Matching is on the words, so the same words in another place are not a retake."""
+    toks = []
+    for x in words:
+        k = _key(str(x["text"]))
+        if k:
+            toks.append((k, float(x["start"]), float(x["end"]), str(x["text"])))
+    n, out, i = len(toks), [], 0
+    while i < n:
+        best = None  # (run length, index where the later take starts)
+        for j in range(i + 1, n):
+            if toks[j][1] - toks[i][2] > max_gap_s:
+                break  # the words are in time order, so no later start is close enough
+            length = 0
+            while j + length < n and i + length < j and toks[i + length][0] == toks[j + length][0]:
+                length += 1
+            if length >= min_words and (best is None or length > best[0]):
+                best = (length, j)
+        if best is None:
+            i += 1
+            continue
+        length, _ = best
+        a, b = toks[i][1], toks[i + length - 1][2]
+        out.append((round(a, 3), round(b, 3), " ".join(t[3] for t in toks[i : i + length])))
+        i += length
+    return out
+
+
+def _merge(spans: list[tuple[float, float, str]]) -> list[tuple[float, float, list[str]]]:
+    merged: list[list] = []
+    for a, b, why in sorted(spans):
+        if merged and a <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], b)
+            merged[-1][2].append(why)
+        else:
+            merged.append([a, b, [why]])
+    return [(a, b, reasons) for a, b, reasons in merged]
+
+
+def _keep(removed: list[tuple[float, float, list[str]]], duration: float) -> list[tuple[float, float]]:
+    keep, at = [], 0.0
+    for a, b, _ in removed:
+        if a > at + 0.05:
+            keep.append((round(at, 3), round(a, 3)))
+        at = max(at, b)
+    if duration > at + 0.05:
+        keep.append((round(at, 3), round(duration, 3)))
+    return keep
+
+
+@dataclass
+class CutPlan:
+    path: Path  # <name>.cutplan.json
+    source: str
+    duration: float
+    removed: list[dict] = field(default_factory=list)  # [{"start", "end", "reasons"}]
+    keep: list[tuple[float, float]] = field(default_factory=list)
+    cuts: list[dict] = field(default_factory=list)  # [{"path", "start", "end"}], ready for video_edit
+
+    def text(self) -> str:
+        pauses = sum(1 for r in self.removed for x in r["reasons"] if x.startswith("pause"))
+        retakes = sum(1 for r in self.removed for x in r["reasons"] if x.startswith("retake"))
+        gone = sum(r["end"] - r["start"] for r in self.removed)
+        kept = sum(b - a for a, b in self.keep)
+        return (
+            f"{pauses} pause(s) and {retakes} retake(s) proposed: {gone:.1f}s of {self.duration:.1f}s removed, "
+            f"{kept:.1f}s kept. Not rendered: approve the plan, then video_edit renders its cuts.\nplan: {self.path}"
+        )
+
+
+def cutplan(
+    path,
+    words=None,
+    keep_s: float = KEEP_S,
+    min_pause_s: float = MIN_PAUSE_S,
+    noise_db: float = NOISE_DB,
+    min_silence_s: float = MIN_SILENCE_S,
+    min_words: int = MIN_WORDS,
+    max_gap_s: float = MAX_GAP_S,
+    out_dir=None,
+    name: str = "",
+) -> CutPlan:
+    """Propose what to cut from a talking-head video. Writes <name>.cutplan.json and renders nothing."""
+    if not 0 <= keep_s <= 1.0:
+        raise VideoError("keep_s: between 0 and 1 second")
+    if not 1 <= min_words <= 50:
+        raise VideoError("min_words: between 1 and 50")
+    p = _src(path)
+    inf = info(p)
+    wl = _load_words(words) if words is not None else None
+    sil = silences(p, noise_db, min_silence_s)
+    spans: list[tuple[float, float, str]] = [
+        (a, b, "pause") for a, b in pause_removals(sil, inf.duration, keep_s, min_pause_s)
+    ]
+    if wl:
+        spans += [(a, b, f"retake: {t}") for a, b, t in retake_removals(wl, min_words, max_gap_s)]
+    removed = _merge(spans)
+    keep = _keep(removed, inf.duration)
+    cuts = [{"path": str(p), "start": a, "end": b} for a, b in keep if b - a >= 0.1]
+    out = _out_path(p, out_dir, name or _default_name(p, "cutplan"), suffix=".cutplan.json")
+    data = {
+        "source": p.name,
+        "duration": round(inf.duration, 3),
+        "settings": {
+            "keep_s": keep_s,
+            "min_pause_s": min_pause_s,
+            "noise_db": noise_db,
+            "min_silence_s": min_silence_s,
+            "min_words": min_words,
+            "max_gap_s": max_gap_s,
+        },
+        "removed": [{"start": a, "end": b, "reasons": r} for a, b, r in removed],
+        "keep": [list(k) for k in keep],
+        "cuts": cuts,
+        "note": "Proposal only. Nothing is rendered. Approve, then render the cuts with video_edit.",
+    }
+    out.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    return CutPlan(
+        out,
+        p.name,
+        inf.duration,
+        [{"start": a, "end": b, "reasons": r} for a, b, r in removed],
+        keep,
+        cuts,
+    )
