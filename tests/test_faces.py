@@ -57,6 +57,14 @@ def test_auto_keeps_the_caption_off_a_face(work, monkeypatch):
     assert cue["text_exact"]
 
 
+def test_no_face_found_is_unknown_not_clear(work, monkeypatch):
+    monkeypatch.setattr(faces, "faces_in", lambda rgb: [])
+    res = clip.subtitles(FIXTURE, CUES, None, "lower-third", "auto", work, "none-seen")
+    cue = json.loads(res.audit.read_text(encoding="utf-8"))[0]
+    assert cue["faces"]["faces"] == 0 and cue["faces"]["clear"] is None
+    assert "busyness" in cue["faces"]["why"]
+
+
 def test_auto_says_so_when_the_face_finder_is_missing(work, monkeypatch):
     def no_opencv(rgb):
         raise VideoError("face detection needs OpenCV")
