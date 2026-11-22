@@ -204,6 +204,18 @@ def video_cutplan(
     return [res.text()]
 
 
+@safe
+def video_report(path: str, cutplan: str = "", name: str = "") -> list:
+    """Acceptance report for a rendered video, written next to it as <name>.report.json and never changing the video.
+    Checks loudness against -14 LUFS (within 1 LU), the peak (clipping above -1 dBFS), and the pauses left (quiet of
+    0.6 s or more). ``cutplan``: a <name>.cutplan.json from video_cutplan, to check the length against the plan and
+    count the cuts removed by reason. A check that cannot be made is reported as not measured, never as a pass."""
+    from funkbox.video import report
+
+    res = report.acceptance(_abs(path), cutplan=_abs(cutplan) if cutplan else None, name=name)
+    return [res.text()]
+
+
 TOOLS = [
     video_info,
     video_scenes,
@@ -215,6 +227,7 @@ TOOLS = [
     video_import,
     video_transcribe,
     video_cutplan,
+    video_report,
 ]
 
 
@@ -304,6 +317,14 @@ def cmd_cutplan(a) -> int:
     )
     print(res.text())
     return 0
+
+
+def cmd_report(a) -> int:
+    from funkbox.video import report
+
+    res = report.acceptance(_abs(a.video), cutplan=_abs(a.cutplan) if a.cutplan else None, name=a.name or "")
+    print(res.text())
+    return 0 if res.verdict == "pass" else 1
 
 
 def cmd_edit(a) -> int:
@@ -426,6 +447,11 @@ def add_cli(sub) -> None:
     p.add_argument("--out")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_cutplan)
+    p = vs.add_parser("report", help="acceptance report next to a rendered video: loudness, peak, pauses, plan")
+    p.add_argument("video")
+    p.add_argument("--cutplan", help="a <name>.cutplan.json, to check the length and count the cuts removed")
+    p.add_argument("--name", help="report name (default: the video's name)")
+    p.set_defaults(fn=cmd_report)
     p = vs.add_parser("highlights", help="propose the best moments of videos, ranked by motion, repeats dropped")
     p.add_argument("videos", nargs="+")
     p.add_argument("--target", type=float, nargs=2, default=[30, 60], metavar=("LOW", "HIGH"), help="seconds")

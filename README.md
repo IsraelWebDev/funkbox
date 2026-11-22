@@ -128,7 +128,7 @@ macOS and Linux) and [skills/funk-studio/SKILL.md](skills/funk-studio/SKILL.md) 
 
 ## What is in the box
 
-One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP server (`funkbox`, 57 tools).
+One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP server (`funkbox`, 58 tools).
 
 | area | what | command / tools |
 |---|---|---|
