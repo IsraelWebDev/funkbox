@@ -37,7 +37,7 @@ CompareFit = Literal["cover", "stretch"]
 #: a caption style, one of the files in the caption templates
 CaptionStyle = Literal[tuple(list_styles())]  # type: ignore[valid-type]
 #: where burned-in subtitles sit
-SubtitleAnchor = Literal["top", "center", "bottom"]
+SubtitleAnchor = Literal["auto", "top", "center", "bottom"]  # auto: the least busy place that no face covers
 #: the cut pace of an auto reel
 Pace = Literal[tuple(PACE_SECONDS)]  # type: ignore[valid-type]
 #: what a reel timeline call does: open the page, or report the edit log

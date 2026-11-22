@@ -347,18 +347,37 @@ def _timed_states(lay, cue: Cue, timed: list[tuple[float, float]]) -> list[tuple
     return out
 
 
+def _face_anchor(path, t: float, lay_for, W: int, H: int, safe: str) -> tuple[str, dict]:
+    """(anchor, face report) for a caption shown around time ``t``: the least busy anchor whose caption box touches
+    no face in the frame at ``t``. Raises VideoError when OpenCV is missing or the frame cannot be read."""
+    import numpy as np
+    from funkbox.reel import captions
+    from funkbox.video import faces
+
+    frame = np.asarray(frame_at(path, t, W).convert("RGB"))  # the frame is W wide, so its pixels are the caption's
+    boxes = faces.faces_in(frame)
+
+    def blocked(lay) -> bool:
+        return faces.overlaps((lay.x0, lay.y0, lay.x0 + lay.box_w, lay.y0 + lay.box_h), boxes)
+
+    anchor = captions.pick_anchor(frame, lay_for, W, H, safe, blocked=blocked)
+    return anchor, {"faces": len(boxes), "clear": not blocked(lay_for(anchor, W, H, safe))}
+
+
 def subtitles(
     path,
     cues=None,
     srt=None,
     style: str = "lower-third",
-    anchor: str = "bottom",
+    anchor: str = "auto",
     out_dir=None,
     name: str = "",
     brand: dict | None = None,
     words=None,
 ) -> Subtitled:
     """Burn cues into a copy of the video with funkbox's caption styles (red-box, bold-pop, lower-third).
+    ``anchor`` "auto" (the default) looks at the frame at each cue's middle and picks the least busy place for the caption
+    that no face covers (OpenCV's Haar cascade; the audit records the faces seen). Without OpenCV it uses bottom and says so.
     Each cue is laid out like a reel caption (wrapped on spaces, never shrunk below the minimum, Hebrew right to
     left) and a text audit records every string drawn.
 
@@ -374,8 +393,8 @@ def subtitles(
     heard = _load_words(words)
     if style not in captions.list_styles():
         raise VideoError(f"style {style!r}: one of {', '.join(captions.list_styles())}")
-    if anchor not in ("top", "center", "bottom"):
-        raise VideoError("anchor: top, center or bottom")
+    if anchor not in ("auto", "top", "center", "bottom"):
+        raise VideoError("anchor: auto, top, center or bottom")
     b = Brand(**{k: v for k, v in (brand or {}).items() if k in Brand.__dataclass_fields__})
     fonts = captions.fonts_for(b, None)
     st = captions.load_style(style)
@@ -386,7 +405,18 @@ def subtitles(
     with tempfile.TemporaryDirectory() as td:
         inputs, chain, last = [], [], "0:v"
         for i, c in enumerate(cs):
-            lay = captions.layout_block(f"cue{i + 1}", c.text, st, fonts, b, W, H, anchor=anchor, safe_area=safe)
+
+            def lay_for(a, w, h, sa, i=i, c=c):
+                return captions.layout_block(f"cue{i + 1}", c.text, st, fonts, b, w, h, anchor=a, safe_area=sa)
+
+            face = None
+            where = anchor
+            if anchor == "auto":  # the default: the least busy place for the caption that no face covers
+                try:
+                    where, face = _face_anchor(inf.path, (c.start + c.end) / 2, lay_for, W, H, safe)
+                except VideoError as e:  # no OpenCV, or the frame could not be read: bottom, and the audit says why
+                    where, face = "bottom", {"faces": None, "clear": None, "why": str(e)}
+            lay = lay_for(where, W, H, safe)
             timed = None
             if heard:
                 window = [x for x in heard if x["start"] >= c.start - 0.5 and x["end"] <= c.end + 0.5]
@@ -413,6 +443,8 @@ def subtitles(
                     "start": c.start,
                     "end": c.end,
                     "text": c.text,
+                    "anchor": where,
+                    "faces": face,  # auto only: {"faces": n seen at the cue's midpoint, "clear": caption touches none}
                     "drawn_lines": final.drawn,
                     "text_exact": lay.reconstruct(final.drawn) == c.text,
                     "timed": bool(timed),

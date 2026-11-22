@@ -112,7 +112,7 @@ def test_poster_fit_modes_are_enums():
 
 def test_caption_styles_and_anchors_are_enums_on_subtitles_and_auto_reel():
     assert _enum(_prop("video_subtitles", "style")) == list_styles()
-    assert _enum(_prop("video_subtitles", "anchor")) == ["top", "center", "bottom"]
+    assert _enum(_prop("video_subtitles", "anchor")) == ["auto", "top", "center", "bottom"]
     assert _enum(_prop("project_auto_reel", "style")) == list_styles()
 
 

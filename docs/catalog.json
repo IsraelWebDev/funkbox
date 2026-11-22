@@ -2846,8 +2846,9 @@
       "input_schema": {
         "properties": {
           "anchor": {
-            "default": "bottom",
+            "default": "auto",
             "enum": [
+              "auto",
               "top",
               "center",
               "bottom"

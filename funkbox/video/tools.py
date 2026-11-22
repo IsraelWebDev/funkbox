@@ -57,7 +57,7 @@ def video_subtitles(
     cues: list | None = None,
     srt: str = "",
     style: CaptionStyle = "lower-third",
-    anchor: SubtitleAnchor = "bottom",
+    anchor: SubtitleAnchor = "auto",
     name: str = "",
     brand: dict | None = None,
     words: str = "",
@@ -395,7 +395,7 @@ def add_cli(sub) -> None:
     p.add_argument("--srt")
     p.add_argument("--cues", help="JSON file: [{start, end, text}]")
     p.add_argument("--style", default="lower-third")
-    p.add_argument("--anchor", default="bottom")
+    p.add_argument("--anchor", default="auto", help="auto (faces are kept clear), top, center or bottom")
     p.add_argument("--words", help="a <name>.words.json from `video transcribe`: each word appears when it is said")
     p.add_argument("--out")
     p.add_argument("--name")
