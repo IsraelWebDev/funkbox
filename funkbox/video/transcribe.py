@@ -15,7 +15,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from funkbox.video.clip import VideoError, _default_name, _out_path, _src, info
+from funkbox.video.clip import VideoError, _default_name, _out_path, _src, duration_of
 
 MODELS = ("tiny", "base", "small", "medium", "large-v3")
 DEFAULT_MODEL = "small"  # English: T-2 on the laptop, small within 3% of large-v3 at a third of medium's time
@@ -68,17 +68,15 @@ def default_model(language) -> str:
     return HEBREW_MODEL if language == "he" else DEFAULT_MODEL
 
 
-def transcribe(path, language=None, model=None, out_dir=None, name="") -> Transcript:
-    """Transcribe the speech in a video. ``language`` is a code such as ``en`` or ``he``; left out, it is detected.
-    ``model`` is one of MODELS; left out, it follows the language (see default_model). Never overwrites: a name that
-    exists gets -2, -3 ..."""
-    model = model or default_model(language)
+def _check(model: str, language) -> None:
     if model not in MODELS:
         raise VideoError(f"model must be one of {', '.join(MODELS)}")
     if language is not None and not (language.isalpha() and 2 <= len(language) <= 3):
         raise VideoError(f"language must be a code such as en or he, got {language!r}")
-    src = _src(path)
-    inf = info(src)  # refuses a file ffmpeg cannot read as video, before the model loads
+
+
+def _recognise(src: Path, language, model: str) -> tuple[list, list, str]:
+    """Run the model over a file: (phrases, words, language). Reads the whole generator before returning."""
     wm = _load(model)
     segments, meta = wm.transcribe(str(src), language=language or None, word_timestamps=True, vad_filter=True)
     phrases, words = [], []
@@ -97,13 +95,35 @@ def transcribe(path, language=None, model=None, out_dir=None, name="") -> Transc
                         "prob": round(float(w.probability), 3),
                     }
                 )
+    return phrases, words, meta.language
+
+
+def words_in(path, language=None, model=None) -> list[dict]:
+    """The words of an audio or video file with their timings, and nothing written. For callers that keep their own
+    copy, such as the reel's voice-over lines. Raises VideoError when faster-whisper is not installed."""
+    model = model or default_model(language)
+    _check(model, language)
+    src = _src(path)
+    duration_of(src)  # refuses a file ffmpeg cannot read, before the model loads
+    return _recognise(src, language, model)[1]
+
+
+def transcribe(path, language=None, model=None, out_dir=None, name="") -> Transcript:
+    """Transcribe the speech in a video or an audio file. ``language`` is a code such as ``en`` or ``he``; left out, it
+    is detected. ``model`` is one of MODELS; left out, it follows the language (see default_model). Never overwrites:
+    a name that exists gets -2, -3 ..."""
+    model = model or default_model(language)
+    _check(model, language)
+    src = _src(path)
+    dur = duration_of(src)  # refuses a file ffmpeg cannot read, before the model loads
+    phrases, words, lang = _recognise(src, language, model)
     out = _out_path(src, out_dir, name or _default_name(src, "transcript"), suffix=".words.json")
     srt = out.with_name(out.name[: -len(".words.json")] + ".srt")
     data = {
         "source": src.name,
         "model": model,
-        "language": meta.language,
-        "duration": round(inf.duration, 3),
+        "language": lang,
+        "duration": round(dur, 3),
         "words": words,
     }
     out.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -111,4 +131,4 @@ def transcribe(path, language=None, model=None, out_dir=None, name="") -> Transc
         "".join(f"{i}\n{srt_time(a)} --> {srt_time(b)}\n{t}\n\n" for i, (a, b, t) in enumerate(phrases, 1)),
         encoding="utf-8",
     )
-    return Transcript(out, srt, model, meta.language, inf.duration, words)
+    return Transcript(out, srt, model, lang, dur, words)

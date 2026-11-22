@@ -158,7 +158,7 @@ def video_import(folder: str) -> str:
 
 @safe
 def video_transcribe(path: str, language: str = "", model: str = "", name: str = "") -> list:
-    """Speech to text for a video, on this machine (no cloud). Writes every word with its start and end in seconds to
+    """Speech to text for a video or an audio file, on this machine (no cloud). Writes every word with its start and end in seconds to
     <out>/video/<name>.words.json (the data captions and cut finders read) and the phrases to <name>.srt. ``language``:
     a code such as en or he; blank to detect. ``model``: tiny, base, small, medium or large-v3. Blank picks by language:
     large-v3 for he (small misses about half the Hebrew words), small for everything else. A bigger model is more

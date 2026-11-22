@@ -136,7 +136,7 @@ A caption can put a pill behind the word the typewriter has reached. Set it in a
 - The pill covers the last word typed so far and moves on word by word. It does not cover spaces, and it follows the reveal. With reveal `none` (the default) the whole caption shows at once, so the pill stays on the last word; use reveal `words` for a pill that moves.
 - A blank line (a paragraph break) keeps the pill on the last word before it.
 - A line with any right-to-left text gets no pill: their words are reordered on screen, so the pill would not sit on the right word.
-- Word timing is estimated from characters per second. The voice path has no per-word timings yet, so on voiced shots the pill can drift from the spoken word.
+- Word timing is estimated from characters per second, unless the shot is voiced and `faster-whisper` is installed (`requirements-transcribe.txt`). Then each spoken line is transcribed once, the transcript is cached beside the voice file, and a `"words"` reveal shows each word when it is spoken. Without it, or when nothing is heard, the estimate stays. The shot length is still the voice's own duration either way.
 - A caption cannot switch off its style's pill yet; use a style without one.
 - The text audit records the copy only, not the highlight.
 

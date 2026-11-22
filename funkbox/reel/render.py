@@ -283,6 +283,7 @@ class Renderer:
         self.motion = motionmod.MotionGL(self.w, self.h)
         self._transitions = resolve_transitions(reel.shots)  # "auto" resolved once, here, for every shot
         self._state: dict[int, _ShotState] = {}
+        self._vo_timings: dict[int, list | None] = {}  # shot index -> word timings of its caption, or None
         self._funk_engine = None
         self._last_frames: dict[int, np.ndarray] = {}
         self.audit: dict | None = None  # set to {} to record every drawn string
@@ -635,7 +636,31 @@ class Renderer:
         assert c is not None
         hold = captions_mod.HOOK_SECONDS if span.index == 0 and self.hook_layout() is not None else 0.0
         t = local / self.fps - captions_mod.CAPTION_DELAY - hold  # shot 1's caption starts after the hook title
-        return captions_mod.render_caption(lay, c.reveal, t, span.vo_dur, span.duration)
+        timings = self.voice_timings(span, hold) if c.reveal == "words" else None
+        return captions_mod.render_caption(lay, c.reveal, t, span.vo_dur, span.duration, timings)
+
+    def voice_timings(self, span: ShotSpan, hold: float) -> list[tuple[float, float]] | None:
+        """Word timings of a voiced shot's caption, from the transcript of its voice-over (see voice_timing). None
+        when the shot has no voice-over, or the voice cannot be transcribed: the caption then keeps its estimate."""
+        if span.index in self._vo_timings:
+            return self._vo_timings[span.index]
+        out = None
+        c = self.reel.shots[span.index].caption
+        a = self.reel.audio
+        if a.voiceover and c is not None and span.vo_id and span.vo_start is not None:
+            from . import audio, voice_timing
+
+            wav = audio.synthesize(self.deck, span.vo_id, a.voice, a.voice_speed)
+            out = voice_timing.caption_timings(
+                self.deck.text(c.copy_id),
+                wav,
+                self.deck.say(span.vo_id),
+                span.vo_start,
+                span.start,
+                captions_mod.CAPTION_DELAY + hold,
+            )
+        self._vo_timings[span.index] = out
+        return out
 
     def hook_layout(self) -> captions_mod.Layout | None:
         """The hook title over shot 1 (reel ``hook``): shot 1's caption text, in the display font, large and boxed."""
