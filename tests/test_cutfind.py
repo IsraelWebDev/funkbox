@@ -1,0 +1,155 @@
+"""T-4: propose cuts for approval: pauses from the audio, repeated takes from the transcript. Nothing is rendered."""
+
+import json
+import subprocess
+import wave
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from funkbox.media import require_ffmpeg
+from funkbox.video import cutfind
+
+BENCH_TOL = 0.04  # seconds: the +-40 ms the plan asks for, measured against known gap edges
+
+
+@pytest.fixture()
+def work(tmp_path, monkeypatch):
+    monkeypatch.setenv("FUNK_OUT", str(tmp_path / "out"))
+    monkeypatch.setenv("FUNK_INPUTS", str(tmp_path))
+    return tmp_path
+
+
+def w(text, start, end):
+    return {"text": text, "start": start, "end": end, "prob": 0.9}
+
+
+# Known truth for the benchmark: tone, gap, tone, short gap, tone, long gap, tone (seconds).
+TRUTH_GAPS = [(1.5, 2.4), (3.5, 3.8), (5.0, 6.5)]
+TRUTH_TOTAL = 7.5
+
+
+def bench_wav(path: Path) -> Path:
+    sr = 16000
+    t = np.arange(int(TRUTH_TOTAL * sr)) / sr
+    x = 0.3 * np.sin(2 * np.pi * 220 * t)
+    for a, b in TRUTH_GAPS:
+        x[int(a * sr) : int(b * sr)] = 0.0
+    with wave.open(str(path), "wb") as f:
+        f.setnchannels(1)
+        f.setsampwidth(2)
+        f.setframerate(sr)
+        f.writeframes((x * 32767).astype("<i2").tobytes())
+    return path
+
+
+def bench_mp4(work: Path) -> Path:
+    wav = bench_wav(work / "tone.wav")
+    out = work / "bench.mp4"
+    subprocess.run(
+        [
+            require_ffmpeg(),
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            f"color=c=black:s=320x180:r=25:d={TRUTH_TOTAL}",
+            "-i",
+            str(wav),
+            "-shortest",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-y",
+            str(out),
+        ],
+        check=True,
+    )
+    return out
+
+
+def test_silencedetect_output_is_parsed():
+    err = (
+        "[silencedetect @ 0x1] silence_start: 1.5\n"
+        "[silencedetect @ 0x1] silence_end: 2.4 | silence_duration: 0.9\n"
+        "[silencedetect @ 0x1] silence_start: 9.0\n"
+    )
+    assert cutfind.parse_silences(err, duration=10.0) == [(1.5, 2.4), (9.0, 10.0)]
+
+
+def test_pauses_are_found_within_the_benchmark_tolerance(work):
+    found = cutfind.silences(bench_mp4(work), min_s=0.35)
+    assert len(found) == 2  # the 0.3 s gap is shorter than the minimum and is not a pause
+    for (fs, fe), (ts, te) in zip(found, TRUTH_GAPS[::2]):
+        assert abs(fs - ts) <= BENCH_TOL and abs(fe - te) <= BENCH_TOL, (fs, fe, ts, te)
+
+
+def test_pause_removals_keep_a_breath_on_each_side():
+    removals = cutfind.pause_removals([(1.5, 2.4), (3.5, 3.8), (5.0, 6.5)], duration=7.5, keep_s=0.25, min_pause_s=0.6)
+    assert len(removals) == 2
+    (a1, b1), (a2, b2) = removals
+    assert abs(a1 - 1.75) <= BENCH_TOL and abs(b1 - 2.15) <= BENCH_TOL
+    assert abs(a2 - 5.25) <= BENCH_TOL and abs(b2 - 6.25) <= BENCH_TOL
+
+
+def test_a_pause_at_the_very_start_or_end_keeps_only_the_breath_next_to_speech():
+    removals = cutfind.pause_removals([(0.0, 1.0), (6.0, 7.5)], duration=7.5, keep_s=0.25, min_pause_s=0.6)
+    assert removals[0][0] == 0.0 and abs(removals[0][1] - 0.75) <= BENCH_TOL
+    assert abs(removals[1][0] - 6.25) <= BENCH_TOL and removals[1][1] == 7.5
+
+
+def test_a_repeated_take_drops_the_earlier_one_and_keeps_the_later():
+    earlier = [
+        w("I'm", 0.0, 0.2),
+        w("recreating", 0.2, 0.7),
+        w("my", 0.7, 0.8),
+        w("soft", 0.8, 1.1),
+        w("disk", 1.1, 1.5),
+    ]
+    later = [w("I'm", 2.6, 2.8), w("recreating", 2.8, 3.3), w("my", 3.3, 3.4), w("soft", 3.4, 3.7), w("disk", 3.7, 4.1)]
+    words = earlier + later + [w("tzitzot", 4.2, 4.6)]
+    removals = cutfind.retake_removals(words, min_words=4, max_gap_s=30.0)
+    assert len(removals) == 1
+    a, b, text = removals[0]
+    assert a == 0.0 and b == 1.5 and text == "I'm recreating my soft disk"
+
+
+def test_a_phrase_repeated_far_apart_is_not_a_retake():
+    phrase = [w("one", 0.0, 0.2), w("two", 0.2, 0.4), w("three", 0.4, 0.6), w("four", 0.6, 0.8)]
+    far = [w(x["text"], x["start"] + 100.0, x["end"] + 100.0) for x in phrase]
+    assert cutfind.retake_removals(phrase + far, min_words=4, max_gap_s=30.0) == []
+
+
+def test_no_transcript_means_no_retakes_and_hebrew_matches_in_order():
+    assert cutfind.retake_removals([], min_words=4, max_gap_s=30.0) == []
+    heb = [w("שלום", 0.0, 0.3), w("לכולם", 0.3, 0.6), w("היום", 0.6, 0.9), w("טוב", 0.9, 1.2)]
+    again = [w(x["text"], x["start"] + 5.0, x["end"] + 5.0) for x in heb]
+    removals = cutfind.retake_removals(heb + again, min_words=4, max_gap_s=30.0)
+    assert len(removals) == 1 and removals[0][0] == 0.0
+
+
+def test_cutplan_writes_a_plan_and_renders_nothing(work):
+    src = bench_mp4(work)
+    words = work / "w.json"
+    words.write_text(json.dumps({"words": []}), encoding="utf-8")
+    res = cutfind.cutplan(src, words=words, name="bench-plan")
+    data = json.loads(res.path.read_text(encoding="utf-8"))
+    assert res.path.name == "bench-plan.cutplan.json"
+    assert data["source"] == "bench.mp4" and data["duration"] == pytest.approx(TRUTH_TOTAL, abs=0.1)
+    kept = sum(b - a for a, b in data["keep"])
+    # the 0.9 s gap loses 0.5 s (a breath each side stays), the 1.5 s gap loses 1.0 s; the 0.3 s gap is kept
+    assert kept == pytest.approx(TRUTH_TOTAL - 0.4 - 1.0, abs=0.1)
+    assert all(c["path"].endswith("bench.mp4") and c["start"] < c["end"] for c in data["cuts"])
+    assert not (work / "out" / "video" / "bench-plan.mp4").exists()  # a plan, not a render
+    assert "pause" in res.text() and "approve" in res.text()
+
+
+def test_cutplan_refuses_a_missing_words_file(work):
+    with pytest.raises(cutfind.VideoError, match="words"):
+        cutfind.cutplan(bench_mp4(work), words=work / "nope.json", name="x")

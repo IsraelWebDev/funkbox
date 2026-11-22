@@ -168,6 +168,20 @@ def video_transcribe(path: str, language: str = "", model: str = "small", name: 
     return [f"{res.text()}\nwords: {res.path}\nsrt: {res.srt}"]
 
 
+@safe
+def video_cutplan(path: str, words: str = "", keep_s: float = 0.25, min_pause_s: float = 0.6, name: str = "") -> list:
+    """Propose cuts for a talking-head video, for a person to approve. Long pauses are found in the sound (a breath,
+    ``keep_s`` seconds, is kept on each side); repeated takes are found in the words of a <name>.words.json from
+    video_transcribe (the earlier take is proposed for removal, the later one kept). Nothing is rendered: this writes
+    <out>/video/<name>.cutplan.json with the proposed cuts. After approval, render those cuts with video_edit."""
+    from funkbox.video import cutfind
+
+    res = cutfind.cutplan(
+        _abs(path), words=_abs(words) if words else None, keep_s=keep_s, min_pause_s=min_pause_s, name=name
+    )
+    return [res.text()]
+
+
 TOOLS = [
     video_info,
     video_scenes,
@@ -178,6 +192,7 @@ TOOLS = [
     video_highlights,
     video_import,
     video_transcribe,
+    video_cutplan,
 ]
 
 
@@ -250,6 +265,21 @@ def cmd_transcribe(a) -> int:
 
     res = tr.transcribe(_abs(a.path), language=a.language, model=a.model, out_dir=a.out, name=a.name or "")
     print(f"{res.text()}\nwords: {res.path}\nsrt: {res.srt}")
+    return 0
+
+
+def cmd_cutplan(a) -> int:
+    from funkbox.video import cutfind
+
+    res = cutfind.cutplan(
+        _abs(a.video),
+        words=_abs(a.words) if a.words else None,
+        keep_s=a.keep,
+        min_pause_s=a.min_pause,
+        out_dir=a.out,
+        name=a.name or "",
+    )
+    print(res.text())
     return 0
 
 
@@ -352,6 +382,16 @@ def add_cli(sub) -> None:
     p.add_argument("--out")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_transcribe)
+    p = vs.add_parser(
+        "cutplan", help="propose cuts to approve: long pauses from the sound, repeated takes from words.json"
+    )
+    p.add_argument("video")
+    p.add_argument("--words", help="a <name>.words.json from `video transcribe`, for repeated takes")
+    p.add_argument("--keep", type=float, default=0.25, help="seconds of breath kept on each side of a removed pause")
+    p.add_argument("--min-pause", type=float, default=0.6, help="pauses shorter than this stay")
+    p.add_argument("--out")
+    p.add_argument("--name")
+    p.set_defaults(fn=cmd_cutplan)
     p = vs.add_parser("highlights", help="propose the best moments of videos, ranked by motion, repeats dropped")
     p.add_argument("videos", nargs="+")
     p.add_argument("--target", type=float, nargs=2, default=[30, 60], metavar=("LOW", "HIGH"), help="seconds")
