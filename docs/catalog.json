@@ -2,7 +2,7 @@
   "catalog_version": 1,
   "engine_version": "4.4.1",
   "server": "funkbox",
-  "tool_count": 55,
+  "tool_count": 56,
   "tools": [
     {
       "area": "apps",
@@ -2844,6 +2844,39 @@
         "type": "object"
       },
       "name": "video_subtitles"
+    },
+    {
+      "area": "video",
+      "description": "Speech to text for a video, on this machine (no cloud). Writes every word with its start and end in seconds to\n<out>/video/<name>.words.json (the data captions and cut finders read) and the phrases to <name>.srt. ``language``:\na code such as en or he; blank to detect. ``model``: tiny, base, small (default), medium or large-v3; a bigger model\nis more accurate and slower. The first use of a model downloads it. Never overwrites.",
+      "input_schema": {
+        "properties": {
+          "language": {
+            "default": "",
+            "title": "Language",
+            "type": "string"
+          },
+          "model": {
+            "default": "small",
+            "title": "Model",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "video_transcribeArguments",
+        "type": "object"
+      },
+      "name": "video_transcribe"
     },
     {
       "area": "video",

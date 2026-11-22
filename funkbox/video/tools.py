@@ -153,6 +153,18 @@ def video_import(folder: str) -> str:
     return clip.import_clips(folder).text()
 
 
+@safe
+def video_transcribe(path: str, language: str = "", model: str = "small", name: str = "") -> list:
+    """Speech to text for a video, on this machine (no cloud). Writes every word with its start and end in seconds to
+    <out>/video/<name>.words.json (the data captions and cut finders read) and the phrases to <name>.srt. ``language``:
+    a code such as en or he; blank to detect. ``model``: tiny, base, small (default), medium or large-v3; a bigger model
+    is more accurate and slower. The first use of a model downloads it. Never overwrites."""
+    from funkbox.video import transcribe as tr
+
+    res = tr.transcribe(_abs(path), language=language or None, model=model or None, name=name)
+    return [f"{res.text()}\nwords: {res.path}\nsrt: {res.srt}"]
+
+
 TOOLS = [
     video_info,
     video_scenes,
@@ -162,6 +174,7 @@ TOOLS = [
     video_edit,
     video_highlights,
     video_import,
+    video_transcribe,
 ]
 
 
@@ -220,6 +233,14 @@ def cmd_sheet(a) -> int:
     return 0
 
 
+def cmd_transcribe(a) -> int:
+    from funkbox.video import transcribe as tr
+
+    res = tr.transcribe(_abs(a.path), language=a.language, model=a.model, out_dir=a.out, name=a.name or "")
+    print(f"{res.text()}\nwords: {res.path}\nsrt: {res.srt}")
+    return 0
+
+
 def cmd_edit(a) -> int:
     import json
     from funkbox.video import clip
@@ -262,7 +283,7 @@ def cmd_import(a) -> int:
 def add_cli(sub) -> None:
     ap = sub.add_parser("video", help="video files: info, scene cuts, trim, burned-in subtitles")
     vs = ap.add_subparsers(
-        dest="verb", required=True, metavar="{info,scenes,trim,subtitles,sheet,edit,highlights,import}"
+        dest="verb", required=True, metavar="{info,scenes,trim,subtitles,sheet,edit,highlights,import,transcribe}"
     )
     p = vs.add_parser("info", help="duration, size, fps, codec, audio")
     p.add_argument("video")
@@ -311,6 +332,13 @@ def add_cli(sub) -> None:
     p.add_argument("--out")
     p.add_argument("--name")
     p.set_defaults(fn=cmd_edit)
+    p = vs.add_parser("transcribe", help="speech to text: every word with its timing, to words.json and an SRT")
+    p.add_argument("path")
+    p.add_argument("--language", default=None, help="a code such as en or he; omit to detect")
+    p.add_argument("--model", default="small", choices=["tiny", "base", "small", "medium", "large-v3"])
+    p.add_argument("--out")
+    p.add_argument("--name")
+    p.set_defaults(fn=cmd_transcribe)
     p = vs.add_parser("highlights", help="propose the best moments of videos, ranked by motion, repeats dropped")
     p.add_argument("videos", nargs="+")
     p.add_argument("--target", type=float, nargs=2, default=[30, 60], metavar=("LOW", "HIGH"), help="seconds")

@@ -13,6 +13,9 @@ file is in this repository; "downloaded" means fetched on request; "optional" me
 | Depth-Anything-V2-Small (ONNX) | Apache-2.0 | downloaded by `funkbox reel setup-models` into `models/` |
 | Piper voice `en_US-ljspeech-medium` | public-domain training data (LJ Speech); model released under MIT | downloaded by `funkbox reel setup-models` into `models/` |
 | Kokoro-82M v1.0 (ONNX) and its voice pack | Apache-2.0 | the default voice, downloaded by `funkbox reel setup-models` into `models/` (hash-checked) |
+| faster-whisper | MIT (optional, `requirements-transcribe.txt`) | runs Whisper speech models locally; the model files download from Hugging Face on first use |
+| Whisper models (OpenAI) | MIT | the speech models used by faster-whisper; not bundled |
+| PyAV (`av`) | BSD-3-Clause (optional, `requirements-transcribe.txt`) | decodes the audio for faster-whisper |
 | kokoro-onnx | MIT (it uses phonemizer and espeak-ng, GPL-3.0) | optional Python package (`requirements-reel.txt`), installed on request, not bundled |
 | piper-tts | GPL-3.0 | optional Python package (`requirements-reel.txt`), installed on request, not bundled |
 | FastSD CPU | MIT | optional, cloned by `install.py --with fastsd` into `vendor/` |
