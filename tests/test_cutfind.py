@@ -153,3 +153,39 @@ def test_cutplan_writes_a_plan_and_renders_nothing(work):
 def test_cutplan_refuses_a_missing_words_file(work):
     with pytest.raises(cutfind.VideoError, match="words"):
         cutfind.cutplan(bench_mp4(work), words=work / "nope.json", name="x")
+
+
+def test_filler_words_are_proposed_and_lookalikes_are_not():
+    words = [
+        w("So", 0.0, 0.2),
+        w("Um,", 0.2, 0.5),
+        w("the", 0.5, 0.6),
+        w("umbrella", 0.6, 1.0),
+        w("uh", 1.0, 1.2),
+        w("hummus", 1.2, 1.6),
+    ]
+    removals = cutfind.filler_removals(words)
+    assert removals == [(0.2, 0.5, "Um,"), (1.0, 1.2, "uh")]
+    assert cutfind.filler_removals(words, fillers=()) == []
+    assert cutfind.filler_removals(words, fillers=("so",)) == [(0.0, 0.2, "So")]
+
+
+def test_cutplan_proposes_fillers_from_the_words_and_can_turn_them_off(work):
+    src = bench_mp4(work)
+    words = work / "w.json"
+    words.write_text(json.dumps({"words": [w("hello", 0.2, 0.6), w("um", 0.7, 1.0), w("there", 1.0, 1.4)]}), "utf-8")
+    res = cutfind.cutplan(src, words=words, name="fill-plan")
+    data = json.loads(res.path.read_text(encoding="utf-8"))
+    assert {"start": 0.7, "end": 1.0, "reasons": ["filler: um"]} in data["removed"]
+    assert not any(c["start"] < 0.85 < c["end"] for c in data["cuts"])  # the "um" is not in any kept cut
+    assert "um" in data["settings"]["fillers"] and "1 filler word(s)" in res.text()
+    off = cutfind.cutplan(src, words=words, fillers=(), name="fill-off")
+    assert not any("filler" in r for x in off.removed for r in x["reasons"])
+
+
+def test_the_fillers_option_reads_default_none_and_a_list():
+    from funkbox.video import tools
+
+    assert tools._fillers("default") == cutfind.FILLERS
+    assert tools._fillers("none") == () and tools._fillers("") == ()
+    assert tools._fillers(" um, like ,") == ("um", "like")
