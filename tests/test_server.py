@@ -76,6 +76,7 @@ VIDEO = {
     "video_import",
     "video_transcribe",
     "video_cutplan",
+    "video_report",
 }
 PLANNED = LOOP | REEL | PROJECT | POSTER | IMAGE | APPS | MUSIC | VIDEO
 
@@ -159,7 +160,7 @@ def test_tool_list_equals_the_plan_and_every_old_tool_is_mapped(gl, tmp_path):
         return {t.name: t for t in (await s.list_tools()).tools}
 
     tools = asyncio.run(session(tmp_path / "h", go))
-    assert set(tools) == PLANNED and len(tools) == 57
+    assert set(tools) == PLANNED and len(tools) == 58
     assert all(re.match(r"^(loop|reel|project|poster|image|apps|music|video)_", n) for n in tools)
     assert set(v for v in OLD_TOOLS.values() if v) <= PLANNED
     assert len(set(v for v in OLD_TOOLS.values() if v)) == len([v for v in OLD_TOOLS.values() if v])  # one-to-one

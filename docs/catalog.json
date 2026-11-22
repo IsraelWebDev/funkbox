@@ -2,7 +2,7 @@
   "catalog_version": 1,
   "engine_version": "4.4.1",
   "server": "funkbox",
-  "tool_count": 57,
+  "tool_count": 58,
   "tools": [
     {
       "area": "apps",
@@ -2778,6 +2778,34 @@
         "type": "object"
       },
       "name": "video_info"
+    },
+    {
+      "area": "video",
+      "description": "Acceptance report for a rendered video, written next to it as <name>.report.json and never changing the video.\nChecks loudness against -14 LUFS (within 1 LU), the peak (clipping above -1 dBFS), and the pauses left (quiet of\n0.6 s or more). ``cutplan``: a <name>.cutplan.json from video_cutplan, to check the length against the plan and\ncount the cuts removed by reason. A check that cannot be made is reported as not measured, never as a pass.",
+      "input_schema": {
+        "properties": {
+          "cutplan": {
+            "default": "",
+            "title": "Cutplan",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "video_reportArguments",
+        "type": "object"
+      },
+      "name": "video_report"
     },
     {
       "area": "video",
