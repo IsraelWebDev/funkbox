@@ -100,6 +100,16 @@ def info(path) -> Info:
     )
 
 
+def duration_of(path) -> float:
+    """Length in seconds of any media file ffmpeg can read, audio or video."""
+    p = _src(path)
+    err = _run(["-i", str(p)]).stderr.decode("utf-8", "replace")
+    m = re.search(r"Duration:\s*" + TIME_RE.pattern, err)
+    if not m:
+        raise VideoError(f"{p.name}: not a media file ffmpeg can read")
+    return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+
+
 def _out_path(src: Path, out_dir, name: str, suffix: str = ".mp4") -> Path:
     from funkbox.config import funk_out
     from funkbox.stills.render import NAME_RE, fence_out

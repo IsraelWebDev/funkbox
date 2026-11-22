@@ -99,3 +99,19 @@ def test_a_second_run_never_overwrites_the_first(work):
     second = tr.transcribe(FIXTURE, model="tiny", out_dir=work, name="again")
     assert first.path != second.path and second.path.name == "again-2.words.json"
     assert first.path.exists() and second.srt.name == "again-2.srt"
+
+
+@needs_whisper
+def test_an_audio_only_file_is_transcribed_too(work):
+    import subprocess
+
+    from funkbox.media import require_ffmpeg
+
+    wav = work / "speech.wav"
+    subprocess.run([require_ffmpeg(), "-hide_banner", "-loglevel", "error", "-i", str(FIXTURE), "-vn", "-y", str(wav)], check=True)  # fmt: skip
+    res = tr.transcribe(wav, model="tiny", language="en", out_dir=work, name="audio-only")
+    assert res.path.name == "audio-only.words.json" and res.duration > 5
+    heard = {w["text"].strip(".,!?").lower() for w in res.words}
+    assert len(set(KEY_WORDS) & heard) >= 4
+    words = tr.words_in(wav, language="en", model="tiny")
+    assert words and all({"text", "start", "end", "prob"} <= set(w) for w in words)
