@@ -28,6 +28,22 @@ def work(tmp_path, monkeypatch):
     return tmp_path
 
 
+def test_the_model_follows_the_language_when_none_is_named():
+    assert tr.default_model("he") == "large-v3"  # small got half the Hebrew words wrong on the T-2 sample
+    assert tr.default_model("en") == "small"  # English: small is within 3% of large-v3 at a third of the time
+    assert tr.default_model(None) == "small"  # auto-detect cannot know the language before the model loads
+    assert {tr.default_model("he"), tr.default_model("en")} <= set(tr.MODELS)
+
+
+def test_a_hebrew_transcript_on_a_smaller_model_says_to_rerun_on_the_large_one():
+    small = tr.Transcript(Path("a.words.json"), Path("a.srt"), "small", "he", 3.0, [])
+    assert "rerun with model=large-v3" in small.text()
+    large = tr.Transcript(Path("a.words.json"), Path("a.srt"), "large-v3", "he", 3.0, [])
+    assert "rerun" not in large.text()
+    english = tr.Transcript(Path("a.words.json"), Path("a.srt"), "small", "en", 3.0, [])
+    assert "rerun" not in english.text()
+
+
 def test_srt_timestamps_are_hours_minutes_seconds_and_milliseconds():
     assert tr.srt_time(0) == "00:00:00,000"
     assert tr.srt_time(2.5) == "00:00:02,500"
