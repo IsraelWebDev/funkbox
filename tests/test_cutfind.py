@@ -189,3 +189,17 @@ def test_the_fillers_option_reads_default_none_and_a_list():
     assert tools._fillers("default") == cutfind.FILLERS
     assert tools._fillers("none") == () and tools._fillers("") == ()
     assert tools._fillers(" um, like ,") == ("um", "like")
+
+
+def test_hebrew_fillers_are_proposed_and_real_words_are_not():
+    words = [
+        w("אז", 0.0, 0.2),  # "so": a real word, kept
+        w("אמ,", 0.2, 0.5),  # filler with punctuation
+        w("אמא", 0.5, 0.9),  # "mom": looks like "אמ" but is not a filler
+        w("הממ", 0.9, 1.2),
+        w("כאילו", 1.2, 1.6),  # "like": kept on purpose
+        w("אההה", 1.6, 2.0),
+    ]
+    removals = cutfind.filler_removals(words)
+    assert removals == [(0.2, 0.5, "אמ,"), (0.9, 1.2, "הממ"), (1.6, 2.0, "אההה")]
+    assert "אמא" not in {t for _, _, t in removals}

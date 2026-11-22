@@ -188,7 +188,7 @@ def video_cutplan(
     """Propose cuts for a talking-head video, for a person to approve. Long pauses are found in the sound (a breath,
     ``keep_s`` seconds, is kept on each side); repeated takes are found in the words of a <name>.words.json from
     video_transcribe (the earlier take is proposed for removal, the later one kept), and so are filler words in those
-    words: ``fillers`` is "default" (um, uh, er, ah, hmm and their spellings), a comma-separated list of your own, or
+    words: ``fillers`` is "default" (English um, uh, er, ah, hmm and Hebrew אה, אמ, הממ, and their spellings), a comma-separated list of your own, or
     "none" to keep them. Nothing is rendered: this writes
     <out>/video/<name>.cutplan.json with the proposed cuts. After approval, render those cuts with video_edit."""
     from funkbox.video import cutfind
@@ -421,7 +421,7 @@ def add_cli(sub) -> None:
     p.add_argument(
         "--fillers",
         default="default",
-        help='filler words to propose from --words: "default" (um, uh, er, ah, hmm ...), "none", or a list "um,like"',
+        help='filler words to propose from --words: "default" (English um, uh, er, ah, hmm and Hebrew אה, אמ, הממ ...), "none", or a list "um,like"',
     )
     p.add_argument("--out")
     p.add_argument("--name")

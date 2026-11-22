@@ -24,7 +24,28 @@ MIN_PAUSE_S = 0.6  # pauses shorter than this stay
 MIN_WORDS = 4  # a repeat of fewer words is coincidence
 MAX_GAP_S = 30.0  # a retake is said within this many seconds of the take it replaces
 #: spoken fillers proposed for removal when the transcript has them (matched on letters only, any case)
-FILLERS = ("um", "umm", "uh", "uhm", "uhh", "er", "erm", "ah", "hmm", "mm")
+# English: um, uh, er, ah, hmm. Hebrew: the sounds people fill with (אה, אמ, הממ) and their stretched spellings. Only
+# the sounds, never words that carry meaning, so "כאילו" and "בעצם" stay.
+FILLERS = (
+    "um",
+    "umm",
+    "uh",
+    "uhm",
+    "uhh",
+    "er",
+    "erm",
+    "ah",
+    "hmm",
+    "mm",
+    "אה",
+    "אהה",
+    "אההה",
+    "אמ",
+    "אמם",
+    "אממ",
+    "הממ",
+    "ממ",
+)
 
 _START = re.compile(r"silence_start: (-?[\d.]+)")
 _END = re.compile(r"silence_end: (-?[\d.]+)")
