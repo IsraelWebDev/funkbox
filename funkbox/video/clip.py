@@ -361,6 +361,8 @@ def _face_anchor(path, t: float, lay_for, W: int, H: int, safe: str) -> tuple[st
         return faces.overlaps((lay.x0, lay.y0, lay.x0 + lay.box_w, lay.y0 + lay.box_h), boxes)
 
     anchor = captions.pick_anchor(frame, lay_for, W, H, safe, blocked=blocked)
+    if not boxes:  # no face found proves nothing: the detector can miss one, so "clear" is unknown, not true
+        return anchor, {"faces": 0, "clear": None, "why": "no face detected: anchor chosen by busyness alone"}
     return anchor, {"faces": len(boxes), "clear": not blocked(lay_for(anchor, W, H, safe))}
 
 
@@ -444,7 +446,7 @@ def subtitles(
                     "end": c.end,
                     "text": c.text,
                     "anchor": where,
-                    "faces": face,  # auto only: {"faces": n seen at the cue's midpoint, "clear": caption touches none}
+                    "faces": face,  # auto only: {"faces": n at the cue's midpoint, "clear": caption touches none, or None when no face was seen}
                     "drawn_lines": final.drawn,
                     "text_exact": lay.reconstruct(final.drawn) == c.text,
                     "timed": bool(timed),
