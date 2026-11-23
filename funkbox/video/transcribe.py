@@ -22,6 +22,13 @@ DEFAULT_MODEL = "small"  # English: T-2 on the laptop, small within 3% of large-
 HEBREW_MODEL = "large-v3"  # Hebrew: small got 46% of words wrong on a short sample, large-v3 got 18% (2026-11-22)
 COMPUTE = "int8"  # CPU only (the laptop has no NVIDIA GPU); a bigger compute type gains little on speech
 _LOADED: dict = {}
+#: ``prompt="fillers"``: Whisper tends to leave um and uh out of its transcript, so video_cutplan cannot propose them.
+#: A first prompt that is itself full of fillers makes it write them down (openai/whisper discussion #1174). It can also
+#: make the model add a filler it did not hear, so this is opt-in and every cut it leads to is still a proposal.
+FILLER_PROMPTS = {
+    "en": "Umm, let me think, uh, like, hmm... Okay, er, here's what I'm, um, thinking.",
+    "he": "אממ, רגע, אה... אז, הממ, אה, זה מה שאני, אמ, חושב.",
+}
 
 
 @dataclass
@@ -75,10 +82,22 @@ def _check(model: str, language) -> None:
         raise VideoError(f"language must be a code such as en or he, got {language!r}")
 
 
-def _recognise(src: Path, language, model: str) -> tuple[list, list, str]:
+def resolve_prompt(prompt, language) -> str | None:
+    """The first prompt given to the model: None for blank, the filler prompt for ``fillers`` (Hebrew when the language
+    is he, English otherwise), or the text as given."""
+    prompt = (prompt or "").strip()
+    if not prompt:
+        return None
+    if prompt.lower() == "fillers":
+        return FILLER_PROMPTS["he" if language == "he" else "en"]
+    return prompt
+
+
+def _recognise(src: Path, language, model: str, prompt: str | None = None) -> tuple[list, list, str]:
     """Run the model over a file: (phrases, words, language). Reads the whole generator before returning."""
     wm = _load(model)
-    segments, meta = wm.transcribe(str(src), language=language or None, word_timestamps=True, vad_filter=True)
+    kw = {"initial_prompt": prompt} if prompt else {}
+    segments, meta = wm.transcribe(str(src), language=language or None, word_timestamps=True, vad_filter=True, **kw)
     phrases, words = [], []
     for seg in segments:  # the generator does the work: read it all before writing anything
         text = seg.text.strip()
@@ -108,15 +127,17 @@ def words_in(path, language=None, model=None) -> list[dict]:
     return _recognise(src, language, model)[1]
 
 
-def transcribe(path, language=None, model=None, out_dir=None, name="") -> Transcript:
+def transcribe(path, language=None, model=None, out_dir=None, name="", prompt=None) -> Transcript:
     """Transcribe the speech in a video or an audio file. ``language`` is a code such as ``en`` or ``he``; left out, it
-    is detected. ``model`` is one of MODELS; left out, it follows the language (see default_model). Never overwrites:
-    a name that exists gets -2, -3 ..."""
+    is detected. ``model`` is one of MODELS; left out, it follows the language (see default_model). ``prompt`` is a
+    first prompt for the model: ``fillers`` keeps um and uh in the transcript (see FILLER_PROMPTS), any other text is
+    passed as given (names, spellings). The words.json records it. Never overwrites: a name that exists gets -2, -3 ..."""
     model = model or default_model(language)
     _check(model, language)
     src = _src(path)
     dur = duration_of(src)  # refuses a file ffmpeg cannot read, before the model loads
-    phrases, words, lang = _recognise(src, language, model)
+    first = resolve_prompt(prompt, language)
+    phrases, words, lang = _recognise(src, language, model, first)
     out = _out_path(src, out_dir, name or _default_name(src, "transcript"), suffix=".words.json")
     srt = out.with_name(out.name[: -len(".words.json")] + ".srt")
     data = {
@@ -124,6 +145,7 @@ def transcribe(path, language=None, model=None, out_dir=None, name="") -> Transc
         "model": model,
         "language": lang,
         "duration": round(dur, 3),
+        "prompt": first,
         "words": words,
     }
     out.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
