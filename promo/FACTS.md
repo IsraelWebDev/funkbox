@@ -37,6 +37,8 @@ of the same video) or as the "under N" bound in M-render's `say_rough`, which su
   takes the lettering out of the artwork and returns where each line was; the words go back on top as live text
   layers, which the text audit checks exactly, and poster_fit nudges their position and size to raise
   poster_compare's score against the original.
+- F25. Speech in a video becomes word-level timings on your computer (faster-whisper, no cloud): `funkbox video transcribe`.
+- F26. From that transcript, funkbox proposes cutting filler sounds ("um", "uh") and renders the cut only after you approve the plan: `funkbox video cutplan`, then `funkbox video edit`.
 - F8. Images from a description with FastSD (SD-Turbo); about a few seconds per 512x512 image on an Intel iGPU once warm.
 - F9. Short product and app video ads: 9:16, 16:9 (and 1:1, 4:5) from one edit.
 - F10. Ads use stills (parallax, Ken Burns), clips and screen recordings with push-ins and speed ramps.
