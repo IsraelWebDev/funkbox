@@ -275,7 +275,9 @@ def test_highlights_pick_the_moving_stretches_not_the_still_ones(work):
 
 def test_highlights_keep_different_moves_and_drop_repeats(work):
     dance = make_lavfi(work / "dance.mp4", "testsrc2=size=320x180:rate=25", 6.0)
-    drift = make_lavfi(work / "drift.mp4", "gradients=s=320x180:rate=25:speed=0.05", 6.0)
+    drift = make_lavfi(
+        work / "drift.mp4", "gradients=s=320x180:rate=25:speed=0.05:seed=1", 6.0
+    )  # a fixed seed: ffmpeg's default is random per run
     twin = work / "twin.mp4"
     twin.write_bytes(dance.read_bytes())  # the same take twice
     res = clip.highlights([dance, drift, twin], target_s=(9, 18), seg_s=3.0, name="styles")
