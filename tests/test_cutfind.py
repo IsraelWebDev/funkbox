@@ -172,7 +172,7 @@ def test_filler_words_are_proposed_and_lookalikes_are_not():
 
 def test_a_filler_cut_runs_past_its_end_but_stops_before_the_next_word():
     # the sound of "um" runs past the word's end time, so the cut reaches 0.18 s further...
-    words = [w("say", 0.0, 0.4), w("um,", 0.4, 0.6), w("or", 0.9, 1.1), w("uh,", 1.5, 1.7)]
+    words = [w("so", 0.0, 0.4), w("um,", 0.4, 0.6), w("the", 0.9, 1.1), w("uh,", 1.5, 1.7)]
     assert cutfind.filler_removals(words) == [(0.4, 0.78, "um,"), (1.5, 1.88, "uh,")]
     # ...but not into the next word, which starts at 0.62 here
     tight = [w("um,", 0.4, 0.6), w("or", 0.62, 0.9)]
@@ -227,11 +227,39 @@ def test_a_hebrew_filler_quoted_after_a_reporting_word_is_kept():
     assert len(cutfind.kept_fillers(words)) == 1
 
 
-def test_a_filler_after_an_ordinary_word_is_still_cut_even_after_say():
-    # "I say um" is the speaker's own filler, not a quote: "say" is not a reporting word
-    words = [w("I", 0.0, 0.2), w("say", 0.2, 0.5), w("um,", 0.5, 0.8), w("or", 0.9, 1.1)]
+def test_a_filler_after_an_ordinary_word_is_still_cut():
+    words = [w("so", 0.0, 0.2), w("um,", 0.2, 0.5), w("it", 0.6, 0.8), w("works", 0.8, 1.1)]
     assert [r[2] for r in cutfind.filler_removals(words)] == ["um,"]
     assert cutfind.kept_fillers(words) == []
+
+
+def test_a_filler_the_speaker_names_as_a_sound_is_kept():
+    # "I say um, or uh, in the middle": the sounds are the subject of the sentence, not the speaker's filler
+    words = [
+        w("I", 0.0, 0.2),
+        w("say", 0.2, 0.5),
+        w("um,", 0.5, 0.8),
+        w("or", 0.9, 1.1),
+        w("uh,", 1.1, 1.4),
+        w("in", 1.5, 1.6),
+        w("the", 1.6, 1.7),
+        w("middle", 1.7, 2.0),
+    ]
+    assert cutfind.filler_removals(words) == []
+    assert [k[2] for k in cutfind.kept_fillers(words)] == ["um,", "uh,"]
+
+
+def test_a_filler_in_a_list_of_sounds_is_kept():
+    words = [
+        w("the", 0.0, 0.2),
+        w("sounds", 0.2, 0.5),
+        w("um", 0.5, 0.8),
+        w("or", 0.9, 1.1),
+        w("uh", 1.1, 1.4),
+        w("hm", 1.5, 1.8),
+        w("are", 1.9, 2.0),
+    ]
+    assert [k[2] for k in cutfind.kept_fillers(words)] == ["um", "uh"]
 
 
 def test_cutplan_lists_kept_fillers_in_the_plan_for_review(work):

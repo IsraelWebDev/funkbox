@@ -135,31 +135,44 @@ def retake_removals(
     return out
 
 
-#: words that introduce a quote: a filler right after one is the speaker quoting someone ("he said, uh, hi"), not a
-#: filler of their own, so it stays. "say" and "like" are not here: "I say um" is the speaker's own filler.
+#: words that introduce a quote: a filler right after one is the speaker quoting someone ("he said, uh, hi").
 REPORTING = {"said", "says", "asked", "told", "wrote", "אמר", "אמרה", "אומר", "אומרת", "אמרתי", "אמרנו"}
+#: words that make the next filler the subject of the sentence ("I say um", "the word uh"), not the speaker's filler
+NAMING = {"say", "says", "saying", "word", "words", "sound", "sounds"}
+#: joiners that put fillers in a list of sounds ("um or uh")
+JOINERS = {"or", "and"}
 
 
-def _quoted(words: list[dict], keys: set[str]) -> set[int]:
-    """Indexes of filler words that quote someone: the word before is a reporting word."""
-    return {
-        i
-        for i in range(1, len(words))
-        if _key(str(words[i]["text"])) in keys and _key(str(words[i - 1]["text"])) in REPORTING
-    }
+def _kept(words: list[dict], keys: set[str]) -> dict[int, str]:
+    """Filler words to leave in, as {index: reason}: quotes, named sounds, and fillers in a list of sounds."""
+    out: dict[int, str] = {}
+    for i in range(len(words)):
+        if _key(str(words[i]["text"])) not in keys or i == 0:
+            continue
+        prev = _key(str(words[i - 1]["text"]))
+        if prev in REPORTING:
+            out[i] = f"quoted after '{prev}'"
+        elif prev in NAMING:
+            out[i] = f"named as a sound after '{prev}'"
+        else:
+            j = i - 2 if prev in JOINERS and i >= 2 else i - 1
+            if j >= 0 and _key(str(words[j]["text"])) in keys:
+                out[i] = "in a list of sounds"
+    return out
 
 
 def kept_fillers(words: list[dict], fillers=FILLERS) -> list[tuple[float, float, str, str]]:
-    """Fillers the cut leaves in, for a person to check: (start, end, text, reason). Only quotes for now."""
+    """Fillers the cut leaves in, for a person to check: (start, end, text, reason)."""
     keys = {_key(f) for f in fillers if _key(f)}
+    kept = _kept(words, keys)
     return [
         (
             round(float(words[i]["start"]), 3),
             round(float(words[i]["end"]), 3),
             str(words[i]["text"]).strip(),
-            f"quoted after '{_key(str(words[i - 1]['text']))}'",
+            kept[i],
         )
-        for i in sorted(_quoted(words, keys))
+        for i in sorted(kept)
     ]
 
 
@@ -168,15 +181,15 @@ def filler_removals(words: list[dict], fillers=FILLERS) -> list[tuple[float, flo
     punctuation, so "Um," is a filler; a word that only contains one ("umbrella", "hummus") is not.
 
     The word's end time often falls before the sound does, so the cut runs FILLER_TAIL_S past it, but never into the
-    next word: a cut that reached it would clip the start of that word. A filler that quotes someone (after a
-    reporting word, see ``kept_fillers``) is left in."""
+    next word: a cut that reached it would clip the start of that word. A filler that quotes someone, names a sound or sits in
+    a list of sounds (see ``kept_fillers``) is left in."""
     keys = {_key(f) for f in fillers if _key(f)}
     spans = [(float(x["start"]), float(x["end"]), str(x["text"]).strip()) for x in words]
     starts = sorted(s for s, _, _ in spans)
-    quoted = _quoted(words, keys)
+    kept = _kept(words, keys)
     out = []
     for i, x in enumerate(words):
-        if keys and i not in quoted and _key(str(x["text"])) in keys:
+        if keys and i not in kept and _key(str(x["text"])) in keys:
             a, b = round(float(x["start"]), 3), round(float(x["end"]), 3)
             if b > a:
                 nxt = next((s for s in starts if s >= float(x["end"]) - 1e-9 and s > float(x["start"])), None)
