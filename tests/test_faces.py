@@ -53,8 +53,31 @@ def test_auto_keeps_the_caption_off_a_face(work, monkeypatch):
     res = clip.subtitles(FIXTURE, CUES, None, "lower-third", "auto", work, "moved")
     cue = json.loads(res.audit.read_text(encoding="utf-8"))[0]
     assert cue["anchor"] in ("top", "center"), cue
-    assert cue["faces"] == {"faces": 1, "clear": True}
+    assert cue["faces"]["faces"] == 1 and cue["faces"]["clear"] is True
+    assert cue["faces"]["frames"] == clip.FACE_SAMPLES
     assert cue["text_exact"]
+
+
+def test_a_face_seen_in_one_sampled_frame_keeps_the_caption_off_it(work, monkeypatch):
+    seen = []
+
+    def only_the_second_frame_has_a_face(rgb):
+        seen.append(1)
+        return _face_over_the_bottom_of_every_frame(rgb) if len(seen) == 2 else []
+
+    monkeypatch.setattr(faces, "faces_in", only_the_second_frame_has_a_face)
+    res = clip.subtitles(FIXTURE, CUES, None, "lower-third", "auto", work, "one-frame")
+    cue = json.loads(res.audit.read_text(encoding="utf-8"))[0]
+    assert cue["anchor"] in ("top", "center"), cue
+    assert cue["faces"]["faces"] == 1 and cue["faces"]["clear"] is True
+
+
+def test_sample_times_span_the_caption_and_stay_inside_it():
+    times = clip._sample_times(2.0, 4.0)
+    assert len(times) == clip.FACE_SAMPLES
+    assert 2.0 < times[0] < times[-1] < 4.0
+    assert times == sorted(times)
+    assert clip._sample_times(2.0, 2.2) == [2.1] or all(2.0 < t < 2.2 for t in clip._sample_times(2.0, 2.2))
 
 
 def test_no_face_found_is_unknown_not_clear(work, monkeypatch):
@@ -62,7 +85,7 @@ def test_no_face_found_is_unknown_not_clear(work, monkeypatch):
     res = clip.subtitles(FIXTURE, CUES, None, "lower-third", "auto", work, "none-seen")
     cue = json.loads(res.audit.read_text(encoding="utf-8"))[0]
     assert cue["faces"]["faces"] == 0 and cue["faces"]["clear"] is None
-    assert "busyness" in cue["faces"]["why"]
+    assert cue["anchor"] == "bottom" and "kept at bottom" in cue["faces"]["why"]
 
 
 def test_auto_says_so_when_the_face_finder_is_missing(work, monkeypatch):

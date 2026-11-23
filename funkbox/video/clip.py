@@ -347,23 +347,46 @@ def _timed_states(lay, cue: Cue, timed: list[tuple[float, float]]) -> list[tuple
     return out
 
 
-def _face_anchor(path, t: float, lay_for, W: int, H: int, safe: str) -> tuple[str, dict]:
-    """(anchor, face report) for a caption shown around time ``t``: the least busy anchor whose caption box touches
-    no face in the frame at ``t``. Raises VideoError when OpenCV is missing or the frame cannot be read."""
+FACE_SAMPLES = 5  # frames per caption: the detector finds a face in roughly half of frames on a talking head
+
+
+def _sample_times(start: float, end: float) -> list[float]:
+    """FACE_SAMPLES times spread over a caption's life, kept off its very first and last instant."""
+    inset = min(0.1, (end - start) / 4)
+    lo, hi = start + inset, end - inset
+    if FACE_SAMPLES == 1 or hi <= lo:
+        return [(start + end) / 2]
+    return [lo + (hi - lo) * i / (FACE_SAMPLES - 1) for i in range(FACE_SAMPLES)]
+
+
+def _face_anchor(path, times, lay_for, W: int, H: int, safe: str) -> tuple[str, dict]:
+    """(anchor, face report) for a caption shown from ``times[0]`` to ``times[-1]``: the least busy anchor whose caption
+    box touches no face seen in any of the frames at ``times``. The detector misses faces in some frames (a head tilted
+    down, glasses, a busy background), so a face seen in any sampled frame counts. Raises VideoError when OpenCV is
+    missing or a frame cannot be read."""
     import numpy as np
     from funkbox.reel import captions
     from funkbox.video import faces
 
-    frame = np.asarray(frame_at(path, t, W).convert("RGB"))  # the frame is W wide, so its pixels are the caption's
-    boxes = faces.faces_in(frame)
+    frames = [np.asarray(frame_at(path, t, W).convert("RGB")) for t in times]  # W wide: pixels are the caption's
+    per_frame = [faces.faces_in(f) for f in frames]
+    boxes = [b for found in per_frame for b in found]
 
     def blocked(lay) -> bool:
         return faces.overlaps((lay.x0, lay.y0, lay.x0 + lay.box_w, lay.y0 + lay.box_h), boxes)
 
-    anchor = captions.pick_anchor(frame, lay_for, W, H, safe, blocked=blocked)
-    if not boxes:  # no face found proves nothing: the detector can miss one, so "clear" is unknown, not true
-        return anchor, {"faces": 0, "clear": None, "why": "no face detected: anchor chosen by busyness alone"}
-    return anchor, {"faces": len(boxes), "clear": not blocked(lay_for(anchor, W, H, safe))}
+    most = max(len(found) for found in per_frame)
+    if (
+        not boxes
+    ):  # the detector can miss a face, so "clear" is unknown, not true; a talking head is seldom low, so bottom
+        return "bottom", {
+            "faces": 0,
+            "frames": len(frames),
+            "clear": None,
+            "why": "no face detected in the sampled frames: kept at bottom",
+        }
+    anchor = captions.pick_anchor(frames[len(frames) // 2], lay_for, W, H, safe, blocked=blocked)
+    return anchor, {"faces": most, "frames": len(frames), "clear": not blocked(lay_for(anchor, W, H, safe))}
 
 
 def subtitles(
@@ -415,7 +438,7 @@ def subtitles(
             where = anchor
             if anchor == "auto":  # the default: the least busy place for the caption that no face covers
                 try:
-                    where, face = _face_anchor(inf.path, (c.start + c.end) / 2, lay_for, W, H, safe)
+                    where, face = _face_anchor(inf.path, _sample_times(c.start, c.end), lay_for, W, H, safe)
                 except VideoError as e:  # no OpenCV, or the frame could not be read: bottom, and the audit says why
                     where, face = "bottom", {"faces": None, "clear": None, "why": str(e)}
             lay = lay_for(where, W, H, safe)
