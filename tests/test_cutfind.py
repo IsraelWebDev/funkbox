@@ -170,6 +170,15 @@ def test_filler_words_are_proposed_and_lookalikes_are_not():
     assert cutfind.filler_removals(words, fillers=("so",)) == [(0.0, 0.2, "So")]
 
 
+def test_a_filler_cut_runs_past_its_end_but_stops_before_the_next_word():
+    # the sound of "um" runs past the word's end time, so the cut reaches 0.18 s further...
+    words = [w("say", 0.0, 0.4), w("um,", 0.4, 0.6), w("or", 0.9, 1.1), w("uh,", 1.5, 1.7)]
+    assert cutfind.filler_removals(words) == [(0.4, 0.78, "um,"), (1.5, 1.88, "uh,")]
+    # ...but not into the next word, which starts at 0.62 here
+    tight = [w("um,", 0.4, 0.6), w("or", 0.62, 0.9)]
+    assert cutfind.filler_removals(tight) == [(0.4, 0.62, "um,")]
+
+
 def test_cutplan_proposes_fillers_from_the_words_and_can_turn_them_off(work):
     src = bench_mp4(work)
     words = work / "w.json"
@@ -201,5 +210,6 @@ def test_hebrew_fillers_are_proposed_and_real_words_are_not():
         w("אההה", 1.6, 2.0),
     ]
     removals = cutfind.filler_removals(words)
-    assert removals == [(0.2, 0.5, "אמ,"), (0.9, 1.2, "הממ"), (1.6, 2.0, "אההה")]
+    # the last filler has no word after it, so its cut runs the full tail past 2.0
+    assert removals == [(0.2, 0.5, "אמ,"), (0.9, 1.2, "הממ"), (1.6, 2.18, "אההה")]
     assert "אמא" not in {t for _, _, t in removals}

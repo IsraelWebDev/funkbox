@@ -20,6 +20,7 @@ from funkbox.video.clip import VideoError, _default_name, _load_words, _out_path
 NOISE_DB = -30.0  # silence = quieter than this (dB)
 MIN_SILENCE_S = 0.35  # shorter quiet is a consonant or a breath, not a pause
 KEEP_S = 0.25  # breath kept on each side of a removed pause
+FILLER_TAIL_S = 0.18  # a filler's sound runs this long past its word's end time (measured on a synthetic talk)
 MIN_PAUSE_S = 0.6  # pauses shorter than this stay
 MIN_WORDS = 4  # a repeat of fewer words is coincidence
 MAX_GAP_S = 30.0  # a retake is said within this many seconds of the take it replaces
@@ -136,14 +137,23 @@ def retake_removals(
 
 def filler_removals(words: list[dict], fillers=FILLERS) -> list[tuple[float, float, str]]:
     """Each word that is a filler ("um", "uh", ...), as (start, end, text) to remove. Matching ignores case and
-    punctuation, so "Um," is a filler; a word that only contains one ("umbrella", "hummus") is not."""
+    punctuation, so "Um," is a filler; a word that only contains one ("umbrella", "hummus") is not.
+
+    The word's end time often falls before the sound does, so the cut runs FILLER_TAIL_S past it, but never into the
+    next word: a cut that reached it would clip the start of that word."""
     keys = {_key(f) for f in fillers if _key(f)}
+    spans = [(float(x["start"]), float(x["end"]), str(x["text"]).strip()) for x in words]
+    starts = sorted(s for s, _, _ in spans)
     out = []
     for x in words:
         if keys and _key(str(x["text"])) in keys:
             a, b = round(float(x["start"]), 3), round(float(x["end"]), 3)
             if b > a:
-                out.append((a, b, str(x["text"]).strip()))
+                nxt = next((s for s in starts if s >= float(x["end"]) - 1e-9 and s > float(x["start"])), None)
+                tail = b + FILLER_TAIL_S
+                if nxt is not None:
+                    tail = min(tail, nxt)
+                out.append((a, round(max(b, tail), 3), str(x["text"]).strip()))
     return out
 
 
