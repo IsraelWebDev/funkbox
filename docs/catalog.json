@@ -1968,6 +1968,7 @@
               "auto-box",
               "bold-pop",
               "callout",
+              "label",
               "lower-third",
               "red-box"
             ],
@@ -2902,6 +2903,7 @@
               "auto-box",
               "bold-pop",
               "callout",
+              "label",
               "lower-third",
               "red-box"
             ],
