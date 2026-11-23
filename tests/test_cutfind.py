@@ -237,7 +237,9 @@ def test_a_filler_after_an_ordinary_word_is_still_cut_even_after_say():
 def test_cutplan_lists_kept_fillers_in_the_plan_for_review(work):
     src = bench_mp4(work)
     words = work / "w.json"
-    words.write_text(json.dumps({"words": [w("he", 0.2, 0.4), w("said", 0.4, 0.6), w("uh", 0.7, 0.9), w("hi", 0.9, 1.2)]}), "utf-8")
+    words.write_text(
+        json.dumps({"words": [w("he", 0.2, 0.4), w("said", 0.4, 0.6), w("uh", 0.7, 0.9), w("hi", 0.9, 1.2)]}), "utf-8"
+    )
     res = cutfind.cutplan(src, words=words, name="kept-plan")
     data = json.loads(res.path.read_text(encoding="utf-8"))
     assert data["kept_fillers"] == [{"start": 0.7, "end": 0.9, "text": "uh", "reason": "quoted after 'said'"}]

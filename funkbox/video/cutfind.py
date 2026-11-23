@@ -262,7 +262,9 @@ def cutplan(
     if wl:
         spans += [(a, b, f"retake: {t}") for a, b, t in retake_removals(wl, min_words, max_gap_s)]
         spans += [(a, b, f"filler: {t}") for a, b, t in filler_removals(wl, fillers or ())]
-        kept_list = [{"start": a, "end": b, "text": t, "reason": why} for a, b, t, why in kept_fillers(wl, fillers or ())]
+        kept_list = [
+            {"start": a, "end": b, "text": t, "reason": why} for a, b, t, why in kept_fillers(wl, fillers or ())
+        ]
     removed = _merge(spans)
     keep = _keep(removed, inf.duration)
     cuts = [{"path": str(p), "start": a, "end": b} for a, b in keep if b - a >= 0.1]
