@@ -166,7 +166,8 @@ Describe → generate variations → pick → poster or edit → export.
   the user run `python -m funkbox project approve-copy <project>`.
 - FastSD errors: read `vendor/fastsdcpu/_studio_fastsd.log`. GIMP shortcut but no port: the
   first run takes ~2 min, and `out/gimp_start.log` says why.
-- `python -m funkbox doctor` prints the resolved settings, GL, ffmpeg, models and app paths.
+- `python -m funkbox doctor` prints the resolved settings, GL, ffmpeg, models and app paths. `doctor --bench` also times
+  a few 1080x1920 frames and estimates a 20 s Short's render on this machine.
 
 
 ## Plan-driven renders (proposed, not live)

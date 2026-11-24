@@ -7,7 +7,7 @@
     funkbox poster  presets | preview | render | vary | export-ora | ora-check
     funkbox image   generate | restyle | upscale | edit
     funkbox apps    status | start | stop
-    funkbox doctor  GL, ffmpeg, models, FastSD/GIMP paths and the resolved config
+    funkbox doctor  GL, ffmpeg, models, FastSD/GIMP paths and the resolved config (--bench: time this machine)
     funkbox serve   the MCP server (stdio)
     funkbox catalog write docs/catalog.json from the MCP registry (--check only verifies it)
 
@@ -92,6 +92,14 @@ def cmd_doctor(args) -> int:
     )
     line(True if cfg.gimp_exe else None, "GIMP", cfg.gimp_exe or "not found")
     line(None, "image tools", "stub (STUDIO_FAKE_SD)" if cfg.fake_sd else "FastSD")
+    if getattr(args, "bench", False):
+        print("\nBENCH")
+        try:
+            from funkbox.gl import bench
+
+            print(bench.report(bench.run(frames=args.bench_frames)))
+        except Exception as e:  # noqa: BLE001
+            line(False, "bench", f"{type(e).__name__}: {e}")
     return 1 if problems else 0
 
 
@@ -137,7 +145,14 @@ def build_parser() -> argparse.ArgumentParser:
     from funkbox.video import tools as video_tools
 
     video_tools.add_cli(sub)
-    sub.add_parser("doctor", help="GL info, ffmpeg, models, FastSD/GIMP paths, config").set_defaults(fn=cmd_doctor)
+    doc = sub.add_parser("doctor", help="GL info, ffmpeg, models, FastSD/GIMP paths, config")
+    doc.add_argument(
+        "--bench",
+        action="store_true",
+        help="also time a few 1080x1920 frames on this machine and estimate a 20 s Short's render",
+    )
+    doc.add_argument("--bench-frames", type=int, default=30, metavar="N", help="frames to time (default 30)")
+    doc.set_defaults(fn=cmd_doctor)
     sub.add_parser("serve", help="run the MCP server (stdio)").set_defaults(fn=cmd_serve)
     from pathlib import Path
 

@@ -140,6 +140,8 @@ One package (`funkbox/`), one command line (`python -m funkbox`) and one MCP ser
 | apps | on-demand FastSD CPU image model and a GIMP 3 MCP bridge | `funkbox apps ...`, `apps_*`, `install.py --with fastsd,gimp` |
 
 `python -m funkbox doctor` prints the resolved settings and what was found (GL, ffmpeg, models, apps).
+Add `--bench` to time a few 1080x1920 frames on this machine (GPU or software OpenGL) and estimate how long a
+20-second vertical Short takes to draw: an answer to "is my laptop enough?" before the first long render.
 
 ## Hardware
 
