@@ -53,7 +53,9 @@ def _doctor_env(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "get", lambda *a, **k: cfg)
     monkeypatch.setattr(media, "ffmpeg_exe", lambda: "ffmpeg")
     monkeypatch.setattr(models, "status", lambda: {})
-    monkeypatch.setattr(context, "probe", lambda: [SimpleNamespace(ok=True, label="egl", detail="Fake", software=False)])
+    monkeypatch.setattr(
+        context, "probe", lambda: [SimpleNamespace(ok=True, label="egl", detail="Fake", software=False)]
+    )
 
 
 def test_doctor_bench_flag_prints_bench(monkeypatch, capsys, tmp_path):
