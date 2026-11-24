@@ -18,8 +18,10 @@ of the same video) or as the "under N" bound in M-render's `say_rough`, which su
 - F1. funkbox is free and open source (MIT), at github.com/IsraelWebDev/funkbox.
 - F2. It runs on your own computer: no cloud, no accounts, no API keys, no credits.
 - F3. No NVIDIA GPU is needed. OpenGL 3.3 is enough; an Intel integrated GPU works.
-- F4. Claude drives it over MCP (one server, 49 tools), in Claude Desktop or Claude Code; everything also has a command line.
+- F4. Claude drives it over MCP (one server, 58 tools), in Claude Desktop or Claude Code; everything also has a command line.
 - F5. There is a Claude Code plugin: /plugin install funkbox --marketplace IsraelWebDev/funkbox
+- F27. `funkbox doctor --bench` renders a few 1080x1920 frames on your own machine (GPU or software OpenGL), prints
+  frames per second, and estimates how long a 20 s vertical Short takes to draw there, before any long render.
 
 ## What it makes
 - F6. Seamless looping videos from GPU shaders, with a machine check that the last frame flows into the first.
