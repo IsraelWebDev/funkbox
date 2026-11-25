@@ -22,6 +22,7 @@ python -m funkbox reel still      examples/reel_demo/demo.reel.json --shot s3 --
 python -m funkbox reel render     examples/reel_demo/demo.reel.json --draft --audit
 python -m funkbox reel cutout photo.jpg -o inputs/brand/bottle.png    # product on a plain background -> alpha PNG
 python -m funkbox reel beats music.mp3
+python -m funkbox reel activity clips/screen.mp4 --trim 2 10   # where a recording changes: a frame rect to push in on
 ```
 The MCP tools are `reel_copy_lines`, `reel_templates`, `reel_validate`, `reel_storyboard`, `reel_still`, `reel_render`
 (registered with everything else by `python install.py --register ...`). On Linux without a
@@ -218,6 +219,13 @@ gives the right crop in 9:16 and in 16:9.
 `[0.2, 0.5]`). `fit: "contain"` never crops; the rest is `pad`: a colour (`"#101820"`) or `"blur"` (a blurred, dimmed
 copy of the same frame). On video, `speed: 2` plays twice as fast and `speed: [1, 3]` ramps from 1x to 3x over the
 shot; `validate` warns when a clip runs out before its shot ends (its last frame is held unless `loop` is set).
+
+**Finding the rect (`funkbox reel activity`).** `python -m funkbox reel activity clips/screen.mp4 --trim 2 10` samples
+the clip (4 frames a second, small and grey), finds the pixels that change, and prints their bounding box as
+`[x, y, w, h]` source fractions, ready to paste as a `frame` motion's `to` (or its centre as `focus`). On a wide screen
+recording that is the window where the typing, output or clicks happened, so a vertical cut needs no measuring by
+hand. `--threshold` (grey levels, default 12) ignores smaller flicker; `--json` prints `rect`, `focus`, `frames` and
+`changed` (the fraction of the picture that changed). It only reads the clip.
 
 **Grid sources (`"source": {"grid": ...}`).** Several clips side by side in one shot (before/after, a set of app screens),
 arriving one after another, each with a label from the copy deck:

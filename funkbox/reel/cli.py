@@ -8,6 +8,7 @@ inbox/, get an ad).
     funkbox reel setup-models
     funkbox reel cutout photo.jpg -o inputs/brand/bottle.png
     funkbox reel beats music.mp3
+    funkbox reel activity clips/screen.mp4 [--trim 2 10]
     funkbox reel validate|storyboard|render --project glowmop
 
     funkbox project new "Glowmop"                 then put files in inbox/ (see: project shortcuts)
@@ -241,6 +242,22 @@ def cmd_beats(a) -> int:
     return 0
 
 
+def cmd_activity(a) -> int:
+    from funkbox.reel.activity import active_rect
+
+    act = active_rect(a.clip, tuple(a.trim) if a.trim else None, fps=a.fps, threshold=a.threshold)
+    if a.json:
+        print(json.dumps(act.as_dict()))
+        return 0
+    if act.rect is None:
+        print(f"nothing changed in {act.frames} sampled frames; try a longer --trim or a lower --threshold")
+        return 0
+    print(f"active area: {json.dumps(list(act.rect))}  ({act.changed:.1%} of the picture changed, {act.frames} frames)")
+    print(f'push in on it: "motion": {{"type": "frame", "to": {json.dumps(list(act.rect))}}}')
+    print(f'or crop around it: "focus": {json.dumps(list(act.focus))}')
+    return 0
+
+
 def cmd_project_approve_copy(a) -> int:
     """A PERSON at a terminal re-approves copy.json after a hand edit (or approves the pending draft with
     --from-draft). The agent must not run this: it is the user's own approval path."""
@@ -433,7 +450,7 @@ def add_cli(sub) -> None:
     rsub = ap.add_subparsers(
         dest="verb",
         required=True,
-        metavar="{validate,storyboard,still,render,variants,timeline,beats,cutout,setup-models}",
+        metavar="{validate,storyboard,still,render,variants,timeline,beats,activity,cutout,setup-models}",
     )
     p = rsub.add_parser("timeline", help="drag-and-drop timeline page for a reel (shared with Claude)")
     p.add_argument("reel", nargs="?")
@@ -507,6 +524,13 @@ def add_cli(sub) -> None:
     p = rsub.add_parser("beats", help="tempo and beat grid of a music file")
     p.add_argument("music")
     p.set_defaults(fn=cmd_beats)
+    p = rsub.add_parser("activity", help="where a clip changes: the [x, y, w, h] box to push in on")
+    p.add_argument("clip")
+    p.add_argument("--trim", nargs=2, type=float, metavar=("START", "END"), help="only look between these seconds")
+    p.add_argument("--fps", type=float, default=4.0, help="frames sampled per second (default 4)")
+    p.add_argument("--threshold", type=int, default=12, help="grey-level change that counts (0-255, default 12)")
+    p.add_argument("--json", action="store_true", help="print rect, focus, frames and changed as JSON")
+    p.set_defaults(fn=cmd_activity)
 
     ap = sub.add_parser("project", help="projects: new, ingest, brand, copy, auto, render, shortcuts")
     psub = ap.add_subparsers(
