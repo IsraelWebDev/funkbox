@@ -136,7 +136,7 @@ def reel_templates() -> str:
         "sources: image | video(trim, loop, speed: n or [start, end] ramp) | color(#hex) | funk2(recipe; with mask_copy_id its one text mask is that copy line, otherwise no text);"
         " any image/video: fit cover|contain, focus [x,y] (crop centre), pad #hex|blur (contain / past the edge)",
         'durations: seconds | "auto" (voice-over length) | "beats:N" (halves ok; grid from audio.bpm, '
-        "or detected in audio.music)",
+        'or detected in audio.music) | "bars:N" (N bars of 4 beats on the same grid)',
         'formats: ["9x16", "16x9", "1x1", "4x5"] or {id, width, height, safe_area}; per shot '
         '"formats": {id: {motion | caption.anchor | product x/y/height | source focus/fit/pad}}; '
         "reel_render renders each as <name>-<id>.mp4",

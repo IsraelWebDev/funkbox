@@ -602,3 +602,10 @@ def test_a_grid_too_big_for_its_frame_is_a_validation_error_not_a_crash(demo, gl
     g["cells"] = [{"video": str(clips[0])} for _ in range(6)]
     rep = validate.validate(d, demo)
     assert not rep.ok and any("source.grid" in e and "no room" in e for e in rep.errors), rep.errors
+
+
+def test_stagger_in_bars():
+    g = S.parse_reel(_parse_reel({"reveal": "sequence", "stagger": "bars:1"})).shots[0].source.grid
+    assert g.stagger == "beats:4" and G.stagger_seconds(g, 0.5) == 2.0
+    errs = _errors(_parse_reel({"stagger": "bars:0"}))
+    assert any("grid.stagger" in e and "bars:N" in e for e in errs), errs

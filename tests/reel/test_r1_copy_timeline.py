@@ -138,3 +138,22 @@ def test_long_reel_warns_not_errors():
     reel = vo_reel([30.0, 30.0], voiceover=False)
     spans = timeline.build_timeline(reel, {}, None)
     assert timeline.warnings(spans)
+
+
+@pytest.mark.parametrize("bars,beats", [("bars:2", "beats:8"), ("bars:0.5", "beats:2"), ("bars:1.25", "beats:5")])
+def test_bars_duration_is_four_beats_per_bar(bars, beats):
+    raw = reel_dict()
+    raw["shots"][0]["duration"] = bars
+    assert parse_reel(raw).shots[0].duration == beats
+    reel = vo_reel([bars], voiceover=False)
+    spans = timeline.build_timeline(reel, {}, [i * 0.5 for i in range(40)])
+    assert spans[0].duration == pytest.approx(float(beats[6:]) * 0.5)
+
+
+@pytest.mark.parametrize("bad", ["bars:0", "bars:-1", "bars:x", "bars:300", "bar:2"])
+def test_bad_bars_duration_is_an_error_naming_bars(bad):
+    raw = reel_dict()
+    raw["shots"][0]["duration"] = bad
+    with pytest.raises(ReelError) as e:
+        parse_reel(raw)
+    assert "bars:N" in str(e.value) and repr(bad) in str(e.value)

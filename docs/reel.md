@@ -244,7 +244,7 @@ arriving one after another, each with a label from the copy deck:
   In the audit, `complete_frame` is the first frame the exact text is drawn; while the cell is still fading in that can be
   at low opacity. `opaque_frame` is the first frame where the label is at full opacity, the first it can be read.
 - `reveal`: `none` (default: every cell is drawn for the whole shot) or `sequence`: cell `i` arrives at shot time
-  `i * stagger`. `stagger` is seconds, or `"beats:N"` (N beat periods, needs `audio.bpm` or music). Default: `beats:1`
+  `i * stagger`. `stagger` is seconds, or `"beats:N"` (N beat periods, needs `audio.bpm` or music) or `"bars:N"` (4N beats). Default: `beats:1`
   when the reel has a beat grid, else 0.25 s. A cell arrives by dropping in from 10% of its height above its place (inside
   its own slot) while fading in over 0.25 s, eased with `ease` (`smooth`, `linear`, `in`, `out`, `hold`; default `out`).
   Before that the cell and its label are not drawn; the label appears and fades with its cell.
@@ -264,7 +264,10 @@ no shot length is known). Every other style keeps its fixed numbers, so existing
 **`brand.from`.** A reel's `brand` may name an image (or an mp4, read at its frame at 1.0 s) with `"from"`, relative to the reel's folder. The primary, secondary and text colours are then resolved from that file with the same helpers as `brand_from_assets` (the most vivid usable cluster, a dark colour for secondary, and white or near-black text, darkened or lightened to reach contrast 4.5). The explicit `primary`, `secondary` and `text` keys are the fallback: if the file is missing or has no usable colours, validation warns and names the file, and the explicit colours are used. A reel without `from` renders exactly as before.
 
 **Beat grid.** `"audio": {"bpm": 110, "beat_offset": 0.0}` sets a fixed grid (one beat = 60 / 110 = 0.545 s) without
-analysing any music. `"duration": "beats:4"` (halves allowed: `beats:1.5`) and `snap_cuts_to_beats` use it. Without `bpm`
+analysing any music. `"duration": "beats:4"` (halves allowed: `beats:1.5`) and `snap_cuts_to_beats` use it.
+`"duration": "bars:2"` is the same grid counted in bars of 4 beats (4/4), so `bars:2` is `beats:8` and `bars:0.5` is
+`beats:2`; plan an edit as one shot per bar without the arithmetic. Bars are counted from the start of the reel, not
+from a downbeat found in the song. A grid `stagger` takes `bars:N` too. Without `bpm`
 the grid is detected from `audio.music`: the tempo comes from the whole spectrum, the phase (where the beats fall) from
 the low band (kick range, up to 150 Hz), so off-beat hi-hats do not pull the grid half a beat late. With no clear
 low-band pulse the phase falls back to the whole spectrum. `funkbox reel storyboard` and `project auto` print
