@@ -157,15 +157,18 @@ def video_import(folder: str) -> str:
 
 
 @safe
-def video_transcribe(path: str, language: str = "", model: str = "", name: str = "") -> list:
+def video_transcribe(path: str, language: str = "", model: str = "", name: str = "", prompt: str = "") -> list:
     """Speech to text for a video or an audio file, on this machine (no cloud). Writes every word with its start and end in seconds to
     <out>/video/<name>.words.json (the data captions and cut finders read) and the phrases to <name>.srt. ``language``:
     a code such as en or he; blank to detect. ``model``: tiny, base, small, medium or large-v3. Blank picks by language:
     large-v3 for he (small misses about half the Hebrew words), small for everything else. A bigger model is more
-    accurate and slower. The first use of a model downloads it. Never overwrites."""
+    accurate and slower. The first use of a model downloads it. ``prompt``: "fillers" keeps um and uh (and the Hebrew
+    filler sounds) in the transcript so video_cutplan can propose them; Whisper leaves most of them out otherwise. It
+    can add a filler that was not said, so check the proposals. Any other text is passed to the model as a first
+    prompt (names, spellings). Never overwrites."""
     from funkbox.video import transcribe as tr
 
-    res = tr.transcribe(_abs(path), language=language or None, model=model or None, name=name)
+    res = tr.transcribe(_abs(path), language=language or None, model=model or None, name=name, prompt=prompt or None)
     return [f"{res.text()}\nwords: {res.path}\nsrt: {res.srt}"]
 
 
@@ -298,7 +301,9 @@ def cmd_sheet(a) -> int:
 def cmd_transcribe(a) -> int:
     from funkbox.video import transcribe as tr
 
-    res = tr.transcribe(_abs(a.path), language=a.language, model=a.model, out_dir=a.out, name=a.name or "")
+    res = tr.transcribe(
+        _abs(a.path), language=a.language, model=a.model, out_dir=a.out, name=a.name or "", prompt=a.prompt
+    )
     print(f"{res.text()}\nwords: {res.path}\nsrt: {res.srt}")
     return 0
 
@@ -427,6 +432,11 @@ def add_cli(sub) -> None:
         default=None,
         choices=["tiny", "base", "small", "medium", "large-v3"],
         help="omit to pick by language: large-v3 for he, small otherwise",
+    )
+    p.add_argument(
+        "--prompt",
+        default=None,
+        help='"fillers" keeps um and uh in the transcript (for cutplan --fillers); other text is a first prompt',
     )
     p.add_argument("--out")
     p.add_argument("--name")

@@ -2926,7 +2926,7 @@
     },
     {
       "area": "video",
-      "description": "Speech to text for a video or an audio file, on this machine (no cloud). Writes every word with its start and end in seconds to\n<out>/video/<name>.words.json (the data captions and cut finders read) and the phrases to <name>.srt. ``language``:\na code such as en or he; blank to detect. ``model``: tiny, base, small, medium or large-v3. Blank picks by language:\nlarge-v3 for he (small misses about half the Hebrew words), small for everything else. A bigger model is more\naccurate and slower. The first use of a model downloads it. Never overwrites.",
+      "description": "Speech to text for a video or an audio file, on this machine (no cloud). Writes every word with its start and end in seconds to\n<out>/video/<name>.words.json (the data captions and cut finders read) and the phrases to <name>.srt. ``language``:\na code such as en or he; blank to detect. ``model``: tiny, base, small, medium or large-v3. Blank picks by language:\nlarge-v3 for he (small misses about half the Hebrew words), small for everything else. A bigger model is more\naccurate and slower. The first use of a model downloads it. ``prompt``: \"fillers\" keeps um and uh (and the Hebrew\nfiller sounds) in the transcript so video_cutplan can propose them; Whisper leaves most of them out otherwise. It\ncan add a filler that was not said, so check the proposals. Any other text is passed to the model as a first\nprompt (names, spellings). Never overwrites.",
       "input_schema": {
         "properties": {
           "language": {
@@ -2946,6 +2946,11 @@
           },
           "path": {
             "title": "Path",
+            "type": "string"
+          },
+          "prompt": {
+            "default": "",
+            "title": "Prompt",
             "type": "string"
           }
         },

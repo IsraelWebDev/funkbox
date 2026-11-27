@@ -115,3 +115,55 @@ def test_an_audio_only_file_is_transcribed_too(work):
     assert len(set(KEY_WORDS) & heard) >= 4
     words = tr.words_in(wav, language="en", model="tiny")
     assert words and all({"text", "start", "end", "prob"} <= set(w) for w in words)
+
+
+def test_the_fillers_prompt_follows_the_language():
+    assert tr.resolve_prompt("", "en") is None and tr.resolve_prompt(None, None) is None
+    assert tr.resolve_prompt("fillers", "en") == tr.FILLER_PROMPTS["en"]
+    assert tr.resolve_prompt("Fillers", None) == tr.FILLER_PROMPTS["en"]  # auto-detect: English
+    assert tr.resolve_prompt("fillers", "he") == tr.FILLER_PROMPTS["he"]
+    assert tr.resolve_prompt("  Chanuka, Shua  ", "en") == "Chanuka, Shua"  # any other text is passed as given
+    assert all(w in tr.FILLER_PROMPTS["en"].lower() for w in ("um", "uh", "hmm"))
+    assert "אה" in tr.FILLER_PROMPTS["he"]
+
+
+class _FakeModel:
+    """Stands in for faster-whisper: records the keyword arguments and hears one filler."""
+
+    def __init__(self):
+        self.kwargs = None
+
+    def transcribe(self, src, **kwargs):
+        from types import SimpleNamespace as NS
+
+        self.kwargs = kwargs
+        word = NS(word=" um", start=0.1, end=0.4, probability=0.9)
+        return iter([NS(text=" um", start=0.1, end=0.4, words=[word])]), NS(language="en")
+
+
+@pytest.mark.parametrize(("prompt", "sent"), [(None, None), ("fillers", tr.FILLER_PROMPTS["en"]), ("Shua", "Shua")])
+def test_the_prompt_reaches_the_model_and_the_words_file(work, monkeypatch, prompt, sent):
+    fake = _FakeModel()
+    monkeypatch.setattr(tr, "_load", lambda model: fake)
+    res = tr.transcribe(FIXTURE, model="tiny", language="en", out_dir=work, name="p", prompt=prompt)
+    assert fake.kwargs.get("initial_prompt") == sent
+    assert ("initial_prompt" in fake.kwargs) == (sent is not None)  # no prompt: the model's own default
+    assert json.loads(res.path.read_text(encoding="utf-8"))["prompt"] == sent
+    assert [w["text"] for w in res.words] == ["um"]
+
+
+def test_the_mcp_tool_and_the_cli_take_the_prompt(work, monkeypatch):
+    from funkbox.video import tools
+
+    seen = []
+    monkeypatch.setattr(tr, "_load", lambda model: _FakeModel())
+    real = tr.transcribe
+    monkeypatch.setattr(tr, "transcribe", lambda *a, **k: seen.append(k.get("prompt")) or real(*a, **k))
+    tools.video_transcribe(str(FIXTURE), language="en", model="tiny", name="mcp", prompt="fillers")
+    tools.video_transcribe(str(FIXTURE), language="en", model="tiny", name="mcp2")
+    from funkbox.cli import main
+
+    assert (
+        main(["video", "transcribe", str(FIXTURE), "--model", "tiny", "--language", "en", "--prompt", "fillers"]) == 0
+    )
+    assert seen == ["fillers", None, "fillers"]
