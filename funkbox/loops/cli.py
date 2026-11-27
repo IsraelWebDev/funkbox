@@ -345,6 +345,26 @@ def cmd_render(args) -> int:
     from funkbox.gl.loopcheck import loop_check_entry, validate_loop
 
     rec, label = _build_recipe(args)
+    target = getattr(args, "target", None)
+    if target:
+        from funkbox.loops.targets import apply_target
+
+        if args.gif or args.no_mp4:
+            raise UsageError(f"--target {target} delivers an MP4; drop --gif / --no-mp4")
+        if args.size and not (args.width or args.height):  # --size keeps the target's shape, not the look's
+            from funkbox.loops.targets import TARGETS
+
+            rec.settings.width, rec.settings.height = _scale(*TARGETS[target].default_size, args.size)
+        try:
+            apply_target(
+                rec.settings,
+                target,
+                explicit_size=bool(args.size or args.width or args.height),
+                explicit_seconds=bool(args.seconds),
+                length_fixed=bool(args.audio_loop or rec.settings.audio),
+            )
+        except ValueError as e:
+            raise UsageError(str(e)) from None
     name = args.name or f"{label}-s{rec.settings.seed}"
     out_dir = Path(args.out_dir) if args.out_dir else _default_out()
     section = None
@@ -362,6 +382,13 @@ def cmd_render(args) -> int:
         except ValueError as e:
             raise UsageError(str(e)) from None
         print(section.line())
+    if target:
+        from funkbox.loops.targets import check_seconds
+
+        try:
+            check_seconds(rec.settings.seconds, target)
+        except ValueError as e:
+            raise UsageError(str(e)) from None
     skip_for_audio = bool(rec.settings.audio) and not rec.settings.audio_loop
     if skip_for_audio:
         _err(
@@ -465,6 +492,12 @@ def add_cli(sub) -> None:
     r.add_argument("--audio-start", type=float, metavar="SECONDS", help="start the section at the beat nearest this")
     r.add_argument("--audio-bars", type=int, metavar="N", help="bars in the section (default: chosen, 3-8 s)")
     r.add_argument("--audio-meter", type=int, default=4, metavar="BEATS", help="beats per bar (default 4)")
+    r.add_argument(
+        "--target",
+        choices=["canvas"],
+        help="deliver for a place: canvas = Spotify Canvas (9:16, 720x1280 by default, 3-8 s, MP4); a size or length "
+        "you give is checked against it",
+    )
     r.add_argument("--name")
     r.add_argument("--out-dir", help="default: $FUNK_OUT or <funkbox>/out")
     r.add_argument("--no-mp4", action="store_true")

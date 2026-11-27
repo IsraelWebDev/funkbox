@@ -38,6 +38,13 @@ python -m funkbox loop write-shader --ports                        # rewrite the
 `<name>.json`: a recipe with the shader source inlined, so it reproduces the render even if the `.frag` changes later.
 Older sidecars written by funk v1 load too (they become shader-layer recipes). Defaults: 540x540, 30 fps, 4 s.
 
+**Spotify Canvas: `--target canvas`.** `funkbox loop render --preset lava-lamp --target canvas` renders a Canvas-ready
+MP4: 9:16 at 720x1280, its length pulled into Canvas's 3-8 s window, loop check on, so it repeats behind the song
+without a jump. A size or length you give is checked, never changed: `--size 1920` gives 1080x1920, while
+`--seconds 12`, a non-9:16 `--width/--height` or a short side outside 720-1080 px stops with the rule it breaks
+([Spotify's Canvas guidelines](https://support.spotify.com/us/artists/article/canvas-guidelines/)). It works with
+`--audio ... --audio-loop` (the section is 3-8 s already) and refuses `--gif`/`--no-mp4`.
+
 ## Presets
 
 The eight classic looks are recipes (`funkbox/loops/presets.py`): `acid-plasma`, `pop-moire`, `liquid-disco`,
