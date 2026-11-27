@@ -22,9 +22,24 @@ If these tools are missing, funkbox isn't installed. Follow `AGENTS.md` in the f
 (`python install.py ...`), or tell the user what to install. Everything also works from a terminal:
 `python -m funkbox <area> <verb>`, and `docs/migration-v4.md` maps the old v3 names to these.
 
+## 0. Intake (before any shot list)
+
+Before `project_auto_reel` runs, ask the user these and write the answers to `projects/<name>/intake.json`
+(the tool refuses to build without it; `funkbox project intake <name> intake.json` checks and saves a file):
+1. **Audience and length:** for example tradeshow loop, customer training, internal; seconds.
+2. **What to omit:** offer the likely candidates (old screens, draft names, prices, internal ticket numbers) as a
+   multi-select with "other". Each answer becomes an `omit` entry. Validation fails any shot that uses one, so
+   never assume: a training video may need pending states shown.
+3. **Source material:** their footage, a recording (`funkbox reel record`, see A.5), or generated scenes.
+4. **Names:** the real or fictional people and places the copy uses.
+5. **Voiceover:** default no. If yes, which voice and speed.
+
+Shape: `{"audience": "...", "length_s": 20, "omit": [...], "sources": ["footage"], "names": [], "voiceover": {"enabled": false}}`.
+
 ## A. Making an ad (the main flow)
 
-1. **Project:** call `project_new("<short-name>")`.
+1. **Project:** call `project_new("<short-name>")`. It also creates `project-style.md` (the user's rules and
+   corrections) and git-ignores `project.pii.json`. Then do section 0.
 2. **Assets:** ask the user to drop everything into the **funk inbox** folder (desktop
    shortcut): product photo, logo, music, clips, scene photos. Or have them name a folder.
    Then call `project_ingest(project[, source])`.
@@ -40,7 +55,10 @@ If these tools are missing, funkbox isn't installed. Follow `AGENTS.md` in the f
    - Draft lines with the user, or derive them from material they gave you, such as a product
      page they linked. Use short punchy caption lines (≤ 90 chars). Include a hook first,
      2–5 body lines, `end_head`, `end_sub` and `url`.
+   - Read `project-style.md` first. Its rules and dated `## Corrections` apply to every draft.
    - Call `project_propose_copy(...)`. Show the numbered listing **verbatim**.
+   - When the user corrects a proposed line, append one dated line under `## Corrections`
+     (`- YYYY-MM-DD: <what to do next time>`), or run `funkbox project correct <name> "<text>"`. Never edit the rules above it.
    - Approve with `project_approve_copy(project, draft_sha256)`. The client may pop an approval
      prompt; that's the user approving directly. If it falls back to chat approval, pass
      `user_confirmed_in_chat=true` **only after** the user explicitly approved that exact
@@ -59,10 +77,18 @@ If these tools are missing, funkbox isn't installed. Follow `AGENTS.md` in the f
      and `reel_templates`. Run `reel_validate` (it checks every format) and `reel_storyboard(format=...)`.
    - **Options** (details in `docs/reel.md` and `docs/music.md`): `"type": "explainer"` or `"tech"` for a type preset; `"hook": true` for a title on shot 1; `shots[].callouts` for labels and `shots[].annotations` for drawn arrows and marks; `end_card.template: "bottom-banner"` for a headline typed at the bottom. Music sets: `funkbox music vary SCORE.music.json --brief brief.json --seed N`.
    - Framing only crops and scales; never promise or attempt to alter what a recording shows.
+   - **Recorded clips with marks** (a live app): `funkbox reel record <scene>.json --record` drives the page in
+     Chromium and writes `inputs/<scene>.webm` and `<scene>.marks.json`. Only run it with the user's go-ahead (it
+     needs Playwright). A shot then cuts on a mark: `"in": {"mark": "name-entered"}`, `"out": {"mark": "result",
+     "offset_ms": 300}`. Re-record and the cut moves with the mark.
+   - Validation warns when a shot keeps under 0.3 s after its voice line.
 6. **Render:** `project_render(project, draft=True)` takes ~40 s on the laptop. When the
    user likes it, render the full version: 1080x1920, ~4 min for 25 s (each extra format adds
    about as much again). Mention the text audit
    result and where the file is.
+   - **Frame review before "done":** run `funkbox reel review <reel>` (it reads `out/<name>.mp4`). It writes
+     `out/review/<name>-review.png`: the first and last frame of every shot, and the final frame. Show that sheet
+     to the user. Do not report the video as done on the render alone.
 
 Rules:
 - On-screen and spoken text only ever come from approved copy ids.
@@ -70,6 +96,8 @@ Rules:
   "improve" it.
 - If a caption would cover the product, the validator flags it. Fix it by moving the anchor
   or shrinking the product.
+- Forbidden strings: if `project.pii.json` lists a term or pattern, any copy line that matches fails validation.
+  The report names the copy id and the rule, never the value. Do not repeat the value back to the user.
 - Fonts: any brand font may be a Google Fonts name instead of a file (`"Rubik:800"`, `"Secular One"`); it is fetched
   once. Text in Hebrew, Cyrillic or any script works when the font has the glyphs; a missing glyph is an error that
   names the character (switch to a font that covers it, or set `font_fallback`). The default fallback, Rubik Bold,
@@ -115,6 +143,8 @@ Call `apps_status()` first.
 
 End with what you made and the file paths. Don't recap the steps. If something was slow or
 failed, name the app and the fix.
+For an ad, the report also gives the frame review sheet path (`out/review/<name>-review.png`) and the text audit
+result.
 
 ## E. Stills
 

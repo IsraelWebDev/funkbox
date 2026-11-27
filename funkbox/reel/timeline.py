@@ -186,6 +186,24 @@ def total_seconds(spans: list[ShotSpan]) -> float:
     return spans[-1].end if spans else 0.0
 
 
+SLACK_WARN = 0.3  # seconds a shot must keep after its voice line (spec 3.5)
+
+
+def slack(sp: ShotSpan) -> float | None:
+    """Shot length minus the spoken line's length, or None when the shot has no voice line."""
+    return None if sp.vo_dur is None else sp.duration - sp.vo_dur
+
+
+def slack_warnings(spans: list[ShotSpan]) -> list[str]:
+    out = []
+    for sp in spans:
+        s = slack(sp)
+        if s is not None and 0 <= s < SLACK_WARN:
+            out.append(f"shot {sp.id}: {s:.2f}s of slack after its voice line (warns under {SLACK_WARN:.1f}s)")
+    return out
+
+
 def warnings(spans: list[ShotSpan]) -> list[str]:
     t = total_seconds(spans)
-    return [f"total length {t:.1f}s is over {LONG_REEL_WARN:.0f}s"] if t > LONG_REEL_WARN else []
+    out = [f"total length {t:.1f}s is over {LONG_REEL_WARN:.0f}s"] if t > LONG_REEL_WARN else []
+    return out + slack_warnings(spans)

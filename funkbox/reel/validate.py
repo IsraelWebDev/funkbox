@@ -121,6 +121,7 @@ def _validate_one(src, base_dir, *, vo_durations, beats, deep: bool, fmt: str | 
         rep.errors += e.errors if isinstance(e, ReelError) else [f"copy deck {reel.copy!r}: {e}"]
         return rep
     rep.errors += copydeck.check(reel, rep.deck)
+    _check_guards(reel, rep)
     if deep:
         _check_files(reel, rep)
         _check_templates_and_fit(reel, rep)
@@ -134,6 +135,19 @@ def _validate_one(src, base_dir, *, vo_durations, beats, deep: bool, fmt: str | 
         _check_framing(reel, rep)
         _check_reveal_timing(reel, rep)
     return rep
+
+
+def _check_guards(reel: Reel, rep: Report) -> None:
+    """Spec 3.2 (forbidden strings in copy) and 3.3 (the project's intake omit list, enforced on every shot)."""
+    from . import guard
+
+    try:
+        rep.errors += guard.pii_errors(rep.deck, guard.load_pii(reel.base_dir))
+        intake = guard.load_intake(guard.project_dir_of(reel.base_dir))
+    except guard.GuardError as e:
+        rep.errors.append(str(e))
+        return
+    rep.errors += guard.omit_errors(reel, rep.deck, intake)
 
 
 def _check_files(reel: Reel, rep: Report) -> None:
