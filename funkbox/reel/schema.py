@@ -25,6 +25,22 @@ END_AUDIO = ("silence", "keep")
 HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 ID_RE = re.compile(r"^[A-Za-z0-9_\-]{1,40}$")
 BEATS_RE = re.compile(r"^beats:([0-9]{1,3}(?:\.[0-9]{1,3})?)$")  # beats:4, beats:1.5, beats:0.5
+BARS_RE = re.compile(r"^bars:([0-9]{1,3}(?:\.[0-9]{1,3})?)$")  # bars:2, bars:0.5 (a bar is BEATS_PER_BAR beats)
+BEATS_PER_BAR = 4  # 4/4: the meter the beat grid assumes
+
+
+def bars_to_beats(value: object) -> object:
+    """``"bars:N"`` -> ``"beats:<N x 4>"``, so the timeline, snapping and the beat audit treat it like any
+    ``beats:N``. Anything else (and a bar count that is zero or too long for ``beats:N``) comes back unchanged,
+    for the caller's own check to report."""
+    if not isinstance(value, str):
+        return value
+    m = BARS_RE.match(value)
+    if not m:
+        return value
+    beats = f"beats:{round(float(m.group(1)) * BEATS_PER_BAR, 3):g}"
+    return beats if BEATS_RE.match(beats) else value
+
 
 #: format presets: id -> (width, height, safe_area)
 FORMAT_PRESETS = {
@@ -420,12 +436,14 @@ def _parse_grid(r: _R, shot_id: str) -> Grid:
         ease=r.s("ease", "out", EASES) or "out",
     )
     if r.has("stagger"):
-        st = r.raw("stagger")
+        st = bars_to_beats(r.raw("stagger"))
         if isinstance(st, bool) or not (
             (isinstance(st, (int, float)) and 0.0 <= st <= 10.0)
             or (isinstance(st, str) and BEATS_RE.match(st) and float(st[6:]) > 0)
         ):
-            r.errs.append(f'{r._p("stagger")}: expected seconds (0..10) or "beats:N" (N > 0), got {st!r}')
+            r.errs.append(
+                f'{r._p("stagger")}: expected seconds (0..10), "beats:N" or "bars:N" (N > 0), got {r.raw("stagger")!r}'
+            )
         else:
             g.stagger = float(st) if isinstance(st, (int, float)) else st
     raw = r.raw("cells")
@@ -744,13 +762,14 @@ def _parse_shot(r: _R, idx: int) -> Shot:
         r.errs.append(f"{r.path}.vo: expected a copy id string")
     else:
         sh.vo = vo
-    dur = r.raw("duration", "auto")
+    dur = bars_to_beats(r.raw("duration", "auto"))
     if isinstance(dur, bool) or not (
         (isinstance(dur, (int, float)) and 0.2 <= dur <= 30)
         or (isinstance(dur, str) and (dur == "auto" or (BEATS_RE.match(dur) and float(dur[6:]) > 0)))
     ):
         r.errs.append(
-            f'{r.path}.duration: expected seconds (0.2..30), "auto" or "beats:N" (N > 0, halves ok), got {dur!r}'
+            f'{r.path}.duration: expected seconds (0.2..30), "auto", "beats:N" (N > 0, halves ok) or "bars:N" '
+            f"(N bars of {BEATS_PER_BAR} beats), got {r.raw('duration', 'auto')!r}"
         )
     else:
         sh.duration = float(dur) if isinstance(dur, (int, float)) else dur

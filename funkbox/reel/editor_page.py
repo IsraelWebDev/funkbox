@@ -52,7 +52,7 @@ function push(){undo.push(structuredClone(W));if(undo.length>60)undo.shift();dir
 function spanOf(id){return S.spans.find(s=>s.id===id)}
 function dur(sh){const sp=spanOf(sh.id),saved=(S.reel.shots||[]).find(x=>x.id===sh.id);
  if(sp&&saved&&JSON.stringify(saved.duration)===JSON.stringify(sh.duration)&&JSON.stringify(saved.source)===JSON.stringify(sh.source))return sp.duration;
- const d=sh.duration;if(typeof d==='number')return d;if(typeof d==='string'&&d.startsWith('beats:'))return parseFloat(d.slice(6))*(S.beat||0.5);return sp?sp.duration:2}
+ const d=sh.duration;if(typeof d==='number')return d;if(typeof d==='string'&&d.startsWith('beats:'))return parseFloat(d.slice(6))*(S.beat||0.5);if(typeof d==='string'&&d.startsWith('bars:'))return parseFloat(d.slice(5))*4*(S.beat||0.5);return sp?sp.duration:2}
 function fmtDur(sh){const d=sh.duration;return (typeof d==='string'?d+' ':'')+dur(sh).toFixed(2)+'s'}
 function draw(){
  $('name').textContent=S.name;status(dirty?'unsaved changes':'saved',dirty?'dirty':'ok');
@@ -89,7 +89,7 @@ function field(label,html){return `<div class="row"><span>${label}</span>${html}
 function opts(list,cur,none){return (none?`<option value="">${none}</option>`:'')+list.map(v=>`<option${v===cur?' selected':''}>${esc(v)}</option>`).join('')}
 function inspector(){const box=$('inspector'),sh=(W.shots||[]).find(s=>s.id===sel);if(!sh){box.innerHTML='<p class="hint">Select a shot.</p>';return}
  const src=sh.source||{},cap=sh.caption||{};let h=`<h2 style="margin-top:0">${esc(sh.id)}</h2>`;
- h+=field('length',`<input id="f-dur" value="${esc(typeof sh.duration==='string'?sh.duration:String(sh.duration))}" title="auto, beats:N or seconds">`);
+ h+=field('length',`<input id="f-dur" value="${esc(typeof sh.duration==='string'?sh.duration:String(sh.duration))}" title="auto, beats:N, bars:N or seconds">`);
  h+=field('source',`<input value="${esc(src.video||src.image||src.color||src.funk2||'')}" disabled>`);
  if(src.video){const tr=src.trim||[0,null];h+=field('in',`<input id="f-in" type="number" step="0.05" min="0" value="${tr[0]}">`)+field('out',`<input id="f-out" type="number" step="0.05" min="0" value="${tr[1]??''}" placeholder="end">`)+
   `<input id="f-range" type="range" min="0" max="100" step="0.05" value="${tr[0]}" title="scrub the in point">`+
