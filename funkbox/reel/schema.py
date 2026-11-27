@@ -207,6 +207,8 @@ class Shot:
     vo: str | None = None  # copy id spoken during the shot
     duration: float | str = "auto"  # seconds | "auto" | "beats:N"
     transition_in: str = "cut"
+    edge_in: tuple | None = None  # "in": seconds or a mark of a recorded clip (see marks.py); resolved into trim
+    edge_out: tuple | None = None  # "out": likewise
 
 
 @dataclass
@@ -753,6 +755,11 @@ def _parse_shot(r: _R, idx: int) -> Shot:
     else:
         sh.duration = float(dur) if isinstance(dur, (int, float)) else dur
     sh.transition_in = r.s("transition_in", "cut", TRANSITIONS) or "cut"
+    if r.has("in") or r.has("out"):
+        from .marks import parse_edge
+
+        sh.edge_in = parse_edge(r.raw("in"), r._p("in"), r.errs)
+        sh.edge_out = parse_edge(r.raw("out"), r._p("out"), r.errs)
     if r.has("formats"):
         _check_shot_formats(r.raw("formats"), f"{r.path}.formats", r.errs)
     if sh.source.kind != "image" and sh.motion.type == "parallax":
@@ -956,6 +963,7 @@ def parse_reel(d: Any, base_dir: str | None = None) -> Reel:
             errs.append(f"shots[{i}].id: duplicate shot id {sh.id!r}")
         seen.add(sh.id)
         reel.shots.append(sh)
+    _resolve_marks(reel, base_dir, errs)
     if r.has("end_card") and r.raw("end_card") is not None:
         reel.end_card = _parse_end_card(r.sub("end_card"))
     if r.has("formats"):
@@ -977,6 +985,33 @@ def parse_reel(d: Any, base_dir: str | None = None) -> Reel:
 # --------------------------------------------------------------------------- #
 # Formats: one edit, several output sizes
 # --------------------------------------------------------------------------- #
+def _resolve_marks(reel: Reel, base_dir: str | None, errs: list[str]) -> None:
+    """Turn each shot's in/out marks into the source's trim, from the clip's <scene>.marks.json (spec 3.1)."""
+    from ..config import resolve_path
+    from .marks import resolve_trim
+
+    for sh in reel.shots:
+        if sh.edge_in is None and sh.edge_out is None:
+            continue
+        where = f"shots[{sh.id}]"
+        if sh.source.kind != "video":
+            errs.append(f"{where}: in/out need a video source (a recorded clip)")
+            continue
+        if sh.source.trim is not None:
+            errs.append(f"{where}: give source.trim or in/out, not both")
+            continue
+        try:
+            clip = resolve_path(sh.source.value, base_dir)
+        except FileNotFoundError:
+            continue  # a missing clip is reported by validate's file check
+        except ValueError as e:
+            errs.append(f"{where}: {e}")
+            continue
+        trim = resolve_trim(clip, sh.edge_in, sh.edge_out, where, errs)
+        if trim is not None:
+            sh.source.trim = trim
+
+
 def parse_formats(v: Any, errs: list[str]) -> list[Format]:
     """``formats``: a list of preset ids ("9x16", "16x9", "1x1", "4x5") and/or {id, width, height, safe_area}."""
     out: list[Format] = []

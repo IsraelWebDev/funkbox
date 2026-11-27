@@ -191,6 +191,19 @@ def auto_reel(
     err = P.copy_lock_error(slug)
     if err:
         raise ReelError([f"project_auto_reel needs approved copy: {err}"])
+    # spec 3.3: no build until the intake is written (audience, what to omit, footage, names, voice)
+    from . import guard
+
+    try:
+        if guard.load_intake(d) is None:
+            raise ReelError(
+                [
+                    f"project_auto_reel needs an intake first: write {d / guard.INTAKE_FILE} "
+                    "(audience, length, omit, sources, names, voiceover)"
+                ]
+            )
+    except guard.GuardError as e:
+        raise ReelError([str(e)]) from None
     if pace not in PACE_SECONDS:
         raise ReelError([f"pace must be one of {sorted(PACE_SECONDS)}"])
     if style not in captions.list_styles():

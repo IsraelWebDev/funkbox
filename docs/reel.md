@@ -291,6 +291,30 @@ prefixes problems with `[16x9]`. Safe areas: `reels` (keeps captions clear of th
 `product_every` (2 = every other shot, 0 = only on the end card), `formats`, `bpm`.
 
 
+## Recorded clips with marks, the PII guard, intake and frame review
+
+**Recorded clips (`funkbox reel record`).** A scene file drives a live page in Chromium (Playwright, optional: `pip install playwright`, `playwright install chromium`) and writes `inputs/<scene>.webm` and `<scene>.marks.json` (mark name to seconds). Recording is off unless you pass `--record`. The browser may only load the scene's own origin, and logs never print a step's text.
+
+```json
+{"url": "https://example.test/app",
+ "steps": [
+   {"do": "fill", "selector": "#name", "text": "Alex Example", "pause_ms": 600, "mark": "name-entered"},
+   {"do": "click", "selector": "button[type=submit]", "pause_ms": 400, "mark": "submitted"},
+   {"do": "wait_for", "text": "Saved", "mark": "result"}]}
+```
+
+A shot cuts on marks instead of times: `"in": {"mark": "name-entered"}` and `"out": {"mark": "result", "offset_ms": 300}`, on a video source. Both edges go together. Each edge is seconds or a mark. Re-recording moves the cut to the same mark with no reel edit. A missing mark, a missing `marks.json`, or an `out` before `in` is an error naming the field.
+
+**PII guard (`project.pii.json`).** Git-ignored (`project_new` writes the ignore line). It lists `forbidden` strings and `patterns` (`{"name", "regex"}`). Any copy line that matches fails `validate` and `render`. The report gives the copy id and the rule, never the matched text. Only copy lines are checked; footage is not OCR'd.
+
+**Intake (`intake.json`).** Written by the skill before a shot list: audience, `length_s`, `omit` (strings), `sources` (footage, recording or generated), `names`, `voiceover`. `project_auto_reel` refuses to build without it. Each `omit` entry fails any shot whose id, source file name or copy text contains it, reported by entry number. Save one with `funkbox project intake <name> intake.json`.
+
+**Project style (`project-style.md`).** Created by `project_new` with the user's rules, and a dated `## Corrections` section. Each copy draft reports how many corrections were read. Add one with `funkbox project correct <name> "<text>"`.
+
+**Slack.** A shot that keeps under 0.3 s after its voice line gets a warning naming the shot.
+
+**Frame review (`funkbox reel review <reel>`).** Reads `out/<name>.mp4` (render first) and writes `out/review/<name>-review.png`: the first and last frame of each shot, and the final frame. Look at it before you call a render done.
+
 ## Plan-driven renders (proposed, not live)
 
 The tools and their input schemas are listed in [docs/catalog.json](https://github.com/IsraelWebDev/funkbox/blob/main/docs/catalog.json). The file is generated from the MCP server: `python -m funkbox catalog` (`--check` verifies it). The website is proposed to plan a render from this catalog: an AI planner writes a plan of these tools, the server checks the plan, and a preview runs it at low resolution or shows a storyboard before a paid render runs the same stored plan. Nothing here changes how the local tools work today. Decision and sign-offs: [docs/adr-plan-driven-renders.md in IsraelWebDev/funkbox-online](https://github.com/IsraelWebDev/funkbox-online/blob/main/docs/adr-plan-driven-renders.md).

@@ -445,6 +445,58 @@ def cmd_timeline(a) -> int:
     return 0
 
 
+def cmd_record(a) -> int:
+    """Spec 3.1: drive a scene's page in Chromium and write its clip and marks. Off unless --record."""
+    from funkbox.reel import marks
+
+    try:
+        res = marks.record_scene(a.scene, a.out, enabled=a.record)
+    except marks.MarksError as e:
+        return _err(str(e))
+    print(f"clip:  {res['clip']}")
+    print(f"marks: {res['marks']} ({', '.join(res['mark_names']) or 'none'})")
+    print(f"length: {res['duration_s']:.2f}s")
+    return 0
+
+
+def cmd_review(a) -> int:
+    """Spec 3.6: write the frame review sheet of a rendered reel. Look at it before calling the render done."""
+    from funkbox.reel import review
+
+    try:
+        dest = review.review_sheet(a.reel, a.render, a.out)
+    except (review.ReviewError, ValueError, OSError) as e:
+        return _err(str(e))
+    print(f"review sheet: {dest}")
+    return 0
+
+
+def cmd_project_intake(a) -> int:
+    """Spec 3.3: write projects/<name>/intake.json from a JSON file (checked first)."""
+    from funkbox.reel import guard
+    from funkbox.reel import project as P
+
+    try:
+        d = json.loads(Path(a.file).read_text(encoding="utf-8-sig"))
+        f = guard.write_intake(P.project_dir(a.project), d)
+    except (guard.GuardError, ValueError, OSError) as e:
+        return _err(str(e))
+    print(f"intake saved: {f}")
+    return 0
+
+
+def cmd_project_correct(a) -> int:
+    """Spec 3.4: append a dated correction to the project's style file (read before the next copy draft)."""
+    from funkbox.reel import project as P
+
+    try:
+        line = P.add_correction(a.project, a.text)
+    except (P.ProjectError, ValueError, OSError) as e:
+        return _err(str(e))
+    print(f"saved to {P.STYLE_FILE}: {line}")
+    return 0
+
+
 def add_cli(sub) -> None:
     ap = sub.add_parser("reel", help="shot list -> vertical video ad: validate, storyboard, still, render, ...")
     rsub = ap.add_subparsers(
@@ -531,17 +583,35 @@ def add_cli(sub) -> None:
     p.add_argument("--threshold", type=int, default=12, help="grey-level change that counts (0-255, default 12)")
     p.add_argument("--json", action="store_true", help="print rect, focus, frames and changed as JSON")
     p.set_defaults(fn=cmd_activity)
+    p = rsub.add_parser("record", help="record a scene (Playwright) into <scene>.webm + <scene>.marks.json")
+    p.add_argument("scene", help="a scene .json: url and steps with marks")
+    p.add_argument("--record", action="store_true", help="required: runs the browser (off by default)")
+    p.add_argument("--out", help="output folder (default: inputs/ beside the scene)")
+    p.set_defaults(fn=cmd_record)
+    p = rsub.add_parser("review", help="frame review sheet: first and last frame of each shot + the final frame")
+    p.add_argument("reel")
+    p.add_argument("--render", help="the rendered mp4 (default: out/<reel>.mp4)")
+    p.add_argument("--out", help="output folder (default: out/ beside the reel)")
+    p.set_defaults(fn=cmd_review)
 
     ap = sub.add_parser("project", help="projects: new, ingest, brand, copy, auto, render, shortcuts")
     psub = ap.add_subparsers(
         dest="verb",
         required=True,
-        metavar="{new,list,ingest,set-product,brand,set-brand,propose-copy,approve-copy,"
+        metavar="{new,intake,correct,list,ingest,set-product,brand,set-brand,propose-copy,approve-copy,"
         "copy-diff,auto,render,shortcuts}",
     )
     p = psub.add_parser("new", help="start a project (folder under projects/)")
     p.add_argument("name")
     p.set_defaults(fn=cmd_project_new)
+    p = psub.add_parser("intake", help="write intake.json (audience, omit, footage, names, voice) from a JSON file")
+    p.add_argument("project")
+    p.add_argument("file")
+    p.set_defaults(fn=cmd_project_intake)
+    p = psub.add_parser("correct", help="record a correction in project-style.md (read before the next copy draft)")
+    p.add_argument("project")
+    p.add_argument("text")
+    p.set_defaults(fn=cmd_project_correct)
     p = psub.add_parser("list", help="list projects and their status")
     p.set_defaults(fn=cmd_project_list)
     p = psub.add_parser("ingest", help="classify and file what is in the inbox (or --source FOLDER)")

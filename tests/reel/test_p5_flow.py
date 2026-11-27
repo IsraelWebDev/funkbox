@@ -111,6 +111,7 @@ def test_whole_flow_over_stdio_to_a_draft_render_and_the_text_audit_passes(penv,
     async def go(s):
         r = {}
         r["new"] = txt(await s.call_tool("project_new", {"name": "Glowmop"}))
+        synth.write_intake("glowmop")  # the intake step the skill does before auto_reel (spec 3.3)
         r["list0"] = txt(await s.call_tool("project_list", {}))
         ing = await s.call_tool("project_ingest", {"project": "glowmop"})
         r["ingest"], r["ingest_img"] = txt(ing), n_images(ing)
@@ -212,6 +213,7 @@ def test_cli_has_the_same_verbs(penv, gl):
     ext = synth.mixed_folder(penv / "dropbox", with_product_jpg=False, n_scenes=3)
     r = cli(penv, "project", "new", "Glow Mop")
     assert r.returncode == 0 and "glow-mop" in r.stdout, r.stderr
+    synth.write_intake("glow-mop")  # intake before auto (spec 3.3)
     r = cli(penv, "project", "ingest", "glow-mop", "--source", ext)
     assert r.returncode == 0 and "product: product/product.png" in r.stdout, r.stderr
     assert (ext / "track.mp3").exists()  # external source untouched

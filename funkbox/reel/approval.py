@@ -172,7 +172,11 @@ def propose_copy(slug: str, lines: dict, pronounce: dict | None = None, brand_na
 
 
 def propose_text(res: dict, slug: str) -> str:
-    return (
+    from . import project as P
+
+    # spec 3.4: the project's style and corrections are read with every draft
+    style = f"Style read first: {P.correction_count(slug)} correction(s) in {P.STYLE_FILE}.\n"
+    return style + (
         f"DRAFT copy for {slug!r}, {res['lines']} line(s). Nothing is approved yet.\n\n{res['listing']}\n\n"
         f"draft_sha256: {res['draft_sha256']}\n\n{res['instruction']}"
     )

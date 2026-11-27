@@ -137,6 +137,23 @@ COPY_LINES = {
 }
 
 
+INTAKE = {
+    "audience": "tradeshow loop",
+    "length_s": 20,
+    "omit": [],
+    "sources": ["footage"],
+    "names": [],
+    "voiceover": {"enabled": False},
+}
+
+
+def write_intake(slug: str) -> Path:
+    """The intake that project_auto_reel requires (spec 3.3). Tests write it once a project exists."""
+    from funkbox.reel import guard, project as P
+
+    return guard.write_intake(P.project_dir(slug), INTAKE)
+
+
 def make_project(
     slug="demo",
     scenes=3,
@@ -152,6 +169,7 @@ def make_project(
     from funkbox.reel import approval, brand, ingest, project as P
 
     P.new_project(slug)
+    write_intake(slug)
     inbox = inbox or P.inbox_dir()
     inbox.mkdir(parents=True, exist_ok=True)
     if product:

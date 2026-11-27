@@ -142,8 +142,50 @@ def new_project(name: str) -> dict:
         "notes": [],
     }
     _write_json_atomic(d / "project.json", meta)
+    (d / STYLE_FILE).write_text(STYLE_TEMPLATE.format(name=meta["name"]), encoding="utf-8")
+    gi = d / ".gitignore"  # spec 3.2: the forbidden-strings file never goes into version control
+    if not gi.exists() or "project.pii.json" not in gi.read_text(encoding="utf-8"):
+        gi.write_text((gi.read_text(encoding="utf-8") if gi.exists() else "") + "project.pii.json\n", encoding="utf-8")
     ensure_inbox()
     return meta
+
+
+STYLE_FILE = "project-style.md"  # spec 3.4: corrections the user made, read before each copy draft
+STYLE_TEMPLATE = """# Project style: {name}
+
+Rules the user has set (keep these):
+- Write for end users, not for developers.
+- No internal terms and no ticket numbers.
+- No superlatives, and no claim the screen does not show.
+
+## Corrections
+
+"""
+
+
+def style_text(slug: str) -> str:
+    """The project's style file (rules and dated corrections); created from the template if it is missing."""
+    f = project_dir(slug) / STYLE_FILE
+    if not f.exists():
+        f.write_text(STYLE_TEMPLATE.format(name=load_meta(slug).get("name", slug)), encoding="utf-8")
+    return f.read_text(encoding="utf-8")
+
+
+def correction_count(slug: str) -> int:
+    t = style_text(slug)
+    return sum(1 for ln in t.splitlines() if ln.startswith("- ") and ": " in ln and ln[2:12].count("-") == 2)
+
+
+def add_correction(slug: str, text: str) -> str:
+    """Append a dated correction under ## Corrections. One line, at most 300 characters."""
+    text = " ".join(str(text).split())
+    if not text or len(text) > 300:
+        raise ProjectError("a correction is one line of 1 to 300 characters")
+    f = project_dir(slug) / STYLE_FILE
+    style_text(slug)  # make sure the file exists
+    line = f"- {now_iso()[:10]}: {text}\n"
+    f.write_text(f.read_text(encoding="utf-8").rstrip("\n") + "\n" + line, encoding="utf-8")
+    return line.strip()
 
 
 def list_projects() -> list[dict]:
