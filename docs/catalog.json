@@ -429,9 +429,20 @@
     },
     {
       "area": "loop",
-      "description": "GPU renderer/version, bundled shader names and the output folders.",
+      "description": "GPU renderer/version, bundled shader names and the output folders.\n\nbench_frames > 0 also times that many 1080x1920 frames on this machine (like `funkbox doctor --bench`; 30 is\nplenty) and estimates how long the frames of a video of `video_seconds` take to draw here, so you can tell the\nuser before a long render. Encoding and audio add to the estimate.",
       "input_schema": {
-        "properties": {},
+        "properties": {
+          "bench_frames": {
+            "default": 0,
+            "title": "Bench Frames",
+            "type": "integer"
+          },
+          "video_seconds": {
+            "default": 20.0,
+            "title": "Video Seconds",
+            "type": "number"
+          }
+        },
         "title": "loop_gl_infoArguments",
         "type": "object"
       },

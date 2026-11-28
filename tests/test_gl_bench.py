@@ -91,3 +91,52 @@ def test_doctor_bench_failure_is_reported(monkeypatch, capsys, tmp_path):
     monkeypatch.setattr(bench, "run", boom)
     assert cli.cmd_doctor(cli.build_parser().parse_args(["doctor", "--bench"])) == 1
     assert "FAIL bench" in capsys.readouterr().out
+
+
+def test_doctor_bench_seconds_sets_the_estimated_length(monkeypatch, capsys, tmp_path):
+    _doctor_env(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        bench, "run", lambda frames=30, **kw: bench.BenchResult("liquid-disco", 1080, 1920, frames, 1.0, "Fake", False)
+    )
+    args = cli.build_parser().parse_args(["doctor", "--bench", "--bench-seconds", "45"])
+    assert cli.cmd_doctor(args) == 0
+    out = capsys.readouterr().out
+    assert "a 45 s 1080x1920 video" in out and "about 45 s to draw" in out  # 1350 frames at 30 frames/s
+
+
+def _fake_gl_info(monkeypatch):
+    from funkbox.loops import tools
+
+    monkeypatch.setattr(tools, "_gl_info", lambda: {"GL_RENDERER": "Fake GPU", "GL_VERSION": "3.3"})
+    return tools
+
+
+def test_loop_gl_info_bench_from_mcp(monkeypatch):
+    tools = _fake_gl_info(monkeypatch)
+    calls = []
+
+    def fake_run(frames=30, **kw):
+        calls.append(frames)
+        return bench.BenchResult("liquid-disco", 1080, 1920, frames, 2.0, "Fake GPU", False)
+
+    monkeypatch.setattr(bench, "run", fake_run)
+    out = tools.loop_gl_info(bench_frames=20, video_seconds=15)
+    assert calls == [20]
+    assert "GL_RENDERER: Fake GPU" in out
+    assert "20 frames of 'liquid-disco'" in out and "= 10.0 frames/s (GPU: Fake GPU)" in out
+    assert "a 15 s 1080x1920 video at 30 fps needs about 45 s" in out
+
+
+def test_loop_gl_info_without_bench_does_not_render(monkeypatch):
+    tools = _fake_gl_info(monkeypatch)
+    monkeypatch.setattr(bench, "run", lambda **kw: pytest.fail("bench ran without bench_frames"))
+    out = tools.loop_gl_info()
+    assert "GL_RENDERER: Fake GPU" in out and "bench:" not in out
+
+
+def test_loop_gl_info_bench_rejects_bad_input(monkeypatch):
+    tools = _fake_gl_info(monkeypatch)
+    monkeypatch.setattr(bench, "run", lambda **kw: pytest.fail("bench ran with bad input"))
+    assert tools.loop_gl_info(bench_frames=-1).startswith("ERROR")
+    assert tools.loop_gl_info(bench_frames=tools.MAX_BENCH_FRAMES + 1).startswith("ERROR")
+    assert tools.loop_gl_info(bench_frames=10, video_seconds=0).startswith("ERROR")
