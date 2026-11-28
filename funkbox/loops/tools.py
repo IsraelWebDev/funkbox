@@ -135,15 +135,32 @@ def _loop_line(rep) -> str:
     )
 
 
+MAX_BENCH_FRAMES = 300
+
+
 @safe
-def loop_gl_info() -> str:
-    """GPU renderer/version, bundled shader names and the output folders."""
+def loop_gl_info(bench_frames: int = 0, video_seconds: float = 20.0) -> str:
+    """GPU renderer/version, bundled shader names and the output folders.
+
+    bench_frames > 0 also times that many 1080x1920 frames on this machine (like `funkbox doctor --bench`; 30 is
+    plenty) and estimates how long the frames of a video of `video_seconds` take to draw here, so you can tell the
+    user before a long render. Encoding and audio add to the estimate."""
     info = on_gl(_gl_info)
-    return (
+    text = (
         f"GL_RENDERER: {info['GL_RENDERER']}\nGL_VERSION: {info['GL_VERSION']}\n"
         f"shaders: {', '.join(_shader_names())}\n"
         f"output dir: {funk_out()}\ninputs dir (put images here): {funk_inputs()}"
     )
+    if bench_frames:
+        if not 1 <= bench_frames <= MAX_BENCH_FRAMES:
+            raise ValueError(f"bench_frames: give 0 (no bench) or 1-{MAX_BENCH_FRAMES}")
+        if not 0 < video_seconds <= 600:
+            raise ValueError("video_seconds: give a length between 0 and 600 seconds")
+        from funkbox.gl import bench
+
+        res = on_gl(lambda: bench.run(frames=bench_frames))
+        text += "\n" + bench.report(res, video_seconds=video_seconds)
+    return text
 
 
 @safe

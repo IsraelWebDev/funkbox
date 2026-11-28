@@ -57,7 +57,7 @@ retired v1 CPU renderer: same looks, not the same pixels.
 | `loop_render` | the real MP4 + PNG + JSON (GIF opt-in). Takes a recipe or `look` |
 | `loop_write_shader`, `loop_get_shader` | write GLSL with line-numbered errors and the loop check; read a shader |
 | `loop_still` | one frame of a recipe, a `look` or a shader as a poster-sized PNG. `preset` is the canvas size (square, story, landscape ...), not the look |
-| `loop_gl_info` | renderer, version, shader names, folders |
+| `loop_gl_info` | renderer, version, shader names, folders; `bench_frames=30` also times this machine and estimates a `video_seconds` render |
 
 The closed options are enums in each tool's schema, so a client can list them without reading this page: the looks
 (`look`), canvas sizes (`loop_still` `preset`), palettes, effects, blend modes and layer types inside a recipe, aspects,

@@ -97,7 +97,8 @@ def cmd_doctor(args) -> int:
         try:
             from funkbox.gl import bench
 
-            print(bench.report(bench.run(frames=args.bench_frames)))
+            res = bench.run(frames=args.bench_frames)
+            print(bench.report(res, video_seconds=getattr(args, "bench_seconds", 20.0)))
         except Exception as e:  # noqa: BLE001
             line(False, "bench", f"{type(e).__name__}: {e}")
     return 1 if problems else 0
@@ -152,6 +153,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="also time a few 1080x1920 frames on this machine and estimate a 20 s Short's render",
     )
     doc.add_argument("--bench-frames", type=int, default=30, metavar="N", help="frames to time (default 30)")
+    doc.add_argument(
+        "--bench-seconds",
+        type=float,
+        default=20.0,
+        metavar="S",
+        help="length of the video to estimate, in seconds (default 20)",
+    )
     doc.set_defaults(fn=cmd_doctor)
     sub.add_parser("serve", help="run the MCP server (stdio)").set_defaults(fn=cmd_serve)
     from pathlib import Path
